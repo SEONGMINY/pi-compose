@@ -11,9 +11,9 @@ const launchInputSchema = z.object({
   context: z.enum(['fork', 'independent'], { error: 'Choose --context fork|independent' }),
   workspace: z.enum(['shared', 'worktree'], { error: 'Choose --workspace shared|worktree' }),
   cwd: z.string().optional(),
-  sourceSessionFile: z.string().trim().min(1).optional(),
-  branch: z.string().trim().min(1).optional(),
-  base: z.string().trim().min(1).optional(),
+  sourceSessionFile: z.string().optional(),
+  branch: z.string().optional(),
+  base: z.string().optional(),
 }).superRefine((input, ctx) => {
   const issue = (path: string, message: string) => ctx.addIssue({ code: 'custom', path: [path], message });
   if (input.context === 'fork' && !input.sourceSessionFile) issue('sourceSessionFile', 'Fork requires --source-session-file (never guess the Main session)');
