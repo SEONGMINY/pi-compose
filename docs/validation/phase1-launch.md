@@ -11,10 +11,10 @@
 
 | 파일 | 책임 |
 | --- | --- |
-| [`src/launch.mjs`](../../src/launch.mjs) | 실행 요청 검증, Pi 세션 헤더 확인, Git 기준 확인, 도구별 명령 계획 생성, 기존 명령 호출 |
-| [`bin/pi-compose.mjs`](../../bin/pi-compose.mjs) | `launch` 진입점·`--dry-run`·요약 JSON 출력 |
-| [`extensions/compose.mjs`](../../extensions/compose.mjs) | Pi `/compose launch [task]` 및 `/compose preview [task]` 명령, 공통 Launch 재사용 |
-| [`test/launch.test.mjs`](../../test/launch.test.mjs) | 네 가지 실행 조합·오류·안전한 인자 처리 테스트 |
+| [`src/launch.ts`](../../src/launch.ts) | 실행 요청 검증, Pi 세션 헤더 확인, Git 기준 확인, 도구별 명령 계획 생성, 기존 명령 호출 |
+| [`bin/pi-compose.ts`](../../bin/pi-compose.ts) | `launch` 진입점·`--dry-run`·요약 JSON 출력 |
+| [`extensions/compose.ts`](../../extensions/compose.ts) | Pi `/compose launch [task]` 및 `/compose preview [task]` 명령, 공통 Launch 재사용 |
+| [`test/launch.test.ts`](../../test/launch.test.ts) | 네 가지 실행 조합·오류·안전한 인자 처리 테스트 |
 | [`package.json`](../../package.json) | 외부 런타임 의존성 없는 최소 Node 실행 구성 |
 
 ## 2. 네 가지 실행 조합
@@ -30,7 +30,7 @@
 
 ```bash
 # 커밋·Worktree 생성 없이 실행 계획만 확인
-node bin/pi-compose.mjs launch \
+node bin/pi-compose.ts launch \
   --task "회원 API 구현" \
   --context fork \
   --source-session-file /path/to/main.jsonl \
@@ -40,7 +40,7 @@ node bin/pi-compose.mjs launch \
   --dry-run
 
 # 실제 실행은 --dry-run을 제거한 명시적인 launch 명령
-# node bin/pi-compose.mjs launch ... 
+# node bin/pi-compose.ts launch ... 
 ```
 
 ### 보존하는 규칙
@@ -57,7 +57,7 @@ node bin/pi-compose.mjs launch \
 
 ## 3. 검증 결과
 
-격리 환경의 Node.js `22.16.0`에서 `node --test`를 실행해 **11개 단위 테스트 모두 통과**했다. Node.js 기본 모듈만 사용하므로 테스트 자체는 이 버전에서 수행 가능했다.
+**2026-10-25 GitHub Actions Node 22.19.0:** `npm run check`로 `tsc --noEmit` 타입 검사와 **16개 단위 테스트(기존 11개 + Zod 경계 검증 5개) 모두 통과**했다. [CI 실행 결과](https://github.com/SEONGMINY/pi-compose/actions/runs/40120952751).
 
 또 임시 Git 저장소에서 실제 Git을 사용한 두 종류의 `--dry-run`을 실행했다.
 
@@ -94,3 +94,14 @@ CLI에 모든 옵션을 직접 입력하는 경험을 최종 사용자 경험으
 - **Handoff 연결 시 확인할 것:** 완료 신호와 Git 스냅샷의 관계, 중복 기본 검사.
 
 검증을 미루는 것은 검증했다고 주장하는 일이 아니다. **불확실성을 근거와 함께 기록하고 필요한 시점에 확인**한다.
+
+## 6. TypeScript 및 Zod 리팩터링 (2026-10-25)
+
+- Node.js `>=22.19.0` 기본 TypeScript type stripping을 활용해 CLI를 별도 빌드 없이 직접 실행한다. Pi Extension은 Pi 공식 `jiti` 로더가 TypeScript 소스를 처리한다. `tsconfig.json`은 `strict`, `noEmit`, `NodeNext`, `erasableSyntaxOnly`를 설정했다.
+- 외부 Launch 입력의 옵션 값과 조합은 **Zod 스키마 단일 정의**로 검증한다. 입력 타입은 `z.infer`에서 추론하고, 기존 `validateRequest()` 호출 방식은 유지한다.
+- Pi 세션 JSONL은 **첫 헤더만** 읽어 `type`, `id`, `cwd`를 Zod로 검증하며, 대화 본문을 불필요하게 읽지 않는다.
+- Git이 반환하는 기준 커밋 SHA와 저장소 루트는 외부 경계 검증을 한다. 브랜치 이름의 상세 규칙은 Git `check-ref-format`이 처리한다. Workmux의 일반 텍스트 출력을 고정 JSON 스키마인 것처럼 검증하지 않는다.
+- 내부 `LaunchPlan`, Process runner/결과, Pi 세션 참조는 TypeScript 타입으로 표현하며 Zod를 중복 적용하지 않는다.
+- 이전 `.mjs` 네 파일은 제거했고 `.ts`로 이동했다. 기존 CLI 옵션·Pi `/compose` 명령·네 가지 Launch 조합과 오류 안전장치는 유지한다.
+- 의존성: 런타임 `zod@4.6.5`; 타입 검사용 `typescript~5.8.3`, `@types/node`, `@earendil-works/pi-coding-agent@1.4.0` (개발 및 peer). 별도 번들러나 `tsx` 없음.
+- **실사용 Pi·workmux 통합은 아직 검증하지 않았다.** 현재 통과는 실제 설치가 가능한 CI 환경에서 수행한 타입 검사와 모의·입력 검증 테스트를 의미한다.
