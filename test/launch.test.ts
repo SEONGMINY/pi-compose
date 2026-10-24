@@ -129,22 +129,22 @@ test('Zod rejects invalid enum values and whitespace-only task', () => {
   assert.throws(() => validateRequest({ task: 'x', context: 'wrong', workspace: 'shared' }), /fork\|independent/);
   assert.throws(() => validateRequest({ task: 'x', context: 'independent', workspace: 'bad' }), /shared\|worktree/);
   assert.throws(() => validateRequest({ task: '   ', context: 'independent', workspace: 'shared' }), /task/);
-  assert.throws(() => validateRequest({ task: 'good\\0bad', context: 'independent', workspace: 'shared' }), /NUL/);
+  assert.throws(() => validateRequest({ task: 'good\0bad', context: 'independent', workspace: 'shared' }), /NUL/);
 });
 
-test('Zod normalizes task and branch at external-input boundary', () => {
+test('Zod normalizes task but preserves branch for Git validation', () => {
   const parsed = validateRequest({ task: '  Explore  ', context: 'independent', workspace: 'worktree', branch: ' feat/ui ' });
   assert.equal(parsed.task, 'Explore');
-  assert.equal(parsed.branch, 'feat/ui');
+  assert.equal(parsed.branch, ' feat/ui ');
 });
 
 test('Pi session JSONL header must have expected field types', async t => {
   const { cwd, file } = await setup(t);
-  await writeFile(file, JSON.stringify({ type: 'session', id: 123, cwd }) + '\\n');
+  await writeFile(file, JSON.stringify({ type: 'session', id: 123, cwd }) + '\n');
   await assert.rejects(() => planLaunch({ task: 'x', context: 'fork', workspace: 'shared', cwd, sourceSessionFile: file }), /session header requires/);
-  await writeFile(file, JSON.stringify({ type: 'session', id: 'main', cwd: 42 }) + '\\n');
+  await writeFile(file, JSON.stringify({ type: 'session', id: 'main', cwd: 42 }) + '\n');
   await assert.rejects(() => planLaunch({ task: 'x', context: 'fork', workspace: 'shared', cwd, sourceSessionFile: file }), /session header requires/);
-  await writeFile(file, 'not-json\\n');
+  await writeFile(file, 'not-json\n');
   await assert.rejects(() => planLaunch({ task: 'x', context: 'fork', workspace: 'shared', cwd, sourceSessionFile: file }), /JSONL header/);
 });
 
