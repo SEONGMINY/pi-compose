@@ -39,7 +39,15 @@
 
 참고: [Pi 문서](https://github.com/earendil-works/pi) · [workmux Workflows](https://github.com/raine/workmux/blob/main/docs/src/content/docs/guide/workflows.md) · [workmux Dashboard](https://github.com/raine/workmux/blob/main/docs/src/content/docs/guide/dashboard/index.mdx) · [pi-agent-hub Fork 구현](https://github.com/masta-g3/pi-agent-hub/blob/main/src/app/session-lifecycle.ts).
 
-## 3. Extension / Skill / Script 역할
+## 3. 코드 언어 및 런타임 검증 경계
+
+- **TypeScript:** `strict` + `tsc --noEmit`으로 내부 실행 계획, CLI, Pi Extension과 테스트의 정적 타입을 확인한다. Node.js `>=22.19.0`의 내장 type stripping으로 CLI `.ts`를 직접 실행하며, Pi Extension은 공식 `jiti` TypeScript 로더로 실행한다. 별도 번들러가 필요하지 않다.
+- **Zod:** 사용자/CLI/Pi UI가 넘기는 Launch 요청, 외부 Pi JSONL 헤더, Git 커밋 SHA·저장소 루트를 시스템 유입 경계에서 검증한다. `z.infer`로 Launch 입력 타입을 추론하며 스키마·타입을 중복 정의하지 않는다. 내부 실행 계획에는 TypeScript 타입을 사용한다.
+- **Git 경계:** 브랜치 이름의 실제 문법은 `git check-ref-format`을 이용한다. 외부 Workmux 응답의 안정적인 구조가 확인되기 전에는 임의의 Zod 스키마를 발명하지 않는다.
+- **의존성:** `zod`는 런타임 의존성, TypeScript·Node 타입·Pi 공식 타입은 개발 의존성. Pi 호스트 패키지는 peer 의존성으로 참조하며 중복 런타임 설치를 강제하지 않는다.
+- **상태:** CI Node 22.19 환경에서 strict 타입 검사와 16개 테스트가 통과했으나 실제 Pi/workmux 통합은 미검증.
+
+## 4. Extension / Skill / Script 역할
 
 | 요소 | 추천 책임 | 피해야 할 사용 |
 | --- | --- | --- |
