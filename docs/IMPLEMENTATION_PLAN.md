@@ -40,6 +40,8 @@ flowchart TD
 
 ## 3. Phase 0 — 기존 기능과 호환성 확인
 
+> **상태: 부분 검증으로 종료.** 현재 의사결정에 반드시 필요하지 않은 Pi·workmux 실연동 검증은 기능을 실제 연결·실행할 때 수행한다. [검증 기록](validation/phase0-baseline.md). 이 미검증 항목은 Phase 1을 차단하지 않는다.
+
 ### 수행
 
 1. 실제 테스트 환경의 Pi, Git, tmux, Node, workmux 버전을 기록한다. `Pi v1.4.0`과 `workmux v0.1.277`은 **조사 당시 버전**이지 영구 고정 의존성이 아니다.
@@ -61,6 +63,8 @@ flowchart TD
 **P0에서 제품 기능을 축소하지 않는다.** 불충분한 패키지라면 보완 비용과 사용 비용을 평가한다. 큰 POC는 필요가 확인된 부분에만 적용한다.
 
 ## 4. Phase 1 — 공통 Launch
+
+> **상태: 일부 구현.** CLI Launch와 Pi `/compose launch|preview` 명시적 명령을 작성하고 11개 단위 테스트를 통과했다. 실사용 Pi·workmux 연동 및 자연어 Tool·Dashboard 경로는 남아 있다. [구현 범위와 검증 기록](validation/phase1-launch.md).
 
 ### 구현 범위
 
