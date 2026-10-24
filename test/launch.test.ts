@@ -44,18 +44,18 @@ test('fork + shared launches Pi via tmux with exact session file', async t => {
   const { cwd, file } = await setup(t);
   const plan = await planLaunch({ task: "Member API; echo 'unsafe'", context: 'fork', workspace: 'shared', cwd, sourceSessionFile: file }, { id: () => 'fixed' });
   assert.equal(plan.program, 'tmux');
-  assert.equal(plan.source.id, 'main-123');
+  assert.equal(plan.source?.id, 'main-123');
   assert.equal(plan.tmuxTarget, 'pc-member-api-echo-unsa-fixed');
   assert.equal(plan.args[0], 'new-session');
-  assert.equal(plan.args.at(-1).includes("'--fork'"), true);
-  assert.equal(plan.args.at(-1).includes("'Member API; echo '\\''unsafe'\\'''"), true);
+  assert.equal((plan.args.at(-1) ?? '').includes("'--fork'"), true);
+  assert.equal((plan.args.at(-1) ?? '').includes("'Member API; echo '\\''unsafe'\\'''"), true);
 });
 
 test('independent + shared does not fork', async t => {
   const { cwd } = await setup(t);
   const plan = await planLaunch({ task: 'Explore tests', context: 'independent', workspace: 'shared', cwd }, { id: () => 'fixed' });
   assert.equal(plan.program, 'tmux');
-  assert.ok(!plan.args.at(-1).includes('--fork'));
+  assert.ok(!(plan.args.at(-1) ?? '').includes('--fork'));
 });
 
 test('fork + worktree maps to workmux with explicit source ID and base commit', async t => {
@@ -107,11 +107,12 @@ test('failed launch warns to inspect resources and does not delete anything', as
 
 test('Pi extension registers explicit command and preview does not execute agent', async t => {
   const { cwd } = await setup(t);
-  const { default: composeExtension } = await import('../extensions/compose.mjs');
-  let command: { handler: (args: string, ctx: import('@earendil-works/pi-coding-agent').ExtensionContext) => Promise<void> };
+  const { default: composeExtension } = await import('../extensions/compose.ts');
+  let command: { handler: (args: string, ctx: import('@earendil-works/pi-coding-agent').ExtensionContext) => Promise<void> } | undefined;
   composeExtension({ registerCommand: (name: string, options: typeof command) => { assert.equal(name, 'compose'); command = options; } } as unknown as import('@earendil-works/pi-coding-agent').ExtensionAPI);
   const messages: string[] = [];
   const choices = ['Independent new session', 'Shared directory'];
+  if (!command) throw new Error('Pi extension did not register /compose');
   await command.handler('preview Explore', {
     hasUI: true,
     cwd,
