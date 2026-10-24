@@ -1,7 +1,8 @@
 # Phase 0 실행 검증 — Baseline
 
 - 점검일: **2026-10-25**
-- 구분: **부분 통과 / 실제 Pi + workmux 통합 실행은 환경 제약으로 미수행**
+- 구분: **Phase 0 종료(부분 검증) / 실제 Pi + workmux 통합 실행은 의도적으로 연기**
+- 결정: 현재 구현·설계에 꼭 필요한 검증만 수행한다. 미확정 항목을 이유로 후속 개발을 차단하지 않는다.
 - 관련: [Implementation Plan — Phase 0](../IMPLEMENTATION_PLAN.md#3-phase-0--기존-기능과-호환성-확인), [TRD](../TRD.md)
 - 자동 사전 점검: [`scripts/phase0-preflight.sh`](../../scripts/phase0-preflight.sh)
 - 대상: 격리된 ChatGPT 실행 컨테이너(**사용자의 Mac/로컬 개발 환경이 아님**)
@@ -162,4 +163,4 @@ workmux add feat/phase0-pi --agent pi --fork=<source-session-id>
 
 **미확인:** 최신 Pi + workmux/tmux의 실제 실행, Fork 후 의미적 원본 의도 보존, Shared Directory Dashboard 관찰, 안전한 Resume/Handoff 연계.
 
-**다음 단계:** 실사용 가능한 테스트 머신에서 T0~T5를 실행하고, 결과를 근거로 **기존 CLI만으로 가능한 영역과 추가 Pi Extension/Script가 필요한 실제 기능 공백**을 결정한다. 그 전에 특정 Dashboard·Package를 필수 의존성으로 확정하지 않는다.
+**다음 단계:** [Phase 1 Launch](phase1-launch.md) 구현을 진행한다. T0~T5 중 실제 Pi·workmux 연동이 필요한 검증은 **해당 기능을 실행·연결하는 시점**에 수행한다. 미검증 상태를 명시하되 기술 검증이 사전 Gate가 되지 않도록 한다.
