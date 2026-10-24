@@ -1,0 +1,9 @@
+{
+  "name": "pi-compose",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.19.0" },
+  "bin": { "pi-compose": "./bin/pi-compose.mjs" },
+  "scripts": { "test": "node --test" }
+}
