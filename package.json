@@ -7,14 +7,27 @@
     "node": ">=22.19.0"
   },
   "bin": {
-    "pi-compose": "./bin/pi-compose.mjs"
+    "pi-compose": "./bin/pi-compose.ts"
   },
   "scripts": {
-    "test": "node --test"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.ts",
+    "check": "npm run typecheck && npm test"
   },
   "pi": {
     "extensions": [
-      "extensions/compose.mjs"
+      "extensions/compose.ts"
     ]
+  },
+  "dependencies": {
+    "zod": "4.6.5"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "1.4.0",
+    "@types/node": "^22.18.0",
+    "typescript": "~5.8.3"
   }
 }
