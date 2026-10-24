@@ -48,6 +48,6 @@
 - **제품 방향과 핵심 제약:** 합의됨.
 - **우선 검토 기술:** Pi, Git, tmux, workmux. 외부 대시보드·통신 패키지는 검증 후 선정.
 - **미검증:** 최신 Pi와 workmux의 실사용 통합, Shared Directory 재개·대시보드 관찰, Fork 후 계약 맥락 보존, Handoff와 기본 검사 연결.
-- **현재 진행:** Phase 0은 부분 검증 상태로 종료. Phase 1 공통 Launch CLI(`bin/pi-compose.mjs`, `src/launch.mjs`) 첫 구현과 10개 단위 테스트 완료. 실제 Pi/workmux 실행·대시보드 연동은 아직 미검증.
+- **현재 진행:** Phase 0은 부분 검증 상태로 종료. Phase 1 Launch CLI(`bin/pi-compose.ts`, `src/launch.ts`)·Pi Extension(`extensions/compose.ts`)를 TypeScript로 전환하고 Zod 경계 검증을 적용. `tsc --noEmit` 및 16개 테스트 통과. 실제 Pi/workmux 실행·대시보드 연동은 아직 미검증.
 
 이 문서가 프로젝트별 `AGENTS.md`의 대체물이라는 뜻은 아니다. 구현 단계에서는 레포의 실제 구조와 규칙을 확인한 뒤 필요한 최소 진입점만 추가한다.
