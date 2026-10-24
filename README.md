@@ -2,7 +2,7 @@
 
 Pi를 기반으로 한 개인용 **Composable Coding Agent Harness**.
 
-현재는 설계 문서와 **Phase 1 공통 Launch CLI의 첫 구현**을 제공한다. 아직 실제 Pi·workmux 통합, Pi Extension, Dashboard, Handoff, 자동 검증까지 완료된 제품은 아니다.
+현재는 설계 문서와 **Phase 1 공통 Launch CLI 및 Pi Slash Command의 첫 구현**을 제공한다. 아직 실제 Pi·workmux 통합, Pi Extension의 실제 Pi 로딩, 자연어 Tool, Dashboard, Handoff, 자동 검증까지 완료된 제품은 아니다.
 
 ## 핵심 원칙
 
@@ -47,6 +47,17 @@ node --test
 ```
 
 이 테스트는 **옵션 처리·명령 계획·모의 실행 결과**를 검증한다. 실제 Pi·workmux·Dashboard의 성공을 보장하지 않는다.
+
+## Pi 내부 명령 (현재 미검증)
+
+Pi 공식 Extension API를 사용한 `/compose` 명령의 첫 구현이 들어 있다.
+
+```text
+/compose preview 회원 API 구현
+/compose launch 회원 API 구현
+```
+
+Pi UI에서 Context와 Workspace를 선택한다. Fork라면 원본 세션 JSONL 파일 경로를, Worktree라면 새 브랜치를 입력한다. **실제 Pi 로딩과 실행 동작은 해당 환경에서 확인이 필요**하다.
 
 ## 문서
 
