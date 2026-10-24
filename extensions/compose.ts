@@ -42,8 +42,9 @@ export default function composeExtension(pi: ExtensionAPI): void {
     handler: async (args, ctx) => {
       const [subcommand, ...rest] = args.trim().split(/\s+/);
       if (subcommand === 'dashboard') {
-        const tab = rest[0];
-        if (rest.length > 1 || (tab && tab !== 'agents' && tab !== 'worktrees')) {
+        const requestedTab = rest[0];
+        const tab = requestedTab === 'agents' || requestedTab === 'worktrees' ? requestedTab : undefined;
+        if (rest.length > 1 || (requestedTab && !tab)) {
           ctx.ui.notify('Usage: /compose dashboard [agents|worktrees]', 'warning');
           return;
         }
