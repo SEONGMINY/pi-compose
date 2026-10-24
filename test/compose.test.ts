@@ -25,7 +25,7 @@ type RegisteredCommand = {
   handler: (args: string, ctx: ExtensionContext) => Promise<void>;
 };
 
-function register() {
+function register(exec?: (bin: string, args: string[]) => Promise<{ code: number; stderr: string }>) {
   let command: RegisteredCommand | undefined;
   let tool: RegisteredTool | undefined;
   composeExtension({
@@ -35,6 +35,7 @@ function register() {
     registerTool: (candidate: RegisteredTool) => {
       assert.equal(candidate.name, 'compose_launch'); tool = candidate;
     },
+    exec,
   } as unknown as ExtensionAPI);
   if (!command || !tool) throw new Error('Expected both Pi entry points');
   return { command, tool };
@@ -150,4 +151,62 @@ test('model tool shows exact source ID in its confirmation', async t => {
     } as unknown as ExtensionToolContext);
   assert.match(shown, /chosen-main/);
   assert.deepEqual(result.details, { status: 'cancelled' });
+});
+
+test('dashboard command validates view before invoking tmux', async () => {
+  const calls: Array<{ bin: string; args: string[] }> = [];
+  const { command } = register(async (bin, args) => {
+    calls.push({ bin, args }); return { code: 0, stderr: '' };
+  });
+  const messages: string[] = [];
+  await command.handler('dashboard invalid-tab', {
+    hasUI: true, ui: { notify: (message: string) => messages.push(message) },
+  } as unknown as ExtensionContext);
+  assert.deepEqual(calls, []);
+  assert.match(messages[0] ?? '', /Usage: \/compose dashboard/);
+});
+
+test('dashboard command declines to spawn without a tmux terminal', async t => {
+  const old = process.env.TMUX;
+  delete process.env.TMUX;
+  t.after(() => { if (old === undefined) delete process.env.TMUX; else process.env.TMUX = old; });
+  const calls: string[] = [];
+  const { command } = register(async (bin) => {
+    calls.push(bin); return { code: 0, stderr: '' };
+  });
+  const messages: string[] = [];
+  await command.handler('dashboard', {
+    hasUI: true, ui: { notify: (message: string) => messages.push(message) },
+  } as unknown as ExtensionContext);
+  assert.deepEqual(calls, []);
+  assert.match(messages[0] ?? '', /tmux terminal/);
+});
+
+test('dashboard command opens native workmux UI as a tmux popup', async t => {
+  const old = process.env.TMUX;
+  process.env.TMUX = '/tmp/tmux-placeholder';
+  t.after(() => { if (old === undefined) delete process.env.TMUX; else process.env.TMUX = old; });
+  const calls: Array<{ bin: string; args: string[] }> = [];
+  const { command } = register(async (bin, args) => {
+    calls.push({ bin, args }); return { code: 0, stderr: '' };
+  });
+  await command.handler('dashboard worktrees', {
+    hasUI: true, ui: { notify: () => { throw new Error('Unexpected notification'); } },
+  } as unknown as ExtensionContext);
+  assert.deepEqual(calls, [{
+    bin: 'tmux',
+    args: ['display-popup', '-E', '-w', '90%', '-h', '90%', "'workmux' 'dashboard' '--tab' 'worktrees'"],
+  }]);
+});
+
+test('dashboard command reports workmux/tmux errors without killing Pi sessions', async t => {
+  const old = process.env.TMUX;
+  process.env.TMUX = '/tmp/tmux-placeholder';
+  t.after(() => { if (old === undefined) delete process.env.TMUX; else process.env.TMUX = old; });
+  const { command } = register(async () => ({ code: 1, stderr: 'tmux popup failed' }));
+  const messages: string[] = [];
+  await command.handler('dashboard agents', {
+    hasUI: true, ui: { notify: (message: string) => messages.push(message) },
+  } as unknown as ExtensionContext);
+  assert.match(messages[0] ?? '', /Could not open workmux dashboard: tmux popup failed/);
 });
