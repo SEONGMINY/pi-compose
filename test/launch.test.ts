@@ -109,7 +109,7 @@ test('Pi extension registers explicit command and preview does not execute agent
   const { cwd } = await setup(t);
   const { default: composeExtension } = await import('../extensions/compose.ts');
   let command: { handler: (args: string, ctx: import('@earendil-works/pi-coding-agent').ExtensionContext) => Promise<void> } | undefined;
-  composeExtension({ registerCommand: (name: string, options: typeof command) => { assert.equal(name, 'compose'); command = options; } } as unknown as import('@earendil-works/pi-coding-agent').ExtensionAPI);
+  composeExtension({ registerCommand: (name: string, options: typeof command) => { assert.equal(name, 'compose'); command = options; }, registerTool: () => {} } as unknown as import('@earendil-works/pi-coding-agent').ExtensionAPI);
   const messages: string[] = [];
   const choices = ['Independent new session', 'Shared directory'];
   if (!command) throw new Error('Pi extension did not register /compose');
