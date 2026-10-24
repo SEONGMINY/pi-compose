@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
 import { executeLaunch, planLaunch } from '../src/launch.ts';
+import { openDashboard } from '../src/dashboard.ts';
 
 const help = `Usage:
+  pi-compose dashboard [--session] [--tab agents|worktrees]
   pi-compose launch --task "Implement member API" --context fork|independent \
     --workspace shared|worktree --cwd /path/to/repo \
     [--source-session-file /path/to/main.jsonl] [--branch feat/member-api] \
@@ -14,6 +16,16 @@ No package installation, merge or cleanup is performed by this command.`;
 async function main(): Promise<void> {
   const [command, ...argv] = process.argv.slice(2);
   if (command === 'help' || command === '--help' || !command) { console.log(help); return; }
+  if (command === 'dashboard') {
+    const { values } = parseArgs({ args: argv, strict: true, allowPositionals: false, options: {
+      session: { type: 'boolean' }, tab: { type: 'string' },
+    } });
+    if (values.tab && values.tab !== 'agents' && values.tab !== 'worktrees') {
+      throw new Error('--tab must be agents|worktrees');
+    }
+    await openDashboard({ sessionOnly: values.session, tab: values.tab as 'agents' | 'worktrees' | undefined });
+    return;
+  }
   if (command !== 'launch') throw new Error(`Unknown command: ${command}\n${help}`);
   const { values } = parseArgs({ args: argv, strict: true, allowPositionals: false, options: {
     task: { type: 'string' }, context: { type: 'string' }, workspace: { type: 'string' },
