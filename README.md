@@ -2,7 +2,7 @@
 
 Pi를 기반으로 한 개인용 **Composable Coding Agent Harness**.
 
-현재는 설계 문서와 **Phase 1 공통 Launch CLI 및 Pi Slash Command의 첫 구현**을 제공한다. 아직 실제 Pi·workmux 통합, Pi Extension의 실제 Pi 로딩, 자연어 Tool, Dashboard, Handoff, 자동 검증까지 완료된 제품은 아니다.
+현재는 설계 문서와 **Phase 1 TypeScript 기반 Launch CLI 및 Pi Slash Command**를 제공한다. 아직 실제 Pi·workmux 통합, Pi Extension의 실제 Pi 로딩, 자연어 Tool, Dashboard, Handoff, 자동 검증까지 완료된 제품은 아니다.
 
 ## 핵심 원칙
 
@@ -13,13 +13,21 @@ Pi를 기반으로 한 개인용 **Composable Coding Agent Harness**.
 - Main이 상세 Git Diff·테스트 로그를 직접 분석하도록 강제하지 않는다.
 - 완료 Handoff, 검증, 실제 Git 통합, Worktree 정리를 서로 구분한다.
 
+## TypeScript 실행 및 의존성
+
+- **CLI:** Node.js 22.19.0 이상의 기본 TypeScript type stripping으로 `bin/pi-compose.ts` 직접 실행. 별도 번들·빌드 단계 없음.
+- **Pi Extension:** Pi 공식 `jiti` 로더로 `extensions/compose.ts`를 직접 로드. `ExtensionAPI`는 Pi 공식 타입 사용.
+- **타입 검사:** `tsc --noEmit` + `strict`.
+- **런타임 검증:** Zod 4는 CLI/Extension 공통 Launch 입력, 외부 Pi JSONL 헤더, Git에서 반환된 SHA·저장소 루트의 경계에서만 사용. Git 브랜치 문법은 Git이 검증.
+- **의존성:** `zod`(실행), `typescript`·`@types/node`·Pi 공식 타입 패키지(개발). Pi 런타임은 peer 의존성으로 참조해 중복 번들하지 않음.
+
 ## 현재 구현: Launch CLI
 
 Node.js `>=22.19.0`을 기준으로 한다. `git`, `pi`, `tmux`, `workmux`는 실행할 조합에 따라 필요하며 **자동 설치되지 않는다**.
 
 ```bash
 # 실행 환경에 명령만 표시 (리소스 변경 없음)
-node bin/pi-compose.mjs launch \
+node bin/pi-compose.ts launch \
   --task "회원 API 구현" \
   --context fork \
   --workspace worktree \
@@ -42,8 +50,9 @@ node bin/pi-compose.mjs launch \
 Fork는 정확한 **원본 Pi 세션 JSONL 파일**이 필요하다. 최근 세션을 자동으로 Main으로 취급하지 않는다.
 
 ```bash
-node --test
-# 또는 npm test
+npm install
+npm run check
+# 내부적으로 tsc --noEmit + node --test test/*.test.ts
 ```
 
 이 테스트는 **옵션 처리·명령 계획·모의 실행 결과**를 검증한다. 실제 Pi·workmux·Dashboard의 성공을 보장하지 않는다.
