@@ -104,3 +104,22 @@ test('failed launch warns to inspect resources and does not delete anything', as
   const plan = await planLaunch({ task: 'x', context: 'independent', workspace: 'shared', cwd });
   await assert.rejects(() => executeLaunch(plan, { run: async () => ({ code: 1, stdout: '', stderr: 'tmux failed' }) }), /Inspect before retrying/);
 });
+
+test('Pi extension registers explicit command and preview does not execute agent', async t => {
+  const { cwd } = await setup(t);
+  const { default: composeExtension } = await import('../extensions/compose.mjs');
+  let command;
+  composeExtension({ registerCommand: (name, options) => { assert.equal(name, 'compose'); command = options; } });
+  const messages = [];
+  const choices = ['Independent new session', 'Shared directory'];
+  await command.handler('preview Explore', {
+    hasUI: true,
+    cwd,
+    ui: {
+      select: async () => choices.shift(),
+      input: async () => { throw Error('Task already provided; should not ask'); },
+      notify: (message) => messages.push(message),
+    },
+  });
+  assert.ok(messages[0].startsWith('Preview only: tmux'));
+});
