@@ -1,6 +1,6 @@
 # Phase 1 — 공통 Launch 첫 구현
 
-- 상태: **계획/명령 구성 테스트 완료 · 실제 Pi/workmux 실행 미검증 · Phase 1 일부 구현**
+- 상태: **Launch CLI + Pi 명시적 Slash Command 구현 · 실제 Pi/workmux 실행 미검증 · Phase 1 일부 구현**
 - 작성일: 2026-10-25
 - 근거: [PRD](../PRD.md) FR-02~07, [Architecture](../ARCHITECTURE.md), [Implementation Plan](../IMPLEMENTATION_PLAN.md)
 - 정책: 사용자의 결정에 따라 **Phase 0은 부분 완료 상태로 종료**한다. 나머지 실제 환경 호환성 검증은 **그 연동을 사용할 시점에만** 수행하며 현재 설계와 개발의 사전 Gate로 사용하지 않는다.
@@ -13,6 +13,7 @@
 | --- | --- |
 | [`src/launch.mjs`](../../src/launch.mjs) | 실행 요청 검증, Pi 세션 헤더 확인, Git 기준 확인, 도구별 명령 계획 생성, 기존 명령 호출 |
 | [`bin/pi-compose.mjs`](../../bin/pi-compose.mjs) | `launch` 진입점·`--dry-run`·요약 JSON 출력 |
+| [`extensions/compose.mjs`](../../extensions/compose.mjs) | Pi `/compose launch [task]` 및 `/compose preview [task]` 명령, 공통 Launch 재사용 |
 | [`test/launch.test.mjs`](../../test/launch.test.mjs) | 네 가지 실행 조합·오류·안전한 인자 처리 테스트 |
 | [`package.json`](../../package.json) | 외부 런타임 의존성 없는 최소 Node 실행 구성 |
 
@@ -56,7 +57,7 @@ node bin/pi-compose.mjs launch \
 
 ## 3. 검증 결과
 
-격리 환경의 Node.js `22.16.0`에서 `node --test`를 실행해 **10개 단위 테스트 모두 통과**했다. Node.js 기본 모듈만 사용하므로 테스트 자체는 이 버전에서 수행 가능했다.
+격리 환경의 Node.js `22.16.0`에서 `node --test`를 실행해 **11개 단위 테스트 모두 통과**했다. Node.js 기본 모듈만 사용하므로 테스트 자체는 이 버전에서 수행 가능했다.
 
 또 임시 Git 저장소에서 실제 Git을 사용한 두 종류의 `--dry-run`을 실행했다.
 
@@ -73,11 +74,13 @@ node bin/pi-compose.mjs launch \
 | 공통 CLI로 4개 실행 조합의 명령 계획 | 구현·테스트 완료 | 지금 |
 | 실제 최신 Pi + workmux 실행 | 미검증 | 해당 외부 연동을 실제 호출할 때 |
 | Shared Directory의 tmux/Pi 실제 실행 | 미검증 | 해당 외부 연동을 실제 호출할 때 |
-| Pi `/compose launch` Extension | 미구현 | 공통 Launch CLI를 재사용하는 다음 범위 |
+| Pi `/compose launch` Extension | **초기 구현·모의 UI 테스트 통과** | 실제 Pi 로딩·설치·실행은 연동 시 검증 |
 | 자연어 Tool 및 사용자 선택 UI | 미구현 | Pi Extension 연결이 필요할 때 |
 | Dashboard 세션 확인·전환 | 미구현 | Phase 2 |
 | 실패 후 식별·안전 재개·중복 방지 | 일부 사전 오류 처리만 구현 | Phase 3 |
 | 자동 Handoff 및 검증 | 미구현 | Phase 4~5 |
+
+현재 Pi 명시적 명령의 사용 예시는 `/compose launch 회원 API 구현` 또는 `/compose preview 회원 API 구현`이다. Pi UI에서 Context, Workspace, 원본 세션 파일(필요 시), 브랜치(필요 시)를 선택하도록 설계했다. **실제 Pi 환경에서의 UI 실행은 미검증**이다.
 
 CLI에 모든 옵션을 직접 입력하는 경험을 최종 사용자 경험으로 확정한 것이 아니다. **반복 작업을 한 번의 Pi 명령·자연어 실행으로 추상화하는 목표는 유지**한다. 이번 코드는 그 진입점들이 공유할 결정적 실행 경계다.
 
