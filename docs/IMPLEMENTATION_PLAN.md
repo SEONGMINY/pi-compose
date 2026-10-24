@@ -92,6 +92,8 @@ Dashboard가 사용자 정의 Launch 액션을 공식적으로 받는지 확인�
 
 ## 5. Phase 2 — Dashboard와 직접 제어
 
+> **상태: 기존 Dashboard 실행 연결 구현, 부분 검증.** `pi-compose dashboard` CLI와 Pi의 `/compose dashboard [agents|worktrees]` tmux 팝업을 지원하도록 연결했다. 기존 `workmux dashboard` TUI를 그대로 사용하며 UI·상태·세션 DB를 재구현하지 않는다. 격리 환경에서 Dashboard 위임 테스트 **6개 통과**, Pi 명령 모의 테스트 **4개 추가(미실행)**. 실제 Hook/Shared·Worktree Pi 감지는 필요한 연동 시점에 검증한다. [Phase 2 기록](validation/phase2-dashboard.md).
+
 ### 구현 범위
 
 - 이미 실행 중인 Pi 세션 검색, 상태(알 수 없으면 Unknown), 이동, 직접 입력·분할 화면을 기존 패키지로 지원.
