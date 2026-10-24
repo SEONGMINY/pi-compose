@@ -1,6 +1,6 @@
 # Phase 1 — 공통 Launch 첫 구현
 
-- 상태: **Launch CLI + Pi 명시적 Slash Command 구현 · 실제 Pi/workmux 실행 미검증 · Phase 1 일부 구현**
+- 상태: **Launch CLI + Pi 명시적 Slash Command + 사용자 확인형 자연어 Tool 구현 · 실제 Pi/workmux 실행 미검증 · Phase 1 주요 기능 구현**
 - 작성일: 2026-10-25
 - 근거: [PRD](../PRD.md) FR-02~07, [Architecture](../ARCHITECTURE.md), [Implementation Plan](../IMPLEMENTATION_PLAN.md)
 - 정책: 사용자의 결정에 따라 **Phase 0은 부분 완료 상태로 종료**한다. 나머지 실제 환경 호환성 검증은 **그 연동을 사용할 시점에만** 수행하며 현재 설계와 개발의 사전 Gate로 사용하지 않는다.
@@ -57,7 +57,7 @@ node bin/pi-compose.ts launch \
 
 ## 3. 검증 결과
 
-**2026-10-25 GitHub Actions Node 22.19.0:** `npm run check`로 `tsc --noEmit` 타입 검사와 **16개 단위 테스트(기존 11개 + Zod 경계 검증 5개) 모두 통과**했다. [CI 실행 결과](https://github.com/SEONGMINY/pi-compose/actions/runs/40120952751).
+**2026-10-25 GitHub Actions Node 22.19.0:** `npm run check`로 `tsc --noEmit` 타입 검사와 **24개 단위 테스트 모두 통과**했다. [CI 실행 결과](https://github.com/SEONGMINY/pi-compose/actions/runs/40121931523). 원래 11개와 Zod 관련 5개에 Pi 진입점/권한 경계 8개를 더했다.
 
 또 임시 Git 저장소에서 실제 Git을 사용한 두 종류의 `--dry-run`을 실행했다.
 
@@ -75,7 +75,8 @@ node bin/pi-compose.ts launch \
 | 실제 최신 Pi + workmux 실행 | 미검증 | 해당 외부 연동을 실제 호출할 때 |
 | Shared Directory의 tmux/Pi 실제 실행 | 미검증 | 해당 외부 연동을 실제 호출할 때 |
 | Pi `/compose launch` Extension | **초기 구현·모의 UI 테스트 통과** | 실제 Pi 로딩·설치·실행은 연동 시 검증 |
-| 자연어 Tool 및 사용자 선택 UI | 미구현 | Pi Extension 연결이 필요할 때 |
+| Pi 원본 세션 선택 | **구현: 현재/프로젝트 목록/직접 파일 경로** | 실제 Pi TUI에서 메뉴 동작 검증 필요 |
+| 자연어 Launch Tool | **구현: 모델 Tool + 명시적 사용자 확인** | 실제 Pi에서 Tool 호출·TUI 확인 검증 필요 |
 | Dashboard 세션 확인·전환 | 미구현 | Phase 2 |
 | 실패 후 식별·안전 재개·중복 방지 | 일부 사전 오류 처리만 구현 | Phase 3 |
 | 자동 Handoff 및 검증 | 미구현 | Phase 4~5 |
@@ -105,3 +106,13 @@ CLI에 모든 옵션을 직접 입력하는 경험을 최종 사용자 경험으
 - 이전 `.mjs` 네 파일은 제거했고 `.ts`로 이동했다. 기존 CLI 옵션·Pi `/compose` 명령·네 가지 Launch 조합과 오류 안전장치는 유지한다.
 - 의존성: 런타임 `zod@4.6.5`; 타입 검사용 `typescript~5.8.3`, `@types/node`, `@earendil-works/pi-coding-agent@1.4.0` (개발 및 peer). 별도 번들러나 `tsx` 없음.
 - **실사용 Pi·workmux 통합은 아직 검증하지 않았다.** 현재 통과는 실제 설치가 가능한 CI 환경에서 수행한 타입 검사와 모의·입력 검증 테스트를 의미한다.
+
+## 7. 현재 세션 선택·자연어 실행 연결 (2026-10-25)
+
+- `/compose launch` 및 `/compose preview`의 Fork 선택에서 현재 Pi 세션 파일을 `ctx.sessionManager.getSessionFile()`로 취득한다. 매번 파일 경로를 복사할 필요가 없다.
+- 사용자가 다른 저장 세션을 선택하면 Pi의 공식 `SessionManager.list()`로 **현재 프로젝트의 저장 세션**만 요청 시 조회하고, 선택한 실제 경로를 전달한다. 프로젝트 외 세션을 사용할 때는 직접 파일을 지정한다.
+- **현재 Pi 세션을 Main으로 자동 추정하지 않는다.** 'Current Pi session'은 사용자가 명시적으로 고른 경로일 뿐이다. 현재 세션 기록 파일이 없다면 임의의 최근 세션으로 대체하지 않는다.
+- `compose_launch`는 Pi의 `registerTool` + `@earendil-works/pi-ai` TypeBox 입력 스키마를 사용한다. 새 개발 에이전트 실행을 **사용자가 요청한 경우에만** 호출하도록 지침을 명시했으며, 실행 전 `ctx.ui.confirm()`으로 대상 작업·컨텍스트·원본 ID·Worktree를 보여준다. 거절 또는 UI 미지원이면 실행하지 않는다.
+- `/compose` 명령과 자연어 Tool은 기존 `planLaunch()`·`executeLaunch()`를 공유한다. 별도 실행 엔진이나 세션 등록 DB는 만들지 않았다.
+- **검증:** CI의 기존 테스트 16개 + 새 Pi 인터페이스/실행 권한 테스트 8개, 총 24개 통과. 현재/직접 파일 경로 미리보기, 미저장 현재 세션, 원본 누락, 취소 및 UI 부재로 인한 무실행을 포함한다.
+- **미검증:** 실제 Pi TUI에서 `SessionManager.list()`의 저장 세션 메뉴, 실제 모델 도구 호출·사용자 확인 UI, 실제 Pi/workmux 프로세스 생성.
