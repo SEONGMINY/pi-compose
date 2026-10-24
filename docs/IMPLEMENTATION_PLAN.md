@@ -64,7 +64,7 @@ flowchart TD
 
 ## 4. Phase 1 — 공통 Launch
 
-> **상태: 일부 구현.** CLI Launch와 Pi `/compose launch|preview` 명시적 명령을 작성하고 11개 단위 테스트를 통과했다. 실사용 Pi·workmux 연동 및 자연어 Tool·Dashboard 경로는 남아 있다. [구현 범위와 검증 기록](validation/phase1-launch.md).
+> **상태: 일부 구현.** CLI Launch, Pi `/compose launch|preview` 명시적 명령, Pi Session Manager 기반 원본 선택, 사용자 확인형 `compose_launch` Tool까지 작성해 24개 단위 테스트와 TypeScript 타입 검사를 통과했다. 실사용 Pi·workmux 연동 및 Dashboard 경로는 남아 있다. [구현 범위와 검증 기록](validation/phase1-launch.md).
 
 ### 구현 범위
 
