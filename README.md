@@ -2,7 +2,7 @@
 
 Pi를 기반으로 한 개인용 **Composable Coding Agent Harness**.
 
-현재는 설계 문서와 **Phase 1 TypeScript 기반 Launch CLI 및 Pi Slash Command**를 제공한다. 아직 실제 Pi·workmux 통합, Pi Extension의 실제 Pi 로딩, 자연어 Tool, Dashboard, Handoff, 자동 검증까지 완료된 제품은 아니다.
+현재는 설계 문서와 **Phase 1 TypeScript 기반 Launch CLI 및 Pi Slash Command**를 제공한다. 아직 실제 Pi·workmux 통합, Pi Extension의 실제 Pi 로딩, Dashboard, Handoff, 자동 검증까지 완료된 제품은 아니다. **자연어 Launch Tool은 등록했지만 실제 Pi 환경 실행은 미검증**이다.
 
 ## 핵심 원칙
 
@@ -66,7 +66,11 @@ Pi 공식 Extension API를 사용한 `/compose` 명령의 첫 구현이 들어 �
 /compose launch 회원 API 구현
 ```
 
-Pi UI에서 Context와 Workspace를 선택한다. Fork라면 원본 세션 JSONL 파일 경로를, Worktree라면 새 브랜치를 입력한다. **실제 Pi 로딩과 실행 동작은 해당 환경에서 확인이 필요**하다.
+Pi UI에서 Context와 Workspace를 선택한다. Fork라면 **현재 Pi 세션 / 같은 프로젝트의 다른 저장 세션 / 직접 파일 지정** 중에서 선택하며, Worktree라면 새 브랜치를 입력한다. **현재 세션을 Main이라고 임의로 취급하지 않는다.**
+
+사용자가 자연어로 새 개발 에이전트 실행을 명시적으로 요청하면 모델이 `compose_launch` Tool을 사용할 수 있다. 이 경로는 **실제 실행 전 사용자 확인을 요구**하며, 확인 UI가 없으면 실행하지 않는다. 명시적 `/compose launch` 명령은 별도 재승인을 요구하지 않는다.
+
+**실제 Pi 로딩과 실행 동작은 해당 환경에서 확인이 필요**하다.
 
 ## 문서
 
@@ -74,6 +78,6 @@ Pi UI에서 Context와 Workspace를 선택한다. Fork라면 원본 세션 JSONL
 
 ## 앞으로의 작업
 
-공통 Launch 진입점을 Pi 명령과 자연어 Tool에서 재사용할 수 있도록 연결한 뒤, Dashboard·Resume, Handoff와 독립 검증으로 이어간다.
+공통 Launch 진입점을 Pi 명령·자연어 Tool에서 재사용하도록 연결했다. 다음은 기존 Dashboard 연동(Phase 2), Resume, Handoff와 독립 검증이다.
 
 **미검증 기술 통합은 필요한 시점에 검증하며, 제품 요구사항을 임의로 축소하지 않는다.**
