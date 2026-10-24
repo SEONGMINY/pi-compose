@@ -2,7 +2,7 @@
 
 Pi를 기반으로 한 개인용 **Composable Coding Agent Harness**.
 
-현재는 설계 문서와 **Phase 1 TypeScript 기반 Launch CLI 및 Pi Slash Command**를 제공한다. 아직 실제 Pi·workmux 통합, Pi Extension의 실제 Pi 로딩, Dashboard, Handoff, 자동 검증까지 완료된 제품은 아니다. **자연어 Launch Tool은 등록했지만 실제 Pi 환경 실행은 미검증**이다.
+현재는 설계 문서와 **Phase 1 TypeScript 기반 Launch CLI 및 Pi Slash Command**를 제공한다. 아직 실제 Pi·workmux 통합, Pi Extension의 실제 Pi 로딩, Dashboard 실제 실행 검증, Handoff, 자동 검증까지 완료된 제품은 아니다. **자연어 Launch Tool은 등록했지만 실제 Pi 환경 실행은 미검증**이다.
 
 ## 핵심 원칙
 
@@ -57,6 +57,18 @@ npm run check
 
 이 테스트는 **옵션 처리·명령 계획·모의 실행 결과**를 검증한다. 실제 Pi·workmux·Dashboard의 성공을 보장하지 않는다.
 
+## Dashboard — workmux 재사용
+
+별도 Dashboard를 구현하지 않고 기존 workmux TUI를 호출한다. **workmux와 tmux는 직접 설치해야 하며 Pi 실행 상태를 보려면 workmux Pi status Extension 설정이 필요**하다. 상태 Hook은 자동 설치하지 않는다.
+
+```bash
+node bin/pi-compose.ts dashboard
+node bin/pi-compose.ts dashboard --session
+node bin/pi-compose.ts dashboard --tab worktrees
+```
+
+Pi가 tmux 터미널 안에서 실행 중일 때는 `/compose dashboard` 또는 `/compose dashboard worktrees`로 tmux 팝업을 열 수 있다. Popup 종료는 개발 세션 종료를 의미하지 않는다. **Pi Done 상태를 작업 완료·Handoff로 취급하지 않는다.**
+
 ## Pi 내부 명령 (현재 미검증)
 
 Pi 공식 Extension API를 사용한 `/compose` 명령의 첫 구현이 들어 있다.
@@ -74,10 +86,10 @@ Pi UI에서 Context와 Workspace를 선택한다. Fork라면 **현재 Pi 세션 
 
 ## 문서
 
-[설계 문서 인덱스](docs/README.md) · [PRD](docs/PRD.md) · [TRD](docs/TRD.md) · [Architecture](docs/ARCHITECTURE.md) · [Implementation Plan](docs/IMPLEMENTATION_PLAN.md) · [Phase 1 구현·검증 상태](docs/validation/phase1-launch.md)
+[설계 문서 인덱스](docs/README.md) · [PRD](docs/PRD.md) · [TRD](docs/TRD.md) · [Architecture](docs/ARCHITECTURE.md) · [Implementation Plan](docs/IMPLEMENTATION_PLAN.md) · [Phase 1 구현·검증 상태](docs/validation/phase1-launch.md) · [Phase 2 Dashboard 연동](docs/validation/phase2-dashboard.md)
 
 ## 앞으로의 작업
 
-공통 Launch 진입점을 Pi 명령·자연어 Tool에서 재사용하도록 연결했다. 다음은 기존 Dashboard 연동(Phase 2), Resume, Handoff와 독립 검증이다.
+공통 Launch 진입점을 Pi 명령·자연어 Tool에서 재사용하도록 연결했다. Dashboard 연동은 Phase 2에서 기존 workmux TUI로 위임했다. 다음은 **Phase 3 Resume·재시도·안전한 정리**, 이후 Handoff와 독립 검증이다.
 
 **미검증 기술 통합은 필요한 시점에 검증하며, 제품 요구사항을 임의로 축소하지 않는다.**
