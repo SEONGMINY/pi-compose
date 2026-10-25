@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - .github/workflows/install-macos-smoke.yml
+      - scripts/install.sh
 permissions:
   contents: read
 jobs:
