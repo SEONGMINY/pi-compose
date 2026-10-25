@@ -164,7 +164,13 @@ export async function planLaunch(
   const dirty = await checkedRun(run, 'git', ['status', '--porcelain', '--untracked-files=normal'], repoRoot);
   if (dirty) warnings.push('Source checkout has uncommitted changes; new Worktree is based on a commit and does not copy them.');
   // A new worktree agent starts without stealing focus from the Main Pi window.
-  const args = ['add', branch, '--background', '--agent', 'pi', '--base', sha.data,
+  // Opt-in Ghostty navigation needs an independent tmux session per Worktree.
+  // The default workmux window layout is unchanged for every other user.
+  const ghosttySessionMode = process.platform === 'darwin' && process.env.TERM_PROGRAM === 'ghostty'
+    && process.env.PIC_GHOSTTY_TABS === '1';
+  const args = ['add', branch, '--background',
+    ...(ghosttySessionMode ? ['--mode', 'session'] : []),
+    '--agent', 'pi', '--base', sha.data,
     ...(source ? [`--fork=${source.id}`] : []), '--prompt', task];
   return {
     context: request.context, workspace: request.workspace, cwd: repoRoot, task,

@@ -47,6 +47,21 @@ export function taskHubRows(
   return rows;
 }
 
+// Session-mode workmux can be shown in a Ghostty tab without launching another Pi.
+// Resolve by exact Worktree cwd; ambiguous matches must not be guessed.
+async function worktreeTmuxSession(pi: ExtensionAPI, worktree: OpenWorktree): Promise<string | undefined> {
+  try {
+    const output = await pi.exec('tmux', ['list-panes', '-a', '-F', '#{session_name}\t#{pane_current_path}'],
+      { cwd: worktree.path });
+    if (output.code !== 0) return undefined;
+    const names = new Set(output.stdout.split('\n').flatMap(row => {
+      const [name, path] = row.split('\t');
+      return name && path && same(path, worktree.path) ? [name] : [];
+    }));
+    return names.size === 1 ? [...names][0] : undefined;
+  } catch { return undefined; }
+}
+
 async function sessions(pi: ExtensionAPI, cwd: string): Promise<string[]> {
   try {
     const result = await pi.exec('tmux', ['list-sessions', '-F', '#{session_name}'], { cwd });
@@ -118,6 +133,17 @@ export async function showTaskHub(pi: ExtensionAPI, ctx: ExtensionContext, onLau
     if (!item.worktree) {
       ctx.ui.notify('해당 작업에 연결된 Worktree를 확인할 수 없습니다. 다른 저장 대화에서 찾아보세요.', 'warning');
       return;
+    }
+    if (ghosttyEnabled() && item.worktree.is_open && item.worktree.mode === 'session') {
+      const target = await worktreeTmuxSession(pi, item.worktree);
+      if (target) {
+        const exists = await pi.exec('tmux', ['has-session', '-t', '=' + target], { cwd: item.worktree.path });
+        if (exists.code === 0) {
+          const opened = await focusSharedTaskTab(pi, record.title, record.id, target, item.worktree.path);
+          if (opened.ok) return;
+          ctx.ui.notify('Ghostty 자동화가 실패해 기존 workmux 이동으로 전환합니다: ' + opened.message, 'warning');
+        }
+      }
     }
     await returnToWorktree(pi, ctx, item.worktree);
     return;

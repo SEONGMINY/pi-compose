@@ -34,10 +34,11 @@ export PIC_GHOSTTY_TABS=1
 pic
 ```
 
-이 설정을 사용하면 **Shared Directory 작업**을 Hub에서 선택했을 때 해당 tmux 세션에 연결된 Ghostty 탭을 새로 엽니다. 같은 작업 탭이 이미 존재하면 태그로 구분해 다시 선택합니다. 기존 Pi 프로세스를 복제하지 않습니다.
+이 설정을 사용하면 **Shared Directory 작업**을 Hub에서 선택했을 때 해당 tmux 세션에 연결된 Ghostty 탭을 새로 엽니다. **새 Worktree 실행은 `workmux add --mode session --background`를 이용**하므로 다른 tmux 세션으로 분리됩니다. Worktree가 실제로 열린 상태이고 해당 작업 디렉터리에 해당하는 단 하나의 tmux 세션을 확인할 수 있을 때만 Ghostty 탭에 연결합니다. 같은 작업 탭이 이미 존재하면 태그로 구분해 다시 선택합니다. 기존 Pi 프로세스를 복제하지 않습니다.
 
 - Ghostty를 찾을 수 없거나 자동화 권한이 거부되면 일반 tmux 이동을 사용합니다.
-- **Worktree 에이전트의 Ghostty 탭 자동 생성은 아직 제공하지 않습니다.** workmux의 실행 대상을 확인한 뒤 기존 전환 경로를 사용합니다. tmux 창에 있는 Pi를 동일 Worktree에서 새로 실행하지 않기 위함입니다.
+- 기존 window 모드에서 생성된 Worktree나 정확한 세션을 찾지 못한 Worktree는 **기존 workmux 전환**을 사용합니다. 새 Pi 프로세스를 임의 실행하지 않습니다.
+- Ghostty 모드에서 새 Worktree 실행 방식은 명시적으로 **session 모드**가 됩니다. 이는 사용자가 설정한 기존 workmux window 모드와 다를 수 있으므로, 동작을 확인하고 사용하세요.
 - tmux·workmux 사용 환경이나 사용자 설정 파일은 바꾸지 않습니다.
 - 다른 터미널에서는 `PIC_GHOSTTY_TABS`를 켜더라도 기본 Pi Hub와 tmux 탐색이 동작합니다.
 - macOS Ghostty에서 발생할 수 있는 권한 확인, 기존 탭 재사용, 탭 종료/재연결은 실제 사용자 환경에서 추가 검증해야 합니다. 이 단계에서는 정적 검사와 분리된 도구 검증만 수행합니다.

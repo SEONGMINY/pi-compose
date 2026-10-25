@@ -13,6 +13,7 @@ export type OpenWorktree = {
   path: string;
   is_open: boolean;
   project_path?: string;
+  mode?: string;
 };
 export type LiveTmuxTarget = { name: string; cwd: string };
 type Discovered = {
