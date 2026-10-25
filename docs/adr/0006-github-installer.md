@@ -50,8 +50,11 @@
 - **실제 macOS (Apple Silicon, Node 22.19.0) 검증 완료:**
   Homebrew로 tmux·workmux 설치, 공식 Pi npm 설치, GitHub HEAD SHA 고정 npm 전역 설치,
   `pico` 실행, 선택형 Extension 패키지 파일 존재, 재설치 및 Pi 설정·세션 파일 보존.
-  [macOS 실행 기록](https://github.com/SEONGMINY/pi-compose/actions/runs/40185554756).
+  [macOS 설치·재설치](https://github.com/SEONGMINY/pi-compose/actions/runs/40185554756).
+- **서로 다른 GitHub 커밋 사이 실제 업데이트 확인:** 이전 커밋을 전역 설치한 뒤,
+  공개된 `curl | bash` 한 줄을 실행해 최신 README가 설치됐음을 확인했다.
+  [macOS 업데이트 검증](https://github.com/SEONGMINY/pi-compose/actions/runs/40185838846).
 - **미검증:** Homebrew 미설치·기존 Node 구버전 환경에서의 안내 UX,
-  모델 인증된 Pi 대화/Worktree Fork, Intel macOS 설치, Shell 별 PATH 환경, 변경 전후 두 커밋 사이의 실제 업데이트.
+  모델 인증된 Pi 대화/Worktree Fork, Intel macOS 설치, Shell 별 PATH 환경.
 
 [README](../../README.md) · [Implementation Plan](../IMPLEMENTATION_PLAN.md)
