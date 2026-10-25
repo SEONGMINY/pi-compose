@@ -214,10 +214,24 @@ Pi의 `select` UI로 후보를 보여줍니다. 별도 세션 Registry/DB를 만
 - **조회 범위:** 현재 Pi 프로젝트의 저장된 대화와 현재 저장소에서 workmux가 찾는 Worktree만 포함합니다. 모든 프로젝트·외부 tmux 세션은 통합 검색하지 않습니다.
 - **workmux 미설치/조회 실패:** 저장된 Pi 세션 선택은 계속 제공하지만 Worktree 상태는 확인하지 못했다고 표시합니다.
 
-자연어로 "아까 하던 회원 API 작업을 찾아줘"라고 요청하면 모델이
-**읽기 전용 `compose_find_work` Tool**로 관련 후보만 확인할 수 있습니다.
-모델이 직접 Pi 세션을 전환하거나 새 프로세스를 실행하지 않으며, 실제 이동·재개는 `/compose back`에서
-사용자가 대상을 선택하고, **새 프로세스를 시작해야 할 때만 별도로 승인**합니다. 자연어만으로 전체 전환 완료는 아직 구현하지 않았습니다.
+자연어는 **조회와 복귀를 구분**합니다.
+
+- **"회원 API 작업을 찾아줘":** `compose_find_work`는 변경 없이 관련 후보만 간결하게 알려줍니다.
+- **"회원 API 작업으로 돌아가고 싶어":** `compose_return_work`가 **같은 Pi 선택 UI**를 엽니다.
+  저장된 Pi 대화를 선택하면 정확한 `/compose back id:<Pi세션ID>` 명령을 **입력창에 준비**합니다.
+  사용자가 **Enter를 누를 때만** Pi의 공식 `switchSession`이 실행됩니다. 진행 중이던 입력 내용이 있다면 덮어쓰지 않고 명령을 안내합니다.
+  이미 열린 workmux Target 이동과 닫힌 Worktree 재개는 기존 Slash Command의 **확인·경로 검증·중복 생성 금지**를 그대로 적용합니다.
+
+**기술적 한계:** Pi 1.4.0은 Slash Command에만 `ctx.switchSession`을 제공합니다.
+모델 Tool은 이 API를 사용할 수 없어 **저장된 대화의 직접 전환은 사용자 Enter가 필요**합니다.
+이를 우회하기 위해 자체 세션 관리자나 임의 프로세스 제어를 만들지 않았습니다.
+작업 탐색 범위는 여전히 현재 프로젝트이며, 다른 프로젝트 세션을 추측하지 않습니다.
+
+Pi Compose가 `/compose launch`로 Shared Agent를 실행하거나 `/compose resume` 및
+`/compose back`으로 새 Pi 프로세스를 재개할 경우, **기본 Compose Extension 경로를 Pi에 추가**합니다.
+선택형 Extension은 기존 Pi 설정에 맡기며, `pico`의 별도 설정 파일은 만들지 않습니다.
+CLI를 독립적으로 사용하는 경우에는 기존 `pi` 기본 실행 동작을 유지합니다.
+Worktree를 처음 만드는 `workmux add`의 새 Pi 프로세스에 Compose Extension이 항상 포함되는지는 별도 확인이 필요합니다.
 
 기존 `/compose resume`은 **새 tmux에서 정확한 Pi 세션을 시작하는 기능**으로 유지하며,
 Pi 기본 `/resume`도 그대로 사용할 수 있습니다. 둘 다 `/compose back`과 다른 작업입니다.
