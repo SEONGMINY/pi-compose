@@ -48,8 +48,7 @@ curl -fsSL https://raw.githubusercontent.com/SEONGMINY/pi-compose/main/scripts/i
 
 ```bash
 cd /path/to/project
-tmux new -s pic-work
-pic
+tmux new-session -s pic-work pic
 ```
 
 이미 tmux 안에 있다면 새 세션을 만들 필요는 없어요. 처음 Pi를 사용한다면 `/login`으로 로그인하고 `/model`에서 모델을 선택하세요. 설치 스크립트는 필요한 tmux와 workmux를 Homebrew로 설치할 수 있지만, Homebrew 자체는 설치하지 않습니다.
