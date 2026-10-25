@@ -9,10 +9,13 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const coreExtension = resolve(root, 'extensions/compose.ts');
 const optionalPackage = resolve(root, 'packages/optional');
+const navigationPackage = resolve(root, 'packages/navigation');
 
 function runPi(args) {
   return new Promise((done) => {
-    const child = spawn('pi', args, { stdio: 'inherit', cwd: process.cwd(), env: process.env });
+    const isComposeSession = args[0] === '--extension' && args[1] === coreExtension;
+    const env = isComposeSession ? { ...process.env, PIC_COMPOSE_CORE: '1' } : process.env;
+    const child = spawn('pi', args, { stdio: 'inherit', cwd: process.cwd(), env });
     let failed = false;
     child.once('error', (error) => {
       failed = true;
@@ -61,7 +64,18 @@ const command = args[0];
 
 // A one-time, explicit opt-in to the optional feature bundle. All three features
 // are initially enabled by Pi on installation; pi config owns later selection.
-if (command === 'features') {
+if (command === 'navigation') {
+  const [operation, ...extra] = args.slice(1);
+  if (!new Set(['enable', 'disable']).has(operation) || extra.length) {
+    console.error('Usage: pic navigation enable|disable');
+    process.exitCode = 2;
+  } else {
+    // Explicit opt-in. Pi owns all installed package configuration and removal.
+    process.exitCode = await runPi([operation === 'enable' ? 'install' : 'remove', navigationPackage]);
+    if (process.exitCode === 0) console.log('pic: Navigation-only Extension ' + (operation === 'enable' ? 'enabled' : 'disabled')
+      + '. Restart open child Pi sessions to apply it.');
+  }
+} else if (command === 'features') {
   const flags = args.slice(1);
   if (flags.length > 1 || (flags.length === 1 && flags[0] !== '--local' && flags[0] !== '-l')) {
     console.error('Usage: pic features [--local]');

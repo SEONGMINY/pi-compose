@@ -45,6 +45,7 @@ export type LaunchPlan = {
   branch: string | null;
   baseSha: string | null;
   tmuxTarget: string | null;
+  workmuxTargetName?: string;
   program: 'tmux' | 'workmux';
   args: string[];
   warnings: string[];
@@ -76,7 +77,11 @@ export function quoteShell(arg: string): string {
 
 export async function runProcess(bin: string, args: string[], { cwd }: { cwd: string }): Promise<ProcessResult> {
   return await new Promise((done, fail) => {
-    const child = spawn(bin, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], shell: false });
+    // PIC_COMPOSE_CORE is a marker for the main Pi Extension. Never propagate it
+    // to agents created by workmux, otherwise their navigation Extension is suppressed.
+    const env = { ...process.env };
+    if (bin === 'workmux') delete env.PIC_COMPOSE_CORE;
+    const child = spawn(bin, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], shell: false, env });
     let stdout = '';
     let stderr = '';
     child.stdout.on('data', chunk => { stdout = (stdout + chunk).slice(-32768); });
@@ -137,7 +142,7 @@ export async function planLaunch(
       ...(composeExtensionFile ? ['--extension', composeExtensionFile] : []),
       ...(source ? ['--fork', source.path] : []), task,
     ];
-    const command = ['pi', ...piArgs].map(quoteShell).join(' ');
+    const command = 'PIC_COMPOSE_CORE=1 ' + ['pi', ...piArgs].map(quoteShell).join(' ');
     return {
       context: request.context, workspace: request.workspace, cwd, task,
       source: source ?? null, baseSha: null, branch: null, tmuxTarget: sessionName,
@@ -168,13 +173,16 @@ export async function planLaunch(
   // The default workmux window layout is unchanged for every other user.
   const ghosttySessionMode = process.platform === 'darwin' && process.env.TERM_PROGRAM === 'ghostty'
     && process.env.PIC_GHOSTTY_TABS === '1';
-  const args = ['add', branch, '--background',
+  // An exact per-launch target name lets the Hub validate the real tmux target.
+  // It does not rely on branch names, worktree directory slugs, or a global registry.
+  const workmuxTargetName = sessionName;
+  const args = ['add', branch, '--background', '--target-name', workmuxTargetName,
     ...(ghosttySessionMode ? ['--mode', 'session'] : []),
     '--agent', 'pi', '--base', sha.data,
     ...(source ? [`--fork=${source.id}`] : []), '--prompt', task];
   return {
     context: request.context, workspace: request.workspace, cwd: repoRoot, task,
-    source: source ?? null, branch, baseSha: sha.data, tmuxTarget: null,
+    source: source ?? null, branch, baseSha: sha.data, tmuxTarget: null, workmuxTargetName,
     program: 'workmux', args, warnings,
   };
 }
