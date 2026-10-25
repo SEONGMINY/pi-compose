@@ -97,13 +97,19 @@ jobs:
           grep -q 'target_occupied_no_launch' "$root/retry.json"
           echo "REPEAT_RESUME_BLOCKED=pass"
           # Actual workmux integration, from a new isolated Git repository only.
-          tmux new-session -d -s phase6-parent
-          timeout 25s node "$GITHUB_WORKSPACE/bin/pi-compose.ts" launch --context independent --workspace worktree --task "Phase6 test" --cwd "$PWD" --branch feat/phase6 > "$root/worktree.json" 2>"$root/worktree.err" || {
+          tmux new-session -d -s phase6-parent -c "$PWD"
+          # workmux resolves its parent tmux session from the running pane, as in actual Pi usage.
+          command="node '$GITHUB_WORKSPACE/bin/pi-compose.ts' launch --context independent --workspace worktree --task 'Phase6 test' --cwd '$PWD' --branch feat/phase6 > '$root/worktree.json' 2> '$root/worktree.err'; echo \\$? > '$root/worktree.exit'"
+          tmux send-keys -t phase6-parent "$command" C-m
+          for attempt in $(seq 1 35); do
+            test -f "$root/worktree.exit" && break
+            sleep 1
+          done
+          if ! test -f "$root/worktree.exit" || ! grep -q '^0$' "$root/worktree.exit"; then
             echo WORKMUX_ACTUAL_LAUNCH_FAILED
-            cat "$root/worktree.err"
+            cat "$root/worktree.err" 2>/dev/null || true
             exit 1
-          }
-          test -d "$root/project/../"*phase6* || true
+          fi
           node "$GITHUB_WORKSPACE/bin/pi-compose.ts" inspect --cwd "$PWD" --branch feat/phase6 > "$root/inspect.json"
           grep -q '"status": "worktree-existing"' "$root/inspect.json"
           echo "ACTUAL_WORKMUX_WORKTREE_LAUNCH=pass"
