@@ -292,6 +292,32 @@ Pi `--print` 일회성 실행, 별도 지속 Pi 세션, 기존 Sub-agent 패키�
 workmux JSON 조회를 재사용한다. Main 컨텍스트에는 전체 세션 로그 대신
 최대 8개의 일치 후보를 각 출처별로 제공한다.
 
+## 사용성 개선 — 자연어 복귀와 Pi 기본 구성 유지 (2026-10-25)
+
+- **자연어 의도 구분:** `compose_find_work`는 **조회 전용**이고,
+  `compose_return_work`는 사용자가 이전 작업으로 **돌아가겠다고 명시한 경우**에만
+  Pi 기본 선택 UI를 연다. 두 Tool은 같은 후보 조회·선택 로직을 사용한다.
+- **저장된 Pi 대화:** Pi 1.4.0의 `ExtensionToolContext`에는
+  `switchSession()`이 없고 `ExtensionCommandContext`에만 있다.
+  모델 Tool은 선택한 **정확한 세션 ID**를 포함한 `/compose back id:<ID>`를
+  Pi 입력창에 준비한다. 사용자가 **Enter를 눌러 명시적으로 제출**한 후에만
+  Slash Command가 Pi 공식 `switchSession()`을 호출한다.
+  입력 중인 사용자 초안이 있으면 덮어쓰지 않는다.
+- **Worktree 복귀:** 모델 Tool도 열린 Target의 이동 승인·재조회,
+  닫힌 Target의 정확한 저장 대화 선택·새 Pi 프로세스 승인 등
+  기존 `/compose back` 안전 경계를 동일하게 재사용한다.
+  Worktree의 `is_open`으로 실제 Pi 세션 ID·모델 준비 상태를 추정하지 않는다.
+- **실행 연속성:** 기본 Compose Extension으로 시작한 Shared Launch와
+  명시적 Resume에서는 새 Pi CLI에 Compose Extension 경로를 추가한다.
+  `pico`의 설정·인증·세션 저장소를 복제하지 않고 Pi에 위임한다.
+  CLI 독립 사용 동작과 선택형 Extension 활성화 방식은 유지한다.
+- **이번 범위에 포함하지 않음:** Tool 안에서 Pi 세션을 강제로 전환하기,
+  입력창 초안 덮어쓰기, Main 전체 세션 로그 주입,
+  다른 프로젝트 전체 검색, 별도 세션 DB·Viewer·상시 Agent Manager,
+  Worktree `workmux add`의 Pi 프로세스 옵션을 확인 없이 재구성하기.
+- **검증:** [일회성 타입 검사와 Extension 테스트 실행](https://github.com/SEONGMINY/pi-compose/actions/runs/40184299619).
+  실제 모델 요청에서의 UI 선택과 Pi 세션 전환은 사용자 환경의 실사용 검증이 남아 있다.
+
 ## 10. 비기능 평가 항목
 
 추측으로 목표치를 정하지 않고, 작업별로 비교 가능한 근거를 수집한다.
