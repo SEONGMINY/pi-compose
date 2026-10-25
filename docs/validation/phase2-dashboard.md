@@ -99,20 +99,11 @@ CLI의 `pi-compose dashboard`는 기존 사용자 호환성을 위해 유지했�
 - `Idle`·`Done`은 구현 완료나 사용자의 계약 변경 승인과 다르다.
 - CLI를 명시적으로 호출한 경우를 제외하면 선택형 View의 외부 의존성을 기본 사용자에게 강제하지 않는다.
 
-## 6. 검증 범위
+## 6. 검증 방식
 
-기존 Phase 2에서 `src/dashboard.ts`의 위임 테스트 6개는 격리 Node 환경에서 통과했다.
-이번 구조 변경은 다음 테스트를 추가·이동했다.
-
-- 기본 `package.json`의 `pi.extensions`는 `extensions/compose.ts`만 선언하는지.
-- 기본 Extension은 Launch 명령·Tool만 등록하는지.
-- 선택형 View는 `compose-workmux` 명령만 등록하는지.
-- 유효한 View 탭 선택, tmux 미사용 환경, tmux 팝업 생성, 실패 안내.
-- 기존 `pi-compose dashboard` CLI 진입점과 `src/dashboard.ts`는 변경하지 않았음.
-
-**이번 변경의 전체 TypeScript 검사 및 기존 모든 테스트의 실행 결과는 확인되는 범위만 별도로 기록한다.**
-실제 Pi TUI에서의 Extension 로딩과 workmux 상태 Hook·tmux Popup 통합은
-이 기능을 사용할 시점에 검증하며, 다음 단계 진행의 필수 Gate로 만들지 않는다.
+- 기본 Pi Package와 선택형 View의 **독립 등록**, tmux 없는 환경에서 실행 거부, 사용자 명령의 안전한 전달은 Extension 테스트로 유지한다.
+- `src/dashboard.ts`의 외부 CLI 위임만 검사하는 별도 테스트는 유지하지 않는다. 필요할 때 설치된 `workmux dashboard`를 실제 실행해 확인한다.
+- 실제 Pi TUI 로딩·Hook·tmux Popup 연동은 해당 환경에서 사용할 시점에 확인한다. 미검증 상태를 통과로 표시하지 않는다.
 
 ## 7. 의도적으로 만들지 않은 것
 
