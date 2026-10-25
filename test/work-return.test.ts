@@ -1,18 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { SessionManager, type ExtensionAPI, type ExtensionCommandContext, type ExtensionToolContext } from '@earendil-works/pi-coding-agent';
 import { registerWorkReturn, showWorkPicker } from '../extensions/work-return.ts';
 
 function fixture(t: import('node:test').TestContext, open = true) {
+  const worktree = mkdtempSync(join(tmpdir(), 'pi-compose-return-'));
+  t.after(() => rmSync(worktree, { recursive: true, force: true }));
   const records = [
     { path: '/tmp/member-api.jsonl', id: 'member-api-123456', cwd: '/tmp/project',
       name: 'Member API', firstMessage: 'Implement member endpoint', created: new Date(), modified: new Date(),
       messageCount: 5, allMessagesText: 'Implement member endpoint' },
   ];
-  t.mock.method(SessionManager, 'list', async () => records);
+  t.mock.method(SessionManager, 'list', async (cwd: string) => cwd === worktree ? [] : records);
   const rows = [{
     project: 'project', project_path: '/tmp/project', handle: 'feature-api',
-    branch: 'feat/member-api', path: '/tmp/project-wt', is_main: false,
+    branch: 'feat/member-api', path: worktree, is_main: false,
     is_open: open, mode: 'window', has_uncommitted_changes: false, agent_statuses: [], created_at: null,
   }];
   const calls: string[] = [];
@@ -98,6 +103,6 @@ test('closed workmux target is never automatically restarted', async t => {
   fx.setTarget('workmux');
   fx.setApproval(true);
   await showWorkPicker(fx.pi, fx.ctx);
-  assert.ok(fx.messages.some(m => m.includes('closed')));
+  assert.ok(fx.messages.some(m => m.includes('No saved Pi conversation')));
   assert.equal(fx.calls.filter(s => s.startsWith('workmux open')).length, 0);
 });
