@@ -152,3 +152,14 @@ test('model tool shows exact source ID in its confirmation', async t => {
   assert.match(shown, /chosen-main/);
   assert.deepEqual(result.details, { status: 'cancelled' });
 });
+
+test('base Pi Compose registers only Launch, never a bundled dashboard', () => {
+  const commands: string[] = [];
+  const tools: string[] = [];
+  composeExtension({
+    registerCommand: (name: string) => { commands.push(name); },
+    registerTool: (candidate: { name: string }) => { tools.push(candidate.name); },
+  } as unknown as ExtensionAPI);
+  assert.deepEqual(commands, ['compose']);
+  assert.deepEqual(tools, ['compose_launch']);
+});
