@@ -34,7 +34,7 @@ function register(exec?: (bin: string, args: string[]) => Promise<{ code: number
     },
     registerTool: (candidate: RegisteredTool) => {
       if (candidate.name === 'compose_launch') tool = candidate;
-      else assert.equal(candidate.name, 'compose_find_work');
+      else assert.ok(['compose_find_work', 'compose_return_work'].includes(candidate.name));
     },
     exec,
   } as unknown as ExtensionAPI);
@@ -162,7 +162,7 @@ test('base Pi Compose registers only Launch, never a bundled dashboard', () => {
     registerTool: (candidate: { name: string }) => { tools.push(candidate.name); },
   } as unknown as ExtensionAPI);
   assert.deepEqual(commands, ['compose']);
-  assert.deepEqual(tools, ['compose_find_work', 'compose_launch']);
+  assert.deepEqual(tools, ['compose_find_work', 'compose_return_work', 'compose_launch']);
 });
 
 test('resume slash command rejects extra arguments without launching anything', async () => {
