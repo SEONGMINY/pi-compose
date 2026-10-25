@@ -18,6 +18,7 @@ function prepare() {
     if (all === 'rev-parse --show-toplevel') return { code: 0, stdout: '/tmp/repo\n', stderr: '' };
     if (all === 'rev-parse HEAD') return { code: 0, stdout: 'abc123\n', stderr: '' };
     if (all === 'status --porcelain=v1 -z --untracked-files=all') return { code: 0, stdout: '?? new.ts\0', stderr: '' };
+    if (all === 'diff --check' || all === 'diff --cached --check') return { code: 0, stdout: '', stderr: '' };
     if (all === 'diff --cached --name-only -z') return { code: 0, stdout: 'src/changed.ts\0', stderr: '' };
     if (all === 'diff --name-only -z') return { code: 0, stdout: '', stderr: '' };
     if (all === 'ls-files --others --exclude-standard -z') return { code: 0, stdout: 'new.ts\0', stderr: '' };
