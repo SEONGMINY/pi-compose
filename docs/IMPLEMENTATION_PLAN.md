@@ -344,6 +344,7 @@ workmux JSON 조회를 재사용한다. Main 컨텍스트에는 전체 세션 �
 - macOS 시스템의 `pico` 편집기는 보존한다. npm이 소유한 이전 Pi Compose 링크만 npm 업그레이드에서 정리한다.
 - GNU groff에도 `pic` 명령이 있다. **기존 `pic`이 있으면 설치 전에 충돌을 알리고 중단**한다. 어떤 시스템에서도 이름이 고유하다고 주장하지 않는다.
 - **검증 완료:** 이전 `pico` 버전을 전역 설치 후 새 설치 스크립트로 갱신, `pic` 실행, 기존 npm-owned `pico` 링크 제거, macOS 시스템 편집기 보존, cwd·옵션 전달, 외부 `pic` 존재 시 설치 중단을 확인했다. [macOS 실행 기록](https://github.com/SEONGMINY/pi-compose/actions/runs/40186852376).
+- **TUI 실행 확인:** 격리 macOS에서 `pic`을 실제 tmux Pane에서 실행해 Pi TUI 기동과 프로젝트 cwd를 검증했다. [실행 기록](https://github.com/SEONGMINY/pi-compose/actions/runs/40187431955). 모델 인증 대화는 미검증.
 
 ## 10. 비기능 평가 항목
 
