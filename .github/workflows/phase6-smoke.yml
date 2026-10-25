@@ -99,7 +99,7 @@ jobs:
           # Actual workmux integration, from a new isolated Git repository only.
           tmux new-session -d -s phase6-parent -c "$PWD"
           # workmux resolves its parent tmux session from the running pane, as in actual Pi usage.
-          command="node '$GITHUB_WORKSPACE/bin/pi-compose.ts' launch --context independent --workspace worktree --task 'Phase6 test' --cwd '$PWD' --branch feat/phase6 > '$root/worktree.json' 2> '$root/worktree.err'; echo \\$? > '$root/worktree.exit'"
+          command="node '$GITHUB_WORKSPACE/bin/pi-compose.ts' launch --context independent --workspace worktree --task 'Phase6 test' --cwd '$PWD' --branch feat/phase6 > '$root/worktree.json' 2> '$root/worktree.err'; echo \$? > '$root/worktree.exit'"
           tmux send-keys -t phase6-parent "$command" C-m
           for attempt in $(seq 1 35); do
             test -f "$root/worktree.exit" && break
