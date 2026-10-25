@@ -2,7 +2,7 @@
 
 Pi를 기반으로 한 개인용 **Composable Coding Agent Harness**.
 
-현재는 설계 문서와 **Phase 1 TypeScript 기반 Launch CLI 및 Pi Slash Command**를 제공한다. 아직 실제 Pi·workmux 통합, Pi Extension의 실제 로딩, Dashboard·Handoff 실제 전달 및 독립 검증까지 완료된 제품은 아니다. **자연어 Launch Tool은 등록했지만 실제 Pi 환경 실행은 미검증**이다.
+현재는 설계 문서와 **Phase 1 TypeScript 기반 Launch CLI 및 Pi Slash Command**를 제공한다. 아직 실제 Pi·workmux 통합, Pi Extension의 실제 로딩, Dashboard·Handoff 전달 및 독립 검증의 실제 실행까지 확인한 제품은 아니다. **자연어 Launch Tool은 등록했지만 실제 Pi 환경 실행은 미검증**이다.
 
 ## 핵심 원칙
 
@@ -67,6 +67,7 @@ npm run check
 | **Launch** | 기본 Package에 포함 | `/compose launch`, `/compose preview` |
 | **workmux View** | 사용자가 명시적으로 추가 | `/compose-workmux [agents\|worktrees]` |
 | **Handoff** | 사용자가 명시적으로 추가 | `/compose-handoff [recipient]` 및 `compose_handoff` Tool |
+| **Independent Verification** | 사용자가 명시적으로 추가 | `/compose-verify [base-ref]` |
 | **사용자 정의 TUI / Extension** | Pi 기본 Extension/Package 방식으로 별도 추가 | 각 Extension의 명령 |
 
 ### 설치와 선택형 View 활성화
@@ -181,12 +182,38 @@ Git에서는 HEAD·브랜치·staged·unstaged·untracked 파일 경로를 확�
 
 자동 테스트는 Extension의 중요한 사용자 동작만 유지하고, 기존 Git·workmux 명령 재검증을 반복하지 않습니다.
 
+## Phase 5 — 선택적 독립 검증
+
+필요할 때만 사용하는 **선택형 Extension**입니다. 기본 Pi Compose에는 포함하지 않습니다.
+
+```bash
+pi -e /absolute/path/to/pi-compose/extensions/optional/verify.ts
+```
+
+```text
+/compose-verify                 # 현재 staged/unstaged/untracked 변경만 검증
+/compose-verify main            # Git 기준 브랜치부터의 변경까지 포함
+/compose-verify abc1234         # 명시적 기준 커밋부터 확인
+```
+
+Git으로 실제 변경과 파일 경로·공백 오류를 확인한 후 사용자 승인 시
+`pi --print --no-session --no-extensions --no-mcp --tools read,grep,find,ls`로
+**독립된 읽기 전용 Pi 검증**을 실행합니다. 에이전트는 실제 변경과 프로젝트의 `AGENTS.md`·명세 등을 확인합니다.
+
+Handoff 보고서나 원래 Main 대화는 **자동으로 전달하지 않습니다**. 해당 원문이 없는 경우
+계약·WHY를 확인하지 못했다고 보고합니다. 큰 Diff는 입력 길이를 제한하므로 완전한 검증을
+보장하지 않으며, 다른 사람이 동시에 수정하는 Shared Directory도 특별히 주의해야 합니다.
+
+검증 결과는 결론·이유·파일 근거·확인한 범위·미확인 범위만 현재 Pi에 간결하게 전달합니다.
+이 결과를 사용자 승인, Merge, Handoff 수신 확인으로 취급하지 않습니다.
+검증을 위해 새 자체 DB, 리뷰 엔진, Git 관리자, 필수 CI Gate를 추가하지 않았습니다.
+
 ## 문서
 
 [설계 문서 인덱스](docs/README.md) · [PRD](docs/PRD.md) · [TRD](docs/TRD.md) · [Architecture](docs/ARCHITECTURE.md) · [Implementation Plan](docs/IMPLEMENTATION_PLAN.md) · [Phase 1 구현·검증 상태](docs/validation/phase1-launch.md) · [Phase 2 Dashboard 연동](docs/validation/phase2-dashboard.md)
 
 ## 앞으로의 작업
 
-공통 Launch 진입점을 Pi 명령·자연어 Tool에서 재사용하도록 연결했다. Dashboard 연동은 Phase 2에서 기존 workmux TUI로 위임했다. Phase 3의 정확한 세션 재개·읽기 전용 상태 확인까지 구현했습니다. Phase 4에서는 선택형 Handoff Extension을 추가했습니다. 이후 독립 검증과 실제 통합이 남아 있습니다.
+공통 Launch 진입점을 Pi 명령·자연어 Tool에서 재사용하도록 연결했다. Dashboard 연동은 Phase 2에서 기존 workmux TUI로 위임했다. Phase 3의 정확한 세션 재개·읽기 전용 상태 확인까지 구현했습니다. Phase 4의 선택형 Handoff와 Phase 5의 선택형 독립 검증 Extension까지 추가했습니다. 실제 Pi 연동 검증과 Phase 6 통합 시나리오는 남아 있습니다.
 
 **미검증 기술 통합은 필요한 시점에 검증하며, 제품 요구사항을 임의로 축소하지 않는다.**
