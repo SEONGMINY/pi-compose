@@ -28,7 +28,6 @@
 | [`src/launch.ts`](../../src/launch.ts) | 기존 Pi 세션 JSONL 헤더 검증 함수 재사용을 위해 export (Launch 동작 변경 없음) |
 | [`bin/pi-compose.ts`](../../bin/pi-compose.ts) | `inspect`, `resume` 서브커맨드 |
 | [`extensions/compose.ts`](../../extensions/compose.ts) | 기본 Pi Package의 `/compose resume`로 세션 선택 및 재개 |
-| [`test/resume.test.ts`](../../test/resume.test.ts) | 정확한 세션·Worktree·tmux 중복 방지·실패 시 보존 테스트 |
 | [`test/compose.test.ts`](../../test/compose.test.ts) | 기존 Pi 세션을 잘못 중복 재개하지 않는지 검사 |
 
 ## 3. 사용 방법
@@ -120,40 +119,11 @@ Git Worktree가 dirty일 수 있고, 실패한 실행에서 생성한 브랜치�
 나중에 정리 명령을 추가한다면 사용자 요청·대상 확인·Dirty 파일 보존을 먼저 명시해야 한다.
 이는 Phase 3 전체 완료를 주장하지 않는 이유다.
 
-## 6. 테스트 및 남은 검증
+## 6. 검증 방식
 
-추가된 테스트의 주요 항목:
+- **Extension 고유 동작만 자동 테스트 유지:** 현재 실행 중인 Pi 세션을 중복 재개하지 않도록 하는 `/compose resume`의 사용자 선택과 실행 금지.
+- **기존 Git·tmux 동작:** 별도 모의 명령 테스트 대신 필요 시 `inspect`, `resume --dry-run`, 실제 도구를 실행하고 출력·Git 상태를 확인.
+- 이전에는 격리된 테스트 전용 Git Worktree로 경로 및 미커밋 파일 조회를 확인했다. 이것을 실제 Pi 세션 재개 검증으로 간주하지 않는다.
+- 새로운 Phase 3 코드의 전체 TypeScript 검사 및 Pi/tmux 실연동은 아직 확인이 필요하다. **미검증은 다음 개발의 자동 Gate가 아니다.**
 
-- Git Worktree의 정확한 브랜치 경로 발견, dirty 상태, `branch-only`·`not-found`.
-- Worktree 메인 체크아웃과 분리 여부.
-- Pi 세션 파일 ID와 기록된 cwd를 검증하고 다른 디렉터리를 거부.
-- 동일 세션의 결정적 tmux 이름, `pi --session` 호출 인자.
-- tmux 실행 대상 존재 시 중복 실행 방지, 실행 직전 두 번째 확인.
-- tmux 조회 실패 시 추측하지 않고 실행 취소.
-- 실패할 때 Git Clean/Reset/Remove/Prune을 호출하지 않음.
-- 현재 Pi 세션을 Pi Slash Command에서 실수로 중복 재개하지 않음.
-
-### 실제 Git 격리 스모크 테스트
-
-본 실행 컨테이너에서 `mktemp`로 **사용자 코드와 관계없는 임시 Git 저장소**를 만들고
-Git `worktree list --porcelain -z`의 반환 형식과 안전한 상태 판별을 실행했다.
-
-| 확인 | 결과 |
-| --- | --- |
-| 두 Worktree의 경로·브랜치 조회 | 통과 |
-| 새 파일이 있는 Worktree의 `--porcelain --untracked-files=all` 결과 | 통과 |
-| `--porcelain -z`의 NUL 구분과 브랜치 파싱 근거 | 통과 |
-| 원본 작업 디렉터리 보존 및 신규 파일 유지 | 통과 |
-| **테스트용** Worktree만 안전 제거한 뒤 브랜치가 남아 있는 `branch-only` 상태 | 통과 |
-
-이 검증은 **Git 명령과 포맷에 대한 실제 스모크 테스트**다.
-`src/resume.ts`의 전체 실행이나 실제 Pi/tmux 검증을 통과했다는 의미는 아니다.
-삭제를 포함한 검증은 **직접 만든 테스트 전용 Worktree**에만 적용했다.
-실제 pi-compose 구현에는 자동 Worktree 제거 코드가 없다.
-
-**이번 변경의 TypeScript 타입 검사와 전체 테스트는 npm 의존성이 있는 환경에서 실행해 확인해야 한다.**
-본 실행 컨테이너는 Zod와 Pi 타입 의존성 및 tmux/workmux가 없어
-그 검증을 통과했다고 주장하지 않는다.
-
-실제 Pi + workmux + tmux 통합 동작은 사용자의 결정대로
-**해당 연동을 실제 사용하는 시점에 검증**한다. 이 상태가 다음 개발을 막는 필수 Gate는 아니다.
+검증 코드가 제품 코드를 다시 구현하는 방향으로 늘어나지 않도록, 외부 도구 조합 단위 테스트는 현행 정책에 따라 제거했다.
