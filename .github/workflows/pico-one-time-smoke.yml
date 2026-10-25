@@ -1,0 +1,82 @@
+name: One-time pico install and Pi settings smoke
+on:
+  push:
+    paths:
+      - .github/workflows/pico-one-time-smoke.yml
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+      - name: Global install and unchanged base Pi
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install -g --ignore-scripts --no-audit --no-fund @earendil-works/pi-coding-agent@1.4.0
+          npm install -g --ignore-scripts --no-audit --no-fund "$GITHUB_WORKSPACE"
+          command -v pico
+          node -v
+          pi --version
+          pico --version
+          cd "$(mktemp -d)"
+          pico --help >/tmp/pico-help.txt
+          grep -q 'pi ' /tmp/pico-help.txt
+          echo GLOBAL_PICO_STARTUP_PASS
+      - name: Arguments, cwd, scope and exit codes (real global pico, fake Pi)
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$(mktemp -d)"
+          mkdir -p "$root/fake" "$root/project"
+          cat > "$root/fake/pi" <<'EOF'
+          #!/usr/bin/env bash
+          printf 'CALL' >> "$PICO_CAPTURE"
+          for arg in "$@"; do printf '|%s' "$arg" >> "$PICO_CAPTURE"; done
+          printf '|CWD=%s\n' "$PWD" >> "$PICO_CAPTURE"
+          if [[ "$1" == "install" ]]; then exit 0; fi
+          if [[ "$1" == "--extension" && "$*" == *"--force-error"* ]]; then exit 42; fi
+          exit 0
+          EOF
+          chmod +x "$root/fake/pi"
+          export PICO_CAPTURE="$root/calls.log"
+          export PATH="$root/fake:$PATH"
+          cd "$root/project"
+          pico --resume --model sonnet
+          pico config --local
+          pico features --local
+          cat "$PICO_CAPTURE"
+          grep -E '^CALL\|--extension\|.*extensions/compose.ts\|--resume\|--model\|sonnet\|CWD=' "$PICO_CAPTURE"
+          grep -F 'CALL|config|--local|CWD=' "$PICO_CAPTURE"
+          grep -F 'CALL|install|' "$PICO_CAPTURE" | grep -F '/packages/optional'
+          test "$(grep -c 'CALL|config|--local' "$PICO_CAPTURE")" -eq 2
+          set +e
+          pico --force-error
+          result=$?
+          set -e
+          test "$result" -eq 42
+          echo PICO_WRAPPER_ARGUMENTS_AND_EXIT_CODE_PASS
+      - name: Pi optional package discovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$(mktemp -d)"
+          cd "$root"
+          pi install "$GITHUB_WORKSPACE/packages/optional"
+          pi list | tee "$root/pi-list.txt"
+          grep -q 'optional' "$root/pi-list.txt"
+          printf '%s\n' "OPTIONAL_PACKAGE_DISCOVERED_PASS"
+      - name: Extension-focused verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          npm install --ignore-scripts --no-audit --no-fund
+          npm run typecheck
+          npm test
+          echo TYPES_AND_EXTENSION_TESTS_PASS
