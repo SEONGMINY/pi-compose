@@ -58,3 +58,19 @@ jobs:
           cmp "$HOME/.pi/agent/sessions/sentinel.txt" /tmp/previous-pi-session
           pico --version
           echo REINSTALL_PRESERVES_PI_DATA_OK
+
+      - name: GitHub update from earlier commit via exact public one-line installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          previous_commit="8aa923956dc0590b26d88beea5b5e236ecfe2399"
+          npm install -g --ignore-scripts --no-audit --no-fund "git+https://github.com/SEONGMINY/pi-compose.git#$previous_commit"
+          global="$(npm root -g)/pi-compose"
+          if grep -q 'macOS 설치 또는 업데이트' "$global/README.md"; then
+            echo OLD_COMMIT_NOT_INSTALLED
+            exit 1
+          fi
+          curl -fsSL https://raw.githubusercontent.com/SEONGMINY/pi-compose/main/scripts/install.sh | bash
+          grep -q 'macOS 설치 또는 업데이트' "$global/README.md"
+          pico --version
+          echo REAL_COMMIT_UPDATE_THROUGH_ONE_LINE_OK
