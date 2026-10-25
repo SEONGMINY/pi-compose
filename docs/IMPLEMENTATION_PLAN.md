@@ -331,7 +331,9 @@ workmux JSON 조회를 재사용한다. Main 컨텍스트에는 전체 세션 �
   선택형 Extension 강제 활성화·자동 로그인은 하지 않는다.
 - **실제 확인:** macOS runner에서 Pi/npm, Homebrew tmux/workmux, GitHub 직접 npm 설치,
   CLI/Extension 파일 포함, `pico` 실행, 같은 명령 재실행 및 기존 설정·세션 파일 보존.
-  [실행 기록](https://github.com/SEONGMINY/pi-compose/actions/runs/40185554756).
+  [설치·재설치 기록](https://github.com/SEONGMINY/pi-compose/actions/runs/40185554756).
+  **이전 커밋 → 최신 커밋 업데이트**도 동일한 `curl | bash` 명령으로 확인했다.
+  [업데이트 검증](https://github.com/SEONGMINY/pi-compose/actions/runs/40185838846).
 - **미검증:** macOS Intel, Homebrew 없는 신규 환경과 사용자 Node 버전 매니저 충돌,
   실제 Pi 인증 모델 실행과 tmux/workmux 세션 사용성.
 - 결정 근거: [ADR 0006](adr/0006-github-installer.md).
