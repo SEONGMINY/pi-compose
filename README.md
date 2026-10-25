@@ -55,7 +55,7 @@ npm run check
 # 내부적으로 tsc --noEmit + node --test test/*.test.ts
 ```
 
-이 테스트는 **옵션 처리·명령 계획·모의 실행 결과**를 검증한다. 실제 Pi·workmux·Dashboard의 성공을 보장하지 않는다.
+**자동 테스트는 직접 구현한 Pi Extension의 사용자 동작을 중심으로 작성합니다.** 기존 도구 연결은 필요한 시점에 실제 명령과 결과로 확인합니다. 타입 검사는 별도로 유지합니다.
 
 ## 조합 가능한 Pi Extension
 
@@ -165,6 +165,6 @@ Worktree의 미커밋 변경은 그대로 보존합니다. **이미 사용 중�
 
 ## 앞으로의 작업
 
-공통 Launch 진입점을 Pi 명령·자연어 Tool에서 재사용하도록 연결했다. Dashboard 연동은 Phase 2에서 기존 workmux TUI로 위임했다. 다음은 **Phase 3 Resume·재시도·안전한 정리**, 이후 Handoff와 독립 검증이다.
+공통 Launch 진입점을 Pi 명령·자연어 Tool에서 재사용하도록 연결했다. Dashboard 연동은 Phase 2에서 기존 workmux TUI로 위임했다. Phase 3의 정확한 세션 재개·읽기 전용 상태 확인까지 구현했습니다. 이후 Handoff와 독립 검증을 진행합니다.
 
 **미검증 기술 통합은 필요한 시점에 검증하며, 제품 요구사항을 임의로 축소하지 않는다.**
