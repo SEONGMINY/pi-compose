@@ -109,6 +109,8 @@ Dashboard가 사용자 정의 Launch 액션을 공식적으로 받는지 확인�
 
 ## 6. Phase 3 — Resume·재시도·안전한 정리
 
+> **상태: 읽기 전용 Git Worktree 진단과 정확한 Pi 세션 Resume 1차 구현.** `inspect`와 `resume --session-file` CLI, Pi `/compose resume`을 추가했다. Git의 Worktree 위치·Dirty 상태 및 원래 Pi 세션 cwd를 확인하고, tmux 이름 충돌 시 중복 실행을 차단한다. **다른 tmux Pane에서의 동일 Pi 세션 실행은 식별하지 못하며 자동 Cleanup은 없다.** 실제 Pi/tmux 통합 및 새 코드 타입 검사·테스트 실행은 미검증. [Phase 3 기록](validation/phase3-resume.md).
+
 ### 시나리오
 
 1. Pi 실행 전 Worktree만 생성된 상태에서 실패.
