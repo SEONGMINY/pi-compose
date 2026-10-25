@@ -14,7 +14,7 @@ cd ~/projects/my-app
 pic
 ```
 
-첫 실행에는 Pi TUI에서 `/login`으로 제공자를 인증하고 `/model`로 모델을 선택합니다. Azure 설정은 필요하지 않습니다. 기존 `pi`의 설정·인증·세션·Skill·Theme가 공유됩니다.
+첫 실행에는 Pi TUI에서 `/login`으로 제공자를 인증하고 `/model`로 모델을 선택합니다. Azure를 사용하지 않는다면 Azure 설정은 필요하지 않습니다. 기존 `pi`의 설정·인증·세션·Skill·Theme가 공유됩니다.
 
 ## 새 에이전트를 실행할 때
 
