@@ -13,6 +13,75 @@ Pi를 기반으로 한 개인용 **Composable Coding Agent Harness**.
 - Main이 상세 Git Diff·테스트 로그를 직접 분석하도록 강제하지 않는다.
 - 완료 Handoff, 검증, 실제 Git 통합, Worktree 정리를 서로 구분한다.
 
+## 시작하기 — `pico`
+
+**최초 한 번 설치한 다음에는 어느 프로젝트에서든 `pico`로 Pi Compose를 시작할 수 있습니다.**
+
+Node.js 22.19.0 이상과 Git이 필요합니다. 에이전트를 tmux에서 실행하려면 tmux가,
+Worktree Launch·선택형 Dashboard가 필요하면 workmux가 추가로 필요합니다.
+Pi 모델 인증 및 사용자 설정은 **기존 Pi와 공유**합니다.
+
+```bash
+# Pi가 설치돼 있지 않다면 먼저 설치
+npm install -g @earendil-works/pi-coding-agent
+
+# Pi Compose 저장소를 설치 (로컬 경로의 npm 전역 설치; npm 공개 배포는 아직 하지 않음)
+git clone https://github.com/SEONGMINY/pi-compose.git ~/dev/pi-compose
+npm install -g ~/dev/pi-compose
+
+# 원하는 프로젝트로 이동해 실행
+cd ~/projects/my-app
+pico
+```
+
+`pico`는 현재 작업 디렉터리를 유지하고 **기존 `pi` TUI**를 실행하면서
+`extensions/compose.ts`만 명시적으로 추가합니다. Pi Runtime·세션 DB·모델 설정을 복제하지 않습니다.
+설치 시 Pi의 사용자·프로젝트 `settings.json`을 수정하지 않습니다.
+
+기존 Pi 옵션도 그대로 전달합니다.
+
+```bash
+pico --resume
+pico --continue
+pico --model sonnet:high
+pico -e /path/to/my-extension.ts
+```
+
+Pi의 Package 관련 CLI도 직접 사용할 수 있습니다.
+
+```bash
+pico config           # Pi 기본 Package/Extension 설정 TUI
+pico config --local   # 이 프로젝트의 Pi 설정
+pico list             # Pi Package 목록
+```
+
+### 선택형 기능 활성화
+
+기본으로는 **Launch·Preview·Resume**만 연결합니다.
+Dashboard·Handoff·독립 검증은 Pi의 **별도 선택형 Package**에 담았습니다.
+사용자가 직접 활성화할 때만 다음 명령을 실행합니다.
+
+```bash
+pico features          # 사용자 범위에서 세 선택형 Extension 추가 → Pi config
+pico features --local  # 현재 프로젝트 범위에서 추가 → Pi config
+```
+
+이 명령은 자체 설정 시스템이 아닙니다. 설치된 `packages/optional`을
+**Pi의 `install` 명령으로 등록하고 `pi config` TUI를 여는 단축 실행**입니다.
+최초 등록 시 Dashboard·Handoff·Verify **세 기능 모두 활성화**됩니다.
+설정 UI에서 사용하지 않는 Extension을 꺼 주세요.
+선택 결과는 Pi의 `settings.json`에 저장돼 이후에도 유지됩니다.
+
+**선택형 설정은 일반 `pi`와 `pico`에 공통 적용됩니다.** 이는 합의한
+Pi 설정 공유 방식입니다. 한 번의 실행에만 추가하려면 `pico -e <path>`를 사용하세요.
+`pico`로 실행하지 않아도 일반 `pi`는 계속 사용할 수 있습니다.
+
+> 이미 `pi install ~/dev/pi-compose`로 기본 Package를 등록했다면
+> 일반 `pi`에서도 `/compose` 명령이 보일 수 있습니다.
+> `pico`는 Pi의 리소스 경로 중복 제거를 활용하며 기존 설치나 설정을 자동으로 삭제하지 않습니다.
+> 일반 `pi`를 기본 상태로 돌리고 싶다면 `pi list`로 기존 등록을 확인한 뒤
+> 사용자 판단으로 `pi remove <등록된 소스>`를 사용하세요.
+
 ## TypeScript 실행 및 의존성
 
 - **CLI:** Node.js 22.19.0 이상의 기본 TypeScript type stripping으로 `bin/pi-compose.ts` 직접 실행. 별도 번들·빌드 단계 없음.
@@ -70,33 +139,19 @@ npm run check
 | **Independent Verification** | 사용자가 명시적으로 추가 | `/compose-verify [base-ref]` |
 | **사용자 정의 TUI / Extension** | Pi 기본 Extension/Package 방식으로 별도 추가 | 각 Extension의 명령 |
 
-### 설치와 선택형 View 활성화
+### 기존 Pi Package 명령을 직접 사용할 수도 있습니다
+
+`pico features`를 사용하지 않고 기존 Pi 명령으로도 선택형 기능을 설치할 수 있습니다.
+예를 들어 로컬 체크아웃을 사용하는 경우 다음과 같습니다.
 
 ```bash
-# 로컬 checkout에서 기본 Pi Compose만 설치 (Launch만 로드)
-pi install /absolute/path/to/pi-compose
-
-# workmux View를 이 세션에서만 명시적으로 로드
-pi -e /absolute/path/to/pi-compose/extensions/optional/workmux-dashboard.ts
+pi install ~/dev/pi-compose/packages/optional
+pi config
 ```
 
-계속 사용할 때는 **Pi 설정**(`~/.pi/agent/settings.json` 등)의 `extensions` 리소스 경로에
-실제 Extension 파일의 절대 경로를 추가합니다.
-
-```json
-{
-  "extensions": [
-    "/absolute/path/to/pi-compose/extensions/optional/workmux-dashboard.ts"
-  ]
-}
-```
-
-이 예시는 **로컬 소스 체크아웃 기준**입니다. 이미 설정 파일이 있다면 기존 `extensions` 값에
-추가하세요. 기본 Package는 `extensions/compose.ts`만 노출하며,
-선택형 View는 Pi Package 필터만으로 자동 활성화되지 않습니다.
-
-Pi가 로컬 디렉터리에서 Extension을 자동 탐색할 때도 뜻하지 않게 로드되지 않도록
-선택형 파일을 `extensions/optional/`에 배치했습니다(해당 디렉터리에 `index.ts` 없음).
+지속 여부·사용자/프로젝트 범위는 Pi의 설정이 소유합니다. `pico`는 이를
+별도로 저장하거나 원래 Pi의 설정 파일을 덮어쓰지 않습니다.
+별도의 코드 기반 View Registry·Plugin Manager를 만들지 않았습니다.
 
 ### 기존 workmux Dashboard CLI
 
