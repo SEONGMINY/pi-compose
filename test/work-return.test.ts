@@ -33,6 +33,19 @@ function fixture(t: import('node:test').TestContext, open = true) {
     },
     exec: async (cmd: string, args: string[]) => {
       calls.push(cmd + ' ' + args.join(' '));
+      if (cmd === 'tmux') {
+        if (args[0] === 'list-panes') return {
+          code: 0,
+          stdout: [
+            'pc-member-api-0123abcd\t/tmp/project',
+            'pic-0123456789ab\t/tmp/project',
+            'pc-other-agent-deadbeef\t/tmp/unrelated',
+          ].join('\n'),
+          stderr: '',
+        };
+        if (args[0] === 'has-session' || args[0] === 'switch-client') return { code: 0, stdout: '', stderr: '' };
+        throw new Error('unexpected tmux command');
+      }
       if (cmd !== 'workmux') throw new Error('unexpected executable');
       if (args.join(' ') === 'list --json') return { code: 0, stdout: JSON.stringify(rows), stderr: '' };
       if (args.join(' ') === 'open feature-api') return { code: 0, stdout: '', stderr: '' };
@@ -41,7 +54,7 @@ function fixture(t: import('node:test').TestContext, open = true) {
   } as unknown as ExtensionAPI;
   const selections: string[] = [];
   let confirm = false;
-  let target: 'saved' | 'workmux' = 'saved';
+  let target: 'saved' | 'workmux' | 'tmux' = 'saved';
   let switched: string | undefined;
   const ctx = {
     hasUI: true, cwd: '/tmp/project',
@@ -52,7 +65,8 @@ function fixture(t: import('node:test').TestContext, open = true) {
     ui: {
       select: async (_title: string, choices: string[]) => {
         selections.push(...choices);
-        return choices.find(choice => target === 'workmux' ? choice.includes('Worktree') : choice.includes('Saved'));
+        return choices.find(choice => target === 'workmux' ? choice.includes('Worktree')
+          : target === 'tmux' ? choice.includes('Running target') : choice.includes('Saved'));
       },
       notify: (message: string) => messages.push(message),
       confirm: async () => confirm,
@@ -65,7 +79,7 @@ function fixture(t: import('node:test').TestContext, open = true) {
   if (!registered || !returnTool) throw new Error('Pi work-return tools not registered');
   return { pi, ctx, calls, messages, selections, tool: registered, returnTool,
     getEditor: () => editor, setEditor: (value: string) => { editor = value; },
-    setTarget: (v: 'saved' | 'workmux') => { target = v; },
+    setTarget: (v: 'saved' | 'workmux' | 'tmux') => { target = v; },
     setApproval: (v: boolean) => { confirm = v; },
     getSwitch: () => switched };
 }
@@ -150,4 +164,36 @@ test('workmux return requested through natural language still requires user conf
     fx.ctx as unknown as ExtensionToolContext);
   assert.equal(result.details.status, 'workmux_return_attempted_unverified');
   assert.ok(!fx.calls.some(command => command.startsWith('workmux open')));
+});
+
+
+test('work picker shows only same-project Pi Compose tmux targets and labels agent status unknown', async t => {
+  const fx = fixture(t);
+  await showWorkPicker(fx.pi, fx.ctx);
+  assert.ok(fx.selections.some(s => s.includes('Running target') && s.includes('member-api')));
+  assert.ok(fx.selections.some(s => s.includes('agent status unknown')));
+  assert.ok(!fx.selections.some(s => s.includes('other-agent')));
+});
+
+test('selecting a live target switches the tmux client without starting a new agent', async t => {
+  const original = process.env.TMUX;
+  process.env.TMUX = '/tmp/pi-compose-test-tmux';
+  t.after(() => { if (original === undefined) delete process.env.TMUX; else process.env.TMUX = original; });
+  const fx = fixture(t);
+  fx.setTarget('tmux');
+  await showWorkPicker(fx.pi, fx.ctx);
+  assert.ok(fx.calls.some(s => s === 'tmux has-session -t =pc-member-api-0123abcd'));
+  assert.ok(fx.calls.some(s => s === 'tmux switch-client -t =pc-member-api-0123abcd'));
+  assert.ok(!fx.calls.some(s => s.includes('new-session')));
+});
+
+test('from outside tmux navigation advises attach without creating a session', async t => {
+  const original = process.env.TMUX;
+  delete process.env.TMUX;
+  t.after(() => { if (original !== undefined) process.env.TMUX = original; });
+  const fx = fixture(t);
+  fx.setTarget('tmux');
+  await showWorkPicker(fx.pi, fx.ctx);
+  assert.ok(fx.messages.some(m => m.includes('tmux attach -t')));
+  assert.ok(!fx.calls.some(s => s.startsWith('tmux switch-client')));
 });

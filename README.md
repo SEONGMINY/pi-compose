@@ -29,6 +29,8 @@ cd ~/projects/my-app
 pic
 ```
 
+일반 터미널에서 인자 없이 `pic`을 실행하면 프로젝트별 tmux 세션을 자동으로 만들거나 기존 세션에 연결합니다. tmux 안에서는 중첩하지 않습니다. `Ctrl+b`, `d`로 분리한 뒤 같은 디렉터리에서 `pic`을 다시 실행하면 기존 화면에 돌아옵니다. Pi CLI 옵션과 비대화형 실행은 기존 동작을 유지합니다.
+
 처음 사용하는 Pi라면 TUI에서 `/login`으로 로그인하고 `/model`에서 모델을 선택합니다. 기존 Pi의 인증·세션·설정·Extension·Skill·Theme는 그대로 사용합니다. [설치 환경](docs/adr/0006-github-installer.md)
 
 ## 실제로 작업할 때
@@ -49,20 +51,20 @@ Pi 선택 화면에서 **Fork existing Pi session**을 고르고 원본 대화�
 
 **3. 시작한 작업을 확인하고, Main은 다음 일을 이어갑니다.**
 
-- **Shared Directory:** 별도 tmux 세션에서 Pi를 실행합니다. 현재는 `tmux list-sessions` 등으로 직접 해당 세션을 확인합니다.
-- **Git Worktree:** workmux가 브랜치·작업 디렉터리와 tmux 창을 만듭니다. workmux Dashboard를 선택적으로 열어 작업을 살펴볼 수 있습니다.
+- **Shared Directory:** 별도 tmux 세션에서 Pi를 실행합니다. `/compose work`에서 실행 대상을 찾아 이동할 수 있습니다. tmux 대상 존재 여부는 모델의 작업 상태나 완료를 보증하지 않습니다.
+- **Git Worktree:** workmux가 브랜치·작업 디렉터리와 tmux 창을 백그라운드에서 만듭니다. Main 화면에 남아 `/compose work`로 필요한 작업에 이동하거나, 선택형 workmux Dashboard를 열 수 있습니다.
 
 Pi Compose는 작업 **실행 명령이 성공했는지** 보고합니다. 모델이 실제로 코드를 작성 중인지까지 자동으로 확인해 주지는 않습니다. 독립 실행을 요청했다고 Main의 대화가 자동 종료되지도 않습니다.
 
 **4. 이전 작업으로 돌아갑니다.**
 
 ```text
-/compose back
+/compose work
 ```
 
 현재 프로젝트의 저장된 Pi 대화와 workmux 작업을 Pi 선택 UI에서 찾습니다. 자연어로 “아까 회원 API 작업으로 돌아가고 싶어”라고 요청할 수도 있습니다. 저장된 대화의 전환은 사용자 Enter로 확정해야 합니다.
 
-현재 **Shared Directory에서 새로 띄운 tmux 세션은 이 목록으로 통합 탐색되지 않습니다.** 그런 경우에는 tmux에서 직접 전환해야 합니다. 닫힌 Worktree를 재개할 때는 정확한 Pi 세션을 선택하고 새 프로세스 실행을 승인해야 합니다.
+현재 프로젝트의 저장된 Pi 대화, workmux 작업과 Pi Compose가 생성한 tmux 실행 대상을 한 메뉴에서 탐색할 수 있습니다. **저장 대화로 전환, 실행 중인 tmux 세션에 이동, 닫힌 Worktree 재개는 서로 다른 동작**입니다. 기존 `/compose back`도 사용할 수 있습니다. 닫힌 Worktree를 재개할 때는 정확한 Pi 세션을 선택하고 새 프로세스 실행을 승인해야 합니다.
 
 **5. 필요한 경우 결과를 인계하고 검증합니다.**
 

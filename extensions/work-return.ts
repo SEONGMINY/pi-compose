@@ -1,6 +1,7 @@
 import { Type } from '@earendil-works/pi-ai';
 import { SessionManager, type ExtensionAPI, type ExtensionCommandContext, type ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { realpath } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { planResume, executeResume } from '../src/resume.ts';
 import { fileURLToPath } from 'node:url';
 
@@ -11,11 +12,15 @@ type OpenWorktree = {
   branch: string;
   path: string;
   is_open: boolean;
+  project_path?: string;
 };
+type LiveTmuxTarget = { name: string; cwd: string };
 type Discovered = {
   sessions: Awaited<ReturnType<typeof SessionManager.list>>;
   worktrees: OpenWorktree[];
+  tmuxTargets: LiveTmuxTarget[];
   workmuxWarning?: string;
+  tmuxWarning?: string;
 };
 
 async function workmuxRows(pi: ExtensionAPI, cwd: string): Promise<{ rows: OpenWorktree[]; warning?: string }> {
@@ -36,22 +41,55 @@ async function workmuxRows(pi: ExtensionAPI, cwd: string): Promise<{ rows: OpenW
     return row !== null && typeof row === 'object'
       && typeof row.handle === 'string' && row.handle.length > 0
       && typeof row.branch === 'string' && typeof row.path === 'string'
-      && typeof row.is_open === 'boolean';
+      && typeof row.is_open === 'boolean'
+      && (row.project_path === undefined || typeof row.project_path === 'string');
   });
   if (rows.length !== parsed.length) return { rows: [], warning: 'Some workmux results were not recognized; refusing to choose a target.' };
   return { rows };
 }
 
-/** Small, bounded read-only lookup. Pi and workmux retain ownership of all saved state. */
+// Only discover sessions created by Pi Compose (pc-* or pic-*). A tmux target
+// being present never proves that an agent is running, waiting or finished.
+async function tmuxRows(
+  pi: ExtensionAPI, cwd: string, worktrees: OpenWorktree[],
+): Promise<{ rows: LiveTmuxTarget[]; warning?: string }> {
+  let result: Awaited<ReturnType<ExtensionAPI['exec']>>;
+  try {
+    result = await pi.exec('tmux', ['list-panes', '-a', '-F', '#{session_name}\t#{pane_current_path}'], { cwd });
+  } catch (error) {
+    return { rows: [], warning: 'tmux targets unavailable: ' + String(error) };
+  }
+  if (result.code !== 0) {
+    return { rows: [], warning: 'tmux targets unavailable: ' + (result.stderr || 'no tmux server') };
+  }
+
+  const paths = new Set(
+    [cwd, ...worktrees.flatMap(w => [w.path, ...(w.project_path ? [w.project_path] : [])])].map(p => resolve(p)),
+  );
+  const targets = new Map<string, LiveTmuxTarget>();
+  for (const line of result.stdout.split('\n')) {
+    const [name, paneCwd] = line.split('\t');
+    if (!name || !paneCwd) continue;
+    if (!/^pc-[a-z0-9-]+-[0-9a-f]{8}$/.test(name) && !/^pic-[0-9a-f]{12}$/.test(name)) continue;
+    if (!paths.has(resolve(paneCwd))) continue;
+    targets.set(name, { name, cwd: paneCwd });
+  }
+  return { rows: Array.from(targets.values()).slice(0, 40) };
+}
+
+/** Small, bounded read-only lookup. Pi, workmux and tmux own their state. */
 async function discover(pi: ExtensionAPI, ctx: ExtensionContext): Promise<Discovered> {
   const [sessions, workmux] = await Promise.all([
     SessionManager.list(ctx.cwd, ctx.sessionManager.getSessionDir()),
     workmuxRows(pi, ctx.cwd),
   ]);
+  const tmux = await tmuxRows(pi, ctx.cwd, workmux.rows);
   return {
     sessions: sessions.filter(s => s.path !== ctx.sessionManager.getSessionFile()).slice(0, 40),
     worktrees: workmux.rows.slice(0, 40),
+    tmuxTargets: tmux.rows,
     workmuxWarning: workmux.warning,
+    tmuxWarning: tmux.warning,
   };
 }
 
@@ -64,10 +102,15 @@ function matches(text: string, query: string): boolean {
 
 type WorkItem =
   | { kind: 'session'; name: string; session: Discovered['sessions'][number] }
-  | { kind: 'worktree'; name: string; worktree: OpenWorktree };
+  | { kind: 'worktree'; name: string; worktree: OpenWorktree }
+  | { kind: 'tmux'; name: string; target: LiveTmuxTarget };
 
 function workItems(found: Discovered, query: string): WorkItem[] {
   return [
+    ...found.tmuxTargets.filter(t => matches(t.name, query))
+      .map(t => ({ kind: 'tmux' as const,
+        name: 'Running target · ' + (t.name.startsWith('pic-') ? 'Pi Compose entry' : t.name.slice(3).replace(/-[0-9a-f]{8}$/, ''))
+          + ' [tmux ' + t.name + '; agent status unknown]', target: t })),
     ...found.sessions.filter(s => matches([s.name, s.firstMessage, s.id].join(' '), query))
       .map(s => ({ kind: 'session' as const, name: 'Saved · ' + label(s.name || s.firstMessage || '(unnamed)') + ' [' + s.id.slice(0, 8) + ']', session: s })),
     ...found.worktrees.filter(w => matches(w.branch + ' ' + w.handle, query))
@@ -81,7 +124,8 @@ async function chooseWork(ctx: ExtensionContext, found: Discovered, query: strin
   const choices = items.map((item, index) => (index + 1) + '. ' + item.name);
   if (!choices.length) {
     ctx.ui.notify('No matching work in current-project Pi sessions or workmux.'
-      + (found.workmuxWarning ? ' ' + found.workmuxWarning : ''), 'info');
+      + (found.workmuxWarning ? ' ' + found.workmuxWarning : '')
+      + (found.tmuxWarning ? ' ' + found.tmuxWarning : ''), 'info');
     return undefined;
   }
   const selected = await ctx.ui.select('Return to previous work', choices);
@@ -102,17 +146,20 @@ export function registerWorkReturn(pi: ExtensionAPI): void {
       const query = params.query?.trim() || '';
       const sessions = found.sessions.filter(s => matches([s.name, s.firstMessage].join(' '), query)).slice(0, 8);
       const worktrees = found.worktrees.filter(w => matches(w.branch + ' ' + w.handle, query)).slice(0, 8);
+      const live = found.tmuxTargets.filter(t => matches(t.name, query)).slice(0, 8);
       return {
         content: [{ type: 'text' as const, text: [
           'Existing work in this project (read-only; not proof a Pi process is running):',
+          ...live.map(t => '- tmux target: ' + t.name + ' [target exists; Pi activity not verified]'),
           ...sessions.map(s => '- Saved Pi session: ' + label(s.name || s.firstMessage || '(unnamed)') + ' [id=' + s.id.slice(0, 8) + ']'),
           ...worktrees.map(w => '- workmux: ' + label(w.branch) + ' [handle=' + w.handle + ', target ' + (w.is_open ? 'open' : 'closed') + ']'),
-          ...(!sessions.length && !worktrees.length ? ['No matching entries in the available sources.'] : []),
+          ...(!live.length && !sessions.length && !worktrees.length ? ['No matching entries in the available sources.'] : []),
           ...(found.workmuxWarning ? ['LIMIT: ' + found.workmuxWarning] : []),
+          ...(found.tmuxWarning ? ['LIMIT: ' + found.tmuxWarning] : []),
           'This is a limited lookup for the current project. It does not inspect other project histories or prove a specific Pi session is live.',
           'For no-model direct selection use /compose back. Never start or resume anything solely from these results.',
         ].join('\n') }],
-        details: { status: 'read_only', sessionMatches: sessions.length, worktreeMatches: worktrees.length },
+        details: { status: 'read_only', sessionMatches: sessions.length, worktreeMatches: worktrees.length, tmuxMatches: live.length },
       };
     },
   });
@@ -134,7 +181,13 @@ export function registerWorkReturn(pi: ExtensionAPI): void {
         return { content: [{ type: 'text' as const, text: 'No previous work was selected; nothing changed.' }],
           details: { status: 'cancelled' } };
       }
-      if (chosen.kind === 'session') {
+      if (chosen.kind === 'tmux') {
+      await returnToTmux(pi, ctx, chosen.target);
+      return { content: [{ type: 'text' as const,
+        text: 'Navigation to the selected tmux target was requested. Pi agent activity was not verified.' }],
+        details: { status: 'tmux_switch_attempted_unverified' } };
+    }
+    if (chosen.kind === 'session') {
         const command = '/compose back id:' + chosen.session.id;
         // The model tool has no ctx.switchSession(): only a user-initiated Pi command
         // can switch the conversation. Never replace an unsent draft in the editor.
@@ -266,7 +319,31 @@ export async function showWorkPicker(pi: ExtensionAPI, ctx: ExtensionCommandCont
     if (switched.cancelled) ctx.ui.notify('Pi session switch cancelled.', 'info');
     return;
   }
+  if (item.kind === 'tmux') {
+    await returnToTmux(pi, ctx, item.target);
+    return;
+  }
   await returnToWorktree(pi, ctx, item.worktree);
+}
+
+// Selection itself authorizes navigation, not a fresh Pi process or a Git change.
+async function returnToTmux(pi: ExtensionAPI, ctx: ExtensionContext, target: LiveTmuxTarget): Promise<void> {
+  if (!process.env.TMUX) {
+    ctx.ui.notify('Pi is outside tmux. To connect to this target, run: tmux attach -t '
+      + target.name, 'warning');
+    return;
+  }
+  try {
+    const existing = await pi.exec('tmux', ['has-session', '-t', '=' + target.name], { cwd: ctx.cwd });
+    if (existing.code !== 0) {
+      ctx.ui.notify('The selected tmux target no longer exists. Refresh the work list.', 'warning');
+      return;
+    }
+    const moved = await pi.exec('tmux', ['switch-client', '-t', '=' + target.name], { cwd: ctx.cwd });
+    if (moved.code !== 0) throw new Error(moved.stderr || 'switch-client failed');
+  } catch (error) {
+    ctx.ui.notify('Could not switch tmux target: ' + String(error), 'error');
+  }
 }
 
 /** Move to an explicitly selected workmux target; no guessing about Pi session identity. */

@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { realpathSync } from 'node:fs';
 import { constants } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,6 +19,34 @@ function runPi(args) {
       console.error(error.code === 'ENOENT'
         ? 'pic: Pi was not found on PATH. Install @earendil-works/pi-coding-agent first.'
         : 'pic: Could not start Pi: ' + error.message);
+      done(error.code === 'ENOENT' ? 127 : 1);
+    });
+    child.once('close', (code, signal) => {
+      if (failed) return;
+      done(signal ? 128 + (constants.signals[signal] || 1) : (code ?? 1));
+    });
+  });
+}
+
+// Bare interactive pic starts in a project-scoped tmux session. No user
+// tmux configuration is changed; subsequent calls attach to the same target.
+function quoteShell(value) {
+  return "'" + value.replaceAll("'", "'\\''") + "'";
+}
+function runInProjectTmux() {
+  const cwd = realpathSync(process.cwd());
+  const name = 'pic-' + createHash('sha256').update(cwd).digest('hex').slice(0, 12);
+  const commandLine = 'exec ' + [process.execPath, fileURLToPath(import.meta.url)].map(quoteShell).join(' ');
+  return new Promise((done) => {
+    const child = spawn('tmux', ['new-session', '-A', '-s', name, '-c', cwd,
+      '-e', 'PATH=' + (process.env.PATH || '/usr/local/bin:/usr/bin:/bin'), commandLine],
+    { cwd, env: process.env, stdio: 'inherit' });
+    let failed = false;
+    child.once('error', (error) => {
+      failed = true;
+      console.error(error.code === 'ENOENT'
+        ? 'pic: tmux was not found on PATH. Install tmux, then run pic again.'
+        : 'pic: Could not start tmux: ' + error.message);
       done(error.code === 'ENOENT' ? 127 : 1);
     });
     child.once('close', (code, signal) => {
@@ -48,5 +78,10 @@ if (command === 'features') {
 } else {
   // Pi owns cwd, models, providers, session storage, project settings, and TUI.
   // Explicit -e is the only difference from an ordinary "pi" invocation.
-  process.exitCode = await runPi(['--extension', coreExtension, ...args]);
+  // Pi flags and noninteractive calls keep their previous behavior. Only bare
+  // interactive pic automatically manages tmux; inside tmux never nest it.
+  process.exitCode = !command && process.stdin.isTTY && process.stdout.isTTY
+    && !process.env.TMUX && process.platform !== 'win32'
+    ? await runInProjectTmux()
+    : await runPi(['--extension', coreExtension, ...args]);
 }

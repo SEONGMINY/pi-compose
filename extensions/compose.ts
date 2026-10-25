@@ -43,10 +43,10 @@ async function chooseForkSource(ctx: ExtensionContext, { includeCurrent = true }
 export default function composeExtension(pi: ExtensionAPI): void {
   registerWorkReturn(pi);
   pi.registerCommand('compose', {
-    description: 'Pi Compose: /compose launch [task], /compose preview [task], /compose back [query], /compose resume',
+    description: 'Pi Compose: /compose launch [task], /compose preview [task], /compose work [query], /compose back [query], /compose resume',
     handler: async (args, ctx) => {
       const [subcommand, ...rest] = args.trim().split(/\s+/);
-      if (subcommand === 'back') {
+      if (subcommand === 'back' || subcommand === 'work') {
         await showWorkPicker(pi, ctx, rest.join(' '));
         return;
       }
@@ -87,7 +87,7 @@ export default function composeExtension(pi: ExtensionAPI): void {
         return;
       }
       if (subcommand !== 'launch' && subcommand !== 'preview') {
-        ctx.ui.notify('Usage: /compose launch [task], /compose preview [task], /compose back [query], or /compose resume. Optional workmux View: /compose-workmux', 'info');
+        ctx.ui.notify('Usage: /compose launch [task], /compose preview [task], /compose work [query], /compose back [query], or /compose resume. Optional workmux View: /compose-workmux', 'info');
         return;
       }
       if (!ctx.hasUI) {
