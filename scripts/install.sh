@@ -21,7 +21,7 @@ node_compatible() {
   has node || return 1
   node -e '
     const parts = process.versions.node.split(".").map(Number);
-    process.exit(parts[0] > 22 || (parts[0] === 22 && parts[1] >= 19));
+    process.exit(parts[0] > 22 || (parts[0] === 22 && parts[1] >= 19) ? 0 : 1);
   ' >/dev/null 2>&1
 }
 
