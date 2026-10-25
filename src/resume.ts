@@ -47,7 +47,7 @@ export type ResumePlan = {
   warnings: string[];
 };
 
-function validate<T>(schema: z.ZodType<T>, value: unknown): T {
+function validate<T extends z.ZodType>(schema: T, value: unknown): z.output<T> {
   const result = schema.safeParse(value);
   if (!result.success) {
     throw new LaunchError(result.error.issues.map(issue => issue.message).join('; '), result.error.issues);
