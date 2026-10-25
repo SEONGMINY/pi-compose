@@ -24,8 +24,18 @@ Pi Compose를 실행하면 화면 아래에 `Alt+W 작업 보기` 안내가 표�
 
 - **새 에이전트에게 맡기기:** 작업 이름을 입력하고 기존 Fork/Independent, Shared/Worktree 선택을 이어갑니다. 사용자의 실행 지시 없이 모델이 자동으로 에이전트를 생성하지 않습니다.
 - **내 작업:** 이번 개선 버전에서 명시적으로 시작한 작업을 제목별로 한 번씩 보여줍니다. tmux 또는 Worktree가 열려 있어도 실제 Pi 모델이 작업 중/완료라는 뜻은 아닙니다.
-- **Main으로 돌아가기:** 이전 Main의 정확한 tmux 세션이 확인되는 경우 첫 항목에 표시됩니다.
+- **Main으로 돌아가기:** 원래 Main의 정확한 tmux 세션과 창 ID가 확인되는 경우 첫 항목에 표시됩니다. 단순히 실행을 요청한 Agent를 Main이라고 추정하지 않습니다.
 - **다른 저장 대화 / 이전 작업 찾기:** 과거 Pi 대화와 기존 Worktree를 고급 메뉴에서 탐색합니다.
+
+### Worktree Agent에서 공통 작업 Hub 활성화
+
+`pic`은 Compose Extension을 직접 로드하지만 workmux가 실행한 `pi`는 그렇지 않을 수 있습니다. 해당 Agent에서도 동일한 `Alt+W` / `/compose`를 사용하려면 다음을 **명시적으로** 실행하세요.
+
+```bash
+pic navigation enable
+```
+
+Pi의 개인 설정에 탐색 전용 Extension을 설치합니다. 이미 열린 Agent는 `/reload` 또는 재시작이 필요합니다. `pic navigation disable`로 해제할 수 있습니다. 기본 `pic`과 등록이 중복되지 않도록 분리했습니다.
 
 macOS Ghostty를 사용하는 경우 `Option+W`가 문자로 입력되면 **`/compose`**로 Hub를 열어 주세요. Ghostty의 `macos-option-as-alt` 설정에 따라 Option 키가 Alt로 전달되지 않을 수 있습니다. Pi의 현재 단축키 설정은 `/hotkeys`에서 확인할 수 있습니다.
 
@@ -53,9 +63,9 @@ Fork는 **어느 Pi 세션을 원본으로 삼을지 직접 선택**해야 합�
 
 `/compose preview`는 실행 계획만 표시합니다. `/compose launch`는 사용자가 명시적으로 선택한 옵션으로 실행합니다. 자연어로 에이전트 생성을 요청하면 `compose_launch` Tool이 **실행 전 승인을 요청**합니다.
 
-Worktree Launch는 workmux의 `--background` 옵션을 사용해 현재 Main 화면에 남습니다. Ghostty 네이티브 탭을 명시적으로 켜면 새 Worktree는 `--mode session`도 사용합니다. 개발 에이전트를 보려면 `/compose work`에서 선택하세요. Shared Launch도 별도 tmux 세션에서 시작하고 Main 화면을 유지합니다.
+Worktree Launch는 workmux의 `--background`와 고유 `--target-name` 옵션으로 현재 Main 화면을 유지하고 실행 대상을 식별합니다. Ghostty 네이티브 탭을 명시적으로 켜면 새 Worktree는 `--mode session`도 사용합니다. 개발 에이전트를 보려면 `Alt+W` 또는 `/compose`에서 선택하세요. Shared Launch도 별도 tmux 세션에서 시작하고 Main 화면을 유지합니다.
 
-시작 명령이 성공했다는 결과가 곧 모델이 정상 응답 중이라는 뜻은 아닙니다. 실제 Agent 상태는 해당 Pi/tmux/workmux 환경에서 확인해야 합니다.
+시작 명령 성공은 모델이 실제로 작업 중이라는 증거가 아닙니다. Hub는 workmux `status --json`이 정확히 한 Agent를 정상적으로 관측했을 때만 작업 상태를 보조적으로 표시합니다. `done`은 **최근 응답 종료**이지 개발 완료가 아닙니다. Hook이 없으면 상태 미확인으로 표시합니다.
 
 ## 이전 작업으로 돌아갈 때
 
