@@ -13,7 +13,7 @@
 - 개발 세션: Pi의 세션·모델·도구·Compaction을 그대로 사용.
 - 검증 세션: 변경 분석·테스트 로그·계약 확인을 Main에서 격리.
 - Git 통합: 사용자가 요청한 시점에 기존 Git 도구로 진행.
-- Dashboard: 사용자 관찰·직접 제어를 담당하되 모든 세션을 직접 소유해야 할 필요는 없다.
+- **View는 선택 사항:** Dashboard를 설치하지 않아도 기본 Launch는 동작해야 한다. 사용자가 Pi의 Extension·Package 방식으로 View를 선택·교체한다.
 
 ## 2. 논리적 구성도
 
@@ -51,6 +51,37 @@ flowchart TD
 
 그림은 **논리적 책임**이다. `Launch`, `Handoff`, `Verification`이 각각 별도 서버·프로세스·상태 머신이라는 뜻은 아니다.
 
+## Pi 기본 Package와 선택형 View (ADR 0004)
+
+```mermaid
+flowchart TD
+    P["Pi의 Package / Extension 로딩"]
+    L["기본 pi-compose Extension\n/compose launch, preview, compose_launch"]
+    V["선택형 workmux View Extension\n/compose-workmux"]
+    C["공통 Launch 실행 로직"]
+    W["기존 workmux Dashboard"]
+    X["사용자가 제작한 다른 Extension / View"]
+
+    P --> L
+    P -. "사용자 opt-in" .-> V
+    P -. "사용자 추가" .-> X
+    L --> C
+    V --> W
+```
+
+- `package.json`의 `pi.extensions`는 **Launch Extension만 등록**한다.
+- 선택형 workmux View는 자동 탐색 대상에서 벗어난
+  `extensions/optional/workmux-dashboard.ts` 파일로 제공한다.
+  필요한 사용자는 `pi -e <파일>` 또는 `settings.json`의 `extensions`로 로드한다.
+- Pi Compose 고유의 `View Provider`, `Plugin Registry`를 만들지 않는다.
+- `src/launch.ts`는 Dashboard 모듈을 import하지 않으며,
+  View 교체를 위해 Launch를 수정하지 않는다.
+- `src/dashboard.ts`와 기존 `pi-compose dashboard` CLI는 workmux 전용 구현으로 남아
+  **사용자가 명시적으로 사용할 때만** 호출된다.
+- **Worktree Launch는 여전히 `workmux add`를 사용한다.** View와 실행 백엔드는 별개 책임이며,
+  현재 불필요한 범용 실행 백엔드 어댑터를 만들지 않는다.
+- [ADR 0004](adr/0004-pi-native-optional-views.md)에 이 결정의 이유와 대안을 기록한다.
+
 ## 3. 책임과 의존 관계
 
 | 구성 요소 | Owns | Does not own |
@@ -61,7 +92,7 @@ flowchart TD
 | Pi | 세션 Fork/Resume/New, 컨텍스트·Compaction, 도구 | Worktree 내용 복제, Git 자동 병합 |
 | Git/workmux | Git 변경·브랜치·Worktree, 기존 자동 준비와 대시보드 후보 | 사용자 승인·제품 계약 판단 |
 | tmux | 실행 Pane/Window, 프로세스 지속 및 전환 | 작업의 의미적 완료 |
-| Dashboard | 사용자 관찰·직접 조작 | 모든 실행의 영구 Source of Truth |
+| **선택형 View / Dashboard** | 사용자가 선택할 경우 관찰·직접 조작 | 기본 Launch의 필수 종속성, 모든 실행의 영구 Source of Truth |
 | Handoff | 구현 에이전트의 핵심 주장·검사·참조 | 계약 승인, 객관적 검증 완료 증거 |
 | 독립 검증 | 실제 코드 변경·원본 계약 비교, 범위·불확실성 표시 | 사용자 계약 변경 결정 |
 | 통합 Git 도구 | 사용자 지시에 따른 Merge/기존 명령 | 자율적 통합 시점 결정 |
