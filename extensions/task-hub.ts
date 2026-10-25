@@ -131,11 +131,11 @@ export async function showTaskHub(pi: ExtensionAPI, ctx: ExtensionContext): Prom
 }
 
 export function registerTaskHub(pi: ExtensionAPI): void {
-  pi.registerShortcut('alt+w', {
+  pi.registerShortcut?.('alt+w', {
     description: 'Pi Compose: 작업 보기 / Main 복귀',
     handler: async ctx => { await showTaskHub(pi, ctx); },
   });
-  pi.on('session_start', async (_event, ctx) => {
+  pi.on?.('session_start', async (_event, ctx) => {
     await refreshTaskIndicator(ctx);
   });
 }

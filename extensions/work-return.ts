@@ -7,14 +7,14 @@ import { fileURLToPath } from 'node:url';
 
 const baseExtension = fileURLToPath(new URL('./compose.ts', import.meta.url));
 
-type OpenWorktree = {
+export type OpenWorktree = {
   handle: string;
   branch: string;
   path: string;
   is_open: boolean;
   project_path?: string;
 };
-type LiveTmuxTarget = { name: string; cwd: string };
+export type LiveTmuxTarget = { name: string; cwd: string };
 type Discovered = {
   sessions: Awaited<ReturnType<typeof SessionManager.list>>;
   worktrees: OpenWorktree[];
@@ -23,7 +23,7 @@ type Discovered = {
   tmuxWarning?: string;
 };
 
-async function workmuxRows(pi: ExtensionAPI, cwd: string): Promise<{ rows: OpenWorktree[]; warning?: string }> {
+export async function workmuxRows(pi: ExtensionAPI, cwd: string): Promise<{ rows: OpenWorktree[]; warning?: string }> {
   let output: string;
   try {
     const result = await pi.exec('workmux', ['list', '--json'], { cwd });
@@ -327,7 +327,7 @@ export async function showWorkPicker(pi: ExtensionAPI, ctx: ExtensionCommandCont
 }
 
 // Selection itself authorizes navigation, not a fresh Pi process or a Git change.
-async function returnToTmux(pi: ExtensionAPI, ctx: ExtensionContext, target: LiveTmuxTarget): Promise<void> {
+export async function returnToTmux(pi: ExtensionAPI, ctx: ExtensionContext, target: LiveTmuxTarget): Promise<void> {
   if (!process.env.TMUX) {
     ctx.ui.notify('Pi is outside tmux. To connect to this target, run: tmux attach -t '
       + target.name, 'warning');
@@ -347,7 +347,7 @@ async function returnToTmux(pi: ExtensionAPI, ctx: ExtensionContext, target: Liv
 }
 
 /** Move to an explicitly selected workmux target; no guessing about Pi session identity. */
-async function returnToWorktree(pi: ExtensionAPI, ctx: ExtensionContext, worktree: OpenWorktree): Promise<void> {
+export async function returnToWorktree(pi: ExtensionAPI, ctx: ExtensionContext, worktree: OpenWorktree): Promise<void> {
   if (!worktree.is_open) {
     await resumeClosedWorktree(pi, ctx, worktree);
     return;

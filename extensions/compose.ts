@@ -3,6 +3,7 @@ import { SessionManager, type ExtensionAPI, type ExtensionContext } from '@earen
 import { planLaunch, executeLaunch } from '../src/launch.ts';
 import { planResume, executeResume } from '../src/resume.ts';
 import { registerWorkReturn, showWorkPicker } from './work-return.ts';
+import { registerTaskHub, showTaskHub, trackLaunchedTask, refreshTaskIndicator } from './task-hub.ts';
 import { fileURLToPath } from 'node:url';
 
 const baseExtension = fileURLToPath(import.meta.url);
@@ -42,11 +43,16 @@ async function chooseForkSource(ctx: ExtensionContext, { includeCurrent = true }
 
 export default function composeExtension(pi: ExtensionAPI): void {
   registerWorkReturn(pi);
+  registerTaskHub(pi);
   pi.registerCommand('compose', {
-    description: 'Pi Compose: /compose launch [task], /compose preview [task], /compose work [query], /compose back [query], /compose resume',
+    description: 'Pi Compose: /compose or Alt+W for tasks; /compose launch [task], /compose back [query], /compose resume',
     handler: async (args, ctx) => {
       const [subcommand, ...rest] = args.trim().split(/\s+/);
-      if (subcommand === 'back' || subcommand === 'work') {
+      if (!subcommand || subcommand === 'work') {
+        await showTaskHub(pi, ctx);
+        return;
+      }
+      if (subcommand === 'back') {
         await showWorkPicker(pi, ctx, rest.join(' '));
         return;
       }
@@ -120,6 +126,9 @@ export default function composeExtension(pi: ExtensionAPI): void {
           return;
         }
         const result = await executeLaunch(plan);
+        const indexWarning = await trackLaunchedTask(pi, plan);
+        if (indexWarning) ctx.ui.notify(indexWarning, 'warning');
+        await refreshTaskIndicator(ctx, plan.cwd);
         ctx.ui.notify(`Launch command completed (${result.status}). ${result.workspace} ${result.branch || result.cwd}. Agent readiness unverified.`, 'info');
         for (const warning of result.warnings) ctx.ui.notify(warning, 'warning');
       } catch (error: unknown) {
@@ -179,6 +188,9 @@ export default function composeExtension(pi: ExtensionAPI): void {
         return { content: [{ type: 'text' as const, text: 'Launch cancelled by user. No agent was started.' }], details: { status: 'cancelled' } };
       }
       const result = await executeLaunch(plan);
+      const indexWarning = await trackLaunchedTask(pi, plan);
+      if (indexWarning) ctx.ui.notify(indexWarning, 'warning');
+      await refreshTaskIndicator(ctx, plan.cwd);
       return {
         content: [{ type: 'text' as const, text: `Launch command succeeded for ${plan.task}; agent readiness is not yet verified. Workspace: ${plan.workspace}; target: ${plan.branch || plan.cwd}` }],
         details: result,
