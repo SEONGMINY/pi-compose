@@ -57,9 +57,48 @@ npm run check
 
 이 테스트는 **옵션 처리·명령 계획·모의 실행 결과**를 검증한다. 실제 Pi·workmux·Dashboard의 성공을 보장하지 않는다.
 
-## Dashboard — workmux 재사용
+## 조합 가능한 Pi Extension
 
-별도 Dashboard를 구현하지 않고 기존 workmux TUI를 호출한다. **workmux와 tmux는 직접 설치해야 하며 Pi 실행 상태를 보려면 workmux Pi status Extension 설정이 필요**하다. 상태 Hook은 자동 설치하지 않는다.
+**기본 Pi Compose Package는 Launch만 로드합니다.** Dashboard·View는 필수가 아닙니다.
+새로운 View를 만들거나 다른 Extension을 추가할 때 Launch Extension을 수정할 필요가 없도록 구성했습니다.
+
+| 기능 | 로딩 | Pi 명령 |
+| --- | --- | --- |
+| **Launch** | 기본 Package에 포함 | `/compose launch`, `/compose preview` |
+| **workmux View** | 사용자가 명시적으로 추가 | `/compose-workmux [agents\|worktrees]` |
+| **사용자 정의 TUI / Extension** | Pi 기본 Extension/Package 방식으로 별도 추가 | 각 Extension의 명령 |
+
+### 설치와 선택형 View 활성화
+
+```bash
+# 로컬 checkout에서 기본 Pi Compose만 설치 (Launch만 로드)
+pi install /absolute/path/to/pi-compose
+
+# workmux View를 이 세션에서만 명시적으로 로드
+pi -e /absolute/path/to/pi-compose/extensions/optional/workmux-dashboard.ts
+```
+
+계속 사용할 때는 **Pi 설정**(`~/.pi/agent/settings.json` 등)의 `extensions` 리소스 경로에
+실제 Extension 파일의 절대 경로를 추가합니다.
+
+```json
+{
+  "extensions": [
+    "/absolute/path/to/pi-compose/extensions/optional/workmux-dashboard.ts"
+  ]
+}
+```
+
+이 예시는 **로컬 소스 체크아웃 기준**입니다. 이미 설정 파일이 있다면 기존 `extensions` 값에
+추가하세요. 기본 Package는 `extensions/compose.ts`만 노출하며,
+선택형 View는 Pi Package 필터만으로 자동 활성화되지 않습니다.
+
+Pi가 로컬 디렉터리에서 Extension을 자동 탐색할 때도 뜻하지 않게 로드되지 않도록
+선택형 파일을 `extensions/optional/`에 배치했습니다(해당 디렉터리에 `index.ts` 없음).
+
+### 기존 workmux Dashboard CLI
+
+명시적으로 workmux를 사용하고 싶다면 **기존 CLI 명령은 그대로 유지**합니다.
 
 ```bash
 node bin/pi-compose.ts dashboard
@@ -67,7 +106,16 @@ node bin/pi-compose.ts dashboard --session
 node bin/pi-compose.ts dashboard --tab worktrees
 ```
 
-Pi가 tmux 터미널 안에서 실행 중일 때는 `/compose dashboard` 또는 `/compose dashboard worktrees`로 tmux 팝업을 열 수 있다. Popup 종료는 개발 세션 종료를 의미하지 않는다. **Pi Done 상태를 작업 완료·Handoff로 취급하지 않는다.**
+Pi 안에서 workmux View를 별도 로드한 경우에는 `/compose-workmux` 또는
+`/compose-workmux worktrees` 명령으로 tmux 팝업을 엽니다.
+이전 `/compose dashboard` Pi 명령은 분리되었으며, **CLI의 `dashboard` 명령과 구분**됩니다.
+
+workmux와 tmux는 자동 설치되지 않으며, Pi 상태 추적은 별도 workmux Hook 설정이 필요할 수 있습니다.
+**View를 닫아도 Pi 세션이나 Git 작업을 삭제하지 않습니다.**
+
+> **현재 제한:** View는 선택 사항이지만 Worktree Launch의 실행 준비는 여전히
+> `workmux add`를 사용합니다. 따라서 Worktree Launch를 실제 실행할 때는
+> workmux가 필요합니다. 실행 백엔드 교체와 View 교체는 서로 다른 설계 결정입니다.
 
 ## Pi 내부 명령 (현재 미검증)
 
