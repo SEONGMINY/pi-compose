@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { taskHubRows } from '../extensions/task-hub.ts';
-import type { TaskRecord } from '../src/task-index.ts';
+import type { TaskRecord, TmuxLocation } from '../src/task-index.ts';
 import type { OpenWorktree } from '../extensions/work-return.ts';
 
+const main: TmuxLocation = { session: 'pic-project', windowId: '@1', windowName: 'Main' };
+const agent: TmuxLocation = { session: 'pic-project', windowId: '@2', windowName: 'wm-agent-unique' };
 const record: TaskRecord = {
   id: '00000000-0000-4000-8000-000000000001',
   title: '프로필 표시명 추가',
@@ -11,7 +13,11 @@ const record: TaskRecord = {
   context: 'fork',
   workspace: 'worktree',
   branch: 'feat/profile-displayname',
-  mainTmux: 'pic-aabbccddee11',
+  worktreePath: '/tmp/worktrees/profile',
+  workmuxHandle: 'profile',
+  workmuxTargetName: 'agent-unique',
+  mainLocation: main,
+  targetLocation: agent,
   createdAt: '2026-10-26T07:00:00.000Z',
 };
 const worktree: OpenWorktree = {
@@ -19,30 +25,55 @@ const worktree: OpenWorktree = {
   path: '/tmp/worktrees/profile', project_path: '/tmp/project', is_open: true,
 };
 
-test('one approved development task is shown as one work item, rather than session and branch duplicates', () => {
-  const rows = taskHubRows([record], [worktree], ['pic-aabbccddee11'], 'pic-aabbccddee11');
+test('one approved task appears once even when Pi, tmux and Worktree each have entries', () => {
+  const rows = taskHubRows([record], [worktree], [main, agent], main);
   assert.equal(rows.filter(r => r.kind === 'task').length, 1);
   assert.equal(rows.filter(r => r.kind === 'main').length, 0);
-  assert.match(rows[0]!.label, /프로필 표시명 추가/);
-  assert.match(rows[0]!.label, /연결 대상 열림/);
-  assert.doesNotMatch(rows[0]!.label, /feat\/profile-displayname/);
+  assert.match(rows.find(r => r.kind === 'task')!.label, /프로필 표시명 추가/);
+  assert.doesNotMatch(rows.find(r => r.kind === 'task')!.label, /feat\/profile-displayname/);
 });
 
-test('from a child environment the exact originating Main target is offered first', () => {
-  const rows = taskHubRows([record], [worktree], ['pic-aabbccddee11'], 'other-tmux');
+test('Agent window in same tmux session offers exactly the originating Main window', () => {
+  const rows = taskHubRows([record], [worktree], [main, agent], agent);
   assert.equal(rows[0]!.kind, 'main');
-  assert.equal(rows[0]!.target, 'pic-aabbccddee11');
+  assert.deepEqual(rows[0]!.target, main);
+  assert.match(rows.find(r => r.kind === 'task')!.label, /현재 작업/);
 });
 
-test('a matching branch from a different project must not be treated as the approved agent', () => {
-  const rows = taskHubRows([record], [{ ...worktree, project_path: '/tmp/other' }], [], 'other-tmux');
-  const row = rows.find(r => r.kind === 'task');
-  assert.equal(row?.worktree, undefined);
-  assert.match(row!.label, /연결 대상 닫힘/);
+test('an unrelated window does not guess which Main to return to', () => {
+  const rows = taskHubRows([record], [worktree], [main, agent],
+    { session: 'pic-project', windowId: '@99', windowName: 'unknown' });
+  assert.ok(!rows.some(r => r.kind === 'main'));
 });
 
-test('shared tasks only show as open when their exact tmux session exists', () => {
-  const shared = { ...record, workspace: 'shared' as const, tmuxTarget: 'pc-profile-0123abcd', branch: undefined };
-  assert.match(taskHubRows([shared], [], ['pc-profile-0123abcd'])[0]!.label, /연결 대상 열림/);
-  assert.match(taskHubRows([shared], [], [])[0]!.label, /연결 대상 닫힘/);
+test('two tasks with identical display names retain independent exact target IDs', () => {
+  const other = { ...record, id: '00000000-0000-4000-8000-000000000002',
+    worktreePath: '/tmp/worktrees/other', workmuxHandle: 'other', branch: 'feat/other',
+    targetLocation: { session: 'pic-project', windowId: '@3', windowName: 'wm-other' } };
+  const rows = taskHubRows([record, other], [worktree, {
+    ...worktree, path: '/tmp/worktrees/other', handle: 'other', branch: 'feat/other',
+  }], [main, agent, other.targetLocation], main);
+  assert.equal(rows.filter(r => r.kind === 'task').length, 2);
+  const targets = rows.filter(r => r.kind === 'task').map(r => r.record!.targetLocation!.windowId);
+  assert.deepEqual(new Set(targets).size, 2);
+});
+
+test('matching branch from a different project is not a trusted link', () => {
+  const rows = taskHubRows([record], [{ ...worktree, project_path: '/tmp/other' }],
+    [main, agent], main);
+  assert.match(rows.find(r => r.kind === 'task')!.label, /대상 종료 또는 확인 불가/);
+});
+
+test('legacy record without exact launch identity is never treated as live', () => {
+  const legacy: TaskRecord = { ...record, targetLocation: undefined, workmuxHandle: undefined,
+    worktreePath: undefined, mainTmux: 'pic-project' };
+  const rows = taskHubRows([legacy], [worktree], [main, agent], agent);
+  assert.ok(!rows.some(r => r.kind === 'main'));
+  assert.match(rows.find(r => r.kind === 'task')!.label, /연결 정보 없음/);
+});
+
+test('shared task uses exact tmux window rather than mere session existence', () => {
+  const shared: TaskRecord = { ...record, workspace: 'shared', branch: undefined };
+  assert.match(taskHubRows([shared], [], [main, agent], main).find(r => r.kind === 'task')!.label, /대상 열림/);
+  assert.match(taskHubRows([shared], [], [main], main).find(r => r.kind === 'task')!.label, /대상 종료/);
 });
