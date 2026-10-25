@@ -64,6 +64,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          npm install --ignore-scripts --no-audit --no-fund
           d="$(mktemp -d)"
           mkdir -p "$d/app"
           cd "$d/app"
