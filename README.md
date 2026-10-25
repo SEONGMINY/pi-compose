@@ -210,17 +210,23 @@ Git으로 실제 변경과 파일 경로·공백 오류를 확인한 후 사용�
 이 결과를 사용자 승인, Merge, Handoff 수신 확인으로 취급하지 않습니다.
 검증을 위해 새 자체 DB, 리뷰 엔진, Git 관리자, 필수 CI Gate를 추가하지 않았습니다.
 
-## Phase 6 — 사용자 주도 통합
+## Phase 6 — 실제 실행 검증 및 사용자 주도 통합
 
-격리된 Git 저장소에서 두 브랜치를 병합해 확인했습니다.
-**병합은 성공해도 API 생산자와 UI 소비자의 계약이 불일치하면 실행이 실패**할 수 있습니다.
+격리된 Ubuntu 환경에서 Pi `1.4.0`, workmux `0.1.277`, tmux를 설치하고
+현재 코드의 **TypeScript 검사·Extension 테스트(24개)·Pi TUI 로딩·Shared Launch·정확한 Resume·중복 차단·Worktree Launch/inspect**를 실제 실행했습니다.
+[실행 결과](https://github.com/SEONGMINY/pi-compose/actions/runs/40177234200).
 
-Pi Compose는 **자동 Merge·Cleanup·스케줄링을 하지 않습니다.** 사용자가 통합을 선택하면
-기존 Git 명령을 이용하고, **통합된 코드 상태**에서 프로젝트의 기존 검사를 수행합니다.
-그 후 필요하면 `/compose-verify <통합 전 기준 SHA>`로 독립 검증합니다.
+**tmux 환경 조건:** workmux가 여러 tmux 세션 중 부모 세션을 특정할 수 없는 경우 창을 생성하지 않습니다. Pi가 실제로 실행 중인 tmux Pane에서 Launch했을 때 정상 동작했습니다.
 
-실제 Pi·tmux·workmux의 다중 에이전트 통합은 아직 미검증이며,
-[Phase 6 통합 점검 기록](docs/validation/phase6-integration.md)에 검증한 것과 미확정 사항을 나눠 두었습니다.
+별도의 임시 Git 통합 시나리오에서는, **Git 병합이 성공해도 API와 UI의 계약이 깨지면 통합된 코드가 실패할 수 있다**는 점을 재현했습니다.
+
+실제 인증된 두 Pi 모델이 코드를 개발하는 과정, Main Fork의 원래 이유·강한 금지 보존,
+`workmux send` 수신, Handoff와 독립 AI Review는 아직 미검증입니다.
+Pi Compose는 **자동 Merge·Cleanup·스케줄링을 하지 않습니다.**
+사용자가 통합을 선택하면 기존 Git 명령으로 처리하고,
+통합된 코드 상태에서 프로젝트의 기존 검사를 수행합니다.
+
+자세한 검증 범위와 실행 조건: [Phase 6 통합 점검 기록](docs/validation/phase6-integration.md).
 
 ## 문서
 
