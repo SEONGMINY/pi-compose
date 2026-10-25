@@ -1,5 +1,7 @@
 import { Type } from '@earendil-works/pi-ai';
 import { SessionManager, type ExtensionAPI, type ExtensionCommandContext, type ExtensionContext } from '@earendil-works/pi-coding-agent';
+import { realpath } from 'node:fs/promises';
+import { planResume, executeResume } from '../src/resume.ts';
 
 type OpenWorktree = {
   handle: string;
@@ -87,6 +89,80 @@ export function registerWorkReturn(pi: ExtensionAPI): void {
   });
 }
 
+/**
+ * Worktree sessions are indexed by Pi under each worktree's own cwd.
+ * Read only after the user selected a closed worktree. Never choose "most recent"
+ * automatically or scan every project transcript into the Main agent.
+ */
+async function resumeClosedWorktree(pi: ExtensionAPI, ctx: ExtensionCommandContext, worktree: OpenWorktree): Promise<void> {
+  let sessions: Awaited<ReturnType<typeof SessionManager.list>>;
+  try {
+    const canonicalPath = await realpath(worktree.path);
+    sessions = (await SessionManager.list(canonicalPath))
+      .filter(session => session.cwd === canonicalPath && session.path !== ctx.sessionManager.getSessionFile())
+      .slice(0, 30);
+  } catch (error) {
+    ctx.ui.notify('Could not inspect saved Pi conversations in this Worktree: ' + String(error), 'error');
+    return;
+  }
+  if (!sessions.length) {
+    ctx.ui.notify(
+      'No saved Pi conversation found for this Worktree in the default Pi session directory. Nothing started. '
+      + 'If the session uses a custom directory, select its exact JSONL file with /compose resume.',
+      'warning',
+    );
+    return;
+  }
+  const labels = sessions.map((session, index) =>
+    (index + 1) + '. ' + label(session.name || session.firstMessage || '(unnamed)')
+      + ' [' + session.id.slice(0, 8) + ']');
+  const chosen = await ctx.ui.select('Choose saved Pi conversation in ' + worktree.branch, labels);
+  if (!chosen) return;
+  const selected = sessions[labels.indexOf(chosen)];
+  if (!selected) return;
+
+  try {
+    // The original Git branch and exact session cwd must still belong together.
+    const plan = await planResume({
+      workspace: 'worktree', cwd: ctx.cwd, branch: worktree.branch, sessionFile: selected.path,
+    });
+    if (plan.cwd !== await realpath(worktree.path)) {
+      ctx.ui.notify('Worktree location no longer matches the selected target. No Pi process started.', 'warning');
+      return;
+    }
+    if (plan.status === 'target-occupied') {
+      ctx.ui.notify('The exact resume tmux target is already occupied (' + plan.tmuxTarget
+        + '). Do not create a second process; inspect that target first.', 'warning');
+      return;
+    }
+    const approved = await ctx.ui.confirm('Resume selected Pi conversation?', [
+      'Session: ' + label(selected.name || selected.firstMessage || selected.id),
+      'Worktree: ' + worktree.branch,
+      'Directory: ' + plan.cwd,
+      'This STARTS a new Pi process for the exact saved conversation in tmux.',
+      'workmux reports its own window closed, but other tmux targets or Pi processes cannot be ruled out.',
+      'Existing code and Git changes will not be deleted.',
+    ].join('\n'));
+    if (approved !== true) return;
+
+    // A workmux target appearing during selection must stop the new launch.
+    const before = await workmuxRows(pi, ctx.cwd);
+    const same = before.rows.find(row => row.handle === worktree.handle
+      && row.path === worktree.path && row.branch === worktree.branch);
+    if (before.warning || !same || same.is_open) {
+      ctx.ui.notify('Workmux target is no longer confirmed closed. Nothing started; refresh the work list.', 'warning');
+      return;
+    }
+    const result = await executeResume(plan);
+    ctx.ui.notify('Resume: ' + result.status + ' · tmux ' + result.tmuxTarget
+      + '. The actual Pi model conversation is not verified.', 'info');
+    for (const warning of result.warnings) ctx.ui.notify(warning, 'warning');
+  } catch (error) {
+    ctx.ui.notify('Could not resume selected Pi conversation: '
+      + (error instanceof Error ? error.message : String(error)), 'error');
+  }
+}
+
 /** User-driven session switch or workmux navigation, without calling a model. */
 export async function showWorkPicker(pi: ExtensionAPI, ctx: ExtensionCommandContext, query = ''): Promise<void> {
   if (!ctx.hasUI) {
@@ -122,7 +198,7 @@ export async function showWorkPicker(pi: ExtensionAPI, ctx: ExtensionCommandCont
   }
   const worktree = item.worktree;
   if (!worktree.is_open) {
-    ctx.ui.notify('This workmux target is closed. No agent was started. Use Pi /resume inside that Worktree or explicit /compose resume after selecting its exact session.', 'warning');
+    await resumeClosedWorktree(pi, ctx, worktree);
     return;
   }
   // workmux open is a navigation command, but may create a target if it disappears
