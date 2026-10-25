@@ -2,7 +2,7 @@
 
 - 상태: **채택 — 사용자 승인에 따라 구현 (실사용 검증 범위 별도 기록)**
 - 작성일: 2026-10-25
-- 선행 결정: [ADR 0005](0005-pico-entry-and-pi-settings.md)
+- 선행 결정: [ADR 0005](0005-pic-entry-and-pi-settings.md)
 
 ## 문제
 
@@ -25,9 +25,9 @@
 4. Pi가 없는 경우에만 공식 npm 패키지 `@earendil-works/pi-coding-agent`를 설치한다. 기존 Pi의 설치 방식·버전·설정은 보존한다.
 5. tmux·workmux가 누락됐으면 기존 Homebrew를 이용해 설치한다. 둘 다 이미 있다면 재설치·업그레이드하지 않는다.
    **Homebrew 자체는 자동 설치하지 않는다**: 설치 시 권한 승인, Xcode 도구·PATH 설정 등 사용자의 통제에 맡긴다.
-6. npm은 `bin.pico`를 전역 설치한다. Alias, PATH 또는 Shell 초기화 파일을 변경하지 않는다.
+6. npm은 `bin.pic`를 전역 설치한다. Alias, PATH 또는 Shell 초기화 파일을 변경하지 않는다.
    `sudo` 권한 상승을 수행하지 않고, 실행 파일 확인에 실패하면 해결 지침과 함께 종료한다.
-7. 설정·인증·세션 저장소를 생성하거나 수정하지 않는다. `pico features`의 선택형 기능 설치도 자동 실행하지 않는다.
+7. 설정·인증·세션 저장소를 생성하거나 수정하지 않는다. `pic features`의 선택형 기능 설치도 자동 실행하지 않는다.
 8. **업데이트는 같은 한 줄 재실행**이다. Pi나 의존 프로그램을 자동 업데이트하지 않으며, Pi Compose만 다시 설치한다.
 
 ## 고려했지만 채택하지 않은 방식
@@ -49,7 +49,7 @@
 - `curl | bash` 실행 전 공개 소스를 검토할 수 있게 한다.
 - **실제 macOS (Apple Silicon, Node 22.19.0) 검증 완료:**
   Homebrew로 tmux·workmux 설치, 공식 Pi npm 설치, GitHub HEAD SHA 고정 npm 전역 설치,
-  `pico` 실행, 선택형 Extension 패키지 파일 존재, 재설치 및 Pi 설정·세션 파일 보존.
+  `pic` 실행, 선택형 Extension 패키지 파일 존재, 재설치 및 Pi 설정·세션 파일 보존.
   [macOS 설치·재설치](https://github.com/SEONGMINY/pi-compose/actions/runs/40185554756).
 - **서로 다른 GitHub 커밋 사이 실제 업데이트 확인:** 이전 커밋을 전역 설치한 뒤,
   공개된 `curl | bash` 한 줄을 실행해 최신 README가 설치됐음을 확인했다.
