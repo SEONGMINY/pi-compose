@@ -3,6 +3,8 @@ on:
   push:
     paths:
       - .github/workflows/readme-render-once.yml
+      - docs/assets/compose-context-picker.svg
+      - docs/assets/compose-workspace-picker.svg
 permissions:
   contents: read
 jobs:
@@ -28,6 +30,7 @@ jobs:
               "Workspace-picker asset": "compose-workspace-picker.svg" in html,
               "Installation command": "install.sh" in html,
               "Pi attribution": "earendil-works/pi" in html,
+              "Actual image tags": bool(re.search(r'<img[^>]+compose-context-picker\\.svg', html)) and bool(re.search(r'<img[^>]+compose-workspace-picker\\.svg', html)),
           }
           for label, result in checks.items():
               print(f"{label}: {'PASS' if result else 'FAIL'}")
