@@ -47,6 +47,11 @@
   설치가 안정되면 **GitHub 릴리스 태그 고정과 검증 가능한 릴리스**를 검토한다.
 - 설치 명령이 성공해도 모델 로그인·Worktree Hook 구성·실제 Pi/workmux 멀티 에이전트 검증까지 완료된 것은 아니다.
 - `curl | bash` 실행 전 공개 소스를 검토할 수 있게 한다.
-- macOS 실제 설치와 재설치 후 Pi 설정·세션 보존은 별도로 검증 결과를 기록한다.
+- **실제 macOS (Apple Silicon, Node 22.19.0) 검증 완료:**
+  Homebrew로 tmux·workmux 설치, 공식 Pi npm 설치, GitHub HEAD SHA 고정 npm 전역 설치,
+  `pico` 실행, 선택형 Extension 패키지 파일 존재, 재설치 및 Pi 설정·세션 파일 보존.
+  [macOS 실행 기록](https://github.com/SEONGMINY/pi-compose/actions/runs/40185554756).
+- **미검증:** Homebrew 미설치·기존 Node 구버전 환경에서의 안내 UX,
+  모델 인증된 Pi 대화/Worktree Fork, Intel macOS 설치, Shell 별 PATH 환경, 변경 전후 두 커밋 사이의 실제 업데이트.
 
 [README](../../README.md) · [Implementation Plan](../IMPLEMENTATION_PLAN.md)
