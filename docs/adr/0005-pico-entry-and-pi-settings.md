@@ -49,7 +49,10 @@ Pi 내부에서는 기본 Extension을 따로 등록하거나 경로를 전달�
 
 ## 검증 및 남은 한계
 
-- `pico` 설치, 명령 전달, cwd 유지, 오류 종료 코드 전달을 격리 환경에서 확인한다.
+- **2026-10-25 격리 Ubuntu runner:** Node 22.19.0 / Pi 1.4.0에서 npm 전역 설치,
+  `pico` 실행, 인자·cwd·종료 코드 전달, 선택형 Pi Package 등록,
+  TypeScript 검사와 기존 Extension 테스트 24개 통과.
+  [실제 실행 기록](https://github.com/SEONGMINY/pi-compose/actions/runs/40182260770).
 - `pico features` 이후 Pi config에서 리소스 활성화/비활성화가 실제 적용되는지 확인한다.
 - Pi 환경과 npm 전역 설치 방식에 따라 실행 파일 권한·경로와 peer 처리 결과가 다를 수 있어
   실제 설치 결과를 기준으로만 검증 완료라 기록한다.
