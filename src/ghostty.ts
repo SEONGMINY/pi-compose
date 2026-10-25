@@ -29,7 +29,7 @@ export async function focusSharedTaskTab(
 
   const tag = 'pic:' + id;
   const tabTitle = ('Pi · ' + title.slice(0, 48) + ' [' + tag + ']').replace(/[\r\n]/g, ' ');
-  const command = 'cd ' + shQuote(cwd) + ' && tmux attach-session -t ' + shQuote('=' + target) + '\n';
+  const command = 'cd ' + shQuote(cwd) + ' && tmux attach-session -t ' + shQuote('=' + target);
   const script = [
     'tell application "Ghostty"',
     'repeat with w in windows',
@@ -46,6 +46,7 @@ export async function focusSharedTaskTab(
     'set term to focused terminal of t',
     'perform action ' + appleString('set_tab_title:' + tabTitle) + ' on term',
     'input text ' + appleString(command) + ' to term',
+    'send key "enter" to term',
     'return "opened"',
     'end tell',
   ].join('\n');
