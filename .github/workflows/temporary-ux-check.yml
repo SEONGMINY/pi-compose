@@ -27,6 +27,7 @@ jobs:
           chmod +x "$RUNNER_TEMP/fake-pi/pi"
           export PIC_SMOKE_LOG="$RUNNER_TEMP/pi-smoke.log"
           export PATH="$RUNNER_TEMP/fake-pi:$PATH"
+          export TERM=xterm-256color
           script -q -c "node bin/pic.mjs" /dev/null
           grep -q "tmux=yes cwd=$GITHUB_WORKSPACE" "$PIC_SMOKE_LOG"
           tmux kill-server || true
