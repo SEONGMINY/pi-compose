@@ -63,7 +63,7 @@ async function currentSession(pi: ExtensionAPI, cwd: string): Promise<string> {
 }
 
 export async function trackLaunchedTask(pi: ExtensionAPI, plan: LaunchPlan): Promise<string | undefined> {
-  const main = pi.exec ? await currentSession(pi, plan.cwd) : '';
+  const main = await currentSession(pi, plan.cwd);
   try {
     await recordTask(plan, main);
     return undefined;
