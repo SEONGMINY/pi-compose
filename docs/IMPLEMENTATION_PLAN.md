@@ -178,8 +178,7 @@ Pi `--print` 일회성 실행, 별도 지속 Pi 세션, 기존 Sub-agent 패키�
 
 ## 9. Phase 6 — 실제 협업·통합 시나리오
 
-> **상태: 일부 완료 — 실제 Git 통합 시나리오 검증, Pi 다중 에이전트 실연동 미검증.** 사용자 프로젝트와 무관한 임시 Git 저장소의 두 Worktree·브랜치를 실제 병합했다. 계약을 유지하는 API/UI 조합은 정상 실행됐고, 공개 API 필드를 무단 변경한 조합은 **Git 병합이 모두 성공했지만 통합 실행이 실패**했다. 이를 바탕으로 선택형 검증 Extension에서 API 생산자/소비자 호환성과 **제안·승인·구현** 상태를 구분하도록 개선했다. 자동 병합·삭제·상태 DB·신규 CLI 단위 테스트는 추가하지 않았다. [실제 실행 결과와 남은 범위](validation/phase6-integration.md).
-
+> **상태: 실제 Pi·tmux·workmux 실행 연동 부분 확인.** 일회성 Ubuntu 환경에서 `npm run typecheck`, Extension 테스트(24개), Pi TUI 로딩, Shared Launch, 정확한 Resume의 중복 생성 방지, 실제 workmux Worktree 생성·`inspect`를 확인했다. 격리된 Git API/UI 병합 시나리오도 이미 검증했다. **Main 컨텍스트 Fork의 WHY 보존, 인증된 두 Pi 모델의 협업·Handoff·Reviewer·사용자 주도 통합은 아직 미검증**이다. 외부 터미널에서 tmux 여러 세션의 부모 대상이 모호하면 workmux가 거부하므로 Pi가 속한 tmux Pane에서 실행해야 한다. 별도 스케줄러, 자동 병합, 영구 CI Gate는 추가하지 않는다. [실제 실행 기록](validation/phase6-integration.md).
 
 ### End-to-end 확인
 
