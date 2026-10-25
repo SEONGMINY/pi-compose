@@ -54,7 +54,7 @@ Pi 선택 화면에서 **Fork existing Pi session**을 고르고 원본 대화�
 - **Shared Directory:** 별도 tmux 세션에서 Pi를 실행합니다. `/compose work`에서 실행 대상을 찾아 이동할 수 있습니다. tmux 대상 존재 여부는 모델의 작업 상태나 완료를 보증하지 않습니다.
 - **Git Worktree:** workmux가 브랜치·작업 디렉터리와 tmux 창을 백그라운드에서 만듭니다. Main 화면에 남아 `/compose work`로 필요한 작업에 이동하거나, 선택형 workmux Dashboard를 열 수 있습니다.
 
-Pi Compose는 작업 **실행 명령이 성공했는지** 보고합니다. 모델이 실제로 코드를 작성 중인지까지 자동으로 확인해 주지는 않습니다. 독립 실행을 요청했다고 Main의 대화가 자동 종료되지도 않습니다.
+Pi Compose는 실행 명령 성공과 AI의 실제 활동을 구분합니다. workmux Hook이 정확한 Agent를 관측한 경우에만 보조 상태를 표시하며, 개발 완료를 자동 판단하지 않습니다. 독립 실행을 요청했다고 Main의 대화가 자동 종료되지도 않습니다.
 
 **4. 작업 Hub에서 에이전트를 찾거나 Main으로 돌아갑니다.**
 
@@ -72,9 +72,9 @@ Pi Compose는 작업 **실행 명령이 성공했는지** 보고합니다. 모�
 
 현재 프로젝트의 저장된 Pi 대화, workmux 작업과 Pi Compose가 생성한 tmux 실행 대상을 한 메뉴에서 탐색할 수 있습니다. **저장 대화로 전환, 실행 중인 tmux 세션에 이동, 닫힌 Worktree 재개는 서로 다른 동작**입니다. 기존 `/compose back`도 사용할 수 있습니다.
 
-Ghostty 1.3 이상(macOS)을 사용한다면 `PIC_GHOSTTY_TABS=1 pic`으로 실행해 Shared Directory 작업을 선택할 때 기존 tmux 에이전트에 연결되는 네이티브 탭을 사용할 수 있습니다. **선택 기능**입니다. Ghostty 모드의 새로운 Worktree는 workmux의 독립 tmux 세션으로 실행하여 해당 세션을 정확히 확인할 때 네이티브 탭에서 엽니다. 기존 Worktree나 대상 확인에 실패한 경우에는 workmux의 기존 전환 경로를 사용합니다. [적용 범위와 제약](docs/validation/task-hub-ux.md) 닫힌 Worktree를 재개할 때는 정확한 Pi 세션을 선택하고 새 프로세스 실행을 승인해야 합니다.
+Ghostty 1.3 이상(macOS)을 사용한다면 `PIC_GHOSTTY_TABS=1 pic`으로 실행해 Shared Directory 작업을 선택할 때 기존 tmux 에이전트에 연결되는 네이티브 탭을 사용할 수 있습니다. **선택 기능**입니다. Ghostty 모드의 새로운 Worktree는 workmux의 독립 tmux 세션으로 실행하여 해당 세션을 정확히 확인할 때 네이티브 탭에서 엽니다. 기존 Worktree나 대상 확인에 실패한 경우에는 workmux의 기존 전환 경로를 사용합니다. [적용 범위와 제약](docs/validation/task-hub-ux.md). 닫힌 Worktree를 재개할 때는 정확한 Pi 세션을 선택하고 새 프로세스 실행을 승인해야 합니다.
 
-**5. 필요한 경우 결과를 인계하고 검증합니다.**
+**6. 필요한 경우 결과를 인계하고 검증합니다.**
 
 ```text
 /compose-handoff
@@ -94,6 +94,16 @@ Ghostty 1.3 이상(macOS)을 사용한다면 `PIC_GHOSTTY_TABS=1 pic`으로 실�
 | **tmux · workmux:** 프로세스·창·작업 전환 | 실행과 작업 복귀 경로 연결 |
 
 Pi Compose는 **새로운 Agent Runtime이나 자동 스케줄러가 아닙니다.** 사용자가 Git 명령과 세션 파일·실행 옵션을 매번 직접 이어 붙이던 일부 과정을 단순화합니다. 중요한 결정과 검증은 사용자에게 남겨둡니다.
+
+## Worktree Agent에서도 같은 Hub 사용하기
+
+기본 `pic`에서는 바로 작업 Hub를 사용할 수 있습니다. workmux가 실행한 `pi`에서도 `Alt+W`와 `/compose`를 사용하려면 **사용자가 직접** 탐색 전용 Extension을 활성화합니다.
+
+```bash
+pic navigation enable
+```
+
+`pic navigation disable`로 해제할 수 있습니다. 변경 후 기존 Agent는 `/reload` 또는 재시작이 필요합니다. 개인 Pi 설정을 자동으로 수정하지 않습니다.
 
 ## 필요한 기능만 조합하기
 
