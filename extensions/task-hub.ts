@@ -3,6 +3,7 @@ import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from '@e
 import type { LaunchPlan } from '../src/launch.ts';
 import { listTasks, recordTask, type TaskRecord, type TaskLink, type TmuxLocation } from '../src/task-index.ts';
 import { focusSharedTaskTab, ghosttyEnabled } from '../src/ghostty.ts';
+import { parseWorkmuxStatus, worktreeStatus, type AgentObservation } from '../src/agent-status.ts';
 import { workmuxRows, returnToTmux, showWorkPicker, type OpenWorktree } from './work-return.ts';
 
 type HubRow = {
@@ -69,7 +70,7 @@ function exactWorktree(record: TaskRecord, worktrees: OpenWorktree[]): OpenWorkt
 
 export function taskHubRows(
   records: TaskRecord[], worktrees: OpenWorktree[], live: TmuxLocation[], current?: TmuxLocation,
-  isMain = false,
+  isMain = false, observations: AgentObservation[] = [],
 ): HubRow[] {
   const isLive = (location: TmuxLocation | undefined) =>
     Boolean(location && live.some(x => equalLocation(x, location)));
@@ -98,7 +99,12 @@ export function taskHubRows(
     const worktree = record.workspace === 'worktree' ? exactWorktree(record, worktrees) : undefined;
     const available = isLive(record.targetLocation) && (record.workspace === 'shared' || Boolean(worktree?.is_open));
     const location = equalLocation(record.targetLocation, current) ? ' · 현재 작업' : '';
-    const status = available ? '대상 열림 · AI 상태 미확인'
+    const observed = available && worktree ? worktreeStatus(observations, worktree.path) : undefined;
+    const status = available
+      ? observed === 'working' ? 'AI 동작 중 (workmux 관측)'
+        : observed === 'waiting' ? '입력 대기 (workmux 관측)'
+        : observed === 'settled' ? '최근 응답 종료 · 개발 완료 미확인'
+        : '대상 열림 · AI 상태 미확인'
       : record.targetLocation ? '대상 종료 또는 확인 불가' : '연결 정보 없음 · 이전 작업 탐색';
     const displayName = titleCount.get(record.title)! > 1 ? record.title + ' [' + record.id.slice(0, 8) + ']' : record.title;
     return { kind: 'task' as const, record, available, label: displayName
@@ -166,9 +172,16 @@ export async function showTaskHub(
   const [mux, snapshot] = await Promise.all([workmuxRows(pi, ctx.cwd), tmuxSnapshot(pi, ctx.cwd)]);
   const root = await projectRoot(pi, ctx.cwd, mux.rows);
   const records = await listTasks(root);
+  // Read existing workmux Hook observations on demand. No polling or new state DB.
+  let observations: AgentObservation[] = [];
+  try {
+    const status = await pi.exec('workmux', ['status', '--json'], { cwd: root });
+    if (status.code === 0) observations = parseWorkmuxStatus(status.stdout, root);
+  } catch { /* Hooks unavailable; retain the honest unknown status. */ }
   const taskRows = taskHubRows(
     records, mux.rows, snapshot.rows, snapshot.current,
     process.env.PIC_COMPOSE_MAIN === '1' || records.some(record => equalLocation(record.mainLocation, snapshot.current)),
+    observations,
   );
   // Returning to Main is always the first action from a known child Agent.
   const rows: HubRow[] = taskRows[0]?.kind === 'main'
