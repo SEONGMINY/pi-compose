@@ -64,7 +64,7 @@ flowchart TD
 
 ## 4. Phase 1 — 공통 Launch
 
-> **상태: 일부 구현.** CLI Launch, Pi `/compose launch|preview` 명시적 명령, Pi Session Manager 기반 원본 선택, 사용자 확인형 `compose_launch` Tool까지 작성해 24개 단위 테스트와 TypeScript 타입 검사를 통과했다. 실사용 Pi·workmux 연동 및 Dashboard 경로는 남아 있다. [구현 범위와 검증 기록](validation/phase1-launch.md).
+> **상태: 일부 구현.** CLI Launch, Pi `/compose launch|preview` 명시적 명령, Pi Session Manager 기반 원본 선택, 사용자 확인형 `compose_launch` Tool까지 작성해 이전 TypeScript 타입 검사를 확인했다. 이후 변경은 필요 시 검증한다. 실사용 Pi·workmux 연동 및 Dashboard 경로는 남아 있다. [구현 범위와 검증 기록](validation/phase1-launch.md).
 
 ### 구현 범위
 
@@ -109,7 +109,7 @@ Dashboard가 사용자 정의 Launch 액션을 공식적으로 받는지 확인�
 
 ## 6. Phase 3 — Resume·재시도·안전한 정리
 
-> **상태: 읽기 전용 Git Worktree 진단과 정확한 Pi 세션 Resume 1차 구현.** `inspect`와 `resume --session-file` CLI, Pi `/compose resume`을 추가했다. Git의 Worktree 위치·Dirty 상태 및 원래 Pi 세션 cwd를 확인하고, tmux 이름 충돌 시 중복 실행을 차단한다. **다른 tmux Pane에서의 동일 Pi 세션 실행은 식별하지 못하며 자동 Cleanup은 없다.** 실제 Pi/tmux 통합 및 새 코드 타입 검사·테스트 실행은 미검증. [Phase 3 기록](validation/phase3-resume.md).
+> **상태: 읽기 전용 Git Worktree 진단과 정확한 Pi 세션 Resume 1차 구현.** `inspect`와 `resume --session-file` CLI, Pi `/compose resume`을 추가했다. Git의 Worktree 위치·Dirty 상태 및 원래 Pi 세션 cwd를 확인하고, tmux 이름 충돌 시 중복 실행을 차단한다. **다른 tmux Pane에서의 동일 Pi 세션 실행은 식별하지 못하며 자동 Cleanup은 없다.** 실제 Pi/tmux 통합 및 최신 코드 타입 검사는 미검증. [Phase 3 기록](validation/phase3-resume.md).
 
 ### 시나리오
 
@@ -126,6 +126,8 @@ Dashboard가 사용자 정의 Launch 액션을 공식적으로 받는지 확인�
 - 생성 작업의 실패 원인을 보여주고 안전한 재시도를 지원.
 - **사용자 변경을 강제 삭제하지 않음**. 사용자 소유의 Worktree와 생성한 Worktree를 구분.
 - 영구 상태 DB부터 만들지 않고 기존 도구의 ID·상태와 최소한의 연결 정보만 활용.
+
+> **테스트 정책:** 단위 테스트는 직접 만든 Pi Extension의 핵심 동작에 집중한다. CLI·Script와 기존 Git·tmux·workmux 기능은 테스트 추가가 기본 의무가 아니며, 실제 필요한 시점에 직접 명령·결과로 확인한다. [TRD](TRD.md#테스트-작성-기준-2026-10-25-확정).
 
 ## 7. Phase 4 — 간결한 Handoff와 자동 기본 확인
 
