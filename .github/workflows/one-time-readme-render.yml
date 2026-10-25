@@ -62,10 +62,10 @@ jobs:
                 const img=document.querySelector('img[src*="compose-after-launch.svg"]');
                 const r=img.getBoundingClientRect();
                 const article=document.querySelector('article')||document.querySelector('.markdown-body');
-                return {naturalWidth:img.naturalWidth,naturalHeight:img.naturalHeight,width:Math.round(r.width),height:Math.round(r.height),top:Math.round(r.top),isVisible:r.width>500&&r.height>100,markdown:!!article,headings:[...document.querySelectorAll('h1,h2')].slice(0,10).map(x=>x.textContent.trim())};
+                return {naturalWidth:img.naturalWidth,naturalHeight:img.naturalHeight,width:Math.round(r.width),height:Math.round(r.height),top:Math.round(r.top),topWithinReadme:article?Math.round(r.top-article.getBoundingClientRect().top):null,isVisible:r.width>500&&r.height>100,markdown:!!article,headings:[...document.querySelectorAll('h1,h2')].slice(0,10).map(x=>x.textContent.trim())};
               });
               console.log('CHROME_RENDER',theme,JSON.stringify(out));
-              if(!out.isVisible||out.naturalWidth<900||out.top<0)throw Error('Hero image not rendered as a usable first-screen visual');
+              if(!out.isVisible||out.naturalWidth<250||out.topWithinReadme===null||out.topWithinReadme<0||out.topWithinReadme>600)throw Error('Hero image not rendered as a usable early README visual');
               await p.screenshot({path:'/tmp/readme-'+theme+'.png',fullPage:true});
             }
             await b.close(); console.log('LIGHT_DARK_BROWSER_RENDER_PASS');
