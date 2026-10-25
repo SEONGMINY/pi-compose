@@ -343,7 +343,7 @@ workmux JSON 조회를 재사용한다. Main 컨텍스트에는 전체 세션 �
 - 기존 Pi Compose `pico` bin을 제거하고 `pic`만 제공한다. 일반 Pi 설정·모델·세션·Extension·Skill·Theme 및 작업 cwd의 동작은 변경하지 않는다.
 - macOS 시스템의 `pico` 편집기는 보존한다. npm이 소유한 이전 Pi Compose 링크만 npm 업그레이드에서 정리한다.
 - GNU groff에도 `pic` 명령이 있다. **기존 `pic`이 있으면 설치 전에 충돌을 알리고 중단**한다. 어떤 시스템에서도 이름이 고유하다고 주장하지 않는다.
-- 설치·이전 `pico` 버전에서 업데이트·`pic` 실행을 실제 macOS 환경에서 확인하고, 결과를 기록한다.
+- **검증 완료:** 이전 `pico` 버전을 전역 설치 후 새 설치 스크립트로 갱신, `pic` 실행, 기존 npm-owned `pico` 링크 제거, macOS 시스템 편집기 보존, cwd·옵션 전달, 외부 `pic` 존재 시 설치 중단을 확인했다. [macOS 실행 기록](https://github.com/SEONGMINY/pi-compose/actions/runs/40186852376).
 
 ## 10. 비기능 평가 항목
 
