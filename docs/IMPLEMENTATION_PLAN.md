@@ -231,29 +231,29 @@ Pi `--print` 일회성 실행, 별도 지속 Pi 세션, 기존 Sub-agent 패키�
 기존 Pi SessionManager·Pi Tool/Skill·tmux·workmux의 관찰 가능한 동작과
 사용자 의도를 연결하는 가장 작은 범위를 비교·합의한 뒤 구현한다.
 
-## 사용성 개선 — `pico` 진입점과 Pi 네이티브 설정 (2026-10-25)
+## 사용성 개선 — `pic` 진입점과 Pi 네이티브 설정 (2026-10-25)
 
-- **확정/구현:** `bin/pico.mjs` + npm 전역 `bin.pico`로 어느 cwd에서든 기존
+- **확정/구현:** `bin/pic.mjs` + npm 전역 `bin.pic`로 어느 cwd에서든 기존
   Pi Runtime을 시작한다. 기본 `extensions/compose.ts`만 `--extension`으로 전달한다.
   Pi 설정·인증·프로젝트 범위·모델을 따로 저장하지 않는다.
-- **확정/구현:** `pico config [--local]`은 `pi config`를 그대로 실행한다.
+- **확정/구현:** `pic config [--local]`은 `pi config`를 그대로 실행한다.
   기존 Pi의 Package 관리 명령과 임시 Pi 실행 옵션도 유지한다.
 - **확정/구현:** 선택형 Dashboard·Handoff·Verify는
   `packages/optional`이라는 별도 Pi Package로 제공한다.
-  `pico features [--local]`를 사용자가 명시적으로 선택할 때만
+  `pic features [--local]`를 사용자가 명시적으로 선택할 때만
   Pi Package를 등록하고 **Pi의 config TUI**를 연다.
   설치 직후 세 리소스가 모두 활성화되는 상태를 숨기지 않는다.
-- **설정 경계:** 지속 설정은 `pi`와 `pico`가 공유한다.
-  일반 `pico` 실행은 사용자·프로젝트 설정을 변경하지 않는다.
+- **설정 경계:** 지속 설정은 `pi`와 `pic`가 공유한다.
+  일반 `pic` 실행은 사용자·프로젝트 설정을 변경하지 않는다.
   과거 Pi Package 설치 기록도 자동 삭제·마이그레이션하지 않는다.
-- **격리 환경에서 확인:** Node 22.19.0·Pi 1.4.0에서 전역 npm 설치 후 `pico` 실행, 옵션·cwd·exit-code 전달,
+- **격리 환경에서 확인:** Node 22.19.0·Pi 1.4.0에서 전역 npm 설치 후 `pic` 실행, 옵션·cwd·exit-code 전달,
   `pi install` 선택형 묶음 등록, TypeScript 검사와 기존 Extension 테스트 24개 통과.
   [실행 기록](https://github.com/SEONGMINY/pi-compose/actions/runs/40182260770).
 - **실사용 미검증:** `pi config`에서 세 기능의 활성화·비활성화 및 세션 간 설정 유지,
   macOS에서의 npm 전역 설치, 실제 인증된 Pi 모델·TUI 사용.
 - **제외:** 별도 Settings Engine·Plugin Registry·TUI 관리 화면·Pi Runtime.
 
-결정 근거: [ADR 0005](adr/0005-pico-entry-and-pi-settings.md).
+결정 근거: [ADR 0005](adr/0005-pic-entry-and-pi-settings.md).
 
 ## 사용성 개선 — 기존 작업 탐색·복귀 1차 (2026-10-25)
 
@@ -309,7 +309,7 @@ workmux JSON 조회를 재사용한다. Main 컨텍스트에는 전체 세션 �
   Worktree의 `is_open`으로 실제 Pi 세션 ID·모델 준비 상태를 추정하지 않는다.
 - **실행 연속성:** 기본 Compose Extension으로 시작한 Shared Launch와
   명시적 Resume에서는 새 Pi CLI에 Compose Extension 경로를 추가한다.
-  `pico`의 설정·인증·세션 저장소를 복제하지 않고 Pi에 위임한다.
+  `pic`의 설정·인증·세션 저장소를 복제하지 않고 Pi에 위임한다.
   CLI 독립 사용 동작과 선택형 Extension 활성화 방식은 유지한다.
 - **이번 범위에 포함하지 않음:** Tool 안에서 Pi 세션을 강제로 전환하기,
   입력창 초안 덮어쓰기, Main 전체 세션 로그 주입,
@@ -322,7 +322,7 @@ workmux JSON 조회를 재사용한다. Main 컨텍스트에는 전체 세션 �
 
 - **구현:** macOS용 `scripts/install.sh` 제공. `curl -fsSL <공개 스크립트> | bash`
   한 줄로 Node/Git 확인 → 기존 Pi 확인 또는 설치 → tmux/workmux 준비 →
-  GitHub HEAD 정확한 SHA의 npm 전역 설치 → `pico` 실행 확인.
+  GitHub HEAD 정확한 SHA의 npm 전역 설치 → `pic` 실행 확인.
 - **동일 명령으로 업데이트:** Pi Compose만 해당 시점 Git HEAD에서 다시 설치한다.
   Pi·tmux·workmux의 기존 설치는 자동으로 업그레이드하지 않는다.
 - **안전 경계:** 기존 Node가 구버전이면 강제로 교체하지 않고 중단한다.
@@ -330,13 +330,20 @@ workmux JSON 조회를 재사용한다. Main 컨텍스트에는 전체 세션 �
   `sudo` 실행, Shell rc/PATH 수정, Pi 설정·세션 삭제,
   선택형 Extension 강제 활성화·자동 로그인은 하지 않는다.
 - **실제 확인:** macOS runner에서 Pi/npm, Homebrew tmux/workmux, GitHub 직접 npm 설치,
-  CLI/Extension 파일 포함, `pico` 실행, 같은 명령 재실행 및 기존 설정·세션 파일 보존.
+  CLI/Extension 파일 포함, `pic` 실행, 같은 명령 재실행 및 기존 설정·세션 파일 보존.
   [설치·재설치 기록](https://github.com/SEONGMINY/pi-compose/actions/runs/40185554756).
   **이전 커밋 → 최신 커밋 업데이트**도 동일한 `curl | bash` 명령으로 확인했다.
   [업데이트 검증](https://github.com/SEONGMINY/pi-compose/actions/runs/40185838846).
 - **미검증:** macOS Intel, Homebrew 없는 신규 환경과 사용자 Node 버전 매니저 충돌,
   실제 Pi 인증 모델 실행과 tmux/workmux 세션 사용성.
 - 결정 근거: [ADR 0006](adr/0006-github-installer.md).
+
+## 실행 명령어 변경 — `pic` (2026-10-25)
+
+- 기존 Pi Compose `pico` bin을 제거하고 `pic`만 제공한다. 일반 Pi 설정·모델·세션·Extension·Skill·Theme 및 작업 cwd의 동작은 변경하지 않는다.
+- macOS 시스템의 `pico` 편집기는 보존한다. npm이 소유한 이전 Pi Compose 링크만 npm 업그레이드에서 정리한다.
+- GNU groff에도 `pic` 명령이 있다. **기존 `pic`이 있으면 설치 전에 충돌을 알리고 중단**한다. 어떤 시스템에서도 이름이 고유하다고 주장하지 않는다.
+- 설치·이전 `pico` 버전에서 업데이트·`pic` 실행을 실제 macOS 환경에서 확인하고, 결과를 기록한다.
 
 ## 10. 비기능 평가 항목
 
