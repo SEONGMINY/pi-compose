@@ -36,6 +36,25 @@ Pi Compose가 기존 대화를 이어받을지, 어느 작업 공간에서 개�
 
 이전에 작업한 대화나 Worktree를 다시 찾으려면 `/compose back`을 사용하세요. 현재 버전에서 **tmux 창으로 이동하는 것과 저장된 작업을 탐색하는 것은 서로 다른 동작**입니다. 자세한 복귀 방법은 [사용 가이드](docs/USAGE.md)에 정리했습니다.
 
+## 어떻게 동작하나요?
+
+Pi Compose는 **대화 맥락(Context)**과 **코드 작업 공간(Workspace)**을 따로 선택해요. Fork를 선택해도 Worktree가 자동으로 만들어지지는 않고, Independent 세션도 Worktree에서 실행할 수 있습니다.
+
+```mermaid
+flowchart TB
+    Main["Main Pi 대화<br/>그대로 유지"] -->|작업 시작| Compose["Pi Compose<br/>대화·작업 공간 선택"]
+    Compose --> Context["Context · Pi<br/>Fork / Independent"]
+    Compose --> Workspace["Workspace · 파일<br/>Shared / Git Worktree"]
+    Context --> Agent["새 Pi 개발 세션<br/>tmux에서 실행"]
+    Workspace --> Agent
+```
+
+**대화 맥락은 Pi가 관리합니다.** Fork는 사용자가 지정한 Pi 대화를 분기해 새 세션에서 이어받고, Independent는 원본 대화를 이어받지 않고 새로 시작해요. 원래 Main 대화는 그대로 남습니다.
+
+**파일 작업 공간은 별개의 선택입니다.** Shared는 현재 디렉터리를 함께 사용합니다. Git Worktree는 별도 브랜치와 체크아웃을 만들어요. 대화를 Fork한다고 파일까지 복사되는 것은 아닙니다.
+
+**실행 준비는 Pi Compose가 연결합니다.** Shared는 tmux에서 Pi를 실행하고, Worktree는 workmux가 Git Worktree와 tmux 실행을 준비해요. Pi Compose가 새로운 세션·Worktree 기능을 직접 구현하거나 Git 변경을 자동으로 병합하지는 않습니다.
+
 ## Pi나 workmux만 사용할 때와 무엇이 다른가요?
 
 Pi에서도 대화를 Fork할 수 있고, [workmux](https://github.com/raine/workmux)도 한 명령으로 Pi 세션을 Fork해 Git Worktree에서 실행할 수 있어요.
