@@ -151,6 +151,10 @@ Dashboard가 사용자 정의 Launch 액션을 공식적으로 받는지 확인�
 
 ## 8. Phase 5 — 선택적 독립 AI 검증
 
+> **상태: 선택형 검증 Extension 1차 구현.** 사용자 명시적 `/compose-verify [base-ref]` 명령과 UI 승인 후, 읽기 전용 도구만 가진 **독립 일회성 Pi**를 실행한다. Git의 실제 변경 파일·패치·공백 오류 및 프로젝트 계약을 기반으로 위험 우선 검토를 요청한다. 사용자의 기존 Main 대화나 Handoff 전문은 자동 이전하지 않으며 **그 자료가 없을 경우 의미 검증의 한계로 보고**한다. 큰 Diff, Binary·ignored 파일, 동시 수정도 검증 한계로 표시한다. 기본 Package에 포함하지 않고 새 런타임·스케줄러·항상 실행하는 Reviewer는 만들지 않았다. 실제 Pi 실행과 신규 코드의 TypeScript 검사·Extension 테스트는 미검증. 자세한 사용 방법은 [README](../README.md#phase-5--선택적-독립-검증).
+
+
+
 ### 검증 조건
 
 - 기존 프로젝트 검사 실패.
