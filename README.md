@@ -2,7 +2,7 @@
 
 Pi를 기반으로 한 개인용 **Composable Coding Agent Harness**.
 
-현재는 설계 문서와 **Phase 1 TypeScript 기반 Launch CLI 및 Pi Slash Command**를 제공한다. 아직 실제 Pi·workmux 통합, Pi Extension의 실제 로딩, Dashboard·Handoff 전달 및 독립 검증의 실제 실행까지 확인한 제품은 아니다. **자연어 Launch Tool은 등록했지만 실제 Pi 환경 실행은 미검증**이다.
+현재는 TypeScript 기반 **Launch·Resume CLI, 기본 Pi Extension 및 선택형 View·Handoff·독립 검증 Extension**을 제공한다. 격리 환경에서는 Pi·tmux·workmux의 Shared Launch·Resume·Worktree 생성과 TypeScript/Extension 테스트를 확인했다. **실제 모델의 Main Fork 맥락 보존, 에이전트 간 Handoff 수신, 독립 검증 결과와 macOS 실사용 흐름은 아직 미검증**이다.
 
 ## 핵심 원칙
 
