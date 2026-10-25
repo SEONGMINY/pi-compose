@@ -93,7 +93,7 @@ async function checkedRun(run: ProcessRunner, bin: string, args: string[], cwd: 
   return result.stdout;
 }
 
-async function loadSourceSession(file: string): Promise<SessionSource> {
+export async function loadSourceSession(file: string): Promise<SessionSource> {
   const path = await realpath(resolve(file)).catch(() => { throw new LaunchError(`Cannot read source Pi session: ${file}`); });
   if (!(await stat(path)).isFile()) throw new LaunchError('Source Pi session must be a regular file');
   // Main sessions can be huge; inspect the JSONL header only.
