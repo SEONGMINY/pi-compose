@@ -93,7 +93,7 @@ export function registerWorkReturn(pi: ExtensionAPI): void {
   pi.registerTool({
     name: 'compose_find_work',
     label: 'Find existing development work',
-    description: 'Read-only: discover saved Pi conversations and workmux worktrees for THIS project. Use only when the user asks to find/return to/check previous work. Does NOT switch sessions or start a process. Keep results concise; use /compose back for direct selection.',
+    description: 'Read-only: list saved Pi conversations and workmux worktrees for THIS project. Use when the user asks to SEARCH or CHECK existing work without moving. If the user explicitly asks to RETURN or GO BACK, use compose_return_work instead. Does NOT switch sessions or start a process. Keep results concise.',
     parameters: Type.Object({
       query: Type.Optional(Type.String({ description: 'Keywords for work name, saved Pi session, branch or worktree handle' })),
     }),
