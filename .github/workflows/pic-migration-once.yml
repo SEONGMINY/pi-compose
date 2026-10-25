@@ -1,0 +1,92 @@
+name: One-time pic macOS migration verification
+on:
+  push:
+    paths:
+      - .github/workflows/pic-migration-once.yml
+permissions:
+  contents: read
+jobs:
+  migrate:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+      - name: Validate new launcher and macOS command baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/install.sh
+          node --check bin/pic.mjs
+          node -e "const p=require('./package.json'); if(p.bin.pic!=='./bin/pic.mjs'||p.bin.pico) process.exit(1)"
+          command -v pic && { echo 'EXISTING_SYSTEM_PIC_COMMAND'; exit 2; } || :
+          test -e /usr/bin/pico
+          stat -f '%i' /usr/bin/pico >/tmp/system_pico_inode
+          echo BASELINE_SYSTEM_PICO_PRESENT
+      - name: Install previous pico global version
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install -g --ignore-scripts --no-audit --no-fund @earendil-works/pi-coding-agent@1.4.0
+          npm install -g --ignore-scripts --no-audit --no-fund "git+https://github.com/SEONGMINY/pi-compose.git#e1d5dc2a22ef9f00521414d8c53c81d2ffbad777"
+          old_bin="$(npm config get prefix)/bin/pico"
+          test -L "$old_bin"
+          test "$(command -v pico)" = "$old_bin"
+          echo OLD_PICO_GLOBAL_LINK_PRESENT
+      - name: Upgrade using new macOS installer and preserve system editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/install.sh
+          global_bin="$(npm config get prefix)/bin"
+          test -L "$global_bin/pic"
+          test ! -e "$global_bin/pico"
+          test ! -L "$global_bin/pico"
+          cmp /tmp/system_pico_inode <(stat -f '%i' /usr/bin/pico)
+          command -v pic
+          test "$(command -v pic)" = "$global_bin/pic"
+          pic --version
+          test -f "$(npm root -g)/pi-compose/bin/pic.mjs"
+          test ! -f "$(npm root -g)/pi-compose/bin/pico.mjs"
+          echo PIC_MIGRATION_SYSTEM_EDITOR_SAFE
+      - name: Prove pic forwards options and preserves cwd
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$(mktemp -d)"
+          mkdir -p "$root/fake" "$root/project"
+          cat > "$root/fake/pi" <<'EOF'
+          #!/bin/bash
+          printf 'CWD=%s\n' "$PWD" >> "$PIC_CAPTURE"
+          printf 'ARGS=%s\n' "$*" >> "$PIC_CAPTURE"
+          exit 0
+          EOF
+          chmod +x "$root/fake/pi"
+          export PIC_CAPTURE="$root/calls.txt"
+          export PATH="$root/fake:$PATH"
+          cd "$root/project"
+          pic --resume --model sonnet
+          pic config --local
+          grep -Fx "CWD=$root/project" "$PIC_CAPTURE"
+          grep -E '^ARGS=--extension .*extensions/compose.ts --resume --model sonnet$' "$PIC_CAPTURE"
+          grep -Fx 'ARGS=config --local' "$PIC_CAPTURE"
+          echo PIC_CWD_OPTIONS_PASS
+      - name: Existing unrelated pic executable must not be overwritten
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$(mktemp -d)"
+          mkdir -p "$root/fake"
+          printf '#!/bin/sh\necho unrelated_pic\n' > "$root/fake/pic"
+          chmod +x "$root/fake/pic"
+          export PATH="$root/fake:$PATH"
+          if bash "$GITHUB_WORKSPACE/scripts/install.sh" >"$root/stdout" 2>"$root/stderr"; then
+            echo 'Unsafe pic collision was accepted'
+            exit 1
+          fi
+          grep -q 'Another .pic. command already exists' "$root/stderr"
+          test "$("$root/fake/pic")" = unrelated_pic
+          test -e /usr/bin/pico
+          echo EXTERNAL_PIC_COLLISION_REFUSED
