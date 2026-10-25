@@ -1,0 +1,42 @@
+name: One-time pic real macOS TUI smoke
+on:
+  push:
+    paths:
+      - .github/workflows/pic-tui-once.yml
+permissions:
+  contents: read
+jobs:
+  mac-tui:
+    runs-on: macos-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+      - name: Global pic installation using public GitHub
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/install.sh
+          pic --version
+      - name: Actual Pi TUI in tmux from project cwd
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$(mktemp -d)"
+          mkdir -p "$root/project"
+          cd "$root/project"
+          git init -q -b main
+          git config user.name "Smoke"
+          git config user.email "test@example.invalid"
+          git commit -q --allow-empty -m initial
+          export TERM=xterm-256color
+          tmux new-session -d -s pic-tui-smoke -c "$PWD" 'pic'
+          sleep 5
+          tmux has-session -t pic-tui-smoke
+          tmux capture-pane -p -t pic-tui-smoke | tail -n 25
+          test "$(tmux display-message -p -t pic-tui-smoke '#{pane_current_path}')" = "$PWD"
+          tmux list-panes -t pic-tui-smoke -F '#{pane_current_command}' | grep -E 'node|pic|pi'
+          echo PIC_REAL_PI_TUI_RUNNING_AT_PROJECT_CWD
+          tmux kill-session -t pic-tui-smoke
