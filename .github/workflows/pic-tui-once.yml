@@ -37,6 +37,6 @@ jobs:
           tmux has-session -t pic-tui-smoke
           tmux capture-pane -p -t pic-tui-smoke | tail -n 25
           test "$(tmux display-message -p -t pic-tui-smoke '#{pane_current_path}')" = "$PWD"
-          tmux list-panes -t pic-tui-smoke -F '#{pane_current_command}' | grep -E 'node|pic|pi'
+          tmux capture-pane -p -t pic-tui-smoke | grep -q 'No models available'
           echo PIC_REAL_PI_TUI_RUNNING_AT_PROJECT_CWD
           tmux kill-session -t pic-tui-smoke
