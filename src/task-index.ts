@@ -5,6 +5,20 @@ import { join, resolve } from 'node:path';
 import type { LaunchPlan } from './launch.ts';
 
 /** Only user-approved launch identity. Pi, tmux and workmux remain the source of truth for runtime state. */
+export type TmuxLocation = {
+  session: string;
+  windowId: string;
+  windowName: string;
+};
+
+export type TaskLink = {
+  projectRoot?: string;
+  mainLocation?: TmuxLocation;
+  targetLocation?: TmuxLocation;
+  worktreePath?: string;
+  workmuxHandle?: string;
+};
+
 export type TaskRecord = {
   id: string;
   title: string;
@@ -13,7 +27,14 @@ export type TaskRecord = {
   context: 'fork' | 'independent';
   branch?: string;
   tmuxTarget?: string;
+  /** PR #3 legacy field. Never use it to infer an originating Main. */
   mainTmux?: string;
+  mainLocation?: TmuxLocation;
+  targetLocation?: TmuxLocation;
+  worktreePath?: string;
+  workmuxHandle?: string;
+  workmuxTargetName?: string;
+  sourceSessionId?: string;
   createdAt: string;
 };
 
@@ -22,19 +43,24 @@ function directory(root: string): string {
   return join(homedir(), '.pi', 'compose', 'tasks', hash);
 }
 
-export async function recordTask(plan: LaunchPlan, mainTmux?: string): Promise<TaskRecord> {
+export async function recordTask(plan: LaunchPlan, link: TaskLink = {}): Promise<TaskRecord> {
   const task: TaskRecord = {
     id: randomUUID(),
     title: plan.task.replace(/\s+/g, ' ').trim().slice(0, 100),
-    projectRoot: resolve(plan.cwd),
+    projectRoot: resolve(link.projectRoot || plan.cwd),
     workspace: plan.workspace,
     context: plan.context,
     ...(plan.branch ? { branch: plan.branch } : {}),
     ...(plan.tmuxTarget ? { tmuxTarget: plan.tmuxTarget } : {}),
-    ...(mainTmux && /^[a-zA-Z0-9_.-]{1,120}$/.test(mainTmux) ? { mainTmux } : {}),
+    ...(link.mainLocation ? { mainLocation: link.mainLocation } : {}),
+    ...(link.targetLocation ? { targetLocation: link.targetLocation } : {}),
+    ...(link.worktreePath ? { worktreePath: resolve(link.worktreePath) } : {}),
+    ...(link.workmuxHandle ? { workmuxHandle: link.workmuxHandle } : {}),
+    ...(plan.workmuxTargetName ? { workmuxTargetName: plan.workmuxTargetName } : {}),
+    ...(plan.source?.id ? { sourceSessionId: plan.source.id } : {}),
     createdAt: new Date().toISOString(),
   };
-  const dir = directory(plan.cwd);
+  const dir = directory(task.projectRoot);
   await mkdir(dir, { recursive: true, mode: 0o700 });
   const dest = join(dir, task.id + '.json');
   const tmp = join(dir, task.id + '.tmp');
@@ -48,6 +74,14 @@ export async function recordTask(plan: LaunchPlan, mainTmux?: string): Promise<T
   return task;
 }
 
+function validLocation(value: unknown): value is TmuxLocation {
+  if (!value || typeof value !== 'object') return false;
+  const loc = value as Partial<TmuxLocation>;
+  return typeof loc.session === 'string' && loc.session.length > 0
+    && typeof loc.windowId === 'string' && /^@[0-9]+$/.test(loc.windowId)
+    && typeof loc.windowName === 'string' && loc.windowName.length > 0;
+}
+
 function isRecord(value: unknown): value is TaskRecord {
   if (!value || typeof value !== 'object') return false;
   const x = value as Partial<TaskRecord>;
@@ -57,7 +91,12 @@ function isRecord(value: unknown): value is TaskRecord {
     && (x.workspace === 'shared' || x.workspace === 'worktree')
     && (x.context === 'fork' || x.context === 'independent')
     && (typeof x.branch === 'string' || typeof x.tmuxTarget === 'string')
-    && typeof x.createdAt === 'string';
+    && typeof x.createdAt === 'string'
+    && (x.mainLocation === undefined || validLocation(x.mainLocation))
+    && (x.targetLocation === undefined || validLocation(x.targetLocation))
+    && (x.worktreePath === undefined || typeof x.worktreePath === 'string')
+    && (x.workmuxHandle === undefined || typeof x.workmuxHandle === 'string')
+    && (x.workmuxTargetName === undefined || typeof x.workmuxTargetName === 'string');
 }
 
 /** Bounded listing, no transcript scanning and no mutations during discovery. */
