@@ -17,22 +17,34 @@ Pi를 기반으로 한 개인용 **Composable Coding Agent Harness**.
 
 **최초 한 번 설치한 다음에는 어느 프로젝트에서든 `pico`로 Pi Compose를 시작할 수 있습니다.**
 
-Node.js 22.19.0 이상과 Git이 필요합니다. 에이전트를 tmux에서 실행하려면 tmux가,
-Worktree Launch·선택형 Dashboard가 필요하면 workmux가 추가로 필요합니다.
-Pi 모델 인증 및 사용자 설정은 **기존 Pi와 공유**합니다.
+**macOS 설치 또는 업데이트 — 같은 명령을 실행합니다.**
 
 ```bash
-# Pi가 설치돼 있지 않다면 먼저 설치
-npm install -g @earendil-works/pi-coding-agent
+curl -fsSL https://raw.githubusercontent.com/SEONGMINY/pi-compose/main/scripts/install.sh | bash
+```
 
-# Pi Compose 저장소를 설치 (로컬 경로의 npm 전역 설치; npm 공개 배포는 아직 하지 않음)
-git clone https://github.com/SEONGMINY/pi-compose.git ~/dev/pi-compose
-npm install -g ~/dev/pi-compose
+설치 이후 어느 프로젝트에서든 다음 명령을 실행합니다.
 
-# 원하는 프로젝트로 이동해 실행
+```bash
 cd ~/projects/my-app
 pico
 ```
+
+설치 스크립트는 Node.js 22.19.0 이상과 Git을 확인하고, 필요한 경우에만
+Pi를 npm으로 설치하거나 tmux·workmux를 Homebrew로 설치합니다.
+Pi Compose는 **GitHub main의 정확한 HEAD 커밋**을 npm으로 전역 설치합니다.
+npm Registry 공개 배포나 수동 Git Clone은 필요하지 않습니다.
+
+- 기존 Pi는 **재설치하거나 업데이트하지 않습니다.**
+- 사용자 Pi 설정·모델 인증·저장된 세션·선택형 Extension 활성화 상태는 변경하지 않습니다.
+- Node.js가 이미 설치됐지만 오래된 경우, 기존 버전 관리 환경을 덮어쓰지 않고 중단하며 업그레이드를 안내합니다.
+- 누락된 의존성을 설치해야 하는데 Homebrew가 없으면 설치를 중단하고 안내합니다. **Homebrew 자체는 자동 설치하지 않습니다.**
+- npm 권한 문제로 `sudo`를 자동 실행하지 않으며, Shell 설정과 PATH도 수정하지 않습니다.
+- 업데이트 때는 동일한 설치 명령을 다시 실행합니다. Pi·tmux·workmux의 기존 설치를 임의로 업그레이드하지 않습니다.
+- `scripts/install.sh`는 원격 Shell 스크립트이므로 실행 전 원본을 확인할 수 있습니다.
+  [설치 스크립트](scripts/install.sh) · [배포 결정](docs/adr/0006-github-installer.md)
+
+Pi 모델 인증 및 사용자 설정은 **기존 Pi와 공유**합니다.
 
 `pico`는 현재 작업 디렉터리를 유지하고 **기존 `pi` TUI**를 실행하면서
 `extensions/compose.ts`만 명시적으로 추가합니다. Pi Runtime·세션 DB·모델 설정을 복제하지 않습니다.
