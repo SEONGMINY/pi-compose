@@ -47,6 +47,11 @@ pico --model sonnet:high
 pico -e /path/to/my-extension.ts
 ```
 
+실제 Ubuntu 격리 환경에서 npm 전역 설치, `pico --version`, 인자·cwd·종료 코드 전달,
+선택형 Pi Package 등록, 타입 검사·Extension 테스트(24개)를 확인했습니다.
+[실행 기록](https://github.com/SEONGMINY/pi-compose/actions/runs/40182260770).
+macOS와 `pi config`의 개별 토글 동작은 아직 직접 검증하지 않았습니다.
+
 Pi의 Package 관련 CLI도 직접 사용할 수 있습니다.
 
 ```bash
