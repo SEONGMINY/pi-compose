@@ -14,7 +14,6 @@
 | [`src/launch.ts`](../../src/launch.ts) | 실행 요청 검증, Pi 세션 헤더 확인, Git 기준 확인, 도구별 명령 계획 생성, 기존 명령 호출 |
 | [`bin/pi-compose.ts`](../../bin/pi-compose.ts) | `launch` 진입점·`--dry-run`·요약 JSON 출력 |
 | [`extensions/compose.ts`](../../extensions/compose.ts) | Pi `/compose launch [task]` 및 `/compose preview [task]` 명령, 공통 Launch 재사용 |
-| [`test/launch.test.ts`](../../test/launch.test.ts) | 네 가지 실행 조합·오류·안전한 인자 처리 테스트 |
 | [`package.json`](../../package.json) | 외부 런타임 의존성 없는 최소 Node 실행 구성 |
 
 ## 2. 네 가지 실행 조합
@@ -55,9 +54,9 @@ node bin/pi-compose.ts launch \
 - 외부 도구 명령이 성공해도 **Pi 실제 세션 시작과 Dashboard 가시성은 검증하지 않았다**고 반환한다.
 - 실패 후 기존 Worktree·tmux 세션을 임의로 정리하지 않는다. 사용자의 변경 내용을 삭제하지 않는다.
 
-## 3. 검증 결과
+## 3. 당시 검증 및 현행 정책
 
-**2026-10-25 GitHub Actions Node 22.19.0:** `npm run check`로 `tsc --noEmit` 타입 검사와 **24개 단위 테스트 모두 통과**했다. [CI 실행 결과](https://github.com/SEONGMINY/pi-compose/actions/runs/40121931523). 원래 11개와 Zod 관련 5개에 Pi 진입점/권한 경계 8개를 더했다.
+**이전 기록:** 2026-10-25 GitHub Actions에서 TypeScript 타입 검사 및 당시 테스트를 통과한 이력이 있다. [과거 실행 기록](https://github.com/SEONGMINY/pi-compose/actions/runs/40121931523). **현행 테스트 정책 변경으로 CLI·기존 도구 조합 단위 테스트는 제거했다.** 앞으로는 Extension 고유 계약 위주로 테스트하며, 새 코드 통과 결과를 위 기록으로 대체하지 않는다.
 
 또 임시 Git 저장소에서 실제 Git을 사용한 두 종류의 `--dry-run`을 실행했다.
 
@@ -71,10 +70,10 @@ node bin/pi-compose.ts launch \
 
 | 기능 | 상태 | 검증·구현 시점 |
 | --- | --- | --- |
-| 공통 CLI로 4개 실행 조합의 명령 계획 | 구현·테스트 완료 | 지금 |
+| 공통 CLI로 4개 실행 조합의 명령 계획 | 구현됨; 자동 단위 테스트 유지 대상 아님 | 실제 실행 필요 시 |
 | 실제 최신 Pi + workmux 실행 | 미검증 | 해당 외부 연동을 실제 호출할 때 |
 | Shared Directory의 tmux/Pi 실제 실행 | 미검증 | 해당 외부 연동을 실제 호출할 때 |
-| Pi `/compose launch` Extension | **초기 구현·모의 UI 테스트 통과** | 실제 Pi 로딩·설치·실행은 연동 시 검증 |
+| Pi `/compose launch` Extension | 초기 구현; Extension 테스트 유지 | 실제 Pi 로딩·설치·실행은 연동 시 검증 |
 | Pi 원본 세션 선택 | **구현: 현재/프로젝트 목록/직접 파일 경로** | 실제 Pi TUI에서 메뉴 동작 검증 필요 |
 | 자연어 Launch Tool | **구현: 모델 Tool + 명시적 사용자 확인** | 실제 Pi에서 Tool 호출·TUI 확인 검증 필요 |
 | Dashboard 세션 확인·전환 | 미구현 | Phase 2 |
@@ -114,5 +113,5 @@ CLI에 모든 옵션을 직접 입력하는 경험을 최종 사용자 경험으
 - **현재 Pi 세션을 Main으로 자동 추정하지 않는다.** 'Current Pi session'은 사용자가 명시적으로 고른 경로일 뿐이다. 현재 세션 기록 파일이 없다면 임의의 최근 세션으로 대체하지 않는다.
 - `compose_launch`는 Pi의 `registerTool` + `@earendil-works/pi-ai` TypeBox 입력 스키마를 사용한다. 새 개발 에이전트 실행을 **사용자가 요청한 경우에만** 호출하도록 지침을 명시했으며, 실행 전 `ctx.ui.confirm()`으로 대상 작업·컨텍스트·원본 ID·Worktree를 보여준다. 거절 또는 UI 미지원이면 실행하지 않는다.
 - `/compose` 명령과 자연어 Tool은 기존 `planLaunch()`·`executeLaunch()`를 공유한다. 별도 실행 엔진이나 세션 등록 DB는 만들지 않았다.
-- **검증:** CI의 기존 테스트 16개 + 새 Pi 인터페이스/실행 권한 테스트 8개, 총 24개 통과. 현재/직접 파일 경로 미리보기, 미저장 현재 세션, 원본 누락, 취소 및 UI 부재로 인한 무실행을 포함한다.
+- **현재 정책:** 입력·CLI 명령 구성에 대한 자동 단위 테스트는 제거했다. Pi Extension은 세션 선택, 승인, 원본 누락 시 실행 거부 등 고유 계약 테스트를 유지한다.
 - **미검증:** 실제 Pi TUI에서 `SessionManager.list()`의 저장 세션 메뉴, 실제 모델 도구 호출·사용자 확인 UI, 실제 Pi/workmux 프로세스 생성.
