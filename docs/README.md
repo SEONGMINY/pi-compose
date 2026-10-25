@@ -20,6 +20,7 @@
 | [Phase 1 Launch](validation/phase1-launch.md) | 공통 실행 명령 첫 구현, 알려진 제약과 남은 연동 |
 | [Phase 2 Dashboard](validation/phase2-dashboard.md) | **기본 Launch와 선택형 workmux View 분리**, 실행 검증 범위, 상태 Hook 제약 |
 | [Phase 3 Resume](validation/phase3-resume.md) | 기존 Worktree 상태 확인, 정확한 Pi 세션 재개, 안전한 재시도 및 남은 한계 |
+| [Phase 6 통합](validation/phase6-integration.md) | 격리된 Git API/UI 통합 결과, 실제 다중 에이전트 미검증 범위, 사용 흐름 |
 | [ADR 0001](adr/0001-context-and-delegation.md) | 고품질 컨텍스트, Fork와 독립 세션의 구분 |
 | [ADR 0002](adr/0002-user-controlled-execution.md) | 사용자 통제와 실행 옵션의 독립성 |
 | [ADR 0003](adr/0003-composable-execution-and-verification.md) | 기존 도구의 조합, Handoff, 독립 검증 |
