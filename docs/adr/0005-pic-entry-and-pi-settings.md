@@ -3,6 +3,8 @@
 - 상태: **채택 — 사용자 확정**
 - 일자: 2026-10-25
 - 선행: [ADR 0004](0004-pi-native-optional-views.md)
+- 실행 명령 변경: 초기 구현은 `pico`였으며 이후 시스템 편집기 충돌을 피하기 위해 `pic`으로 변경했다. 아래 결정과 예시는 현재 이름 기준이다.
+- [기존 설치에서 새 이름으로 변경한 macOS 검증](https://github.com/SEONGMINY/pi-compose/actions/runs/40186852376)
 
 ## 문제
 
