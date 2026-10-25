@@ -207,11 +207,11 @@ export async function showTaskHub(
 }
 
 export function registerTaskHub(pi: ExtensionAPI, openHub: (ctx: ExtensionContext) => Promise<void>): void {
-  pi.registerShortcut('alt+w', {
+  pi.registerShortcut?.('alt+w', {
     description: 'Pi Compose: 작업 보기 / Main 복귀',
     handler: openHub,
   });
-  pi.on('session_start', async (_event, ctx) => {
+  pi.on?.('session_start', async (_event, ctx) => {
     await refreshTaskIndicator(ctx);
   });
 }
