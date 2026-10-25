@@ -59,6 +59,32 @@ function matches(text: string, query: string): boolean {
   return !query || text.toLocaleLowerCase().includes(query.toLocaleLowerCase());
 }
 
+type WorkItem =
+  | { kind: 'session'; name: string; session: Discovered['sessions'][number] }
+  | { kind: 'worktree'; name: string; worktree: OpenWorktree };
+
+function workItems(found: Discovered, query: string): WorkItem[] {
+  return [
+    ...found.sessions.filter(s => matches([s.name, s.firstMessage, s.id].join(' '), query))
+      .map(s => ({ kind: 'session' as const, name: 'Saved · ' + label(s.name || s.firstMessage || '(unnamed)') + ' [' + s.id.slice(0, 8) + ']', session: s })),
+    ...found.worktrees.filter(w => matches(w.branch + ' ' + w.handle, query))
+      .map(w => ({ kind: 'worktree' as const, name: 'Worktree · ' + label(w.branch) + ' (' + (w.is_open ? 'target open' : 'target closed') + ') [' + w.handle + ']', worktree: w })),
+  ].slice(0, 40);
+}
+
+/** A single Pi-native picker reused by direct commands and explicit natural-language requests. */
+async function chooseWork(ctx: ExtensionContext, found: Discovered, query: string): Promise<WorkItem | undefined> {
+  const items = workItems(found, query);
+  const choices = items.map((item, index) => (index + 1) + '. ' + item.name);
+  if (!choices.length) {
+    ctx.ui.notify('No matching work in current-project Pi sessions or workmux.'
+      + (found.workmuxWarning ? ' ' + found.workmuxWarning : ''), 'info');
+    return undefined;
+  }
+  const selected = await ctx.ui.select('Return to previous work', choices);
+  return selected ? items[choices.indexOf(selected)] : undefined;
+}
+
 /** Entry points to the SAME read-only discovery: slash UI and model tool. */
 export function registerWorkReturn(pi: ExtensionAPI): void {
   pi.registerTool({
@@ -87,6 +113,46 @@ export function registerWorkReturn(pi: ExtensionAPI): void {
       };
     },
   });
+  pi.registerTool({
+    name: 'compose_return_work',
+    label: 'Choose previous work',
+    description: 'Only when the USER explicitly asks to return to existing work. Present the native Pi selection UI. Saved Pi conversations require the user to submit a prepared exact Slash Command; this model Tool CANNOT switch Pi sessions. Workmux navigation and closed Worktree resume require the same explicit approval as /compose back. Never auto-create an agent, guess a recent session, or overwrite a user draft.',
+    parameters: Type.Object({
+      query: Type.Optional(Type.String({ description: 'Optional work-name keywords, not a session path' })),
+    }),
+    async execute(_id, params, _signal, _onUpdate, ctx) {
+      if (!ctx.hasUI) {
+        return { content: [{ type: 'text' as const, text: 'Nothing changed: interactive selection is unavailable. Use /compose back.' }],
+          details: { status: 'not_executed_no_ui' } };
+      }
+      const found = await discover(pi, ctx);
+      const chosen = await chooseWork(ctx, found, params.query?.trim() || '');
+      if (!chosen) {
+        return { content: [{ type: 'text' as const, text: 'No previous work was selected; nothing changed.' }],
+          details: { status: 'cancelled' } };
+      }
+      if (chosen.kind === 'session') {
+        const command = '/compose back id:' + chosen.session.id;
+        // The model tool has no ctx.switchSession(): only a user-initiated Pi command
+        // can switch the conversation. Never replace an unsent draft in the editor.
+        if (ctx.ui.getEditorText().trim()) {
+          return { content: [{ type: 'text' as const,
+            text: 'Selected ' + label(chosen.session.name || chosen.session.firstMessage) +
+              '. User editor is not empty; do not overwrite it. Ask user to enter: ' + command }],
+            details: { status: 'exact_command_required_draft_preserved' } };
+        }
+        ctx.ui.setEditorText(command);
+        return { content: [{ type: 'text' as const,
+          text: 'Selected saved Pi conversation. Exact command is READY IN THE EDITOR: ' + command +
+            '. Ask the user to press Enter to switch using the Pi native Slash Command. No session was switched.' }],
+          details: { status: 'exact_command_prepared_not_executed' } };
+      }
+      await returnToWorktree(pi, ctx, chosen.worktree);
+      return { content: [{ type: 'text' as const,
+        text: 'Requested the same workmux return flow as /compose back. Its confirmation and status notifications are shown in Pi. Do not claim Pi session identity or agent readiness was verified.' }],
+        details: { status: 'workmux_return_attempted_unverified' } };
+    },
+  });
 }
 
 /**
@@ -94,7 +160,7 @@ export function registerWorkReturn(pi: ExtensionAPI): void {
  * Read only after the user selected a closed worktree. Never choose "most recent"
  * automatically or scan every project transcript into the Main agent.
  */
-async function resumeClosedWorktree(pi: ExtensionAPI, ctx: ExtensionCommandContext, worktree: OpenWorktree): Promise<void> {
+async function resumeClosedWorktree(pi: ExtensionAPI, ctx: ExtensionContext, worktree: OpenWorktree): Promise<void> {
   let sessions: Awaited<ReturnType<typeof SessionManager.list>>;
   try {
     const canonicalPath = await realpath(worktree.path);
@@ -175,20 +241,20 @@ export async function showWorkPicker(pi: ExtensionAPI, ctx: ExtensionCommandCont
     ctx.ui.notify('Could not list saved Pi sessions: ' + String(error), 'error');
     return;
   }
-  const items = [
-    ...found.sessions.filter(s => matches([s.name, s.firstMessage].join(' '), query))
-      .map(s => ({ kind: 'session' as const, name: 'Saved · ' + label(s.name || s.firstMessage || '(unnamed)') + ' [' + s.id.slice(0, 8) + ']', session: s })),
-    ...found.worktrees.filter(w => matches(w.branch + ' ' + w.handle, query))
-      .map(w => ({ kind: 'worktree' as const, name: 'Worktree · ' + label(w.branch) + ' (' + (w.is_open ? 'target open' : 'target closed') + ') [' + w.handle + ']', worktree: w })),
-  ].slice(0, 40);
-  const pickerLabels = items.map((item, index) => (index + 1) + '. ' + item.name);
-  if (!items.length) {
-    ctx.ui.notify('No matching work in current-project Pi sessions or workmux.' + (found.workmuxWarning ? ' ' + found.workmuxWarning : ''), 'info');
+  // Exact ID form is prepared by the model Tool; only a user-submitted Slash Command
+  // may switch Pi sessions. Never infer an ID from a short prefix.
+  if (query.startsWith('id:')) {
+    const id = query.slice(3);
+    const exact = found.sessions.filter(session => session.id === id);
+    if (exact.length !== 1) {
+      ctx.ui.notify('Exact saved Pi session ID not found in this project. Nothing switched.', 'warning');
+      return;
+    }
+    const switched = await ctx.switchSession(exact[0]!.path);
+    if (switched.cancelled) ctx.ui.notify('Pi session switch cancelled.', 'info');
     return;
   }
-  const selected = await ctx.ui.select('Return to previous work', pickerLabels);
-  if (!selected) return;
-  const item = items[pickerLabels.indexOf(selected)];
+  const item = await chooseWork(ctx, found, query);
   if (!item) return;
   if (item.kind === 'session') {
     // Pi owns the session switch; never start a duplicate tmux/Pi process for this case.
@@ -196,7 +262,11 @@ export async function showWorkPicker(pi: ExtensionAPI, ctx: ExtensionCommandCont
     if (switched.cancelled) ctx.ui.notify('Pi session switch cancelled.', 'info');
     return;
   }
-  const worktree = item.worktree;
+  await returnToWorktree(pi, ctx, item.worktree);
+}
+
+/** Move to an explicitly selected workmux target; no guessing about Pi session identity. */
+async function returnToWorktree(pi: ExtensionAPI, ctx: ExtensionContext, worktree: OpenWorktree): Promise<void> {
   if (!worktree.is_open) {
     await resumeClosedWorktree(pi, ctx, worktree);
     return;
