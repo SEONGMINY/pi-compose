@@ -24,6 +24,7 @@ curl -fsSL https://raw.githubusercontent.com/SEONGMINY/pi-compose/main/scripts/i
 ```
 
 기존에 Pi Compose를 `pico`로 설치했다면 **같은 설치 명령을 다시 실행**하면 됩니다. npm이 관리하던 이전 Pi Compose 실행 링크만 교체하며 macOS의 `pico` 편집기는 변경하지 않습니다.
+[실제 macOS 마이그레이션 결과](https://github.com/SEONGMINY/pi-compose/actions/runs/40186852376)에서 이전 전역 실행 링크 제거와 `pic` 실행을 확인했습니다. GNU groff의 `pic`과 같은 이름을 쓰므로, 다른 `pic` 명령이 발견되면 설치를 중단합니다.
 
 설치 이후 어느 프로젝트에서든 다음 명령을 실행합니다.
 
