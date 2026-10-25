@@ -6,7 +6,7 @@ Pi에서 요구사항과 설계 이유를 충분히 논의한 뒤, 별도 에이
 
 Pi Compose는 **기존 대화를 이어받아 개발할지, 새 대화로 시작할지**, 그리고 **같은 디렉터리에서 작업할지, Git Worktree로 분리할지** Pi 안에서 선택하고 실행하는 도구예요. 원래 대화는 유지하면서 여러 작업을 분리해 진행할 수 있습니다.
 
-Pi와 [workmux](https://github.com/raine/workmux)만으로도 비슷한 작업을 할 수 있어요. workmux 자체에서도 Pi 세션 Fork와 Worktree 실행을 지원합니다. 직접 실행할 때는 `workmux add`에 실행할 Pi 에이전트, 원본 세션 ID, 브랜치와 작업 지시를 지정해야 합니다. Pi Compose에서는 **Pi 대화 안에서 `/compose launch`를 실행하고 원본 대화와 작업 공간을 선택**하면 됩니다. 작업에 따라 Worktree를 사용하지 않을 수도 있고요.
+Pi와 [workmux](https://github.com/raine/workmux)만으로도 비슷한 작업을 할 수 있어요. workmux도 한 명령으로 Pi 세션을 Fork하고 Worktree에서 에이전트를 실행할 수 있습니다. Pi Compose의 차이는 **Pi 대화 안에서 원본 세션을 고르고, Fork/Independent와 Shared/Worktree를 선택해 실행**한다는 점이에요. 매번 Worktree가 필요한 것도 아닙니다.
 
 ## 실제로 사용해 보면
 
