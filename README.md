@@ -52,7 +52,7 @@ Pi 선택 화면에서 **Fork existing Pi session**을 고르고 원본 대화�
 **3. 시작한 작업을 확인하고, Main은 다음 일을 이어갑니다.**
 
 - **Shared Directory:** 별도 tmux 세션에서 Pi를 실행합니다. `/compose work`에서 실행 대상을 찾아 이동할 수 있습니다. tmux 대상 존재 여부는 모델의 작업 상태나 완료를 보증하지 않습니다.
-- **Git Worktree:** workmux가 브랜치·작업 디렉터리와 tmux 창을 만듭니다. workmux Dashboard를 선택적으로 열어 작업을 살펴볼 수 있습니다.
+- **Git Worktree:** workmux가 브랜치·작업 디렉터리와 tmux 창을 백그라운드에서 만듭니다. Main 화면에 남아 `/compose work`로 필요한 작업에 이동하거나, 선택형 workmux Dashboard를 열 수 있습니다.
 
 Pi Compose는 작업 **실행 명령이 성공했는지** 보고합니다. 모델이 실제로 코드를 작성 중인지까지 자동으로 확인해 주지는 않습니다. 독립 실행을 요청했다고 Main의 대화가 자동 종료되지도 않습니다.
 

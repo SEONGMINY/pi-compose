@@ -163,7 +163,8 @@ export async function planLaunch(
   if (!sha.success) throw validationError(sha.error);
   const dirty = await checkedRun(run, 'git', ['status', '--porcelain', '--untracked-files=normal'], repoRoot);
   if (dirty) warnings.push('Source checkout has uncommitted changes; new Worktree is based on a commit and does not copy them.');
-  const args = ['add', branch, '--agent', 'pi', '--base', sha.data,
+  // A new worktree agent starts without stealing focus from the Main Pi window.
+  const args = ['add', branch, '--background', '--agent', 'pi', '--base', sha.data,
     ...(source ? [`--fork=${source.id}`] : []), '--prompt', task];
   return {
     context: request.context, workspace: request.workspace, cwd: repoRoot, task,

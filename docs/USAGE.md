@@ -40,6 +40,8 @@ Fork는 **어느 Pi 세션을 원본으로 삼을지 직접 선택**해야 합�
 
 `/compose preview`는 실행 계획만 표시합니다. `/compose launch`는 사용자가 명시적으로 선택한 옵션으로 실행합니다. 자연어로 에이전트 생성을 요청하면 `compose_launch` Tool이 **실행 전 승인을 요청**합니다.
 
+Worktree Launch는 workmux의 `--background` 옵션을 사용해 현재 Main 화면에 남습니다. 개발 에이전트를 보려면 `/compose work`에서 선택하세요. Shared Launch도 별도 tmux 세션에서 시작하고 Main 화면을 유지합니다.
+
 시작 명령이 성공했다는 결과가 곧 모델이 정상 응답 중이라는 뜻은 아닙니다. 실제 Agent 상태는 해당 Pi/tmux/workmux 환경에서 확인해야 합니다.
 
 ## 이전 작업으로 돌아갈 때
