@@ -136,6 +136,17 @@ Pi Compose는 **Launch 중심의 Pi Package**이다. `package.json`의
 
 Handoff는 **개발자의 주장**이다. 검증 완료 증명이 아니다.
 
+### Phase 4 — 명시적 Handoff 연결
+
+`extensions/optional/handoff.ts`는 **사용자 선택형 Pi Extension**으로 제공한다. 기본 Launch에는 추가하지 않는다.
+
+- `/compose-handoff [recipient]`는 사용자 명령으로 Pi의 `sendUserMessage`를 호출해 현재 대화 맥락의 간결한 인계를 작성하게 한다.
+- `compose_handoff` Tool은 Git HEAD·브랜치·staged·unstaged·untracked 파일 경로를 조회한다. 명시적 base ref가 제공되면 해당 기준의 변경 파일과 `git diff --check`도 확인한다.
+- 보고서에는 구현 내용, 원래 WHY·강한 금지·거절한 대안, 실제 실행한 검사, 남은 문제 및 Git/Pi 참조를 포함한다. Handoff는 **개발자의 주장이지 독립 검증 결과가 아니다.**
+- 대상 에이전트를 선택한 경우에만 사용자 확인 후 `workmux send`를 호출한다. 전송 명령 성공을 상대의 읽음·확인으로 오해하지 않는다.
+- 새 DB·자체 메시지 브로커·자동 Merge·Worktree 정리를 만들지 않는다. Git 상태 수집도 원자적 스냅샷은 아니므로 이후 코드 변경 시 재확인이 필요하다.
+- 실제 Pi TUI 로딩, 다중 에이전트 수신 확인, 중복 인계 방지 및 Phase 5 검증 연계는 미검증/미구현이다.
+
 ## 테스트 작성 기준 (2026-10-25 확정)
 
 **테스트 코드는 직접 구현한 Pi Extension의 고유 동작에 집중한다.**
