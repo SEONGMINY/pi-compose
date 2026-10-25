@@ -7,7 +7,7 @@ type ToolInput = {
   summary: string; why: string; checks: string; outstanding: string;
   baseRef?: string; recipient?: string;
 };
-type ToolOutput = { content: Array<{ type: string; text: string }>; details: { status: string; delivery: string; changedFileCount: number } };
+type ToolOutput = { content: Array<{ type: string; text: string }>; details: { status: string; delivery: string; changedFileCount: number; changedPaths: string[] } };
 type HandoffTool = { execute: (id: string, input: ToolInput, signal: undefined, update: undefined, ctx: ExtensionToolContext) => Promise<ToolOutput> };
 type HandoffCommand = { handler: (args: string, ctx: ExtensionCommandContext) => Promise<void> };
 
@@ -24,6 +24,7 @@ function setup(allowSend = false) {
     }
     assert.equal(bin, 'git');
     const command = args.join(' ');
+    if (command === 'status --porcelain=v1 -z --untracked-files=all') return { code: 0, stdout: '?? src/new.ts\0', stderr: '' };
     if (command === 'rev-parse --show-toplevel') return { code: 0, stdout: '/tmp/project\n', stderr: '' };
     if (command === 'rev-parse HEAD') return { code: 0, stdout: 'abc123\n', stderr: '' };
     if (command === 'branch --show-current') return { code: 0, stdout: 'feat/ui\n', stderr: '' };
@@ -72,6 +73,7 @@ test('handoff reports real changed paths but labels its report unverified; no au
   assert.equal(result.details.status, 'handoff_prepared_not_verified');
   assert.equal(result.details.delivery, 'not_requested');
   assert.equal(result.details.changedFileCount, 2);
+  assert.deepEqual(result.details.changedPaths, ['src/new.ts', 'src/ui.ts']);
   assert.match(result.content[0]?.text ?? '', /NEVER change/);
   assert.match(result.content[0]?.text ?? '', /src\/new.ts/);
   assert.match(result.content[0]?.text ?? '', /untracked=1/);
