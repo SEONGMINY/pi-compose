@@ -51,6 +51,6 @@
 - **제품 방향과 핵심 제약:** 합의됨.
 - **우선 검토 기술:** Pi, Git, tmux, workmux. 외부 대시보드·통신 패키지는 검증 후 선정.
 - **미검증:** 최신 Pi와 workmux의 실사용 통합, Shared Directory 재개·대시보드 관찰, Fork 후 계약 맥락 보존, Handoff와 기본 검사 연결.
-- **현재 진행:** Phase 0은 부분 검증으로 종료. Launch, 선택형 View, 정확한 Resume와 **선택형 Handoff**를 구현했으며 실제 Pi/workmux 통합은 사용 시점에 검증한다. 자동 테스트는 **Pi Extension 핵심 동작**에 집중하고, CLI·Git·tmux 조합 테스트는 정리했다. 구체적인 현재 상태는 [Implementation Plan](IMPLEMENTATION_PLAN.md)을 참조한다.
+- **현재 진행:** Phase 0은 부분 검증으로 종료. Launch, 선택형 View, 정확한 Resume, **선택형 Handoff와 선택형 독립 검증**을 구현했으며 실제 Pi/workmux 통합은 사용 시점에 검증한다. 자동 테스트는 **Pi Extension 핵심 동작**에 집중하고, CLI·Git·tmux 조합 테스트는 정리했다. 구체적인 현재 상태는 [Implementation Plan](IMPLEMENTATION_PLAN.md)을 참조한다.
 
 이 문서가 프로젝트별 `AGENTS.md`의 대체물이라는 뜻은 아니다. 구현 단계에서는 레포의 실제 구조와 규칙을 확인한 뒤 필요한 최소 진입점만 추가한다.
