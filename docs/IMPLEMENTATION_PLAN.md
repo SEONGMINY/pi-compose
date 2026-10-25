@@ -268,9 +268,15 @@ Pi `--print` 일회성 실행, 별도 지속 Pi 세션, 기존 Sub-agent 패키�
   workmux handle·브랜치와 **잠재적인 새 Window 생성 경합**을 알리고 승인받는다.
   명령 직전에 같은 Target의 열린 상태를 재확인한 뒤 `workmux open`에 위임한다.
   `is_open`은 Pi 대화 프로세스의 실시간 실행·원래 Session ID의 증거가 아니다.
-- **닫힌 Worktree:** 정확한 저장 대화가 확인되지 않은 상태에서
-  `workmux open --continue` 같은 "최근 대화" 추측이나 새 Agent 생성을 하지 않는다.
-  해당 디렉터리에서 Pi `/resume` 또는 기존 명시적 `/compose resume`을 사용한다.
+- **닫힌 Worktree (2차 구현):** 선택된 Worktree 경로에서 Pi `SessionManager.list`로
+  저장된 세션을 조회하고, **사용자가 정확한 대화를 선택**한 경우에만
+  기존 `planResume`으로 브랜치·실제 Worktree·세션 cwd·tmux 점유를 확인한다.
+  새 Pi 프로세스 생성 전에는 별도 승인과 workmux Target 상태 재확인을 거친다.
+  등록된 세션이 없다면 "최근 대화"를 추측하거나 새 Agent를 만들지 않는다.
+  기본 위치가 아닌 Pi 세션 저장 경로는 여전히 기존 `/compose resume`에서 직접 선택한다.
+- **닫힌 Worktree 2차 검증:** [Extension 타입 검사·테스트 결과](https://github.com/SEONGMINY/pi-compose/actions/runs/40183532219).
+  실제 사용자의 macOS Pi TUI에서 저장된 Worktree 세션 목록 선택과 모델 재개는 미검증.
+  새로 작성한 테스트는 **저장 대화가 없을 때 무실행 경계**만 확인한다.
 - **자연어:** 모델용 `compose_find_work` Tool은 **읽기 전용 조회**만 하고,
   간결한 후보 이름·짧은 ID·Worktree handle·상태를 반환한다.
   Extension Tool 실행으로 Pi 세션을 직접 전환하는 API는 제공되지 않으므로
@@ -278,8 +284,8 @@ Pi `--print` 일회성 실행, 별도 지속 Pi 세션, 기존 Sub-agent 패키�
 - **검증:** Pi 1.4.0 환경의 타입 검사와 직접 구현한 Extension 핵심 동작 테스트만
   일회성 GitHub Actions에서 확인. [실행 기록](https://github.com/SEONGMINY/pi-compose/actions/runs/40183020052).
   실제 workmux TUI와 실행 중인 다른 프로젝트 Agent 복귀는 미검증.
-- **미구현/의도된 한계:** 모든 프로젝트 통합 검색, 다른 Worktree의 Pi 대화
-  자동 재개, 동일 Pi 세션의 다른 tmux 대상 중복 실행 식별, 자체 Registry/DB.
+- **미구현/의도된 한계:** 모든 프로젝트 통합 검색, 자연어 Tool의 직접 세션 전환,
+  다른 tmux 대상에서의 동일 Pi 세션 중복 실행 식별, 자체 Registry/DB.
   조회 가능한 상태와 검증된 실제 Pi Session 상태를 혼동하지 않는다.
 
 비용 대비 효과: 새로운 세션 관리 엔진·TUI 없이 Pi의 직접 전환 API와
