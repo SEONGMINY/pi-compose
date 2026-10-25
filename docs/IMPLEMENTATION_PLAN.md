@@ -246,8 +246,11 @@ Pi `--print` 일회성 실행, 별도 지속 Pi 세션, 기존 Sub-agent 패키�
 - **설정 경계:** 지속 설정은 `pi`와 `pico`가 공유한다.
   일반 `pico` 실행은 사용자·프로젝트 설정을 변경하지 않는다.
   과거 Pi Package 설치 기록도 자동 삭제·마이그레이션하지 않는다.
-- **미확정/검증 필요:** 실제 설치의 `pico` PATH 노출 및 옵션·cwd·exit-code 전달,
-  Pi config 리소스 토글, Pi 모델 인증을 사용한 실사용.
+- **격리 환경에서 확인:** Node 22.19.0·Pi 1.4.0에서 전역 npm 설치 후 `pico` 실행, 옵션·cwd·exit-code 전달,
+  `pi install` 선택형 묶음 등록, TypeScript 검사와 기존 Extension 테스트 24개 통과.
+  [실행 기록](https://github.com/SEONGMINY/pi-compose/actions/runs/40182260770).
+- **실사용 미검증:** `pi config`에서 세 기능의 활성화·비활성화 및 세션 간 설정 유지,
+  macOS에서의 npm 전역 설치, 실제 인증된 Pi 모델·TUI 사용.
 - **제외:** 별도 Settings Engine·Plugin Registry·TUI 관리 화면·Pi Runtime.
 
 결정 근거: [ADR 0005](adr/0005-pico-entry-and-pi-settings.md).
