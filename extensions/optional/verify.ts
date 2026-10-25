@@ -116,6 +116,8 @@ export default function verificationExtension(pi: ExtensionAPI): void {
           'If project or Git evidence disagrees with a developer claim, favor actual evidence; never upgrade code observations to user-approved requirements.',
           'Preserve the EXACT force of prohibitions and their original reasons. If the source contract is unavailable, say so explicitly.',
           'Prioritize API contracts, shared interfaces, permissions, destructive changes, and conflicts with established requirements.',
+          'When examining combined changes, inspect cross-module compatibility (especially API producers vs UI consumers). A clean Git merge or isolated test result does NOT establish integrated correctness.',
+          'Distinguish a proposed contract change from an explicitly human-approved decision and an implemented change. Do not silently treat proposals or implementation as approval.',
           'Git metadata includes committed differences from base (only when provided), staged, unstaged, and untracked path names.',
           'Untracked file contents are NOT in the patch; read relevant untracked files directly using read.',
           patchTruncated
