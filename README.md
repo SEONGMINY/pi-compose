@@ -13,9 +13,9 @@ Pi를 기반으로 한 개인용 **Composable Coding Agent Harness**.
 - Main이 상세 Git Diff·테스트 로그를 직접 분석하도록 강제하지 않는다.
 - 완료 Handoff, 검증, 실제 Git 통합, Worktree 정리를 서로 구분한다.
 
-## 시작하기 — `pico`
+## 시작하기 — `pic`
 
-**최초 한 번 설치한 다음에는 어느 프로젝트에서든 `pico`로 Pi Compose를 시작할 수 있습니다.**
+**최초 한 번 설치한 다음에는 어느 프로젝트에서든 `pic`로 Pi Compose를 시작할 수 있습니다.**
 
 **macOS 설치 또는 업데이트 — 같은 명령을 실행합니다.**
 
@@ -23,11 +23,13 @@ Pi를 기반으로 한 개인용 **Composable Coding Agent Harness**.
 curl -fsSL https://raw.githubusercontent.com/SEONGMINY/pi-compose/main/scripts/install.sh | bash
 ```
 
+기존에 Pi Compose를 `pico`로 설치했다면 **같은 설치 명령을 다시 실행**하면 됩니다. npm이 관리하던 이전 Pi Compose 실행 링크만 교체하며 macOS의 `pico` 편집기는 변경하지 않습니다.
+
 설치 이후 어느 프로젝트에서든 다음 명령을 실행합니다.
 
 ```bash
 cd ~/projects/my-app
-pico
+pic
 ```
 
 설치 스크립트는 Node.js 22.19.0 이상과 Git을 확인하고, 필요한 경우에만
@@ -50,20 +52,20 @@ macOS 격리 환경에서 **최초 설치·같은 버전 재설치·이전 커�
 
 Pi 모델 인증 및 사용자 설정은 **기존 Pi와 공유**합니다.
 
-`pico`는 현재 작업 디렉터리를 유지하고 **기존 `pi` TUI**를 실행하면서
+`pic`는 현재 작업 디렉터리를 유지하고 **기존 `pi` TUI**를 실행하면서
 `extensions/compose.ts`만 명시적으로 추가합니다. Pi Runtime·세션 DB·모델 설정을 복제하지 않습니다.
 설치 시 Pi의 사용자·프로젝트 `settings.json`을 수정하지 않습니다.
 
 기존 Pi 옵션도 그대로 전달합니다.
 
 ```bash
-pico --resume
-pico --continue
-pico --model sonnet:high
-pico -e /path/to/my-extension.ts
+pic --resume
+pic --continue
+pic --model sonnet:high
+pic -e /path/to/my-extension.ts
 ```
 
-실제 Ubuntu 격리 환경에서 npm 전역 설치, `pico --version`, 인자·cwd·종료 코드 전달,
+실제 Ubuntu 격리 환경에서 npm 전역 설치, `pic --version`, 인자·cwd·종료 코드 전달,
 선택형 Pi Package 등록, 타입 검사·Extension 테스트(24개)를 확인했습니다.
 [실행 기록](https://github.com/SEONGMINY/pi-compose/actions/runs/40182260770).
 macOS와 `pi config`의 개별 토글 동작은 아직 직접 검증하지 않았습니다.
@@ -71,9 +73,9 @@ macOS와 `pi config`의 개별 토글 동작은 아직 직접 검증하지 않�
 Pi의 Package 관련 CLI도 직접 사용할 수 있습니다.
 
 ```bash
-pico config           # Pi 기본 Package/Extension 설정 TUI
-pico config --local   # 이 프로젝트의 Pi 설정
-pico list             # Pi Package 목록
+pic config           # Pi 기본 Package/Extension 설정 TUI
+pic config --local   # 이 프로젝트의 Pi 설정
+pic list             # Pi Package 목록
 ```
 
 ### 선택형 기능 활성화
@@ -83,8 +85,8 @@ Dashboard·Handoff·독립 검증은 Pi의 **별도 선택형 Package**에 담�
 사용자가 직접 활성화할 때만 다음 명령을 실행합니다.
 
 ```bash
-pico features          # 사용자 범위에서 세 선택형 Extension 추가 → Pi config
-pico features --local  # 현재 프로젝트 범위에서 추가 → Pi config
+pic features          # 사용자 범위에서 세 선택형 Extension 추가 → Pi config
+pic features --local  # 현재 프로젝트 범위에서 추가 → Pi config
 ```
 
 이 명령은 자체 설정 시스템이 아닙니다. 설치된 `packages/optional`을
@@ -93,13 +95,13 @@ pico features --local  # 현재 프로젝트 범위에서 추가 → Pi config
 설정 UI에서 사용하지 않는 Extension을 꺼 주세요.
 선택 결과는 Pi의 `settings.json`에 저장돼 이후에도 유지됩니다.
 
-**선택형 설정은 일반 `pi`와 `pico`에 공통 적용됩니다.** 이는 합의한
-Pi 설정 공유 방식입니다. 한 번의 실행에만 추가하려면 `pico -e <path>`를 사용하세요.
-`pico`로 실행하지 않아도 일반 `pi`는 계속 사용할 수 있습니다.
+**선택형 설정은 일반 `pi`와 `pic`에 공통 적용됩니다.** 이는 합의한
+Pi 설정 공유 방식입니다. 한 번의 실행에만 추가하려면 `pic -e <path>`를 사용하세요.
+`pic`로 실행하지 않아도 일반 `pi`는 계속 사용할 수 있습니다.
 
 > 이미 `pi install ~/dev/pi-compose`로 기본 Package를 등록했다면
 > 일반 `pi`에서도 `/compose` 명령이 보일 수 있습니다.
-> `pico`는 Pi의 리소스 경로 중복 제거를 활용하며 기존 설치나 설정을 자동으로 삭제하지 않습니다.
+> `pic`는 Pi의 리소스 경로 중복 제거를 활용하며 기존 설치나 설정을 자동으로 삭제하지 않습니다.
 > 일반 `pi`를 기본 상태로 돌리고 싶다면 `pi list`로 기존 등록을 확인한 뒤
 > 사용자 판단으로 `pi remove <등록된 소스>`를 사용하세요.
 
@@ -162,7 +164,7 @@ npm run check
 
 ### 기존 Pi Package 명령을 직접 사용할 수도 있습니다
 
-`pico features`를 사용하지 않고 기존 Pi 명령으로도 선택형 기능을 설치할 수 있습니다.
+`pic features`를 사용하지 않고 기존 Pi 명령으로도 선택형 기능을 설치할 수 있습니다.
 예를 들어 로컬 체크아웃을 사용하는 경우 다음과 같습니다.
 
 ```bash
@@ -170,7 +172,7 @@ pi install ~/dev/pi-compose/packages/optional
 pi config
 ```
 
-지속 여부·사용자/프로젝트 범위는 Pi의 설정이 소유합니다. `pico`는 이를
+지속 여부·사용자/프로젝트 범위는 Pi의 설정이 소유합니다. `pic`는 이를
 별도로 저장하거나 원래 Pi의 설정 파일을 덮어쓰지 않습니다.
 별도의 코드 기반 View Registry·Plugin Manager를 만들지 않았습니다.
 
@@ -245,7 +247,7 @@ Pi의 `select` UI로 후보를 보여줍니다. 별도 세션 Registry/DB를 만
 
 Pi Compose가 `/compose launch`로 Shared Agent를 실행하거나 `/compose resume` 및
 `/compose back`으로 새 Pi 프로세스를 재개할 경우, **기본 Compose Extension 경로를 Pi에 추가**합니다.
-선택형 Extension은 기존 Pi 설정에 맡기며, `pico`의 별도 설정 파일은 만들지 않습니다.
+선택형 Extension은 기존 Pi 설정에 맡기며, `pic`의 별도 설정 파일은 만들지 않습니다.
 CLI를 독립적으로 사용하는 경우에는 기존 `pi` 기본 실행 동작을 유지합니다.
 Worktree를 처음 만드는 `workmux add`의 새 Pi 프로세스에 Compose Extension이 항상 포함되는지는 별도 확인이 필요합니다.
 
