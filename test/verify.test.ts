@@ -32,8 +32,11 @@ function prepare() {
     exec,
   } as unknown as ExtensionAPI);
   if (!command) throw new Error('Missing compose-verify command');
-  const ctx = (approve: boolean) => ({
+  const ctx = (approve: boolean, handoff?: string) => ({
     cwd: '/tmp/repo', hasUI: true,
+    sessionManager: { getBranch: () => handoff ? [{
+      type: 'message', message: { role: 'user', content: handoff },
+    }] : [] },
     ui: {
       confirm: async () => approve,
       notify: (msg: string) => { notices.push(msg); },
@@ -62,11 +65,21 @@ test('approved verification runs a separate read-only, non-persistent Pi with no
   ]);
   assert.match(args[7] ?? '', /Untracked file contents are NOT in the patch/);
   assert.match(args[7] ?? '', /new.ts/);
-  assert.match(args[7] ?? '', /original WHY unavailable/);
+  assert.match(args[7] ?? '', /full WHY cannot be located independently/);
   assert.ok(!args.includes('bash'));
   assert.ok(!args.includes('edit'));
   assert.ok(!args.includes('write'));
   assert.match(v.messages[0] ?? '', /NOT an approval or integration/);
+});
+
+test('reuses an explicit Handoff in current Pi history but labels it unverified', async () => {
+  const v = prepare();
+  const claim = '[Pi Compose handoff — developer report, NOT independent verification]\nImplemented: public API unchanged';
+  await v.command.handler('', v.ctx(true, claim));
+  const prompt = v.calls.find(call => call.binary === 'pi')?.args.at(-1) ?? '';
+  assert.match(prompt, /UNVERIFIED CLAIM/);
+  assert.match(prompt, /public API unchanged/);
+  assert.ok(!prompt.includes('(no marked handoff available'));
 });
 
 test('missing interactive UI prevents even evidence inspection or model execution', async () => {
