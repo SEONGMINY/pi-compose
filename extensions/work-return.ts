@@ -2,6 +2,9 @@ import { Type } from '@earendil-works/pi-ai';
 import { SessionManager, type ExtensionAPI, type ExtensionCommandContext, type ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { realpath } from 'node:fs/promises';
 import { planResume, executeResume } from '../src/resume.ts';
+import { fileURLToPath } from 'node:url';
+
+const baseExtension = fileURLToPath(new URL('./compose.ts', import.meta.url));
 
 type OpenWorktree = {
   handle: string;
@@ -191,6 +194,7 @@ async function resumeClosedWorktree(pi: ExtensionAPI, ctx: ExtensionContext, wor
     // The original Git branch and exact session cwd must still belong together.
     const plan = await planResume({
       workspace: 'worktree', cwd: ctx.cwd, branch: worktree.branch, sessionFile: selected.path,
+      composeExtensionFile: baseExtension,
     });
     if (plan.cwd !== await realpath(worktree.path)) {
       ctx.ui.notify('Worktree location no longer matches the selected target. No Pi process started.', 'warning');
