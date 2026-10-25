@@ -57,6 +57,11 @@ export default function verificationExtension(pi: ExtensionAPI): void {
           ...(base ? [['diff', '--check', base]] : []),
         ];
         const checkResults = await Promise.all(checks.map(argv => pi.exec('git', argv, { cwd })));
+        for (const result of checkResults) {
+          if (result.code !== 0 && result.code !== 2) {
+            throw new Error('git diff --check could not complete: ' + (result.stderr || 'exit ' + result.code));
+          }
+        }
         const checkFailures = checkResults.flatMap((result, index) => result.code === 0 ? [] : [
           checks[index]?.join(' ') + ': ' + (result.stdout || result.stderr || 'exit ' + result.code),
         ]);
