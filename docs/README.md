@@ -25,6 +25,7 @@
 | [ADR 0002](adr/0002-user-controlled-execution.md) | 사용자 통제와 실행 옵션의 독립성 |
 | [ADR 0003](adr/0003-composable-execution-and-verification.md) | 기존 도구의 조합, Handoff, 독립 검증 |
 | [ADR 0004](adr/0004-pi-native-optional-views.md) | 사용자 확정: Pi 기본 Package 중심 조합, 선택형 View와 비필수 Dashboard |
+| [ADR 0005](adr/0005-pico-entry-and-pi-settings.md) | 단일 전역 `pico` 진입점과 Pi 설정 공유, 선택형 Package 구성 |
 
 ## 문서 간 우선순위와 변경 원칙
 
