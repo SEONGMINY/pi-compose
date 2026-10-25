@@ -10,6 +10,7 @@
 
 | 문서 | 책임 |
 | --- | --- |
+| [사용 가이드](USAGE.md) | **처음 사용하기:** 실행, Fork/Independent, 이전 작업 복귀, 선택형 Handoff·검증 명령 |
 | [AS-IS와 문제](domain-stories/01-as-is-and-pain-points.md) | 실제 에이전트 사용 경험, 문제가 발생한 이유 |
 | [TO-BE와 업무 시나리오](domain-stories/02-to-be-and-scenarios.md) | 사용자가 달성하려는 개발 흐름 |
 | [PRD](PRD.md) | **제품 계약의 기준:** 요구사항, 비요구사항, 사용자 흐름, 수용 기준 |
