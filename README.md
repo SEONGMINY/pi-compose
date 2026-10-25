@@ -62,7 +62,7 @@ pico list             # Pi Package 목록
 
 ### 선택형 기능 활성화
 
-기본으로는 **Launch·Preview·Resume**만 연결합니다.
+기본으로는 **Launch·Preview·기존 작업 탐색·복귀·명시적 Resume**를 연결합니다.
 Dashboard·Handoff·독립 검증은 Pi의 **별도 선택형 Package**에 담았습니다.
 사용자가 직접 활성화할 때만 다음 명령을 실행합니다.
 
@@ -138,7 +138,7 @@ npm run check
 
 | 기능 | 로딩 | Pi 명령 |
 | --- | --- | --- |
-| **Launch** | 기본 Package에 포함 | `/compose launch`, `/compose preview` |
+| **기본 작업 관리** | 기본 Package에 포함 | `/compose launch`, `/compose preview`, `/compose back`, `/compose resume` |
 | **workmux View** | 사용자가 명시적으로 추가 | `/compose-workmux [agents\|worktrees]` |
 | **Handoff** | 사용자가 명시적으로 추가 | `/compose-handoff [recipient]` 및 `compose_handoff` Tool |
 | **Independent Verification** | 사용자가 명시적으로 추가 | `/compose-verify [base-ref]` |
@@ -179,7 +179,7 @@ workmux와 tmux는 자동 설치되지 않으며, Pi 상태 추적은 별도 wor
 > `workmux add`를 사용합니다. 따라서 Worktree Launch를 실제 실행할 때는
 > workmux가 필요합니다. 실행 백엔드 교체와 View 교체는 서로 다른 설계 결정입니다.
 
-## Pi 내부 명령 (현재 미검증)
+## Pi 내부 명령
 
 Pi 공식 Extension API를 사용한 `/compose` 명령의 첫 구현이 들어 있다.
 
