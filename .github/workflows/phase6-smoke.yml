@@ -64,3 +64,46 @@ jobs:
           # Verify exact tool version; no user branch/Worktree is touched.
           workmux --help >/dev/null
           echo WORKMUX_CLI_AVAILABLE
+
+      - name: Actual Shared Launch, exact Resume and workmux Worktree provisioning
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/.local/bin:$PATH"
+          export TERM=xterm-256color
+          git config --global user.email phase6@example.invalid
+          git config --global user.name "Phase 6 Smoke"
+          root="$(mktemp -d)"
+          trap 'tmux kill-server >/dev/null 2>&1 || true; rm -rf "$root"' EXIT
+          mkdir -p "$root/project"
+          cd "$root/project"
+          git init -q -b main
+          git commit --allow-empty -qm initial
+          echo 'Phase 6 exact session fixture' > AGENTS.md
+          printf '{"type":"session","version":3,"id":"phase6-exact","timestamp":"2026-10-25T09:00:00.000Z","cwd":"%s"}\n' "$PWD" > "$root/source.jsonl"
+          # This really creates a tmux target and starts an actual Pi process, without model credentials.
+          node "$GITHUB_WORKSPACE/bin/pi-compose.ts" launch --context independent --workspace shared --task "Phase6 startup" --cwd "$PWD" > "$root/shared.json"
+          target="$(node -pe "JSON.parse(require('fs').readFileSync('$root/shared.json','utf8')).tmuxTarget")"
+          tmux has-session -t "$target"
+          echo "SHARED_LAUNCH_CREATED_TMUX=$target"
+          # Inspect exact saved session and let the real Pi CLI parse the file.
+          node "$GITHUB_WORKSPACE/bin/pi-compose.ts" resume --workspace shared --cwd "$PWD" --session-file "$root/source.jsonl" > "$root/resume.json"
+          resume_target="$(node -pe "JSON.parse(require('fs').readFileSync('$root/resume.json','utf8')).tmuxTarget")"
+          tmux has-session -t "$resume_target"
+          echo "EXACT_RESUME_STARTED=$resume_target"
+          # Repeating the resume must NEVER create another Pi process.
+          node "$GITHUB_WORKSPACE/bin/pi-compose.ts" resume --workspace shared --cwd "$PWD" --session-file "$root/source.jsonl" > "$root/retry.json"
+          grep -q 'target_occupied_no_launch' "$root/retry.json"
+          echo "REPEAT_RESUME_BLOCKED=pass"
+          # Actual workmux integration, from a new isolated Git repository only.
+          tmux new-session -d -s phase6-parent
+          timeout 25s node "$GITHUB_WORKSPACE/bin/pi-compose.ts" launch --context independent --workspace worktree --task "Phase6 test" --cwd "$PWD" --branch feat/phase6 > "$root/worktree.json" 2>"$root/worktree.err" || {
+            echo WORKMUX_ACTUAL_LAUNCH_FAILED
+            cat "$root/worktree.err"
+            exit 1
+          }
+          test -d "$root/project/../"*phase6* || true
+          node "$GITHUB_WORKSPACE/bin/pi-compose.ts" inspect --cwd "$PWD" --branch feat/phase6 > "$root/inspect.json"
+          grep -q '"status": "worktree-existing"' "$root/inspect.json"
+          echo "ACTUAL_WORKMUX_WORKTREE_LAUNCH=pass"
