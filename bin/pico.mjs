@@ -38,6 +38,7 @@ if (command === 'features') {
     process.exitCode = 2;
   } else {
     const scope = flags.length ? ['--local'] : [];
+    console.log('pico: Installing the optional Pi Compose package. Dashboard, Handoff, and Verify start ENABLED; disable any you do not want in the Pi config screen. These choices are shared with regular pi.');
     const result = await runPi(['install', optionalPackage, ...scope]);
     process.exitCode = result === 0 ? await runPi(['config', ...scope]) : result;
   }
