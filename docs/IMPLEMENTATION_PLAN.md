@@ -92,7 +92,7 @@ Dashboard가 사용자 정의 Launch 액션을 공식적으로 받는지 확인�
 
 ## 5. Phase 2 — Dashboard와 직접 제어
 
-> **상태: 기존 Dashboard 실행 연결 구현, 부분 검증.** `pi-compose dashboard` CLI와 Pi의 `/compose dashboard [agents|worktrees]` tmux 팝업을 지원하도록 연결했다. 기존 `workmux dashboard` TUI를 그대로 사용하며 UI·상태·세션 DB를 재구현하지 않는다. 격리 환경에서 Dashboard 위임 테스트 **6개 통과**, Pi 명령 모의 테스트 **4개 추가(미실행)**. 실제 Hook/Shared·Worktree Pi 감지는 필요한 연동 시점에 검증한다. [Phase 2 기록](validation/phase2-dashboard.md).
+> **상태: 기본 Launch와 선택형 View 분리 구현.** 기본 Pi Package는 Launch Extension만 등록한다. 기존 workmux Dashboard는 `extensions/optional/workmux-dashboard.ts`에서 `/compose-workmux`로 사용자가 명시적으로 로드할 수 있다. `pi-compose dashboard` CLI는 호환성을 위해 유지했다. 별도 View Registry나 Session Engine은 만들지 않았다. 실제 Pi TUI·workmux 통합 및 이번 변경 전체 테스트 확인은 별도 기록한다. [Phase 2 기록](validation/phase2-dashboard.md) · [ADR 0004](adr/0004-pi-native-optional-views.md).
 
 ### 구현 범위
 
