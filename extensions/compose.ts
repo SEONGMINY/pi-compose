@@ -3,6 +3,9 @@ import { SessionManager, type ExtensionAPI, type ExtensionContext } from '@earen
 import { planLaunch, executeLaunch } from '../src/launch.ts';
 import { planResume, executeResume } from '../src/resume.ts';
 import { registerWorkReturn, showWorkPicker } from './work-return.ts';
+import { fileURLToPath } from 'node:url';
+
+const baseExtension = fileURLToPath(import.meta.url);
 
 // Session selection always uses an explicit source. 'Current' is not inferred to mean 'Main'.
 async function chooseForkSource(ctx: ExtensionContext, { includeCurrent = true }: { includeCurrent?: boolean } = {}): Promise<string | undefined> {
@@ -74,7 +77,7 @@ export default function composeExtension(pi: ExtensionAPI): void {
         const branch = workspace === 'worktree' ? await ctx.ui.input('Existing Worktree branch', 'feat/example') : undefined;
         if (workspace === 'worktree' && !branch?.trim()) return;
         try {
-          const plan = await planResume({ workspace, sessionFile, cwd: ctx.cwd, branch });
+          const plan = await planResume({ workspace, sessionFile, cwd: ctx.cwd, branch, composeExtensionFile: baseExtension });
           const result = await executeResume(plan);
           ctx.ui.notify('Resume: ' + result.status + '. tmux target: ' + result.tmuxTarget + '. Actual Pi readiness is not verified.', 'info');
           for (const warning of result.warnings) ctx.ui.notify(warning, 'warning');
@@ -111,7 +114,7 @@ export default function composeExtension(pi: ExtensionAPI): void {
         ? await ctx.ui.input('New branch name', 'feat/example') : undefined;
       if (workspace === 'worktree' && !branch?.trim()) return;
       try {
-        const plan = await planLaunch({ task, context, workspace, cwd: ctx.cwd, sourceSessionFile, branch });
+        const plan = await planLaunch({ task, context, workspace, cwd: ctx.cwd, sourceSessionFile, branch, composeExtensionFile: baseExtension });
         if (subcommand === 'preview') {
           ctx.ui.notify(`Preview only: ${plan.program} ${plan.args.join(' ')}${plan.warnings.length ? `\n${plan.warnings.join('\n')}` : ''}`, 'info');
           return;
@@ -163,6 +166,7 @@ export default function composeExtension(pi: ExtensionAPI): void {
       const plan = await planLaunch({
         task: params.task, context: params.context, workspace: params.workspace,
         cwd: params.cwd || ctx.cwd, sourceSessionFile, branch: params.branch,
+        composeExtensionFile: baseExtension,
       });
       const approved = await ctx.ui.confirm('Launch development agent?', [
         `Task: ${plan.task}`,
