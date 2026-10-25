@@ -21,6 +21,7 @@ jobs:
           npm install --ignore-scripts --no-audit --no-fund
           npm install -g --ignore-scripts --no-audit --no-fund @earendil-works/pi-coding-agent@1.4.0
           curl -fsSL https://raw.githubusercontent.com/raine/workmux/main/scripts/install.sh -o /tmp/install-workmux.sh
+          mkdir -p "$HOME/.local/bin"
           WORKMUX_VERSION=v0.1.277 WORKMUX_INSTALL_DIR="$HOME/.local/bin" bash /tmp/install-workmux.sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Installed versions
