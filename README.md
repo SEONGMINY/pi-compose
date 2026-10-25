@@ -8,9 +8,7 @@ Main Agent와 오래 논의한 설계의 **이유와 제약은 그대로 이어�
 
 ### 작업을 맡기면, 그다음에는?
 
-<figure>
-  <img src="docs/assets/compose-after-launch.svg" alt="macOS에서 Independent Shared 작업을 시작한 뒤 Main TUI의 실행 결과와 tmux 세션 목록을 따로 캡처해 나란히 배치한 화면. Main은 유지되고 별도 tmux 세션이 생성됐으며 모델 준비 상태는 미검증." />
-</figure>
+![macOS Independent Shared 실행 이후 Main TUI의 실행 결과와 tmux 세션 목록을 각각 캡처해 나란히 배치한 출력. Main은 유지되고 새 tmux 세션이 생성됨. 모델 작업은 미검증.](docs/assets/compose-after-launch.svg)
 
 실제 macOS에서 **Independent + Shared Directory**를 선택한 결과입니다. Pi Compose가 새 tmux 세션을 만들었고 Main Pi 세션은 계속 남아 있었습니다. **두 명령의 출력 일부를 읽기 쉽게 재배치한 SVG**이며, 실제 하나의 분할 화면을 캡처한 이미지는 아닙니다. 모델 인증이 없어 새 에이전트의 실제 코드 작업은 확인하지 못했습니다. [실행 기록](https://github.com/SEONGMINY/pi-compose/actions/runs/40226451266)
 
