@@ -41,7 +41,7 @@ async function chooseForkSource(ctx: ExtensionContext, { includeCurrent = true }
   return index < 0 ? undefined : other[index]?.path;
 }
 
-async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, mode: 'launch' | 'preview', suppliedTask = ''): Promise<void> {
+export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, mode: 'launch' | 'preview', suppliedTask = ''): Promise<void> {
   if (!ctx.hasUI) {
     ctx.ui.notify('Interactive options are required. Use the pi-compose CLI in non-UI environments.', 'warning');
     return;

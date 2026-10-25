@@ -80,7 +80,7 @@ export async function runProcess(bin: string, args: string[], { cwd }: { cwd: st
     // PIC_COMPOSE_CORE is a marker for the main Pi Extension. Never propagate it
     // to agents created by workmux, otherwise their navigation Extension is suppressed.
     const env = { ...process.env };
-    if (bin === 'workmux') delete env.PIC_COMPOSE_CORE;
+    if (bin === 'workmux') { delete env.PIC_COMPOSE_CORE; delete env.PIC_COMPOSE_MAIN; }
     const child = spawn(bin, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], shell: false, env });
     let stdout = '';
     let stderr = '';
@@ -142,7 +142,7 @@ export async function planLaunch(
       ...(composeExtensionFile ? ['--extension', composeExtensionFile] : []),
       ...(source ? ['--fork', source.path] : []), task,
     ];
-    const command = 'PIC_COMPOSE_CORE=1 ' + ['pi', ...piArgs].map(quoteShell).join(' ');
+    const command = 'PIC_COMPOSE_CORE=1 PIC_COMPOSE_MAIN=0 ' + ['pi', ...piArgs].map(quoteShell).join(' ');
     return {
       context: request.context, workspace: request.workspace, cwd, task,
       source: source ?? null, baseSha: null, branch: null, tmuxTarget: sessionName,

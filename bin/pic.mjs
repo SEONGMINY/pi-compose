@@ -14,7 +14,7 @@ const navigationPackage = resolve(root, 'packages/navigation');
 function runPi(args) {
   return new Promise((done) => {
     const isComposeSession = args[0] === '--extension' && args[1] === coreExtension;
-    const env = isComposeSession ? { ...process.env, PIC_COMPOSE_CORE: '1' } : process.env;
+    const env = isComposeSession ? { ...process.env, PIC_COMPOSE_CORE: '1', PIC_COMPOSE_MAIN: '1' } : process.env;
     const child = spawn('pi', args, { stdio: 'inherit', cwd: process.cwd(), env });
     let failed = false;
     child.once('error', (error) => {
