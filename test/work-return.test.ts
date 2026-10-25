@@ -23,10 +23,13 @@ function fixture(t: import('node:test').TestContext, open = true) {
   const calls: string[] = [];
   const messages: string[] = [];
   let registered: { execute: (...args: any[]) => Promise<any> } | undefined;
+  let returnTool: { execute: (...args: any[]) => Promise<any> } | undefined;
+  let editor = '';
   const pi = {
     registerTool: (tool: { name: string; execute: (...args: any[]) => Promise<any> }) => {
-      assert.equal(tool.name, 'compose_find_work');
-      registered = tool;
+      if (tool.name === 'compose_find_work') registered = tool;
+      else if (tool.name === 'compose_return_work') returnTool = tool;
+      else throw new Error('Unexpected Tool: ' + tool.name);
     },
     exec: async (cmd: string, args: string[]) => {
       calls.push(cmd + ' ' + args.join(' '));
@@ -53,12 +56,15 @@ function fixture(t: import('node:test').TestContext, open = true) {
       },
       notify: (message: string) => messages.push(message),
       confirm: async () => confirm,
+      getEditorText: () => editor,
+      setEditorText: (next: string) => { editor = next; },
     },
     switchSession: async (path: string) => { switched = path; return { cancelled: false }; },
   } as unknown as ExtensionCommandContext;
   registerWorkReturn(pi);
-  if (!registered) throw new Error('compose_find_work not registered');
-  return { pi, ctx, calls, messages, selections, tool: registered,
+  if (!registered || !returnTool) throw new Error('Pi work-return tools not registered');
+  return { pi, ctx, calls, messages, selections, tool: registered, returnTool,
+    getEditor: () => editor, setEditor: (value: string) => { editor = value; },
     setTarget: (v: 'saved' | 'workmux') => { target = v; },
     setApproval: (v: boolean) => { confirm = v; },
     getSwitch: () => switched };
@@ -105,4 +111,43 @@ test('closed workmux target is never automatically restarted', async t => {
   await showWorkPicker(fx.pi, fx.ctx);
   assert.ok(fx.messages.some(m => m.includes('No saved Pi conversation')));
   assert.equal(fx.calls.filter(s => s.startsWith('workmux open')).length, 0);
+});
+
+test('natural language return prepares an exact Pi command for user submission instead of switching in the model tool', async t => {
+  const fx = fixture(t);
+  const result = await fx.returnTool.execute('return', { query: 'Member' }, undefined, undefined,
+    fx.ctx as unknown as ExtensionToolContext);
+  assert.equal(result.details.status, 'exact_command_prepared_not_executed');
+  assert.equal(fx.getSwitch(), undefined);
+  assert.equal(fx.getEditor(), '/compose back id:member-api-123456');
+  assert.ok(!fx.calls.some(command => command.startsWith('workmux open')));
+  await showWorkPicker(fx.pi, fx.ctx, 'id:member-api-123456');
+  assert.equal(fx.getSwitch(), '/tmp/member-api.jsonl');
+});
+
+test('natural language return preserves an unfinished user draft and never switches a session automatically', async t => {
+  const fx = fixture(t);
+  fx.setEditor('I am drafting requirements');
+  const result = await fx.returnTool.execute('return', { query: 'Member' }, undefined, undefined,
+    fx.ctx as unknown as ExtensionToolContext);
+  assert.equal(result.details.status, 'exact_command_required_draft_preserved');
+  assert.equal(fx.getEditor(), 'I am drafting requirements');
+  assert.equal(fx.getSwitch(), undefined);
+});
+
+test('natural language return cannot change anything without an interactive UI', async t => {
+  const fx = fixture(t);
+  const result = await fx.returnTool.execute('return', {}, undefined, undefined,
+    { ...fx.ctx, hasUI: false } as unknown as ExtensionToolContext);
+  assert.equal(result.details.status, 'not_executed_no_ui');
+  assert.equal(fx.calls.length, 0);
+});
+
+test('workmux return requested through natural language still requires user confirmation', async t => {
+  const fx = fixture(t);
+  fx.setTarget('workmux');
+  const result = await fx.returnTool.execute('return', { query: 'member-api' }, undefined, undefined,
+    fx.ctx as unknown as ExtensionToolContext);
+  assert.equal(result.details.status, 'workmux_return_attempted_unverified');
+  assert.ok(!fx.calls.some(command => command.startsWith('workmux open')));
 });
