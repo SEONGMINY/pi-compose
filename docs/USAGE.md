@@ -18,6 +18,19 @@ pic
 
 첫 실행에는 Pi TUI에서 `/login`으로 제공자를 인증하고 `/model`로 모델을 선택합니다. Azure를 사용하지 않는다면 Azure 설정은 필요하지 않습니다. 기존 `pi`의 설정·인증·세션·Skill·Theme가 공유됩니다.
 
+## 기본 작업 Hub
+
+Pi Compose를 실행하면 화면 아래에 `Alt+W 작업 보기` 안내가 표시됩니다. **`Alt+W`** 또는 **`/compose`**로 작업 Hub를 열 수 있습니다.
+
+- **새 에이전트에게 맡기기:** 작업 이름을 입력하고 기존 Fork/Independent, Shared/Worktree 선택을 이어갑니다. 사용자의 실행 지시 없이 모델이 자동으로 에이전트를 생성하지 않습니다.
+- **내 작업:** 이번 개선 버전에서 명시적으로 시작한 작업을 제목별로 한 번씩 보여줍니다. tmux 또는 Worktree가 열려 있어도 실제 Pi 모델이 작업 중/완료라는 뜻은 아닙니다.
+- **Main으로 돌아가기:** 이전 Main의 정확한 tmux 세션이 확인되는 경우 첫 항목에 표시됩니다.
+- **다른 저장 대화 / 이전 작업 찾기:** 과거 Pi 대화와 기존 Worktree를 고급 메뉴에서 탐색합니다.
+
+macOS Ghostty를 사용하는 경우 `Option+W`가 문자로 입력되면 **`/compose`**로 Hub를 열어 주세요. Ghostty의 `macos-option-as-alt` 설정에 따라 Option 키가 Alt로 전달되지 않을 수 있습니다. Pi의 현재 단축키 설정은 `/hotkeys`에서 확인할 수 있습니다.
+
+[작업 Hub와 선택형 Ghostty 사용 상세](validation/task-hub-ux.md)
+
 ## 새 에이전트를 실행할 때
 
 ```text
@@ -40,7 +53,7 @@ Fork는 **어느 Pi 세션을 원본으로 삼을지 직접 선택**해야 합�
 
 `/compose preview`는 실행 계획만 표시합니다. `/compose launch`는 사용자가 명시적으로 선택한 옵션으로 실행합니다. 자연어로 에이전트 생성을 요청하면 `compose_launch` Tool이 **실행 전 승인을 요청**합니다.
 
-Worktree Launch는 workmux의 `--background` 옵션을 사용해 현재 Main 화면에 남습니다. 개발 에이전트를 보려면 `/compose work`에서 선택하세요. Shared Launch도 별도 tmux 세션에서 시작하고 Main 화면을 유지합니다.
+Worktree Launch는 workmux의 `--background` 옵션을 사용해 현재 Main 화면에 남습니다. Ghostty 네이티브 탭을 명시적으로 켜면 새 Worktree는 `--mode session`도 사용합니다. 개발 에이전트를 보려면 `/compose work`에서 선택하세요. Shared Launch도 별도 tmux 세션에서 시작하고 Main 화면을 유지합니다.
 
 시작 명령이 성공했다는 결과가 곧 모델이 정상 응답 중이라는 뜻은 아닙니다. 실제 Agent 상태는 해당 Pi/tmux/workmux 환경에서 확인해야 합니다.
 
@@ -52,7 +65,7 @@ Worktree Launch는 workmux의 `--background` 옵션을 사용해 현재 Main 화
 /compose back 회원 API
 ```
 
-현재 프로젝트의 Pi 저장 대화, workmux Worktree, Pi Compose가 만든 실행 중 tmux 대상을 하나의 선택 UI에서 보여줍니다. 실행 중 tmux 세션은 **대상이 존재한다는 사실만** 보여주며 모델이 작업 중인지, 완료했는지는 알 수 없습니다.
+이 명령의 기본 화면은 이제 **작업 중심 Hub**입니다. 이번 버전부터 생성한 작업은 하나의 이름으로 탐색할 수 있습니다. 기존 저장 대화와 과거 실행 대상은 Hub의 고급 메뉴나 `/compose back`에서 찾을 수 있습니다. 실행 중 tmux 세션은 **대상이 존재한다는 사실만** 보여주며 모델이 작업 중인지, 완료했는지는 알 수 없습니다.
 
 - **실행 중인 tmux 대상:** tmux 안에서 선택하면 해당 세션으로 이동합니다. 새 에이전트를 만들지 않습니다. tmux 바깥에서는 직접 연결 명령을 안내합니다.
 - **저장된 Pi 대화:** Pi의 공식 세션 전환 API로 현재 프로세스에서 대화를 전환합니다. 일반적인 Pi 저장 대화 선택은 기본 `/resume`도 사용할 수 있습니다.
