@@ -46,6 +46,7 @@ export default function handoffExtension(pi: ExtensionAPI): void {
         }
         return result.stdout;
       };
+      const statusBefore = await runGit(['status', '--porcelain=v1', '-z', '--untracked-files=all']);
       const gitRoot = (await runGit(['rev-parse', '--show-toplevel'])).trim();
       const head = (await runGit(['rev-parse', 'HEAD'])).trim();
       const branch = (await runGit(['branch', '--show-current'])).trim();
@@ -74,6 +75,12 @@ export default function handoffExtension(pi: ExtensionAPI): void {
       const findings = checkResults.filter(result => result.code === 2)
         .map(result => (result.stdout || result.stderr).slice(0, 350));
       const checkState = findings.length ? 'findings' : 'pass';
+      // A changing worktree invalidates the collected evidence. Do not send a stale report.
+      const statusAfter = await runGit(['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+      const headAfter = (await runGit(['rev-parse', 'HEAD'])).trim();
+      if (statusBefore !== statusAfter || headAfter !== head) {
+        throw new Error('Git state changed while preparing Handoff. Retry when the worktree is stable.');
+      }
       const sessionFile = ctx.sessionManager.getSessionFile() || '(not saved)';
       const message = [
         '[Pi Compose handoff — developer report, NOT independent verification]',
@@ -83,11 +90,14 @@ export default function handoffExtension(pi: ExtensionAPI): void {
         'Outstanding: ' + params.outstanding,
         'Git: ' + gitRoot + ' | branch=' + (branch || '(detached)') + ' | HEAD=' + head,
         'Base: ' + (base || '(not supplied; committed changes before HEAD not inspected)'),
-        'Files: ' + names.length + (names.length ? ' (' + names.slice(0, 30).join(', ') + (names.length > 30 ? ', …' : '') + ')' : ' (none detected)'),
+        'Files: ' + names.length + (names.length
+          ? ' (' + names.slice(0, 30).join(', ') + (names.length > 30 ? ', … ' + (names.length - 30) + ' more' : '') + ')'
+          : ' (none detected)'),
         'staged=' + staged.length + ', unstaged=' + unstaged.length + ', untracked=' + untracked.length,
         'git diff --check: ' + checkState + (checkState !== 'pass' ? ' (' + findings.join('; ').slice(0, 350) + ')' : ''),
         'Pi session: ' + sessionFile,
         'Scope: file paths only; untracked file contents and ignored files not inspected. Changes after this snapshot are not covered.',
+        'Evidence: all ' + names.length + ' changed paths are available in Tool details; the short message lists only the first 30. Git status was re-read, but concurrent edits with identical status are not ruled out.',
         'Handoff is a claim to check; it does not authorize changing the user contract, merging, or cleanup.',
       ].join('\n');
 
@@ -124,7 +134,7 @@ export default function handoffExtension(pi: ExtensionAPI): void {
         details: {
           status: 'handoff_prepared_not_verified',
           cwd: gitRoot, head, base: base || null, sessionFile,
-          changedFileCount: names.length, stagedCount: staged.length,
+          changedFileCount: names.length, changedPaths: names, stagedCount: staged.length,
           unstagedCount: unstaged.length, untrackedCount: untracked.length,
           whitespaceCheck: checkState, delivery,
         },
