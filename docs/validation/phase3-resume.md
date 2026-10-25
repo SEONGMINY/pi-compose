@@ -133,6 +133,24 @@ Git Worktree가 dirty일 수 있고, 실패한 실행에서 생성한 브랜치�
 - 실패할 때 Git Clean/Reset/Remove/Prune을 호출하지 않음.
 - 현재 Pi 세션을 Pi Slash Command에서 실수로 중복 재개하지 않음.
 
+### 실제 Git 격리 스모크 테스트
+
+본 실행 컨테이너에서 `mktemp`로 **사용자 코드와 관계없는 임시 Git 저장소**를 만들고
+Git `worktree list --porcelain -z`의 반환 형식과 안전한 상태 판별을 실행했다.
+
+| 확인 | 결과 |
+| --- | --- |
+| 두 Worktree의 경로·브랜치 조회 | 통과 |
+| 새 파일이 있는 Worktree의 `--porcelain --untracked-files=all` 결과 | 통과 |
+| `--porcelain -z`의 NUL 구분과 브랜치 파싱 근거 | 통과 |
+| 원본 작업 디렉터리 보존 및 신규 파일 유지 | 통과 |
+| **테스트용** Worktree만 안전 제거한 뒤 브랜치가 남아 있는 `branch-only` 상태 | 통과 |
+
+이 검증은 **Git 명령과 포맷에 대한 실제 스모크 테스트**다.
+`src/resume.ts`의 전체 실행이나 실제 Pi/tmux 검증을 통과했다는 의미는 아니다.
+삭제를 포함한 검증은 **직접 만든 테스트 전용 Worktree**에만 적용했다.
+실제 pi-compose 구현에는 자동 Worktree 제거 코드가 없다.
+
 **이번 변경의 TypeScript 타입 검사와 전체 테스트는 npm 의존성이 있는 환경에서 실행해 확인해야 한다.**
 본 실행 컨테이너는 Zod와 Pi 타입 의존성 및 tmux/workmux가 없어
 그 검증을 통과했다고 주장하지 않는다.
