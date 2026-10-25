@@ -78,6 +78,19 @@ Pi Compose는 **Launch 중심의 Pi Package**이다. `package.json`의
 
 **모델 개입 최소화:** 사용자가 이미 Context=Fork, Workspace=Worktree, source=Main을 선택했다면 모델을 새로 호출해 Worktree 명령을 생성할 이유가 낮다.
 
+## 정확한 세션 Resume와 실패 진단
+
+기존 Pi Runtime과 Git 기능만으로 재개 경계를 제공한다.
+
+- Pi: `pi --session <정확한 JSONL 경로>`로 **사용자가 지정한 대화**를 열며, `--continue` 같은 최근 세션 추측은 하지 않는다.
+- Git: `git worktree list --porcelain -z`로 실제 체크아웃 상태를 확인하고, 브랜치만 남았는지(`branch-only`)를 구분한다. 기존 Dirty 파일은 지우지 않는다.
+- tmux: 지정한 또는 기존 Session/cwd로부터 결정한 대상을 `has-session`으로 확인한 뒤 `new-session`을 실행 직전에 재확인한다.
+- 확인된 동일 tmux 이름과 충돌하면 **새 Pi를 시작하지 않는다**. 임의의 다른 이름으로 중복 생성하지 않는다.
+- **한계:** 다른 이름의 tmux Session이나 외부 터미널에서 같은 Pi 세션이 실행 중인지는 완벽히 탐지하지 못한다. 발견하지 못했다고 유일한 실행이라고 선언하지 않는다.
+- 실행 실패 후 자원 삭제는 자동 처리하지 않는다. 정확한 Git 상태를 볼 수 있는 `inspect`를 먼저 제공하며, 실제 정리 기능은 사용자 소유 코드의 안전성을 확보한 다음 별도 범위로 검토한다.
+
+구현 결과와 남은 검증: [Phase 3](validation/phase3-resume.md).
+
 ## 5. 최소 실행 입력/출력 (개념 계약)
 
 이는 별도 DSL이나 영구 Job DB의 스키마가 아니다. 구현 모듈의 입력·출력을 논의하기 위한 **개념적 필드 목록**이다.
