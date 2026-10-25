@@ -8,7 +8,7 @@
   },
   "bin": {
     "pi-compose": "./bin/pi-compose.ts",
-    "pico": "./bin/pico.mjs"
+    "pic": "./bin/pic.mjs"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
