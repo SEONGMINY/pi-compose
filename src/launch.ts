@@ -12,6 +12,7 @@ const launchInputSchema = z.object({
   workspace: z.enum(['shared', 'worktree'], { error: 'Choose --workspace shared|worktree' }),
   cwd: z.string().optional(),
   sourceSessionFile: z.string().optional(),
+  composeExtensionFile: z.string().optional(),
   branch: z.string().optional(),
   base: z.string().optional(),
 }).superRefine((input, ctx) => {
@@ -127,7 +128,15 @@ export async function planLaunch(
 
   if (request.workspace === 'shared') {
     if (source && source.cwd !== cwd) warnings.push('Fork source was created in a different cwd; check recorded absolute paths and project contracts.');
-    const piArgs = [...(source ? ['--fork', source.path] : []), task];
+    const composeExtensionFile = request.composeExtensionFile
+      ? await realpath(request.composeExtensionFile).catch(() => {
+        throw new LaunchError('Pi Compose base Extension file is unavailable; launch was not started.');
+      })
+      : null;
+    const piArgs = [
+      ...(composeExtensionFile ? ['--extension', composeExtensionFile] : []),
+      ...(source ? ['--fork', source.path] : []), task,
+    ];
     const command = ['pi', ...piArgs].map(quoteShell).join(' ');
     return {
       context: request.context, workspace: request.workspace, cwd, task,
