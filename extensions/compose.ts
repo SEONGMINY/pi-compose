@@ -41,15 +41,57 @@ async function chooseForkSource(ctx: ExtensionContext, { includeCurrent = true }
   return index < 0 ? undefined : other[index]?.path;
 }
 
+async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, mode: 'launch' | 'preview', suppliedTask = ''): Promise<void> {
+  if (!ctx.hasUI) {
+    ctx.ui.notify('Interactive options are required. Use the pi-compose CLI in non-UI environments.', 'warning');
+    return;
+  }
+  const task = suppliedTask || await ctx.ui.input('Development task', 'What should the new agent do?');
+  if (!task?.trim()) return;
+  const contextChoice = await ctx.ui.select('Context source', ['Fork existing Pi session', 'Independent new session']);
+  if (!contextChoice) return;
+  const workspaceChoice = await ctx.ui.select('Workspace', ['Shared directory', 'Git Worktree']);
+  if (!workspaceChoice) return;
+  const context = contextChoice.startsWith('Fork') ? 'fork' : 'independent';
+  const workspace = workspaceChoice === 'Git Worktree' ? 'worktree' : 'shared';
+  let sourceSessionFile: string | undefined;
+  try {
+    sourceSessionFile = context === 'fork' ? await chooseForkSource(ctx) : undefined;
+  } catch (error) {
+    ctx.ui.notify(`Cannot list Pi sessions: ${error instanceof Error ? error.message : String(error)}`, 'error');
+    return;
+  }
+  if (context === 'fork' && !sourceSessionFile?.trim()) return;
+  const branch = workspace === 'worktree'
+    ? await ctx.ui.input('New branch name', 'feat/example') : undefined;
+  if (workspace === 'worktree' && !branch?.trim()) return;
+  try {
+    const plan = await planLaunch({ task, context, workspace, cwd: ctx.cwd, sourceSessionFile, branch, composeExtensionFile: baseExtension });
+    if (mode === 'preview') {
+      ctx.ui.notify(`Preview only: ${plan.program} ${plan.args.join(' ')}${plan.warnings.length ? `\n${plan.warnings.join('\n')}` : ''}`, 'info');
+      return;
+    }
+    const result = await executeLaunch(plan);
+    const indexWarning = await trackLaunchedTask(pi, plan);
+    if (indexWarning) ctx.ui.notify(indexWarning, 'warning');
+    await refreshTaskIndicator(ctx, plan.cwd);
+    ctx.ui.notify(`Launch command completed (${result.status}). ${result.workspace} ${result.branch || result.cwd}. Agent readiness unverified.`, 'info');
+    for (const warning of result.warnings) ctx.ui.notify(warning, 'warning');
+  } catch (error: unknown) {
+    ctx.ui.notify(`Launch failed: ${error instanceof Error ? error.message : String(error)}`, 'error');
+  }
+}
+
 export default function composeExtension(pi: ExtensionAPI): void {
   registerWorkReturn(pi);
-  registerTaskHub(pi);
+  const openHub = (ctx: ExtensionContext) => showTaskHub(pi, ctx, () => showLaunchWizard(pi, ctx, 'launch'));
+  registerTaskHub(pi, openHub);
   pi.registerCommand('compose', {
     description: 'Pi Compose: /compose or Alt+W for tasks; /compose launch [task], /compose back [query], /compose resume',
     handler: async (args, ctx) => {
       const [subcommand, ...rest] = args.trim().split(/\s+/);
       if (!subcommand || subcommand === 'work') {
-        await showTaskHub(pi, ctx);
+        await openHub(ctx);
         return;
       }
       if (subcommand === 'back') {
@@ -96,44 +138,7 @@ export default function composeExtension(pi: ExtensionAPI): void {
         ctx.ui.notify('Usage: /compose launch [task], /compose preview [task], /compose work [query], /compose back [query], or /compose resume. Optional workmux View: /compose-workmux', 'info');
         return;
       }
-      if (!ctx.hasUI) {
-        ctx.ui.notify('Interactive options are required. Use the pi-compose CLI in non-UI environments.', 'warning');
-        return;
-      }
-      const task = rest.join(' ') || await ctx.ui.input('Development task', 'What should the new agent do?');
-      if (!task?.trim()) return;
-      const contextChoice = await ctx.ui.select('Context source', ['Fork existing Pi session', 'Independent new session']);
-      if (!contextChoice) return;
-      const workspaceChoice = await ctx.ui.select('Workspace', ['Shared directory', 'Git Worktree']);
-      if (!workspaceChoice) return;
-      const context = contextChoice.startsWith('Fork') ? 'fork' : 'independent';
-      const workspace = workspaceChoice === 'Git Worktree' ? 'worktree' : 'shared';
-      let sourceSessionFile: string | undefined;
-      try {
-        sourceSessionFile = context === 'fork' ? await chooseForkSource(ctx) : undefined;
-      } catch (error) {
-        ctx.ui.notify(`Cannot list Pi sessions: ${error instanceof Error ? error.message : String(error)}`, 'error');
-        return;
-      }
-      if (context === 'fork' && !sourceSessionFile?.trim()) return;
-      const branch = workspace === 'worktree'
-        ? await ctx.ui.input('New branch name', 'feat/example') : undefined;
-      if (workspace === 'worktree' && !branch?.trim()) return;
-      try {
-        const plan = await planLaunch({ task, context, workspace, cwd: ctx.cwd, sourceSessionFile, branch, composeExtensionFile: baseExtension });
-        if (subcommand === 'preview') {
-          ctx.ui.notify(`Preview only: ${plan.program} ${plan.args.join(' ')}${plan.warnings.length ? `\n${plan.warnings.join('\n')}` : ''}`, 'info');
-          return;
-        }
-        const result = await executeLaunch(plan);
-        const indexWarning = await trackLaunchedTask(pi, plan);
-        if (indexWarning) ctx.ui.notify(indexWarning, 'warning');
-        await refreshTaskIndicator(ctx, plan.cwd);
-        ctx.ui.notify(`Launch command completed (${result.status}). ${result.workspace} ${result.branch || result.cwd}. Agent readiness unverified.`, 'info');
-        for (const warning of result.warnings) ctx.ui.notify(warning, 'warning');
-      } catch (error: unknown) {
-        ctx.ui.notify(`Launch failed: ${error instanceof Error ? error.message : String(error)}`, 'error');
-      }
+      await showLaunchWizard(pi, ctx, subcommand, rest.join(' '));
     },
   });
 

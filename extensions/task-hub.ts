@@ -5,7 +5,7 @@ import { listTasks, recordTask, type TaskRecord } from '../src/task-index.ts';
 import { focusSharedTaskTab, ghosttyEnabled } from '../src/ghostty.ts';
 import { workmuxRows, returnToWorktree, returnToTmux, showWorkPicker, type OpenWorktree } from './work-return.ts';
 
-type HubRow = { label: string; kind: 'main' | 'task' | 'history'; target?: string; record?: TaskRecord; worktree?: OpenWorktree };
+type HubRow = { label: string; kind: 'main' | 'task' | 'history' | 'new'; target?: string; record?: TaskRecord; worktree?: OpenWorktree };
 const same = (a: string, b: string) => resolve(a) === resolve(b);
 
 /** Resolve a worktree to its parent project. Never associate by branch name alone. */
@@ -78,24 +78,28 @@ export async function refreshTaskIndicator(ctx: ExtensionContext, root = ctx.cwd
   const tasks = await listTasks(root).catch(() => []);
   ctx.ui.setStatus?.('compose-tasks', '작업 ' + tasks.length + ' · Alt+W');
   ctx.ui.setWidget?.('compose-hint', [
-    'Pi Compose · Alt+W 작업 보기 · /compose launch 새 에이전트',
+    'Pi Compose · Alt+W 작업 보기 · 새 에이전트는 대화로 요청할 수도 있습니다',
   ], { placement: 'belowEditor' });
 }
 
 /** Main UX: human-named work, not a flat list of Pi sessions, tmux sessions and Git worktrees. */
-export async function showTaskHub(pi: ExtensionAPI, ctx: ExtensionContext): Promise<void> {
+export async function showTaskHub(pi: ExtensionAPI, ctx: ExtensionContext, onLaunch?: () => Promise<void>): Promise<void> {
   if (!ctx.hasUI) return;
   const mux = await workmuxRows(pi, ctx.cwd);
   const root = projectRoot(ctx.cwd, mux.rows);
   const [records, live, current] = await Promise.all([
     listTasks(root), sessions(pi, ctx.cwd), currentSession(pi, ctx.cwd),
   ]);
-  const rows = taskHubRows(records, mux.rows, live, current);
+  const rows: HubRow[] = [{ kind: 'new', label: '+ 새 에이전트에게 맡기기' }, ...taskHubRows(records, mux.rows, live, current)];
   const choices = rows.map((r, index) => (index + 1) + '. ' + r.label);
   const selected = await ctx.ui.select('작업 · ' + basename(root) + ' (상태는 실행 대상 기준)', choices);
   if (!selected) return;
   const item = rows[choices.indexOf(selected)];
   if (!item) return;
+  if (item.kind === 'new') {
+    if (onLaunch) await onLaunch();
+    return;
+  }
   if (item.kind === 'history') {
     if ('switchSession' in ctx && typeof ctx.switchSession === 'function') {
       await showWorkPicker(pi, ctx as ExtensionCommandContext);
@@ -130,10 +134,10 @@ export async function showTaskHub(pi: ExtensionAPI, ctx: ExtensionContext): Prom
   await returnToTmux(pi, ctx, { name: record.tmuxTarget, cwd: root });
 }
 
-export function registerTaskHub(pi: ExtensionAPI): void {
+export function registerTaskHub(pi: ExtensionAPI, openHub: (ctx: ExtensionContext) => Promise<void>): void {
   pi.registerShortcut?.('alt+w', {
     description: 'Pi Compose: 작업 보기 / Main 복귀',
-    handler: async ctx => { await showTaskHub(pi, ctx); },
+    handler: async ctx => { await openHub(ctx); },
   });
   pi.on?.('session_start', async (_event, ctx) => {
     await refreshTaskIndicator(ctx);
