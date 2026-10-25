@@ -54,6 +54,8 @@
 - **서로 다른 GitHub 커밋 사이 실제 업데이트 확인:** 이전 커밋을 전역 설치한 뒤,
   공개된 `curl | bash` 한 줄을 실행해 최신 README가 설치됐음을 확인했다.
   [macOS 업데이트 검증](https://github.com/SEONGMINY/pi-compose/actions/runs/40185838846).
+- **실행 명령 변경:** 현재 전역 명령은 `pic`이고 기존 Pi Compose `pico` 링크는 npm 업데이트에서 제거된다. macOS 시스템 `pico` 편집기는 그대로 유지된다. GNU groff의 다른 `pic` 명령이 있으면 설치 전에 실패하도록 보호한다.
+  [macOS 이름 변경 검증](https://github.com/SEONGMINY/pi-compose/actions/runs/40186852376).
 - **미검증:** Homebrew 미설치·기존 Node 구버전 환경에서의 안내 UX,
   모델 인증된 Pi 대화/Worktree Fork, Intel macOS 설치, Shell 별 PATH 환경.
 
