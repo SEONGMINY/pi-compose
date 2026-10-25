@@ -1,0 +1,42 @@
+name: One-time README real Pi Compose picker capture
+on:
+  push:
+    paths:
+      - .github/workflows/readme-tui-capture-once.yml
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: macos-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+      - name: Install pic via current script
+        run: bash scripts/install.sh
+      - name: Capture actual interactive Compose screens in tmux
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$(mktemp -d)"
+          mkdir -p "$root/member-api"
+          cd "$root/member-api"
+          git init -q -b main
+          git -c user.name=Example -c user.email=example@example.invalid commit --allow-empty -qm init
+          export TERM=xterm-256color
+          tmux new-session -d -x 110 -y 34 -s pic-docs -c "$PWD" 'pic'
+          sleep 5
+          tmux send-keys -t pic-docs -l '/compose launch member-api'
+          tmux send-keys -t pic-docs Enter
+          sleep 4
+          echo '=== CONTEXT_PICKER_CAPTURE_BEGIN ==='
+          tmux capture-pane -p -J -t pic-docs
+          echo '=== CONTEXT_PICKER_CAPTURE_END ==='
+          tmux send-keys -t pic-docs Down Enter
+          sleep 3
+          echo '=== WORKSPACE_PICKER_CAPTURE_BEGIN ==='
+          tmux capture-pane -p -J -t pic-docs
+          echo '=== WORKSPACE_PICKER_CAPTURE_END ==='
+          tmux kill-session -t pic-docs
