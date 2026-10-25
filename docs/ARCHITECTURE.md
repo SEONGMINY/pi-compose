@@ -154,7 +154,21 @@ flowchart TD
 
 동일 명령 재실행 시 기존 세션·Worktree를 찾고, 새 생성을 해야 하는지 재개해야 하는지 구분한다.
 
-### 5.3 필수 식별값
+### 5.3 기존 Pi 세션의 정확한 재개 (Phase 3)
+
+- Resume은 **원래 Pi Session JSONL 경로를 명시적으로 지정**한다. `pi --session <path>`를 사용하며, 가장 최근 세션을 임의로 `--continue`하지 않는다.
+- Shared Directory는 세션 헤더에 기록된 cwd와 선택한 실제 cwd가 동일해야 한다.
+- Worktree는 `git worktree list --porcelain -z`에서 선택한 브랜치의 실제 경로를 확인하고, 동일 cwd에 속한 Pi 대화만 재개한다.
+- 기존 변경의 존재 여부는 Git에서 확인할 뿐 임의로 Reset·Clean·Remove하지 않는다.
+- Pi Session 파일과 cwd에서 결정적인 tmux 대상 이름을 만들고 `tmux has-session`으로 조회한다. 실제 새 Pi 시작 직전에도 재확인한다.
+- **대상 이름을 이미 점유했으면 생성하지 않는다.** 다른 tmux Session 이름이나 일반 터미널의 중복 Pi 실행은 확인되지 않을 수 있으므로 결과에 한계를 표시한다.
+- 읽기 전용 `inspect`는 `worktree-existing`, `branch-only`, `not-found`를 구분하여 실패 후 상태를 판단하는 데 도움을 준다.
+- **사용자 작업 삭제가 수반되는 자동 Cleanup은 구현하지 않는다.** 정확한 삭제 대상과 사용자 허용 범위는 별도 판단이 필요하다.
+- 선택형 View나 Dashboard가 없어도 이 흐름은 동작하도록 구성했다.
+
+실제 코드/검증: [Phase 3](validation/phase3-resume.md).
+
+### 5.4 필수 식별값
 
 **기존 시스템 기록을 재사용하는 연결 정보:** 원본 Pi Session ID/path, 새 Pi Session ID/path, 작업 cwd, repo/branch/base SHA(해당 시), tmux 대상, Handoff 참조. 영구 계약 DB/Workflow DSL은 만들지 않는다. 저장 방식은 구현 시 패키지의 반환값을 확인해 결정한다.
 
