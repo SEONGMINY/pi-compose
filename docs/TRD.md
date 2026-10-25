@@ -47,6 +47,23 @@
 - **의존성:** `zod`는 런타임 의존성, TypeScript·Node 타입·Pi 공식 타입은 개발 의존성. Pi 호스트 패키지는 peer 의존성으로 참조하며 중복 런타임 설치를 강제하지 않는다.
 - **상태:** CI Node 22.19 환경에서 strict 타입 검사와 16개 테스트가 통과했으나 실제 Pi/workmux 통합은 미검증.
 
+## 선택형 View와 Pi Package 구성 (ADR 0004)
+
+Pi Compose는 **Launch 중심의 Pi Package**이다. `package.json`의
+`pi.extensions`에는 `extensions/compose.ts`만 포함한다.
+워크트리 상태·에이전트 관찰이 필요하다면
+`extensions/optional/workmux-dashboard.ts`를 **명시적으로 로드**한다.
+
+- Pi 내부 View는 사용자 정의 UI를 제공하는 **독립 Extension**이며, 외부 View는 기존 프로세스를 실행하는 Extension일 수 있다. Pi에 별도의 `View` 리소스 종류는 없다.
+- workmux View는 `/compose-workmux`만 등록한다. `/compose launch|preview`와 `compose_launch`는 기본 Package만으로 사용할 수 있다.
+- Pi의 `pi -e <파일>` 또는 사용자 `settings.json`의 `extensions` 리소스 경로로 선택형 Extension을 로드한다. Package Manifest의 리소스 범위를 좁히는 필터만으로 선언되지 않은 파일을 추가할 수는 없다.
+- 기존 CLI `pi-compose dashboard`는 호환성을 위해 유지한다.
+- **Worktree 실행의 `workmux add` 의존성과 workmux Dashboard의 View 의존성은 서로 다른 사항**이다. View 교체는 지금 가능하지만 Worktree 실행 백엔드 교체는 향후 실제 필요가 확인될 때 검토한다.
+- 새 Provider/Registry/Plugin Host 또는 여러 개의 npm Package를 선제적으로 만들지 않는다.
+
+선택형 Extension을 자동 탐색하는 위치에 두지 않은 이유와 대안 비교는
+[ADR 0004](adr/0004-pi-native-optional-views.md)를 참조한다.
+
 ## 4. Extension / Skill / Script 역할
 
 | 요소 | 추천 책임 | 피해야 할 사용 |
