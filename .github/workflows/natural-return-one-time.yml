@@ -1,0 +1,22 @@
+name: One-time natural return extension check
+on:
+  push:
+    paths:
+      - .github/workflows/natural-return-one-time.yml
+permissions:
+  contents: read
+jobs:
+  extension:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: TypeScript check
+        run: npm run typecheck
+      - name: Extension-focused tests
+        run: npm test
