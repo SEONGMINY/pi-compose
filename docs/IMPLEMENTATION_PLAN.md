@@ -318,6 +318,24 @@ workmux JSON 조회를 재사용한다. Main 컨텍스트에는 전체 세션 �
 - **검증:** [일회성 타입 검사와 Extension 테스트 실행](https://github.com/SEONGMINY/pi-compose/actions/runs/40184299619).
   실제 모델 요청에서의 UI 선택과 Pi 세션 전환은 사용자 환경의 실사용 검증이 남아 있다.
 
+## 사용성 개선 — 설치와 업데이트 일원화 (2026-10-25)
+
+- **구현:** macOS용 `scripts/install.sh` 제공. `curl -fsSL <공개 스크립트> | bash`
+  한 줄로 Node/Git 확인 → 기존 Pi 확인 또는 설치 → tmux/workmux 준비 →
+  GitHub HEAD 정확한 SHA의 npm 전역 설치 → `pico` 실행 확인.
+- **동일 명령으로 업데이트:** Pi Compose만 해당 시점 Git HEAD에서 다시 설치한다.
+  Pi·tmux·workmux의 기존 설치는 자동으로 업그레이드하지 않는다.
+- **안전 경계:** 기존 Node가 구버전이면 강제로 교체하지 않고 중단한다.
+  Homebrew가 필요한데 없다면 설치 안내 후 중단한다.
+  `sudo` 실행, Shell rc/PATH 수정, Pi 설정·세션 삭제,
+  선택형 Extension 강제 활성화·자동 로그인은 하지 않는다.
+- **실제 확인:** macOS runner에서 Pi/npm, Homebrew tmux/workmux, GitHub 직접 npm 설치,
+  CLI/Extension 파일 포함, `pico` 실행, 같은 명령 재실행 및 기존 설정·세션 파일 보존.
+  [실행 기록](https://github.com/SEONGMINY/pi-compose/actions/runs/40185554756).
+- **미검증:** macOS Intel, Homebrew 없는 신규 환경과 사용자 Node 버전 매니저 충돌,
+  실제 Pi 인증 모델 실행과 tmux/workmux 세션 사용성.
+- 결정 근거: [ADR 0006](adr/0006-github-installer.md).
+
 ## 10. 비기능 평가 항목
 
 추측으로 목표치를 정하지 않고, 작업별로 비교 가능한 근거를 수집한다.
