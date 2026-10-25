@@ -35,6 +35,10 @@ Pi를 npm으로 설치하거나 tmux·workmux를 Homebrew로 설치합니다.
 Pi Compose는 **GitHub main의 정확한 HEAD 커밋**을 npm으로 전역 설치합니다.
 npm Registry 공개 배포나 수동 Git Clone은 필요하지 않습니다.
 
+macOS 격리 환경에서 **최초 설치·같은 버전 재설치·이전 커밋에서 최신 커밋 업데이트**를 실행했습니다.
+[설치·재설치 결과](https://github.com/SEONGMINY/pi-compose/actions/runs/40185554756) ·
+[한 줄 업데이트 결과](https://github.com/SEONGMINY/pi-compose/actions/runs/40185838846).
+
 - 기존 Pi는 **재설치하거나 업데이트하지 않습니다.**
 - 사용자 Pi 설정·모델 인증·저장된 세션·선택형 Extension 활성화 상태는 변경하지 않습니다.
 - Node.js가 이미 설치됐지만 오래된 경우, 기존 버전 관리 환경을 덮어쓰지 않고 중단하며 업그레이드를 안내합니다.
