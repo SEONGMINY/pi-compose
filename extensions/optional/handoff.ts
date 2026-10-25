@@ -44,15 +44,15 @@ export default function handoffExtension(pi: ExtensionAPI): void {
         if (result.code !== 0) {
           throw new Error('Git inspection failed (' + args[0] + '): ' + (result.stderr || result.code));
         }
-        return result.stdout.trim();
+        return result.stdout;
       };
-      const gitRoot = await runGit(['rev-parse', '--show-toplevel']);
-      const head = await runGit(['rev-parse', 'HEAD']);
-      const branch = await runGit(['branch', '--show-current']);
+      const gitRoot = (await runGit(['rev-parse', '--show-toplevel'])).trim();
+      const head = (await runGit(['rev-parse', 'HEAD'])).trim();
+      const branch = (await runGit(['branch', '--show-current'])).trim();
       let base: string | undefined;
       if (params.baseRef) {
         if (params.baseRef.startsWith('-')) throw new Error('Invalid base reference');
-        base = await runGit(['rev-parse', '--verify', '--end-of-options', params.baseRef + '^{commit}']);
+        base = (await runGit(['rev-parse', '--verify', '--end-of-options', params.baseRef + '^{commit}'])).trim();
       }
       const lines = (s: string) => s.split('\0').filter(Boolean);
       const staged = lines(await runGit(['diff', '--cached', '--name-only', '-z']));
@@ -60,12 +60,20 @@ export default function handoffExtension(pi: ExtensionAPI): void {
       const untracked = lines(await runGit(['ls-files', '--others', '--exclude-standard', '-z']));
       const sinceBase = base ? lines(await runGit(['diff', '--name-only', '-z', base])) : [];
       const names = [...new Set([...sinceBase, ...staged, ...unstaged, ...untracked])].sort();
-      const whitespace = await pi.exec('git', base ? ['diff', '--check', base] : ['diff', '--check'], { cwd });
-      if (whitespace.code !== 0 && whitespace.code !== 2) {
-        // --check returns 2 for whitespace errors; other non-zero results must not be called clean.
-        throw new Error('Git diff --check could not complete: ' + (whitespace.stderr || whitespace.code));
+      const checkCommands = [
+        ['diff', '--check'],
+        ['diff', '--cached', '--check'],
+        ...(base ? [['diff', '--check', base]] : []),
+      ];
+      const checkResults = await Promise.all(checkCommands.map(args => pi.exec('git', args, { cwd })));
+      for (const result of checkResults) {
+        if (result.code !== 0 && result.code !== 2) {
+          throw new Error('Git diff --check could not complete: ' + (result.stderr || result.code));
+        }
       }
-      const checkState = whitespace.code === 0 ? 'pass' : 'findings';
+      const findings = checkResults.filter(result => result.code === 2)
+        .map(result => (result.stdout || result.stderr).slice(0, 350));
+      const checkState = findings.length ? 'findings' : 'pass';
       const sessionFile = ctx.sessionManager.getSessionFile() || '(not saved)';
       const message = [
         '[Pi Compose handoff — developer report, NOT independent verification]',
@@ -77,7 +85,7 @@ export default function handoffExtension(pi: ExtensionAPI): void {
         'Base: ' + (base || '(not supplied; committed changes before HEAD not inspected)'),
         'Files: ' + names.length + (names.length ? ' (' + names.slice(0, 30).join(', ') + (names.length > 30 ? ', …' : '') + ')' : ' (none detected)'),
         'staged=' + staged.length + ', unstaged=' + unstaged.length + ', untracked=' + untracked.length,
-        'git diff --check: ' + checkState + (checkState !== 'pass' ? ' (' + (whitespace.stdout || whitespace.stderr).slice(0, 350) + ')' : ''),
+        'git diff --check: ' + checkState + (checkState !== 'pass' ? ' (' + findings.join('; ').slice(0, 350) + ')' : ''),
         'Pi session: ' + sessionFile,
         'Scope: file paths only; untracked file contents and ignored files not inspected. Changes after this snapshot are not covered.',
         'Handoff is a claim to check; it does not authorize changing the user contract, merging, or cleanup.',
