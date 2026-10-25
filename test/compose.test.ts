@@ -163,3 +163,30 @@ test('base Pi Compose registers only Launch, never a bundled dashboard', () => {
   assert.deepEqual(commands, ['compose']);
   assert.deepEqual(tools, ['compose_launch']);
 });
+
+test('resume slash command rejects extra arguments without launching anything', async () => {
+  const { command } = register();
+  const messages: string[] = [];
+  await command.handler('resume arbitrary', {
+    hasUI: true,
+    ui: { notify: (message: string) => { messages.push(message); } },
+  } as unknown as ExtensionContext);
+  assert.match(messages[0] ?? '', /Usage: \/compose resume/);
+});
+
+test('resume slash command will not reopen its currently running Pi session', async t => {
+  const { cwd, file } = await fixture(t);
+  const { command } = register();
+  const choices = ['Shared directory', 'Enter a session file path'];
+  const messages: string[] = [];
+  await command.handler('resume', {
+    cwd, hasUI: true,
+    sessionManager: { getSessionFile: () => file },
+    ui: {
+      select: async () => choices.shift(),
+      input: async () => file,
+      notify: (message: string) => { messages.push(message); },
+    },
+  } as unknown as ExtensionContext);
+  assert.match(messages[0] ?? '', /already open in this Pi process/);
+});
