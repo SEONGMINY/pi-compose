@@ -15,7 +15,7 @@ export type OpenWorktree = {
   project_path?: string;
   mode?: string;
 };
-export type LiveTmuxTarget = { name: string; cwd: string };
+export type LiveTmuxTarget = { name: string; cwd: string; windowId?: string };
 type Discovered = {
   sessions: Awaited<ReturnType<typeof SessionManager.list>>;
   worktrees: OpenWorktree[];
@@ -340,8 +340,27 @@ export async function returnToTmux(pi: ExtensionAPI, ctx: ExtensionContext, targ
       ctx.ui.notify('The selected tmux target no longer exists. Refresh the work list.', 'warning');
       return;
     }
+    if (target.windowId) {
+      // Main and workmux windows can share a single tmux session.
+      // Validate the exact window ID before moving either the session or window.
+      if (!/^@[0-9]+$/.test(target.windowId)) {
+        ctx.ui.notify('Invalid tmux window ID. Nothing switched.', 'warning');
+        return;
+      }
+      const windows = await pi.exec('tmux', ['list-windows', '-a', '-F', '#{session_name}\t#{window_id}'], { cwd: ctx.cwd });
+      const belongs = windows.code === 0 && windows.stdout.split('\n').some(row =>
+        row === target.name + '\t' + target.windowId);
+      if (!belongs) {
+        ctx.ui.notify('Selected tmux window no longer belongs to its recorded session. Nothing switched.', 'warning');
+        return;
+      }
+    }
     const moved = await pi.exec('tmux', ['switch-client', '-t', '=' + target.name], { cwd: ctx.cwd });
     if (moved.code !== 0) throw new Error(moved.stderr || 'switch-client failed');
+    if (target.windowId) {
+      const window = await pi.exec('tmux', ['select-window', '-t', target.windowId], { cwd: ctx.cwd });
+      if (window.code !== 0) throw new Error(window.stderr || 'select-window failed');
+    }
   } catch (error) {
     ctx.ui.notify('Could not switch tmux target: ' + String(error), 'error');
   }
