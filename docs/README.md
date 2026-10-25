@@ -19,6 +19,7 @@
 | [Phase 0 검증 기록](validation/phase0-baseline.md) | Git 사전검사 결과와 **기술 연동 검증의 비차단 연기** |
 | [Phase 1 Launch](validation/phase1-launch.md) | 공통 실행 명령 첫 구현, 단위 테스트, 알려진 제약과 남은 연동 |
 | [Phase 2 Dashboard](validation/phase2-dashboard.md) | **기본 Launch와 선택형 workmux View 분리**, 실행 검증 범위, 상태 Hook 제약 |
+| [Phase 3 Resume](validation/phase3-resume.md) | 기존 Worktree 상태 확인, 정확한 Pi 세션 재개, 안전한 재시도 및 남은 한계 |
 | [ADR 0001](adr/0001-context-and-delegation.md) | 고품질 컨텍스트, Fork와 독립 세션의 구분 |
 | [ADR 0002](adr/0002-user-controlled-execution.md) | 사용자 통제와 실행 옵션의 독립성 |
 | [ADR 0003](adr/0003-composable-execution-and-verification.md) | 기존 도구의 조합, Handoff, 독립 검증 |
@@ -50,6 +51,6 @@
 - **제품 방향과 핵심 제약:** 합의됨.
 - **우선 검토 기술:** Pi, Git, tmux, workmux. 외부 대시보드·통신 패키지는 검증 후 선정.
 - **미검증:** 최신 Pi와 workmux의 실사용 통합, Shared Directory 재개·대시보드 관찰, Fork 후 계약 맥락 보존, Handoff와 기본 검사 연결.
-- **현재 진행:** Phase 0은 부분 검증 상태로 종료. Phase 1 Launch CLI(`bin/pi-compose.ts`, `src/launch.ts`)·Pi Extension(`extensions/compose.ts`)를 TypeScript로 전환하고 Zod 경계 검증을 적용. `tsc --noEmit` 및 24개 테스트 통과. Pi Session Manager 기반 Fork 원본 선택과 사용자 확인형 자연어 Launch Tool도 구현. Phase 2는 Launch와 View를 독립적으로 로드하도록 구조를 수정했다. 기존 Dashboard CLI는 유지하고, Pi 내부의 workmux View는 선택형 Extension으로 분리했다. 전체 타입 검사·Pi 실연동은 미검증. 실제 Pi/workmux 실행·대시보드 연동은 아직 미검증.
+- **현재 진행:** Phase 0은 부분 검증 상태로 종료. Phase 1 Launch CLI(`bin/pi-compose.ts`, `src/launch.ts`)·Pi Extension(`extensions/compose.ts`)를 TypeScript로 전환하고 Zod 경계 검증을 적용. `tsc --noEmit` 및 24개 테스트 통과. Pi Session Manager 기반 Fork 원본 선택과 사용자 확인형 자연어 Launch Tool도 구현. Phase 2는 Launch와 View를 독립적으로 로드하도록 구조를 수정했다. Phase 3의 읽기 전용 `inspect`·명시적 `resume` 기능을 구현했다(실제 통합 미검증). 기존 Dashboard CLI는 유지하고, Pi 내부의 workmux View는 선택형 Extension으로 분리했다. 전체 타입 검사·Pi 실연동은 미검증. 실제 Pi/workmux 실행·대시보드 연동은 아직 미검증.
 
 이 문서가 프로젝트별 `AGENTS.md`의 대체물이라는 뜻은 아니다. 구현 단계에서는 레포의 실제 구조와 규칙을 확인한 뒤 필요한 최소 진입점만 추가한다.
