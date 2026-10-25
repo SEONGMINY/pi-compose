@@ -231,6 +231,27 @@ Pi `--print` 일회성 실행, 별도 지속 Pi 세션, 기존 Sub-agent 패키�
 기존 Pi SessionManager·Pi Tool/Skill·tmux·workmux의 관찰 가능한 동작과
 사용자 의도를 연결하는 가장 작은 범위를 비교·합의한 뒤 구현한다.
 
+## 사용성 개선 — `pico` 진입점과 Pi 네이티브 설정 (2026-10-25)
+
+- **확정/구현:** `bin/pico.mjs` + npm 전역 `bin.pico`로 어느 cwd에서든 기존
+  Pi Runtime을 시작한다. 기본 `extensions/compose.ts`만 `--extension`으로 전달한다.
+  Pi 설정·인증·프로젝트 범위·모델을 따로 저장하지 않는다.
+- **확정/구현:** `pico config [--local]`은 `pi config`를 그대로 실행한다.
+  기존 Pi의 Package 관리 명령과 임시 Pi 실행 옵션도 유지한다.
+- **확정/구현:** 선택형 Dashboard·Handoff·Verify는
+  `packages/optional`이라는 별도 Pi Package로 제공한다.
+  `pico features [--local]`를 사용자가 명시적으로 선택할 때만
+  Pi Package를 등록하고 **Pi의 config TUI**를 연다.
+  설치 직후 세 리소스가 모두 활성화되는 상태를 숨기지 않는다.
+- **설정 경계:** 지속 설정은 `pi`와 `pico`가 공유한다.
+  일반 `pico` 실행은 사용자·프로젝트 설정을 변경하지 않는다.
+  과거 Pi Package 설치 기록도 자동 삭제·마이그레이션하지 않는다.
+- **미확정/검증 필요:** 실제 설치의 `pico` PATH 노출 및 옵션·cwd·exit-code 전달,
+  Pi config 리소스 토글, Pi 모델 인증을 사용한 실사용.
+- **제외:** 별도 Settings Engine·Plugin Registry·TUI 관리 화면·Pi Runtime.
+
+결정 근거: [ADR 0005](adr/0005-pico-entry-and-pi-settings.md).
+
 ## 10. 비기능 평가 항목
 
 추측으로 목표치를 정하지 않고, 작업별로 비교 가능한 근거를 수집한다.
