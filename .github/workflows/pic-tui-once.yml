@@ -37,7 +37,11 @@ jobs:
           tmux has-session -t pic-tui-smoke
           pane_text="$(tmux capture-pane -p -t pic-tui-smoke)"
           printf '%s\n' "$pane_text" | tail -n 25
-          test "$(tmux display-message -p -t pic-tui-smoke '#{pane_current_path}')" = "$PWD"
+          pane_path="$(tmux display-message -p -t pic-tui-smoke '#{pane_current_path}')"
+          project_real="$(node -p 'require("fs").realpathSync(process.cwd())')"
+          pane_real="$(node -e 'process.stdout.write(require("fs").realpathSync(process.argv[1]))' "$pane_path")"
+          echo "project_real=$project_real pane_real=$pane_real"
+          test "$pane_real" = "$project_real"
           [[ "$pane_text" == *'No models available'* ]]
           echo PIC_REAL_PI_TUI_RUNNING_AT_PROJECT_CWD
           tmux kill-session -t pic-tui-smoke
