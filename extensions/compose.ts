@@ -1,12 +1,13 @@
 import { Type } from '@earendil-works/pi-ai';
 import { SessionManager, type ExtensionAPI, type ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { planLaunch, executeLaunch } from '../src/launch.ts';
+import { planResume, executeResume } from '../src/resume.ts';
 
 // Session selection always uses an explicit source. 'Current' is not inferred to mean 'Main'.
-async function chooseForkSource(ctx: ExtensionContext): Promise<string | undefined> {
+async function chooseForkSource(ctx: ExtensionContext, { includeCurrent = true }: { includeCurrent?: boolean } = {}): Promise<string | undefined> {
   const current = ctx.sessionManager.getSessionFile();
   const choices = [
-    ...(current ? ['Current Pi session'] : []),
+    ...(current && includeCurrent ? ['Current Pi session'] : []),
     'Choose another saved session in this project',
     'Enter a session file path',
   ];
@@ -37,11 +38,47 @@ async function chooseForkSource(ctx: ExtensionContext): Promise<string | undefin
 
 export default function composeExtension(pi: ExtensionAPI): void {
   pi.registerCommand('compose', {
-    description: 'Start or preview a development agent with a chosen context and workspace: /compose launch [task] or /compose preview [task]',
+    description: 'Start, preview or resume a Pi development agent: /compose launch [task], /compose preview [task], /compose resume',
     handler: async (args, ctx) => {
       const [subcommand, ...rest] = args.trim().split(/\s+/);
+      if (subcommand === 'resume') {
+        if (rest.length) {
+          ctx.ui.notify('Usage: /compose resume', 'warning');
+          return;
+        }
+        if (!ctx.hasUI) {
+          ctx.ui.notify('Interactive session selection is required. Use pi-compose resume from the terminal.', 'warning');
+          return;
+        }
+        const workspaceChoice = await ctx.ui.select('Resume workspace', ['Shared directory', 'Git Worktree']);
+        if (!workspaceChoice) return;
+        let sessionFile: string | undefined;
+        try { sessionFile = await chooseForkSource(ctx, { includeCurrent: false }); }
+        catch (error) {
+          ctx.ui.notify('Cannot inspect saved sessions: ' + String(error), 'error');
+          return;
+        }
+        if (!sessionFile) return;
+        const currentSession = ctx.sessionManager.getSessionFile();
+        if (currentSession && sessionFile === currentSession) {
+          ctx.ui.notify('The selected session is already open in this Pi process. Choose a different saved session.', 'warning');
+          return;
+        }
+        const workspace = workspaceChoice === 'Git Worktree' ? 'worktree' : 'shared';
+        const branch = workspace === 'worktree' ? await ctx.ui.input('Existing Worktree branch', 'feat/example') : undefined;
+        if (workspace === 'worktree' && !branch?.trim()) return;
+        try {
+          const plan = await planResume({ workspace, sessionFile, cwd: ctx.cwd, branch });
+          const result = await executeResume(plan);
+          ctx.ui.notify('Resume: ' + result.status + '. tmux target: ' + result.tmuxTarget + '. Actual Pi readiness is not verified.', 'info');
+          for (const warning of result.warnings) ctx.ui.notify(warning, 'warning');
+        } catch (error) {
+          ctx.ui.notify('Could not resume: ' + (error instanceof Error ? error.message : String(error)), 'error');
+        }
+        return;
+      }
       if (subcommand !== 'launch' && subcommand !== 'preview') {
-        ctx.ui.notify('Usage: /compose launch [task] or /compose preview [task]. Optional workmux View: /compose-workmux', 'info');
+        ctx.ui.notify('Usage: /compose launch [task], /compose preview [task], or /compose resume. Optional workmux View: /compose-workmux', 'info');
         return;
       }
       if (!ctx.hasUI) {
