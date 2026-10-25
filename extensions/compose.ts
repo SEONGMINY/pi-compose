@@ -1,7 +1,6 @@
 import { Type } from '@earendil-works/pi-ai';
 import { SessionManager, type ExtensionAPI, type ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { planLaunch, executeLaunch, quoteShell } from '../src/launch.ts';
-import { dashboardArgs } from '../src/dashboard.ts';
+import { planLaunch, executeLaunch } from '../src/launch.ts';
 
 // Session selection always uses an explicit source. 'Current' is not inferred to mean 'Main'.
 async function chooseForkSource(ctx: ExtensionContext): Promise<string | undefined> {
@@ -38,32 +37,11 @@ async function chooseForkSource(ctx: ExtensionContext): Promise<string | undefin
 
 export default function composeExtension(pi: ExtensionAPI): void {
   pi.registerCommand('compose', {
-    description: 'Launch a coding agent using selected context and workspace: /compose launch [task] (or /compose preview [task])',
+    description: 'Start or preview a development agent with a chosen context and workspace: /compose launch [task] or /compose preview [task]',
     handler: async (args, ctx) => {
       const [subcommand, ...rest] = args.trim().split(/\s+/);
-      if (subcommand === 'dashboard') {
-        const requestedTab = rest[0];
-        const tab = requestedTab === 'agents' || requestedTab === 'worktrees' ? requestedTab : undefined;
-        if (rest.length > 1 || (requestedTab && !tab)) {
-          ctx.ui.notify('Usage: /compose dashboard [agents|worktrees]', 'warning');
-          return;
-        }
-        if (!ctx.hasUI || !process.env.TMUX) {
-          ctx.ui.notify('Dashboard needs a Pi terminal inside tmux. Run "pi-compose dashboard" from a tmux terminal.', 'warning');
-          return;
-        }
-        // A tmux popup leaves the Pi process and its session running. The UI is owned by workmux.
-        const command = ['workmux', ...dashboardArgs({ tab })].map(quoteShell).join(' ');
-        try {
-          const result = await pi.exec('tmux', ['display-popup', '-E', '-w', '90%', '-h', '90%', command]);
-          if (result.code !== 0) throw new Error(result.stderr || `tmux exited with code ${result.code}`);
-        } catch (error) {
-          ctx.ui.notify(`Could not open workmux dashboard: ${error instanceof Error ? error.message : String(error)}`, 'error');
-        }
-        return;
-      }
       if (subcommand !== 'launch' && subcommand !== 'preview') {
-        ctx.ui.notify('Usage: /compose launch [task], /compose preview [task], or /compose dashboard [agents|worktrees]', 'info');
+        ctx.ui.notify('Usage: /compose launch [task] or /compose preview [task]. Optional workmux View: /compose-workmux', 'info');
         return;
       }
       if (!ctx.hasUI) {
