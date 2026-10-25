@@ -2,7 +2,7 @@
 
 Pi를 기반으로 한 개인용 **Composable Coding Agent Harness**.
 
-현재는 설계 문서와 **Phase 1 TypeScript 기반 Launch CLI 및 Pi Slash Command**를 제공한다. 아직 실제 Pi·workmux 통합, Pi Extension의 실제 Pi 로딩, Dashboard 실제 실행 검증, Handoff, 자동 검증까지 완료된 제품은 아니다. **자연어 Launch Tool은 등록했지만 실제 Pi 환경 실행은 미검증**이다.
+현재는 설계 문서와 **Phase 1 TypeScript 기반 Launch CLI 및 Pi Slash Command**를 제공한다. 아직 실제 Pi·workmux 통합, Pi Extension의 실제 로딩, Dashboard·Handoff 실제 전달 및 독립 검증까지 완료된 제품은 아니다. **자연어 Launch Tool은 등록했지만 실제 Pi 환경 실행은 미검증**이다.
 
 ## 핵심 원칙
 
@@ -66,6 +66,7 @@ npm run check
 | --- | --- | --- |
 | **Launch** | 기본 Package에 포함 | `/compose launch`, `/compose preview` |
 | **workmux View** | 사용자가 명시적으로 추가 | `/compose-workmux [agents\|worktrees]` |
+| **Handoff** | 사용자가 명시적으로 추가 | `/compose-handoff [recipient]` 및 `compose_handoff` Tool |
 | **사용자 정의 TUI / Extension** | Pi 기본 Extension/Package 방식으로 별도 추가 | 각 Extension의 명령 |
 
 ### 설치와 선택형 View 활성화
@@ -159,12 +160,33 @@ Worktree의 미커밋 변경은 그대로 보존합니다. **이미 사용 중�
 
 자세한 동작과 검증 범위: [Phase 3 Resume](docs/validation/phase3-resume.md).
 
+## Phase 4 — 명시적 Handoff (선택형 Extension)
+
+개발 에이전트가 작업을 인계할 때만 로드·사용합니다. 기본 Launch Package에는 포함하지 않습니다.
+
+```bash
+pi -e /absolute/path/to/pi-compose/extensions/optional/handoff.ts
+```
+
+Pi에서 `/compose-handoff`를 실행하면 현재 대화를 바탕으로 인계 보고서를 작성하도록 요청합니다.
+`/compose-handoff project:handle`처럼 대상을 지정하면 모델이 `compose_handoff` Tool로
+Git 상태를 확인한 후 **명시적인 사용자 확인을 받고** `workmux send`로 전달할 수 있습니다.
+
+인계 내용은 구현 사실, 원래 이유·강한 금지, 실제 수행한 검사, 남은 문제입니다.
+Git에서는 HEAD·브랜치·staged·unstaged·untracked 파일 경로를 확인합니다.
+기준 커밋을 지정하지 않았다면 과거 커밋의 변경 파일은 확정할 수 없다고 표시합니다.
+
+**Handoff는 개발자의 주장이지 코드 검증이나 상대 에이전트의 읽음 확인이 아닙니다.**
+전송 실패·취소 시에는 메시지를 그대로 반환합니다. Merge·Cleanup은 수행하지 않습니다.
+
+자동 테스트는 Extension의 중요한 사용자 동작만 유지하고, 기존 Git·workmux 명령 재검증을 반복하지 않습니다.
+
 ## 문서
 
 [설계 문서 인덱스](docs/README.md) · [PRD](docs/PRD.md) · [TRD](docs/TRD.md) · [Architecture](docs/ARCHITECTURE.md) · [Implementation Plan](docs/IMPLEMENTATION_PLAN.md) · [Phase 1 구현·검증 상태](docs/validation/phase1-launch.md) · [Phase 2 Dashboard 연동](docs/validation/phase2-dashboard.md)
 
 ## 앞으로의 작업
 
-공통 Launch 진입점을 Pi 명령·자연어 Tool에서 재사용하도록 연결했다. Dashboard 연동은 Phase 2에서 기존 workmux TUI로 위임했다. Phase 3의 정확한 세션 재개·읽기 전용 상태 확인까지 구현했습니다. 이후 Handoff와 독립 검증을 진행합니다.
+공통 Launch 진입점을 Pi 명령·자연어 Tool에서 재사용하도록 연결했다. Dashboard 연동은 Phase 2에서 기존 workmux TUI로 위임했다. Phase 3의 정확한 세션 재개·읽기 전용 상태 확인까지 구현했습니다. Phase 4에서는 선택형 Handoff Extension을 추가했습니다. 이후 독립 검증과 실제 통합이 남아 있습니다.
 
 **미검증 기술 통합은 필요한 시점에 검증하며, 제품 요구사항을 임의로 축소하지 않는다.**
