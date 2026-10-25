@@ -1,0 +1,59 @@
+name: One-time macOS installer integration
+on:
+  push:
+    paths:
+      - .github/workflows/install-macos-smoke.yml
+permissions:
+  contents: read
+jobs:
+  install:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+      - name: Installer syntax
+        run: bash -n scripts/install.sh
+      - name: Real macOS fresh installation
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/install.sh
+          command -v pi
+          command -v tmux
+          command -v workmux
+          command -v pico
+          pico --version
+          node --version
+          echo FRESH_INSTALL_OK
+      - name: GitHub npm package retains all runtime and optional extension files
+        shell: bash
+        run: |
+          set -euo pipefail
+          global="$(npm root -g)/pi-compose"
+          test -f "$global/bin/pico.mjs"
+          test -f "$global/extensions/compose.ts"
+          test -f "$global/extensions/work-return.ts"
+          test -f "$global/src/launch.ts"
+          test -f "$global/packages/optional/package.json"
+          test -f "$global/packages/optional/extensions/handoff.ts"
+          test -f "$global/packages/optional/extensions/verify.ts"
+          echo GITHUB_PACKAGE_FILES_OK
+      - name: Reinstall does not alter existing Pi or Pi settings
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.pi/agent/sessions"
+          printf '{"theme":"dark"}\n' > "$HOME/.pi/agent/settings.json"
+          printf 'user session sentinel\n' > "$HOME/.pi/agent/sessions/sentinel.txt"
+          cp "$HOME/.pi/agent/settings.json" /tmp/previous-pi-settings
+          cp "$HOME/.pi/agent/sessions/sentinel.txt" /tmp/previous-pi-session
+          previous_pi="$(command -v pi)"
+          bash scripts/install.sh
+          test "$(command -v pi)" = "$previous_pi"
+          cmp "$HOME/.pi/agent/settings.json" /tmp/previous-pi-settings
+          cmp "$HOME/.pi/agent/sessions/sentinel.txt" /tmp/previous-pi-session
+          pico --version
+          echo REINSTALL_PRESERVES_PI_DATA_OK
