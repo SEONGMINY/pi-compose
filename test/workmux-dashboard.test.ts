@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import workmuxDashboardExtension from '../extensions/workmux-dashboard.ts';
+import workmuxDashboardExtension from '../extensions/optional/workmux-dashboard.ts';
 import type { ExtensionAPI, ExtensionCommandContext } from '@earendil-works/pi-coding-agent';
 
 type DashboardCommand = { handler: (args: string, ctx: ExtensionCommandContext) => Promise<void> };
