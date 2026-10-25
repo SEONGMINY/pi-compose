@@ -255,6 +255,37 @@ Pi `--print` 일회성 실행, 별도 지속 Pi 세션, 기존 Sub-agent 패키�
 
 결정 근거: [ADR 0005](adr/0005-pico-entry-and-pi-settings.md).
 
+## 사용성 개선 — 기존 작업 탐색·복귀 1차 (2026-10-25)
+
+- **구현:** 기본 Compose Extension에 `/compose back [검색어]`를 추가했다.
+  현재 Pi 프로젝트의 저장 세션은 **Pi `SessionManager.list`**로,
+  workmux 관리 Worktree는 **`workmux list --json`**으로 읽는다.
+  현재 Pi 대화 자체는 재선택 대상에서 제외한다.
+- **사용자 직접 선택:** 기존 Pi 대화를 선택하면 Pi Extension의
+  `ctx.switchSession(path)`로 현재 프로세스 안에서 전환한다.
+  새로운 tmux Session이나 Pi Agent를 생성하지 않는다.
+- **workmux 이동:** Target이 열려 있는 것으로 보고된 경우에만 사용자에게
+  workmux handle·브랜치와 **잠재적인 새 Window 생성 경합**을 알리고 승인받는다.
+  명령 직전에 같은 Target의 열린 상태를 재확인한 뒤 `workmux open`에 위임한다.
+  `is_open`은 Pi 대화 프로세스의 실시간 실행·원래 Session ID의 증거가 아니다.
+- **닫힌 Worktree:** 정확한 저장 대화가 확인되지 않은 상태에서
+  `workmux open --continue` 같은 "최근 대화" 추측이나 새 Agent 생성을 하지 않는다.
+  해당 디렉터리에서 Pi `/resume` 또는 기존 명시적 `/compose resume`을 사용한다.
+- **자연어:** 모델용 `compose_find_work` Tool은 **읽기 전용 조회**만 하고,
+  간결한 후보 이름·짧은 ID·Worktree handle·상태를 반환한다.
+  Extension Tool 실행으로 Pi 세션을 직접 전환하는 API는 제공되지 않으므로
+  자연어만으로 자동 전환하는 기능은 **현재 미구현**이다.
+- **검증:** Pi 1.4.0 환경의 타입 검사와 직접 구현한 Extension 핵심 동작 테스트만
+  일회성 GitHub Actions에서 확인. [실행 기록](https://github.com/SEONGMINY/pi-compose/actions/runs/40183020052).
+  실제 workmux TUI와 실행 중인 다른 프로젝트 Agent 복귀는 미검증.
+- **미구현/의도된 한계:** 모든 프로젝트 통합 검색, 다른 Worktree의 Pi 대화
+  자동 재개, 동일 Pi 세션의 다른 tmux 대상 중복 실행 식별, 자체 Registry/DB.
+  조회 가능한 상태와 검증된 실제 Pi Session 상태를 혼동하지 않는다.
+
+비용 대비 효과: 새로운 세션 관리 엔진·TUI 없이 Pi의 직접 전환 API와
+workmux JSON 조회를 재사용한다. Main 컨텍스트에는 전체 세션 로그 대신
+최대 8개의 일치 후보를 각 출처별로 제공한다.
+
 ## 10. 비기능 평가 항목
 
 추측으로 목표치를 정하지 않고, 작업별로 비교 가능한 근거를 수집한다.
