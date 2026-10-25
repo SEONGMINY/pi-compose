@@ -136,7 +136,24 @@ export async function trackLaunchedTask(pi: ExtensionAPI, plan: LaunchPlan): Pro
     } else if (plan.workspace === 'worktree' && plan.branch && plan.workmuxTargetName) {
       const worktrees = mux.rows.filter(w => w.branch === plan.branch && w.project_path
         && same(w.project_path, root) && w.is_open);
-      const windows = snapshot.rows.filter(row => row.windowName.includes(plan.workmuxTargetName!));
+      let windows = snapshot.rows.filter(row => row.windowName.includes(plan.workmuxTargetName!));
+      // Status hooks can rename a window after launch. Accept a fallback only
+      // when exactly one tmux window has a pane rooted at this newly created
+      // workmux Worktree path. A matching branch/title alone is never enough.
+      if (worktrees.length === 1 && windows.length === 0) {
+        const targetPath = worktrees[0]!.path;
+        try {
+          const panes = await pi.exec('tmux', ['list-panes', '-a',
+            '-F', '#{window_id}\t#{pane_current_path}'], { cwd: targetPath });
+          if (panes.code === 0) {
+            const ids = new Set(panes.stdout.split('\n').flatMap(line => {
+              const [windowId, cwd] = line.split('\t');
+              return windowId && cwd && same(cwd, targetPath) ? [windowId] : [];
+            }));
+            windows = snapshot.rows.filter(row => ids.has(row.windowId));
+          }
+        } catch { /* Ambiguous or unavailable pane identity remains unverified. */ }
+      }
       if (worktrees.length === 1 && windows.length === 1) {
         link.worktreePath = worktrees[0]!.path;
         link.workmuxHandle = worktrees[0]!.handle;
