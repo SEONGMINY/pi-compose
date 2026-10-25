@@ -69,6 +69,7 @@ function exactWorktree(record: TaskRecord, worktrees: OpenWorktree[]): OpenWorkt
 
 export function taskHubRows(
   records: TaskRecord[], worktrees: OpenWorktree[], live: TmuxLocation[], current?: TmuxLocation,
+  isMain = false,
 ): HubRow[] {
   const isLive = (location: TmuxLocation | undefined) =>
     Boolean(location && live.some(x => equalLocation(x, location)));
@@ -85,19 +86,22 @@ export function taskHubRows(
   // doesn't carry a task record (for example on the original Main).
   rows.push({
     kind: 'current',
-    label: '현재 화면 · ' + (currentTask ? currentTask.title : 'Pi 대화')
+    label: '현재 화면 · ' + (currentTask ? currentTask.title : isMain ? 'Main' : 'Pi 대화')
       + (current ? ' · 연결됨' : ' · 위치 확인 불가'),
   });
 
   // Live work first; closed and unverified entries after it. Bounded to avoid
   // turning the Hub into a second raw session management console.
+  const titleCount = new Map<string, number>();
+  for (const record of records) titleCount.set(record.title, (titleCount.get(record.title) || 0) + 1);
   const entries = records.map(record => {
     const worktree = record.workspace === 'worktree' ? exactWorktree(record, worktrees) : undefined;
     const available = isLive(record.targetLocation) && (record.workspace === 'shared' || Boolean(worktree?.is_open));
     const location = equalLocation(record.targetLocation, current) ? ' · 현재 작업' : '';
     const status = available ? '대상 열림 · AI 상태 미확인'
       : record.targetLocation ? '대상 종료 또는 확인 불가' : '연결 정보 없음 · 이전 작업 탐색';
-    return { kind: 'task' as const, record, available, label: record.title
+    const displayName = titleCount.get(record.title)! > 1 ? record.title + ' [' + record.id.slice(0, 8) + ']' : record.title;
+    return { kind: 'task' as const, record, available, label: displayName
       + location + ' · ' + (record.workspace === 'shared' ? '같은 폴더' : '별도 작업 공간') + ' · ' + status };
   }).sort((a, b) => Number(b.available) - Number(a.available));
   rows.push(...entries.slice(0, 15));
@@ -162,10 +166,14 @@ export async function showTaskHub(
   const [mux, snapshot] = await Promise.all([workmuxRows(pi, ctx.cwd), tmuxSnapshot(pi, ctx.cwd)]);
   const root = await projectRoot(pi, ctx.cwd, mux.rows);
   const records = await listTasks(root);
-  const rows: HubRow[] = [
-    ...(onLaunch ? [{ kind: 'new' as const, label: '+ 새 에이전트에게 맡기기' }] : []),
-    ...taskHubRows(records, mux.rows, snapshot.rows, snapshot.current),
-  ];
+  const taskRows = taskHubRows(
+    records, mux.rows, snapshot.rows, snapshot.current,
+    process.env.PIC_COMPOSE_MAIN === '1' || records.some(record => equalLocation(record.mainLocation, snapshot.current)),
+  );
+  // Returning to Main is always the first action from a known child Agent.
+  const rows: HubRow[] = taskRows[0]?.kind === 'main'
+    ? [taskRows[0], taskRows[1]!, ...(onLaunch ? [{ kind: 'new' as const, label: '+ 새 에이전트에게 맡기기' }] : []), ...taskRows.slice(2)]
+    : [...(onLaunch ? [{ kind: 'new' as const, label: '+ 새 에이전트에게 맡기기' }] : []), ...taskRows];
   const choices = rows.map((row, index) => (index + 1) + '. ' + row.label);
   const selected = await ctx.ui.select('작업 · ' + basename(root), choices);
   if (!selected) return;
