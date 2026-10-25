@@ -66,7 +66,7 @@ Fork는 **어느 Pi 세션을 원본으로 삼을지 직접 선택**해야 합�
 pic features
 ```
 
-Pi의 별도 선택형 Package를 설치한 뒤 `pi config` UI가 열립니다. **최초 설치 때 Dashboard·Handoff·Verify 세 기능이 모두 켜지므로**, 사용하지 않는 항목은 해당 UI에서 해제합니다. 현재 프로젝트에만 설치하려면 `pic features --local`을 사용합니다. 선택한 기능의 설정은 일반 `pi`와 `pic`가 공유합니다.
+Pi의 별도 선택형 Package를 설치한 뒤 `pi config` UI가 열립니다. **최초 설치 때 Dashboard·Handoff·Verify 세 기능이 모두 켜지므로**, 사용하지 않는 항목은 해당 UI에서 해제합니다. 현재 프로젝트에만 설치하려면 `pic features --local`을 사용합니다. 선택한 기능의 설정은 일반 `pi`와 `pic`가 공유합니다. 이미 열려 있는 Pi TUI에는 `/reload`로 변경된 Extension 구성을 다시 불러오거나 `pic`을 재실행해 적용합니다.
 
 ### 작업 결과 인계
 
