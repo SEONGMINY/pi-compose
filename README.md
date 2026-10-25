@@ -194,6 +194,33 @@ Pi UI에서 Context와 Workspace를 선택한다. Fork라면 **현재 Pi 세션 
 
 **실제 Pi 로딩과 실행 동작은 해당 환경에서 확인이 필요**하다.
 
+## 기존 작업으로 돌아가기 — `/compose back`
+
+새로운 Agent를 만들 필요가 없다면 Pi에서 다음 명령을 사용합니다.
+
+```text
+/compose back
+/compose back 회원 API
+```
+
+기본 Compose Extension이 **현재 프로젝트의 저장된 Pi 세션**(Pi SessionManager)과
+**workmux Worktree 목록**(`workmux list --json`)을 필요한 시점에만 조회하고
+Pi의 `select` UI로 후보를 보여줍니다. 별도 세션 Registry/DB를 만들지 않습니다.
+
+- **저장된 Pi 대화 선택:** Pi의 `ctx.switchSession`으로 **현재 Pi 프로세스에서 대화를 전환**합니다. 새로운 tmux Session/모델 프로세스를 만들지 않습니다.
+- **workmux Target 열림:** 이름과 브랜치를 확인하고, **사용자 승인 후** 대상을 다시 조회해 `workmux open`으로 이동을 요청합니다. `is_open`은 workmux Target 상태이며, 해당 Pane에서 **어떤 Pi 대화가 실행 중인지까지 확인하지 못합니다**. 검사 이후 Target이 사라지면 workmux가 새 Window를 만들 가능성이 있으므로, 이 동작은 승인 창에 표시합니다.
+- **workmux Target 닫힘:** 새 프로세스를 임의로 시작하지 않습니다. 해당 Worktree에서 Pi의 `/resume` 또는 기존 `/compose resume`을 이용해 **정확한 대화**를 선택해야 합니다.
+- **조회 범위:** 현재 Pi 프로젝트의 저장된 대화와 현재 저장소에서 workmux가 찾는 Worktree만 포함합니다. 모든 프로젝트·외부 tmux 세션은 통합 검색하지 않습니다.
+- **workmux 미설치/조회 실패:** 저장된 Pi 세션 선택은 계속 제공하지만 Worktree 상태는 확인하지 못했다고 표시합니다.
+
+자연어로 "아까 하던 회원 API 작업을 찾아줘"라고 요청하면 모델이
+**읽기 전용 `compose_find_work` Tool**로 관련 후보만 확인할 수 있습니다.
+모델이 직접 Pi 세션을 전환하지 않으며, 실제 이동은 `/compose back`에서
+사용자가 선택합니다. **자연어만으로 전체 전환 완료는 아직 구현하지 않았습니다.**
+
+기존 `/compose resume`은 **새 tmux에서 정확한 Pi 세션을 시작하는 기능**으로 유지하며,
+Pi 기본 `/resume`도 그대로 사용할 수 있습니다. 둘 다 `/compose back`과 다른 작업입니다.
+
 ## Phase 3 — 기존 세션 확인 및 명시적 재개
 
 세션을 새로 Fork하지 않고 **정확한 기존 Pi 대화**를 이어갈 때 사용합니다.
