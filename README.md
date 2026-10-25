@@ -2,110 +2,107 @@
 
 **Keep the reasoning. Delegate the work.**
 
-Main Agent와 오래 논의한 요구사항을 다른 에이전트에게 맡길 때, **결정한 이유와 반드시 지켜야 할 제약까지** 이어가고 싶었습니다. 반대로 독립적인 코드 탐색이나 리서치까지 Main에서 처리하고 싶지는 않았습니다.
+Main Agent와 오래 논의한 설계의 **이유와 제약은 그대로 이어서 개발하고**, 그 맥락이 필요 없는 조사·테스트는 따로 진행하고 싶었습니다.
 
-**Pi Compose는 설계의 맥락이 필요한 개발은 이어서 맡기고, 독립적인 일은 분리해 진행할 수 있도록 돕는 [Pi](https://github.com/earendil-works/pi) 기반 코딩 Harness입니다.** 작업을 시작하거나 다시 찾을 때 Pi 세션·Git Worktree·tmux를 매번 직접 연결하는 부담을 줄입니다.
+**Pi Compose는 그 작업을 [Pi](https://github.com/earendil-works/pi) 위에서 연결하는 코딩 Harness입니다.** 개발 에이전트의 실행·작업 공간 준비·이전 작업 탐색을 Pi, Git, tmux, workmux로 조합해, 도구를 관리하는 대신 개발에 집중할 수 있게 돕습니다.
 
-### 개발을 맡길 때, 실제로 보이는 화면
+### 작업을 맡기면, 그다음에는?
 
-`/compose launch`를 실행하면 어떤 대화를 이어받을지 직접 선택합니다.
+<figure>
+  <img src="docs/assets/compose-after-launch.svg" alt="macOS에서 Independent Shared 작업을 시작한 뒤 Main TUI의 실행 결과와 tmux 세션 목록을 따로 캡처해 나란히 배치한 화면. Main은 유지되고 별도 tmux 세션이 생성됐으며 모델 준비 상태는 미검증." />
+</figure>
 
-![Pi Compose에서 실제로 표시된 Context source 선택 메뉴](docs/assets/compose-context-picker.svg)
+실제 macOS에서 **Independent + Shared Directory**를 선택한 결과입니다. Pi Compose가 새 tmux 세션을 만들었고 Main Pi 세션은 계속 남아 있었습니다. **두 명령의 출력 일부를 읽기 쉽게 재배치한 SVG**이며, 실제 하나의 분할 화면을 캡처한 이미지는 아닙니다. 모델 인증이 없어 새 에이전트의 실제 코드 작업은 확인하지 못했습니다. [실행 기록](https://github.com/SEONGMINY/pi-compose/actions/runs/40226451266)
 
-<sub>macOS에서 `pic`을 실행해 확보한 실제 **선택 메뉴의 터미널 출력**을 크롭·SVG로 재구성했습니다. 모델 응답이나 개발 완료 화면은 아닙니다. [재현 기록](https://github.com/SEONGMINY/pi-compose/actions/runs/40220845621)</sub>
+Pi Compose의 역할은 여기까지 모든 일을 자동 처리하는 것이 아닙니다. **어떤 맥락을 이어받을지, 파일 작업을 분리할지, 결과를 언제 확인할지**는 사용자가 선택하고, 반복적인 실행 준비를 연결합니다.
 
 ## 시작하기
 
-macOS에서는 한 줄로 설치합니다. **업데이트도 같은 명령**입니다.
+macOS에서 설치합니다. **업데이트도 같은 한 줄**입니다.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/SEONGMINY/pi-compose/main/scripts/install.sh | bash
 ```
 
-원하는 프로젝트에서 시작하세요.
+원하는 프로젝트에서 실행하세요.
 
 ```bash
 cd ~/projects/my-app
 pic
 ```
 
-처음 실행했다면 Pi TUI에서 `/login`으로 모델 제공자를 인증하고 `/model`로 모델을 선택합니다. 이미 Pi를 사용 중이라면 기존 인증·세션·설정·Extension·Skill·Theme를 그대로 사용합니다.
+처음 사용하는 Pi라면 TUI에서 `/login`으로 로그인하고 `/model`에서 모델을 선택합니다. 기존 Pi의 인증·세션·설정·Extension·Skill·Theme는 그대로 사용합니다. [설치 환경](docs/adr/0006-github-installer.md)
 
-[설치 환경 및 주의사항](docs/adr/0006-github-installer.md)
+## 실제로 작업할 때
 
-## 하나의 작업을 맡기는 과정
+**1. Main에서 충분히 논의합니다.**
 
-예를 들어 Main에서 회원 API의 인증 정책을 논의했다고 가정해 보겠습니다.
+> 회원 API를 만들자. 기존 토큰 갱신 방식은 클라이언트 호환성 때문에 유지해야 해.
 
-> 토큰 갱신 방식은 바꾸지 않기로 했어. 기존 클라이언트와의 호환성 때문이야. 이 조건을 유지하면서 회원 API를 개발하고 싶어.
-
-새 개발 에이전트에게 이를 몇 줄로 다시 요약하는 대신, **그 이유를 논의했던 Pi 대화를 원본으로 선택**할 수 있습니다.
+**2. 그 맥락을 이어서 개발을 맡깁니다.**
 
 ```text
 /compose launch 회원 API 구현
 ```
 
-앞에서 본 컨텍스트 선택에 이어, 코드를 어느 디렉터리에서 변경할지도 고릅니다.
+Pi 선택 화면에서 **Fork existing Pi session**을 고르고 원본 대화를 지정합니다. 그다음 현재 디렉터리(Shared Directory) 또는 별도 Git Worktree를 선택합니다. 새로운 개발 에이전트에게 결정의 이유를 짧게 다시 요약하는 대신, **Pi가 제공하는 세션 Fork**를 사용하는 방식입니다.
 
-![Pi Compose에서 실제로 표시된 Workspace 선택 메뉴](docs/assets/compose-workspace-picker.svg)
+다른 맥락이 필요 없는 조사라면 같은 화면에서 **Independent new session**을 선택할 수 있습니다. Context와 Workspace는 별개 선택이므로 Fork하더라도 Worktree가 강제되지는 않습니다.
 
-<sub>실제 `/compose launch`의 두 번째 선택 메뉴를 캡처한 터미널 출력입니다. Shared Directory와 Git Worktree 중 하나를 선택할 수 있습니다. [재현 기록](https://github.com/SEONGMINY/pi-compose/actions/runs/40220845621)</sub>
+**3. 시작한 작업을 확인하고, Main은 다음 일을 이어갑니다.**
 
-**이전에는 여러 도구를 직접 연결해야 했던 작업을, 이제 하나의 시작 흐름에서 선택합니다.**
+- **Shared Directory:** 별도 tmux 세션에서 Pi를 실행합니다. 현재는 `tmux list-sessions` 등으로 직접 해당 세션을 확인합니다.
+- **Git Worktree:** workmux가 브랜치·작업 디렉터리와 tmux 창을 만듭니다. workmux Dashboard를 선택적으로 열어 작업을 살펴볼 수 있습니다.
 
-| 사용자가 결정하는 것 | Pi Compose가 연결하는 것 |
+Pi Compose는 작업 **실행 명령이 성공했는지** 보고합니다. 모델이 실제로 코드를 작성 중인지까지 자동으로 확인해 주지는 않습니다. 독립 실행을 요청했다고 Main의 대화가 자동 종료되지도 않습니다.
+
+**4. 이전 작업으로 돌아갑니다.**
+
+```text
+/compose back
+```
+
+현재 프로젝트의 저장된 Pi 대화와 workmux 작업을 Pi 선택 UI에서 찾습니다. 자연어로 “아까 회원 API 작업으로 돌아가고 싶어”라고 요청할 수도 있습니다. 저장된 대화의 전환은 사용자 Enter로 확정해야 합니다.
+
+현재 **Shared Directory에서 새로 띄운 tmux 세션은 이 목록으로 통합 탐색되지 않습니다.** 그런 경우에는 tmux에서 직접 전환해야 합니다. 닫힌 Worktree를 재개할 때는 정확한 Pi 세션을 선택하고 새 프로세스 실행을 승인해야 합니다.
+
+**5. 필요한 경우 결과를 인계하고 검증합니다.**
+
+```text
+/compose-handoff
+/compose-verify main
+```
+
+두 명령은 아래 선택형 Extension을 켠 경우 사용할 수 있습니다. Handoff는 **구현 내용·선택 이유·검사·미해결 문제**를 정리하고, Verify는 별도의 읽기 전용 Pi 호출로 Git 변경사항을 검토합니다. 결과가 **자동으로 Main에 통합되거나 Git에 병합되는 것은 아닙니다.** 현재 세션에서 확인하고 필요한 내용을 직접 이어갑니다.
+
+[자세한 작업별 사용법](docs/USAGE.md)
+
+## Pi와 무엇이 다른가요?
+
+| 이미 있는 기능 | Pi Compose가 더하는 연결 |
 | --- | --- |
-| 어떤 대화의 맥락이 필요한가? | Pi의 **세션 Fork** 또는 새로운 독립 세션 |
-| 현재 파일 공간을 사용할까, 변경을 분리할까? | 기존 디렉터리 또는 Git Worktree |
-| 언제 시작할까? | 선택된 작업에 맞는 Pi·tmux·workmux 실행 |
+| **Pi:** 모델 실행, 세션 Fork·Resume, TUI, Extension | 개발 작업에서 Context 선택과 실행 흐름 연결 |
+| **Git:** 브랜치와 Worktree | 사용자 선택에 따라 같은 디렉터리 또는 분리된 공간 준비 |
+| **tmux · workmux:** 프로세스·창·작업 전환 | 실행과 작업 복귀 경로 연결 |
 
-Fork는 기존 대화의 맥락을 이어받는 **Pi의 기능**입니다. Worktree는 **Git의 기능**입니다. Pi Compose는 이 기능들을 새로 만드는 대신, 개발 작업을 맡기는 과정에서 함께 선택하고 실행하도록 연결합니다.
+Pi Compose는 **새로운 Agent Runtime이나 자동 스케줄러가 아닙니다.** 사용자가 Git 명령과 세션 파일·실행 옵션을 매번 직접 이어 붙이던 일부 과정을 단순화합니다. 중요한 결정과 검증은 사용자에게 남겨둡니다.
 
-> Fork했다고 해서 Worktree가 강제되지는 않습니다. 어느 세션을 원본으로 삼을지, 작업 디렉터리를 나눌지, 언제 실행할지는 사용자가 결정합니다.
+## 필요한 기능만 조합하기
 
-## Main에는 다음 판단에 필요한 것만
-
-설계 맥락이 필요 없는 SDK 조사·코드 탐색·테스트는 **Independent**로 시작할 수 있습니다. 모든 작업에 긴 Main 대화를 복사할 필요가 없기 때문입니다.
-
-개발 중에는 다음처럼 필요한 동작만 요청하면 됩니다.
-
-| 하고 싶은 일 | Pi Compose에서 |
-| --- | --- |
-| 독립적인 조사 작업 시작 | 자연어로 요청하거나 `/compose launch`에서 Independent 선택 |
-| 예전에 하던 작업 찾기 | “회원 API 작업으로 돌아가고 싶어” 또는 `/compose back` |
-| 구현 결과 정리 | 선택형 `/compose-handoff` |
-| 별도 컨텍스트에서 변경 검토 | 선택형 `/compose-verify` |
-
-Handoff는 변경한 내용·선택 이유·수행한 검사·남은 문제를 **간결하게 정리**합니다. 독립 검증은 실제 변경을 별도 Pi 모델 호출로 살펴볼 수 있습니다. 두 기능 모두 요청해서 사용하는 선택형 Extension이며, Handoff가 곧 검증 완료나 Git 병합을 의미하지는 않습니다.
-
-자연어로 저장된 Pi 대화를 선택했을 때는 정확한 전환 명령이 입력창에 준비됩니다. **Enter로 확정해야** 대화가 전환됩니다. 더 많은 옵션을 알아야만 시작할 수 있도록 만들지는 않았습니다. [작업별 사용 가이드](docs/USAGE.md)
-
-## 필요한 만큼만 확장하기
-
-기본 제공 기능은 **작업 실행·미리보기·탐색·복귀**입니다. 다음 기능은 Pi Package로 선택해서 더할 수 있습니다.
-
-| 선택형 Extension | 역할 |
-| --- | --- |
-| Dashboard | workmux의 실행·Worktree 화면 열기 |
-| Handoff | 개발 결과 인계 |
-| Verify | 별도 Pi 호출로 변경사항 확인 |
+기본 `pic`에는 작업 실행·미리보기(`/compose launch`, `/compose preview`)와 작업 탐색·복귀(`/compose back`)가 포함됩니다.
 
 ```bash
 pic features
 ```
 
-Pi의 설정 UI에서 사용할 Extension을 고릅니다. 처음 선택형 패키지를 등록하면 세 기능이 모두 켜지므로, 쓰지 않는 기능은 끌 수 있습니다. Pi Compose 전용 설정 DB나 Plugin Manager는 없으며, 기존 Pi의 Package·Extension·Skill·Theme를 계속 활용할 수 있습니다.
+선택형 Package를 등록하면 Pi 설정 UI에서 **workmux Dashboard / Handoff / Verify**를 개별적으로 켜고 끌 수 있습니다. 처음 등록할 때는 세 기능이 모두 활성화됩니다. Dashboard는 tmux 안에서 사용할 때 `/compose-workmux`로 열 수 있습니다.
 
-## 왜 Pi 위에 만들었나요?
+Pi Compose는 특정 Dashboard를 강제하지 않습니다. 기존 Pi의 Package·Extension·Skill·Theme와 사용자 정의 기능도 계속 사용할 수 있습니다. 설정을 새로 관리하는 별도 플러그인 시스템은 없습니다.
 
-**Pi는 모델·대화·세션·TUI·확장을 담당하고, Pi Compose는 작업 간 연결을 담당합니다.** Git은 코드와 Worktree, tmux는 실행 세션, workmux는 Worktree 실행·전환을 맡습니다.
+## 문서와 현재 검증 범위
 
-새로운 Runtime이나 자동 개발 스케줄러를 만드는 대신, 사용자가 직접 결정해야 할 부분은 남기고 반복적인 실행 준비를 연결합니다. Main이 모든 로그와 Diff를 받아 분석하도록 강제하지도 않습니다.
+- [사용 가이드](docs/USAGE.md) — 직접 선택, 복귀, Handoff·Verify의 사용 방법
+- [왜 만들었는가](docs/domain-stories/01-as-is-and-pain-points.md) · [주요 설계 결정](docs/README.md)
+- [Architecture](docs/ARCHITECTURE.md) · [실제 작업 흐름 검증과 남은 UX 문제](docs/validation/readme-journey.md)
 
-이 프로젝트를 만들게 된 배경과 세부 설계는 별도 문서에 있습니다.
-
-- [사용 가이드](docs/USAGE.md) — 실행·복귀·인계·검증 방법
-- [문제와 시나리오](docs/domain-stories/01-as-is-and-pain-points.md) · [설계 선택](docs/README.md)
-- [아키텍처](docs/ARCHITECTURE.md) · [PRD](docs/PRD.md) · [Implementation Plan](docs/IMPLEMENTATION_PLAN.md)
-
-<sub>Pi Compose는 개인 개발 환경을 위한 프로젝트입니다. 실제 `pic` 실행과 선택 UI는 macOS에서 확인했습니다. 모델 인증을 이용한 여러 에이전트의 개발·인계·검증 흐름 전체를 검증한 것은 아닙니다. [검증 기록](docs/validation/phase6-integration.md)</sub>
+<sub>Pi Compose는 개인용 프로젝트입니다. macOS에서 설치·선택 UI·Independent Shared 실행·Git Worktree 생성은 확인했습니다. 인증된 모델을 이용한 Main 대화 Fork → 코드 작성 → Handoff → 독립 검증 → Main 복귀의 전체 과정은 아직 실사용 검증하지 않았습니다.</sub>
