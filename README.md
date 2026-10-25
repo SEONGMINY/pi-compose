@@ -132,6 +132,33 @@ Pi UI에서 Context와 Workspace를 선택한다. Fork라면 **현재 Pi 세션 
 
 **실제 Pi 로딩과 실행 동작은 해당 환경에서 확인이 필요**하다.
 
+## Phase 3 — 기존 세션 확인 및 명시적 재개
+
+세션을 새로 Fork하지 않고 **정확한 기존 Pi 대화**를 이어갈 때 사용합니다.
+현재 작업 중인 세션을 임의로 선택하지 않으며, Git 파일을 삭제하거나 자동 정리하지 않습니다.
+
+```bash
+# 이전 Launch 실패 후 브랜치/Worktree의 실제 존재 상태를 확인 (읽기 전용)
+node bin/pi-compose.ts inspect --cwd /path/to/project --branch feat/member-api
+
+# Shared Directory에서 정확한 저장 세션 재개 계획만 확인
+node bin/pi-compose.ts resume --workspace shared \
+  --cwd /path/to/project --session-file /path/to/agent.jsonl --dry-run
+
+# Worktree에서 저장 세션 재개
+node bin/pi-compose.ts resume --workspace worktree \
+  --cwd /path/to/project --branch feat/member-api \
+  --session-file /path/to/agent.jsonl
+```
+
+Pi 내부에서는 기본 Extension의 `/compose resume`으로 기존 세션을 선택할 수 있습니다.
+Worktree의 미커밋 변경은 그대로 보존합니다. **이미 사용 중인 tmux 대상은 덮어쓰지 않으며**
+같은 세션이 다른 이름의 tmux Pane이나 터미널에서 실행 중인지는 확정할 수 없음을 표시합니다.
+
+삭제·Cleanup 명령은 구현하지 않았습니다. 파일·브랜치 정리는 반드시 사용자 선택으로 처리합니다.
+
+자세한 동작과 검증 범위: [Phase 3 Resume](docs/validation/phase3-resume.md).
+
 ## 문서
 
 [설계 문서 인덱스](docs/README.md) · [PRD](docs/PRD.md) · [TRD](docs/TRD.md) · [Architecture](docs/ARCHITECTURE.md) · [Implementation Plan](docs/IMPLEMENTATION_PLAN.md) · [Phase 1 구현·검증 상태](docs/validation/phase1-launch.md) · [Phase 2 Dashboard 연동](docs/validation/phase2-dashboard.md)
