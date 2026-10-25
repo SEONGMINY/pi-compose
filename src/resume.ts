@@ -15,6 +15,7 @@ const resumeInputSchema = z.object({
   sessionFile: z.string().min(1),
   branch: z.string().optional(),
   tmuxTarget: z.string().optional(),
+  composeExtensionFile: z.string().optional(),
 }).superRefine((input, ctx) => {
   if (input.workspace === 'worktree' && !input.branch) {
     ctx.addIssue({ code: 'custom', path: ['branch'], message: 'Worktree resume requires --branch' });
@@ -166,6 +167,11 @@ export async function planResume(
   if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(name)) {
     throw new LaunchError('--tmux-target must be a simple tmux session name (letters, digits, _ or -)');
   }
+  const composeExtensionFile = request.composeExtensionFile
+    ? await realpath(request.composeExtensionFile).catch(() => {
+      throw new LaunchError('Pi Compose base Extension file is unavailable; resume was not started.');
+    })
+    : null;
   const status = await checkTmuxTarget(name, cwd, run);
   if (status === 'target-occupied') {
     warnings.push('Exact tmux target already exists. It may be an existing agent; no new Pi process will be started.');
@@ -174,7 +180,8 @@ export async function planResume(
   return {
     workspace: request.workspace, cwd, sessionFile: source.path, sessionId: source.id, branch,
     tmuxTarget: name, status, program: 'tmux',
-    args: ['new-session', '-d', '-s', name, '-c', cwd, ['pi', '--session', source.path].map(quoteShell).join(' ')],
+    args: ['new-session', '-d', '-s', name, '-c', cwd,
+      ['pi', ...(composeExtensionFile ? ['--extension', composeExtensionFile] : []), '--session', source.path].map(quoteShell).join(' ')],
     warnings,
   };
 }
