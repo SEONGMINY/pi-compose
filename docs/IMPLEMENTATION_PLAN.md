@@ -131,6 +131,9 @@ Dashboard가 사용자 정의 Launch 액션을 공식적으로 받는지 확인�
 
 ## 7. Phase 4 — 간결한 Handoff와 자동 기본 확인
 
+> **상태: 선택형 Handoff Extension 1차 구현.** `extensions/optional/handoff.ts`는 사용자가 명시적으로 `/compose-handoff`를 실행할 때만 보고서를 준비한다. 모델 Tool `compose_handoff`는 Git HEAD·브랜치·staged·unstaged·untracked 파일을 조회하고, 원래 WHY·실제 수행 검사·미해결 문제를 함께 담는다. 대상 에이전트 전송은 사용자 확인 후 `workmux send`에 위임한다. **전송 성공은 수신·검증 완료가 아니다.** 기본 Launch Package에는 포함하지 않았다. 반복 전달 방지와 실제 Pi/workmux 연동은 아직 미검증/미구현이며, 전체 Phase 4 완료를 주장하지 않는다. CLI·Git을 위한 신규 단위 테스트는 작성하지 않았다.
+
+
 ### 구현 범위
 
 - Developer가 **완료를 명시적으로 인계하는 단일 진입점**. 세션 종료나 Idle을 완료 이벤트로 사용하지 않는다.
