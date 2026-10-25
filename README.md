@@ -210,6 +210,18 @@ Git으로 실제 변경과 파일 경로·공백 오류를 확인한 후 사용�
 이 결과를 사용자 승인, Merge, Handoff 수신 확인으로 취급하지 않습니다.
 검증을 위해 새 자체 DB, 리뷰 엔진, Git 관리자, 필수 CI Gate를 추가하지 않았습니다.
 
+## Phase 6 — 사용자 주도 통합
+
+격리된 Git 저장소에서 두 브랜치를 병합해 확인했습니다.
+**병합은 성공해도 API 생산자와 UI 소비자의 계약이 불일치하면 실행이 실패**할 수 있습니다.
+
+Pi Compose는 **자동 Merge·Cleanup·스케줄링을 하지 않습니다.** 사용자가 통합을 선택하면
+기존 Git 명령을 이용하고, **통합된 코드 상태**에서 프로젝트의 기존 검사를 수행합니다.
+그 후 필요하면 `/compose-verify <통합 전 기준 SHA>`로 독립 검증합니다.
+
+실제 Pi·tmux·workmux의 다중 에이전트 통합은 아직 미검증이며,
+[Phase 6 통합 점검 기록](docs/validation/phase6-integration.md)에 검증한 것과 미확정 사항을 나눠 두었습니다.
+
 ## 문서
 
 [설계 문서 인덱스](docs/README.md) · [PRD](docs/PRD.md) · [TRD](docs/TRD.md) · [Architecture](docs/ARCHITECTURE.md) · [Implementation Plan](docs/IMPLEMENTATION_PLAN.md) · [Phase 1 구현·검증 상태](docs/validation/phase1-launch.md) · [Phase 2 Dashboard 연동](docs/validation/phase2-dashboard.md)
