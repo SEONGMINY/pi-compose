@@ -97,7 +97,9 @@ export function printDoctor(root) {
   if (s.hook === 'not-detected') console.log('workmux status Hook was not detected; dashboard agent state may be empty. Run pic setup.');
   if (s.choice === 'skip') console.log('Initial setup was declined. Run pic setup whenever you want to opt in.');
   console.log('If settings changed while Pi was running, use /reload in that session.');
-  return s.settingsOk ? 0 : 1;
+  const [major, minor] = process.versions.node.split('.').map(Number);
+  const nodeOk = major > 22 || (major === 22 && minor >= 19);
+  return s.settingsOk && nodeOk && s.pi && s.tmux && s.workmux ? 0 : 1;
 }
 export async function setupRecommended(root,{runPi,runWorkmux,firstRun=false} = {}) {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
