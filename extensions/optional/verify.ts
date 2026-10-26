@@ -1,4 +1,6 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
+import { attachSessionEvidence, attachTaskEvidence } from '../../src/task-index.ts';
+import { diagnosticEvent, startFlow, finishFlow } from '../../src/diagnostics.mjs';
 
 const MAX_PATCH_CHARS = 36_000;
 const MAX_PATHS_IN_PROMPT = 400;
@@ -12,6 +14,10 @@ export default function verificationExtension(pi: ExtensionAPI): void {
   pi.registerCommand('compose-verify', {
     description: 'Verify this working tree in an independent read-only Pi run: /compose-verify [base-ref]',
     handler: async (args, ctx) => {
+      const flow=startFlow('verify.started',{source:'slash'});
+      let outcome:'success'|'failure'|'cancelled'='failure';
+      diagnosticEvent('command.entered',{source:'slash',data:{route:'verify'}});
+      try {
       if (!ctx.hasUI) {
         ctx.ui.notify('An interactive confirmation is required to start independent verification.', 'warning');
         return;
@@ -105,7 +111,7 @@ export default function verificationExtension(pi: ExtensionAPI): void {
             'Starts a separate model call using read/grep/find/ls ONLY. No automatic merge or cleanup.',
           ].join('\n'),
         );
-        if (approved !== true) return;
+        if (approved !== true) {outcome='cancelled'; return;}
 
         const instructions = [
           'You are an independent verifier, not the implementation agent. Do NOT modify files, start agents, or approve changes.',
@@ -159,8 +165,43 @@ export default function verificationExtension(pi: ExtensionAPI): void {
           return;
         }
         const clipped = output.length > MAX_REPORT_CHARS;
+        // Independent review is not completion and its findings may be stale.
+        // Link the report only to an exact single Worktree launch; Shared
+        // Directory changes are not assignable to a particular Agent.
+        let hubLink = 'not_linked';
+        try {
+          // Git owns Worktree provenance; never associate a report using a title or
+          // branch alone. Only an exact, unique path+branch Task Hub record may match.
+          const worktrees = await pi.exec('git', ['worktree', 'list', '--porcelain'], { cwd });
+          const mainCheckout = worktrees.code === 0
+            ? worktrees.stdout.split('\n').find(line => line.startsWith('worktree '))?.slice(9)
+            : undefined;
+          if (mainCheckout) {
+            const actualBranch = (await git(['branch', '--show-current'])).trim();
+            if (actualBranch) hubLink = await attachTaskEvidence(
+              mainCheckout, repository, actualBranch, {
+                review: {
+                  kind: 'independent_review_executed', recordedAt: new Date().toISOString(),
+                  gitHead: head, reportExcerpt: result.stdout.slice(0, 3500),
+                  incomplete: changedAfter || patchTruncated || pathListTruncated,
+                },
+              });
+            if (hubLink !== 'saved') {
+              hubLink = await attachSessionEvidence(mainCheckout,
+                ctx.sessionManager.getSessionId(), {
+                  review: {
+                    kind: 'independent_review_executed',
+                    recordedAt: new Date().toISOString(),
+                    gitHead: head, reportExcerpt: result.stdout.slice(0, 3500),
+                    incomplete: changedAfter || patchTruncated || pathListTruncated,
+                  },
+                });
+            }
+          }
+        } catch { /* Review remains visible in Pi session even when link is unavailable. */ }
         const brief = [
           '[Pi Compose independent review — NOT an approval or integration]',
+          'Task Hub result link: ' + hubLink,
           ...(changedAfter ? ['WARNING: Git changed during verification; conclusions may be stale.'] : []),
           ...(patchTruncated ? ['WARNING: Git patch was truncated; verification coverage is incomplete.'] : []),
           ...(pathListTruncated ? ['WARNING: changed path list was truncated; verification coverage is incomplete.'] : []),
@@ -168,9 +209,11 @@ export default function verificationExtension(pi: ExtensionAPI): void {
           ...(clipped ? ['[Review output clipped; this is not the complete reviewer report.]'] : []),
         ].join('\n');
         pi.sendMessage({ customType: 'pi-compose-review', content: brief, display: true });
+        outcome='success';
       } catch (error) {
         ctx.ui.notify('Independent verification could not run: ' + (error instanceof Error ? error.message : String(error)), 'error');
       }
+      } finally {finishFlow(flow,'verify.finished',{source:'slash',outcome});}
     },
   });
 }

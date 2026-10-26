@@ -4,17 +4,19 @@ import { realpath } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { planResume, executeResume } from '../src/resume.ts';
 import { fileURLToPath } from 'node:url';
+import { diagnosticEvent, startFlow, finishFlow } from '../src/diagnostics.mjs';
 
 const baseExtension = fileURLToPath(new URL('./compose.ts', import.meta.url));
 
-type OpenWorktree = {
+export type OpenWorktree = {
   handle: string;
   branch: string;
   path: string;
   is_open: boolean;
   project_path?: string;
+  mode?: string;
 };
-type LiveTmuxTarget = { name: string; cwd: string };
+export type LiveTmuxTarget = { name: string; cwd: string; windowId?: string };
 type Discovered = {
   sessions: Awaited<ReturnType<typeof SessionManager.list>>;
   worktrees: OpenWorktree[];
@@ -23,7 +25,7 @@ type Discovered = {
   tmuxWarning?: string;
 };
 
-async function workmuxRows(pi: ExtensionAPI, cwd: string): Promise<{ rows: OpenWorktree[]; warning?: string }> {
+export async function workmuxRows(pi: ExtensionAPI, cwd: string): Promise<{ rows: OpenWorktree[]; warning?: string }> {
   let output: string;
   try {
     const result = await pi.exec('workmux', ['list', '--json'], { cwd });
@@ -327,27 +329,54 @@ export async function showWorkPicker(pi: ExtensionAPI, ctx: ExtensionCommandCont
 }
 
 // Selection itself authorizes navigation, not a fresh Pi process or a Git change.
-async function returnToTmux(pi: ExtensionAPI, ctx: ExtensionContext, target: LiveTmuxTarget): Promise<void> {
+export async function returnToTmux(pi: ExtensionAPI, ctx: ExtensionContext, target: LiveTmuxTarget): Promise<boolean> {
+  const flow=startFlow('switch.started',{source:'menu',taskId:target.name+':'+(target.windowId||''),data:{kind:'tmux'}});
+  let outcome:'success'|'failure'|'unavailable'='unavailable';
+  try {
   if (!process.env.TMUX) {
     ctx.ui.notify('Pi is outside tmux. To connect to this target, run: tmux attach -t '
       + target.name, 'warning');
-    return;
+    return false;
   }
   try {
     const existing = await pi.exec('tmux', ['has-session', '-t', '=' + target.name], { cwd: ctx.cwd });
     if (existing.code !== 0) {
       ctx.ui.notify('The selected tmux target no longer exists. Refresh the work list.', 'warning');
-      return;
+      return false;
+    }
+    if (target.windowId) {
+      // Main and workmux windows can share a single tmux session.
+      // Validate the exact window ID before moving either the session or window.
+      if (!/^@[0-9]+$/.test(target.windowId)) {
+        ctx.ui.notify('Invalid tmux window ID. Nothing switched.', 'warning');
+        return false;
+      }
+      const windows = await pi.exec('tmux', ['list-windows', '-a', '-F', '#{session_name}\t#{window_id}'], { cwd: ctx.cwd });
+      const belongs = windows.code === 0 && windows.stdout.split('\n').some(row =>
+        row === target.name + '\t' + target.windowId);
+      if (!belongs) {
+        ctx.ui.notify('Selected tmux window no longer belongs to its recorded session. Nothing switched.', 'warning');
+        return false;
+      }
     }
     const moved = await pi.exec('tmux', ['switch-client', '-t', '=' + target.name], { cwd: ctx.cwd });
     if (moved.code !== 0) throw new Error(moved.stderr || 'switch-client failed');
+    if (target.windowId) {
+      const window = await pi.exec('tmux', ['select-window', '-t', target.windowId], { cwd: ctx.cwd });
+      if (window.code !== 0) throw new Error(window.stderr || 'select-window failed');
+    }
+    outcome='success';
+    return true;
   } catch (error) {
+    outcome='failure';
     ctx.ui.notify('Could not switch tmux target: ' + String(error), 'error');
+    return false;
   }
+  } finally { finishFlow(flow,'switch.finished',{source:'menu',outcome,taskId:target.name+':'+(target.windowId||''),data:{kind:'tmux'}}); }
 }
 
 /** Move to an explicitly selected workmux target; no guessing about Pi session identity. */
-async function returnToWorktree(pi: ExtensionAPI, ctx: ExtensionContext, worktree: OpenWorktree): Promise<void> {
+export async function returnToWorktree(pi: ExtensionAPI, ctx: ExtensionContext, worktree: OpenWorktree): Promise<void> {
   if (!worktree.is_open) {
     await resumeClosedWorktree(pi, ctx, worktree);
     return;
@@ -375,4 +404,53 @@ async function returnToWorktree(pi: ExtensionAPI, ctx: ExtensionContext, worktre
   } catch (error) {
     ctx.ui.notify('Could not open workmux target: ' + String(error), 'error');
   }
+}
+
+
+/** Kiro-style feature history: Pi's own per-project session index, no new DB or Pi process. */
+export async function showSavedSessions(
+  ctx: ExtensionCommandContext, query = '',
+): Promise<void> {
+  const flow = startFlow('sessions.opened',{source:'slash',projectId:ctx.cwd});
+  let outcome:'success'|'failure'|'cancelled'|'unavailable'='cancelled';
+  try {
+  if (!ctx.hasUI) {
+    ctx.ui.notify('Pi 저장 대화는 /resume 또는 /compose sessions에서 선택하세요.', 'warning');
+    return;
+  }
+  let sessions: Awaited<ReturnType<typeof SessionManager.list>>;
+  try {
+    sessions = await SessionManager.list(ctx.cwd, ctx.sessionManager.getSessionDir());
+  } catch (error) {
+    ctx.ui.notify('Pi 대화 목록을 불러오지 못했습니다: ' + String(error), 'error');
+    outcome='failure';
+    return;
+  }
+  const current = ctx.sessionManager.getSessionFile();
+  // Avoid shadowing the matching predicate: the old "const matches" name
+  // caused a ReferenceError whenever a saved session was evaluated.
+  const savedSessions = sessions.filter(s => s.path !== current
+    && matches([s.name, s.firstMessage, s.id].join(' '), query)).slice(0, 50);
+  if (!savedSessions.length) {
+    outcome='unavailable';
+    ctx.ui.notify('현재 폴더(cwd)에서 일치하는 저장 대화가 없습니다. 다른 작업 폴더에서 진행한 대화는 Pi /resume에서 전체 목록을 확인하세요.', 'info');
+    return;
+  }
+  const labels = savedSessions.map((session, index) =>
+    (index + 1) + '. ' + label(session.name || session.firstMessage || '(이름 없음)')
+    + ' [' + session.id.slice(0, 8) + '] · 저장된 Pi 대화');
+  const chosen = await ctx.ui.select('이전 기능·대화 · ' + (query || '현재 프로젝트'), labels);
+  if (!chosen) return;
+  const session = savedSessions[labels.indexOf(chosen)];
+  if (!session) return;
+  // This is Pi's existing in-process session switch, NOT tmux/Pi spawning.
+  diagnosticEvent('switch.started',{source:'menu',flowId:flow.flowId,sessionId:session.id,data:{kind:'saved_session'}});
+  const switched = await ctx.switchSession(session.path);
+  outcome=switched.cancelled?'cancelled':'success';
+  diagnosticEvent('switch.finished',{source:'menu',flowId:flow.flowId,sessionId:session.id,outcome,data:{kind:'saved_session'}});
+  if (switched.cancelled) ctx.ui.notify('이전 대화 복귀가 취소됐습니다.', 'info');
+  } catch (error) {
+    outcome='failure';
+    ctx.ui.notify('저장 Pi 대화 탐색 또는 전환 실패: ' + String(error) + '. Pi /resume에서도 확인할 수 있습니다.', 'error');
+  } finally { finishFlow(flow,'sessions.finished',{source:'slash',outcome}); }
 }

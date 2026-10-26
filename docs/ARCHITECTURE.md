@@ -261,3 +261,30 @@ sequenceDiagram
 실제 도구 조합에서 기능 공백이 확인되면 **좁은 Extension/Script**를 추가할 수 있다. 전체 프레임워크를 미리 만들지 않는다.
 
 → [TRD](TRD.md) · [Implementation Plan](IMPLEMENTATION_PLAN.md) · [ADR](adr/0003-composable-execution-and-verification.md)
+
+
+## PR #3 — 실제 구현한 B안 책임 경계 (2026-10-26)
+
+초기의 Mermaid는 아키텍처의 **논리적 역할**이며 별도 Runtime 또는 커스텀 Dashboard의 구현 완료를 뜻하지 않습니다. PR #3 이후 현재 구현은 다음과 같이 나눠집니다.
+
+| 사용자가 하는 일 | 구현 경로 | 상태/데이터의 정본 |
+| --- | --- | --- |
+| 명시적 자연어·명령 위임 | extensions/compose.ts → planLaunch() → Pi 기본 confirm → executeLaunch() | Pi 원본 Session, Git 및 tmux/workmux |
+| Main ↔ 관련 Agent 복귀 | extensions/task-hub.ts → Pi Native select → 정확한 tmux session+window | tmux. 작업 관계는 작은 TaskRecord 연결 정보 |
+| 제품 간 Agent 관찰·미리보기 | /compose monitor → 기존 workmux Dashboard | workmux Hook/Pane/Git |
+| 같은 프로젝트의 다른 기능 대화 | /compose sessions → SessionManager.list() 및 switchSession() | Pi 기존 저장 Session |
+| 개발 결과와 독립 검토 | /compose-handoff · /compose-verify → 유일한 Worktree 기록에 스냅샷 연결 | Git 결과, 사용자/검토자 진술 |
+| 과거 tmux·Worktree 수동 재개 | /compose back · /compose resume | Pi/Git/tmux/workmux |
+
+일반 Pi 대화와 Compose의 메뉴를 단일 Dashboard에 모두 구현하지 않습니다. Pi의 내장 select/confirm UI를 사용하고, workmux가 제공하는 실시간 상태·출력 UI는 직접 재구현하지 않습니다. 인증된 Pi를 macOS에서 실행한 전체 사용 경험은 **검증 전**입니다.
+
+### 식별 계약과 Handoff의 경계
+
+- 원본 Pi Session ID와 Context(Fork/Independent), Workspace(Shared/Worktree)는 사용자가 지정한 실행 선택입니다.
+- 연결된 기존 tmux session+window가 사라지면 다른 이름·경로로 추측하지 않고 이동을 거절합니다.
+- Worktree 경로·workmux handle·브랜치는 실제 조회 결과와 정확히 일치해야만 이동 가능하다고 표시합니다.
+- Handoff/Verify 결과를 연결하려면 프로젝트 루트+Worktree 경로+브랜치가 유일하게 일치하거나, Child Pi의 실제 저장 Session ID/파일과 기존 tmux 창이 검증된 기록 하나와 일치해야 합니다. 인계와 검토는 기록 당시 Git HEAD 기준이며 개발 완료·통합 승인이 아닙니다.
+- Shared Directory의 Git 변경을 어떤 Agent가 작성했는지는 자동으로 알아낼 수 없습니다. 그 결과를 특정 작업의 변경으로 추측 연결하지 않습니다.
+- 특정 Pi Child Session ID의 실제 기동 완료는 Launch 명령 성공만으로 증명할 수 없습니다.
+
+**선택형 workmux View를 위한 ADR 0004의 Package 정책은 유지**하면서, 기본 /compose monitor에서 같은 기존 workmux Dashboard를 불러올 수 있게 했습니다. 추가 Backend Registry는 도입하지 않았습니다.

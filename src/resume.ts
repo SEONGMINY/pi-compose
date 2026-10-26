@@ -181,7 +181,8 @@ export async function planResume(
     workspace: request.workspace, cwd, sessionFile: source.path, sessionId: source.id, branch,
     tmuxTarget: name, status, program: 'tmux',
     args: ['new-session', '-d', '-s', name, '-c', cwd,
-      ['pi', ...(composeExtensionFile ? ['--extension', composeExtensionFile] : []), '--session', source.path].map(quoteShell).join(' ')],
+      (composeExtensionFile ? 'PIC_COMPOSE_CORE=1 PIC_COMPOSE_MAIN=0 ' : '')
+        + ['pi', ...(composeExtensionFile ? ['--extension', composeExtensionFile] : []), '--session', source.path].map(quoteShell).join(' ')],
     warnings,
   };
 }

@@ -12,7 +12,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/*.test.ts",
+    "test": "node --test test/*.test.ts test/*.test.mjs",
     "check": "npm run typecheck && npm test"
   },
   "pi": {
@@ -21,7 +21,8 @@
     ]
   },
   "dependencies": {
-    "zod": "4.6.5"
+    "zod": "4.6.5",
+    "@earendil-works/pi-tui": "1.4.0"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",

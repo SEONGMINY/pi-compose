@@ -45,6 +45,7 @@ export type LaunchPlan = {
   branch: string | null;
   baseSha: string | null;
   tmuxTarget: string | null;
+  workmuxTargetName?: string;
   program: 'tmux' | 'workmux';
   args: string[];
   warnings: string[];
@@ -70,13 +71,32 @@ export function validateRequest(input: unknown): LaunchInput {
 }
 
 // tmux runs a shell command; quote each token rather than interpreting the user task as shell syntax.
+/** A short, explicit task remains the task identity; Fork owns the inherited discussion. */
+export function delegationPrompt(task: string, context: LaunchInput['context']): string {
+  const instruction = task.trim();
+  if (context === 'independent') return instruction;
+  return [
+    instruction,
+    '',
+    'You were started as a fork of the selected Pi conversation.',
+    'Review the inherited discussion for requirements, decisions, reasons, and explicit constraints before editing.',
+    'Keep prohibitions and their reasons intact; do not weaken them into optional advice.',
+    'If the inherited discussion or actionable requirements are not present, do not guess or change files. Explain what is missing and ask for clarification.',
+    'Only implement the task requested above; never merge, delete worktrees, or discard changes unless explicitly asked.',
+  ].join('\n');
+}
+
 export function quoteShell(arg: string): string {
   return "'" + arg.replaceAll("'", "'\\''") + "'";
 }
 
 export async function runProcess(bin: string, args: string[], { cwd }: { cwd: string }): Promise<ProcessResult> {
   return await new Promise((done, fail) => {
-    const child = spawn(bin, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], shell: false });
+    // PIC_COMPOSE_CORE is a marker for the main Pi Extension. Never propagate it
+    // to agents created by workmux, otherwise their navigation Extension is suppressed.
+    const env = { ...process.env };
+    if (bin === 'workmux') { delete env.PIC_COMPOSE_CORE; delete env.PIC_COMPOSE_MAIN; }
+    const child = spawn(bin, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], shell: false, env });
     let stdout = '';
     let stderr = '';
     child.stdout.on('data', chunk => { stdout = (stdout + chunk).slice(-32768); });
@@ -135,9 +155,9 @@ export async function planLaunch(
       : null;
     const piArgs = [
       ...(composeExtensionFile ? ['--extension', composeExtensionFile] : []),
-      ...(source ? ['--fork', source.path] : []), task,
+      ...(source ? ['--fork', source.path] : []), delegationPrompt(task, request.context),
     ];
-    const command = ['pi', ...piArgs].map(quoteShell).join(' ');
+    const command = 'PIC_COMPOSE_CORE=1 PIC_COMPOSE_MAIN=0 ' + ['pi', ...piArgs].map(quoteShell).join(' ');
     return {
       context: request.context, workspace: request.workspace, cwd, task,
       source: source ?? null, baseSha: null, branch: null, tmuxTarget: sessionName,
@@ -163,12 +183,17 @@ export async function planLaunch(
   if (!sha.success) throw validationError(sha.error);
   const dirty = await checkedRun(run, 'git', ['status', '--porcelain', '--untracked-files=normal'], repoRoot);
   if (dirty) warnings.push('Source checkout has uncommitted changes; new Worktree is based on a commit and does not copy them.');
-  // A new worktree agent starts without stealing focus from the Main Pi window.
-  const args = ['add', branch, '--background', '--agent', 'pi', '--base', sha.data,
-    ...(source ? [`--fork=${source.id}`] : []), '--prompt', task];
+  // workmux owns the terminal layout. Ghostty-specific tab creation is not
+  // part of the default Compose launch or navigation experience.
+  // An exact per-launch target name lets the Hub validate the real tmux target.
+  // It does not rely on branch names, worktree directory slugs, or a global registry.
+  const workmuxTargetName = sessionName;
+  const args = ['add', branch, '--background', '--target-name', workmuxTargetName,
+    '--agent', 'pi', '--base', sha.data,
+    ...(source ? [`--fork=${source.id}`] : []), '--prompt', delegationPrompt(task, request.context)];
   return {
     context: request.context, workspace: request.workspace, cwd: repoRoot, task,
-    source: source ?? null, branch, baseSha: sha.data, tmuxTarget: null,
+    source: source ?? null, branch, baseSha: sha.data, tmuxTarget: null, workmuxTargetName,
     program: 'workmux', args, warnings,
   };
 }

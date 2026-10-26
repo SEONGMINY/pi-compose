@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { SessionManager, type ExtensionAPI, type ExtensionCommandContext, type ExtensionToolContext } from '@earendil-works/pi-coding-agent';
-import { registerWorkReturn, showWorkPicker } from '../extensions/work-return.ts';
+import { registerWorkReturn, showWorkPicker, showSavedSessions } from '../extensions/work-return.ts';
 
 function fixture(t: import('node:test').TestContext, open = true) {
   const worktree = mkdtempSync(join(tmpdir(), 'pi-compose-return-'));
@@ -83,6 +83,31 @@ function fixture(t: import('node:test').TestContext, open = true) {
     setApproval: (v: boolean) => { confirm = v; },
     getSwitch: () => switched };
 }
+
+
+test('saved-session command finds a different conversation and switches using its exact file', async t => {
+  const fx=fixture(t);
+  const ctx={...fx.ctx,ui:{...fx.ctx.ui,select:async (_title:string, choices:string[])=>choices[0]}};
+  await showSavedSessions(ctx as ExtensionCommandContext,'Member API');
+  assert.equal(fx.getSwitch(),'/tmp/member-api.jsonl');
+  assert.ok(!fx.calls.some(s=>s.includes('new-session')||s.includes('workmux add')));
+});
+
+test('saved-session command explains cwd scope instead of silently claiming all sessions are missing', async t => {
+  const fx=fixture(t);
+  await showSavedSessions(fx.ctx,'unmatched-session-name');
+  assert.equal(fx.getSwitch(),undefined);
+  assert.ok(fx.messages.some(message=>message.includes('현재 폴더(cwd)')&&message.includes('/resume')));
+});
+
+test('saved-session switch failure is reported instead of escaping without feedback', async t => {
+  const fx=fixture(t);
+  const ctx={...fx.ctx,
+    ui:{...fx.ctx.ui,select:async (_title:string, choices:string[])=>choices[0]},
+    switchSession:async()=>{throw new Error('simulated switch failure');}};
+  await showSavedSessions(ctx as ExtensionCommandContext,'Member');
+  assert.ok(fx.messages.some(message=>message.includes('전환 실패')&&message.includes('/resume')));
+});
 
 test('saved Pi work uses the native session switch and never creates another Pi/tmux process', async t => {
   const fx = fixture(t);

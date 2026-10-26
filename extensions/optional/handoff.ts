@@ -1,5 +1,7 @@
 import { Type } from '@earendil-works/pi-ai';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
+import { attachSessionEvidence, attachTaskEvidence } from '../../src/task-index.ts';
+import { diagnosticEvent, startFlow, finishFlow } from '../../src/diagnostics.mjs';
 
 /**
  * Optional handoff extension.
@@ -9,6 +11,7 @@ export default function handoffExtension(pi: ExtensionAPI): void {
   pi.registerCommand('compose-handoff', {
     description: 'Ask the current Pi agent to prepare an explicit, evidence-linked handoff; optionally send to a named workmux agent',
     handler: async (args, ctx) => {
+      diagnosticEvent('command.entered',{source:'slash',data:{route:'handoff'}});
       if (!ctx.hasUI) {
         ctx.ui.notify('Use an interactive Pi session to request a handoff.', 'warning');
         return;
@@ -38,6 +41,9 @@ export default function handoffExtension(pi: ExtensionAPI): void {
       recipient: Type.Optional(Type.String({ description: 'Optional exact workmux agent handle chosen by the user' })),
     }),
     async execute(_callId, params, _signal, _onUpdate, ctx) {
+      const flow=startFlow('handoff.started',{source:'natural-language'});
+      let outcome:'success'|'failure'='failure';
+      try {
       const cwd = ctx.cwd;
       const runGit = async (args: string[]): Promise<string> => {
         const result = await pi.exec('git', args, { cwd });
@@ -101,6 +107,38 @@ export default function handoffExtension(pi: ExtensionAPI): void {
         'Handoff is a claim to check; it does not authorize changing the user contract, merging, or cleanup.',
       ].join('\n');
 
+      let hubLink = 'not_linked';
+      try {
+      // Git owns Worktree provenance; never associate a report using a title or
+      // branch alone. Only an exact, unique path+branch Task Hub record may match.
+      const worktrees = await pi.exec('git', ['worktree', 'list', '--porcelain'], { cwd });
+      const mainCheckout = worktrees.code === 0
+        ? worktrees.stdout.split('\n').find(line => line.startsWith('worktree '))?.slice(9)
+        : undefined;
+        if (mainCheckout && branch) hubLink = await attachTaskEvidence(
+          mainCheckout, gitRoot, branch, {
+            handoff: {
+              kind: 'developer_claim', recordedAt: new Date().toISOString(),
+              gitHead: head, summary: params.summary.slice(0, 3000),
+              why: params.why.slice(0, 3000), checks: params.checks.slice(0, 2000),
+              outstanding: params.outstanding.slice(0, 2000), changedFileCount: names.length,
+            },
+          });
+        // On Shared Directory Git changes are not attributable to an Agent.
+        // Only its verified actual Pi session may own a developer's Handoff claim.
+        if (hubLink !== 'saved' && mainCheckout) {
+          hubLink = await attachSessionEvidence(mainCheckout,
+            ctx.sessionManager.getSessionId(), {
+              handoff: {
+                kind: 'developer_claim', recordedAt: new Date().toISOString(),
+                gitHead: head, summary: params.summary.slice(0, 3000),
+                why: params.why.slice(0, 3000), checks: params.checks.slice(0, 2000),
+                outstanding: params.outstanding.slice(0, 2000), changedFileCount: names.length,
+              },
+            });
+        }
+      } catch { /* Handoff remains in this session; never claim it was linked. */ }
+
       let delivery: 'not_requested' | 'cancelled' | 'confirmation_unavailable' | 'submitted_unverified' | 'failed' = 'not_requested';
       let deliveryError: string | undefined;
       if (params.recipient?.trim()) {
@@ -125,20 +163,23 @@ export default function handoffExtension(pi: ExtensionAPI): void {
           }
         }
       }
+      outcome='success';
       return {
         content: [{
           type: 'text' as const,
           text: message + '\n\nDelivery: ' + delivery + (deliveryError ? ' (' + deliveryError + ')' : '') +
-            (delivery === 'submitted_unverified' ? '. Receipt/read not confirmed.' : ''),
+            (delivery === 'submitted_unverified' ? '. Receipt/read not confirmed.' : '') +
+            '\nTask Hub result link: ' + hubLink + ' (only exact Worktree matches are linked)',
         }],
         details: {
           status: 'handoff_prepared_not_verified',
           cwd: gitRoot, head, base: base || null, sessionFile,
           changedFileCount: names.length, changedPaths: names, stagedCount: staged.length,
           unstagedCount: unstaged.length, untrackedCount: untracked.length,
-          whitespaceCheck: checkState, delivery,
+          whitespaceCheck: checkState, delivery, hubLink,
         },
       };
+      } finally {finishFlow(flow,'handoff.finished',{source:'natural-language',outcome});}
     },
   });
 }
