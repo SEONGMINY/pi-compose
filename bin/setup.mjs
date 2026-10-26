@@ -18,12 +18,12 @@ function json(path) {
     return { ok: value !== null && typeof value === 'object' && !Array.isArray(value), value };
   } catch { return { ok: false, value: null }; }
 }
-function packageState(settings, target) {
+function packageState(settings, target, baseDir = agentDir()) {
   const list = Array.isArray(settings?.packages) ? settings.packages : [];
   const found = list.find(p => {
     const source = typeof p === 'string' ? p : p?.source;
     return typeof source === 'string' && !/^(npm:|git:|https?:)/.test(source)
-      && resolve(agentDir(), source) === resolve(target);
+      && resolve(baseDir, source) === resolve(target);
   });
   if (!found) return 'missing';
   // Never undo any Pi resource filtering chosen in pi config.
@@ -38,9 +38,18 @@ function commandVersion(command) {
 export function inspectSetup(root, { versions = false } = {}) {
   const settings = json(join(agentDir(), 'settings.json'));
   const consent = json(consentPath());
-  const packages = settings.ok ? {
-    navigation: packageState(settings.value, join(root, 'packages/navigation')),
-    features: packageState(settings.value, join(root, 'packages/optional')),
+  // Respect existing project-scoped Pi Package declarations too. Their relative
+  // sources resolve from the project's .pi directory, not from the user agentDir.
+  const project = json(join(process.cwd(), '.pi', 'settings.json'));
+  const packages = settings.ok && project.ok ? {
+    navigation: packageState(settings.value, join(root, 'packages/navigation')) !== 'missing'
+      ? packageState(settings.value, join(root, 'packages/navigation'))
+      : packageState(project.value, join(root, 'packages/navigation'), join(process.cwd(), '.pi')) !== 'missing'
+        ? 'project-only' : 'missing',
+    features: packageState(settings.value, join(root, 'packages/optional')) !== 'missing'
+      ? packageState(settings.value, join(root, 'packages/optional'))
+      : packageState(project.value, join(root, 'packages/optional'), join(process.cwd(), '.pi')) !== 'missing'
+        ? 'project-only' : 'missing',
   } : {navigation: 'unknown', features: 'unknown'};
   const hookFile = join(agentDir(), 'extensions/workmux-status.ts');
   const hasHook = existsSync(hookFile)
@@ -48,7 +57,7 @@ export function inspectSetup(root, { versions = false } = {}) {
       && settings.value.extensions.some(e => typeof e === 'string'
         && /workmux-status\.(ts|js)/.test(e)));
   return {
-    settingsOk:settings.ok, consentOk:consent.ok,
+    settingsOk:settings.ok && project.ok, consentOk:consent.ok,
     prompted:consent.ok && consent.value?.prompted === true,
     choice:consent.value?.choice,
     packages, hook:hasHook ? 'detected' : 'not-detected',
@@ -80,6 +89,8 @@ export function printDoctor(root) {
   if (!s.settingsOk) console.log('WARNING: Pi settings.json cannot be parsed. No configuration will be modified.');
   if (s.packages.navigation === 'custom' || s.packages.features === 'custom')
     console.log('Pi resource filters were customized; inspect exact enabled extensions with pi config.');
+  if (s.packages.navigation === 'project-only' || s.packages.features === 'project-only')
+    console.log('Some Packages are PROJECT-ONLY; new Worktrees may not load them. Use pi config --local or explicitly opt in globally.');
   if (s.hook === 'not-detected') console.log('workmux status Hook was not detected; dashboard agent state may be empty. Run pic setup.');
   if (s.choice === 'skip') console.log('Initial setup was declined. Run pic setup whenever you want to opt in.');
   console.log('If settings changed while Pi was running, use /reload in that session.');
