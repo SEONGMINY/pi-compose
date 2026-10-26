@@ -126,8 +126,8 @@ export function readDiagnosticEvents({days=7}={}) {
         const row=JSON.parse(line);
         if(row?.schemaVersion!==1||!VALID.has(row.event)||!SOURCES.has(row.source)||!OUTCOMES.has(row.outcome)||Number.isNaN(Date.parse(row.timestamp)))continue;
         if(Date.parse(row.timestamp)<cutoff)continue;
-        rows.push({schemaVersion:1,timestamp:row.timestamp,runId:typeof row.runId==='string'?row.runId:'',
-          flowId:typeof row.flowId==='string'?row.flowId:'',event:row.event,source:row.source,outcome:row.outcome,
+        rows.push({schemaVersion:1,timestamp:row.timestamp,runId:typeof row.runId==='string'&&/^[0-9a-f-]{36}$/.test(row.runId)?row.runId:'',
+          flowId:typeof row.flowId==='string'&&/^[0-9a-f-]{36}$/.test(row.flowId)?row.flowId:'',event:row.event,source:row.source,outcome:row.outcome,
           data:safeData(row.data),...(typeof row.taskKey==='string'?{taskKey:row.taskKey}:{}),
           ...(typeof row.sessionKey==='string'?{sessionKey:row.sessionKey}:{}),
           ...(typeof row.projectKey==='string'?{projectKey:row.projectKey}:{})});
@@ -202,6 +202,10 @@ export function clearDiagnostics() {
     if(/^events-\d{4}-\d{2}-\d{2}(?:-\d+)?\.jsonl$/.test(file)) {
       try{unlinkSync(join(dir,file));n++;}catch{}
     }
+  }
+  const exported=join(dir,'exports');
+  if(existsSync(exported))for(const file of readdirSync(exported)) {
+    if(/^pi-compose-ux-[0-9TZ.-]+\.json$/.test(file)) {try{unlinkSync(join(exported,file));n++;}catch{}}
   }
   return n;
 }

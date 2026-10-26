@@ -1,5 +1,6 @@
-import { resolve } from 'node:path';
-import { clearDiagnostics, configureDiagnostics, diagnosticStatus, exportDiagnostics, analyzeDiagnostics, readDiagnosticEvents } from '../src/diagnostics.mjs';
+import { resolve, join } from 'node:path';
+import { mkdirSync } from 'node:fs';
+import { clearDiagnostics, configureDiagnostics, diagnosticStatus, diagnosticsDir, exportDiagnostics, analyzeDiagnostics, readDiagnosticEvents } from '../src/diagnostics.mjs';
 
 export function diagnosticsCli(args) {
   const [command,...rest]=args;
@@ -25,7 +26,9 @@ export function diagnosticsCli(args) {
       if(command==='summary') {console.log(JSON.stringify(analyzeDiagnostics(readDiagnosticEvents({days})),null,2));return 0;}
       // Write one shareable report by default, not raw log lines in the terminal.
       const defaultName='pi-compose-ux-'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';
-      const dest=resolve(output||defaultName);
+      const privateExports=join(diagnosticsDir(),'exports');
+      if(!output)mkdirSync(privateExports,{recursive:true,mode:0o700});
+      const dest=output?resolve(output):join(privateExports,defaultName);
       const {report}=exportDiagnostics({days,output:dest});
       console.log('Diagnostic report: '+dest);
       console.log('Events: '+report.summary.observedEvents+' | Retention: '+diagnosticStatus().retentionDays+' days');
