@@ -4,6 +4,7 @@ import { realpath } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { planResume, executeResume } from '../src/resume.ts';
 import { fileURLToPath } from 'node:url';
+import { diagnosticEvent, startFlow, finishFlow } from '../src/diagnostics.mjs';
 
 const baseExtension = fileURLToPath(new URL('./compose.ts', import.meta.url));
 
@@ -402,6 +403,9 @@ export async function returnToWorktree(pi: ExtensionAPI, ctx: ExtensionContext, 
 export async function showSavedSessions(
   ctx: ExtensionCommandContext, query = '',
 ): Promise<void> {
+  const flow = startFlow('sessions.opened',{source:'slash',projectId:ctx.cwd});
+  let outcome:'success'|'failure'|'cancelled'|'unavailable'='cancelled';
+  try {
   if (!ctx.hasUI) {
     ctx.ui.notify('Pi 저장 대화는 /resume 또는 /compose sessions에서 선택하세요.', 'warning');
     return;
@@ -411,12 +415,14 @@ export async function showSavedSessions(
     sessions = await SessionManager.list(ctx.cwd, ctx.sessionManager.getSessionDir());
   } catch (error) {
     ctx.ui.notify('Pi 대화 목록을 불러오지 못했습니다: ' + String(error), 'error');
+    outcome='failure';
     return;
   }
   const current = ctx.sessionManager.getSessionFile();
   const matches = sessions.filter(s => s.path !== current
     && matches([s.name, s.firstMessage, s.id].join(' '), query)).slice(0, 50);
   if (!matches.length) {
+    outcome='unavailable';
     ctx.ui.notify('이 프로젝트에 일치하는 저장 Pi 대화가 없습니다. /resume에서 직접 찾을 수도 있습니다.', 'info');
     return;
   }
@@ -428,6 +434,10 @@ export async function showSavedSessions(
   const session = matches[labels.indexOf(chosen)];
   if (!session) return;
   // This is Pi's existing in-process session switch, NOT tmux/Pi spawning.
+  diagnosticEvent('switch.started',{source:'menu',flowId:flow.flowId,sessionId:session.id,data:{kind:'saved_session'}});
   const switched = await ctx.switchSession(session.path);
+  outcome=switched.cancelled?'cancelled':'success';
+  diagnosticEvent('switch.finished',{source:'menu',flowId:flow.flowId,sessionId:session.id,outcome,data:{kind:'saved_session'}});
   if (switched.cancelled) ctx.ui.notify('이전 대화 복귀가 취소됐습니다.', 'info');
+  } finally { finishFlow(flow,'sessions.finished',{source:'slash',outcome}); }
 }
