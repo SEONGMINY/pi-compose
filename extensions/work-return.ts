@@ -427,19 +427,21 @@ export async function showSavedSessions(
     return;
   }
   const current = ctx.sessionManager.getSessionFile();
-  const matches = sessions.filter(s => s.path !== current
+  // Avoid shadowing the matching predicate: the old "const matches" name
+  // caused a ReferenceError whenever a saved session was evaluated.
+  const savedSessions = sessions.filter(s => s.path !== current
     && matches([s.name, s.firstMessage, s.id].join(' '), query)).slice(0, 50);
-  if (!matches.length) {
+  if (!savedSessions.length) {
     outcome='unavailable';
-    ctx.ui.notify('이 프로젝트에 일치하는 저장 Pi 대화가 없습니다. /resume에서 직접 찾을 수도 있습니다.', 'info');
+    ctx.ui.notify('현재 폴더(cwd)에서 일치하는 저장 대화가 없습니다. 다른 작업 폴더에서 진행한 대화는 Pi /resume에서 전체 목록을 확인하세요.', 'info');
     return;
   }
-  const labels = matches.map((session, index) =>
+  const labels = savedSessions.map((session, index) =>
     (index + 1) + '. ' + label(session.name || session.firstMessage || '(이름 없음)')
     + ' [' + session.id.slice(0, 8) + '] · 저장된 Pi 대화');
   const chosen = await ctx.ui.select('이전 기능·대화 · ' + (query || '현재 프로젝트'), labels);
   if (!chosen) return;
-  const session = matches[labels.indexOf(chosen)];
+  const session = savedSessions[labels.indexOf(chosen)];
   if (!session) return;
   // This is Pi's existing in-process session switch, NOT tmux/Pi spawning.
   diagnosticEvent('switch.started',{source:'menu',flowId:flow.flowId,sessionId:session.id,data:{kind:'saved_session'}});
@@ -447,5 +449,8 @@ export async function showSavedSessions(
   outcome=switched.cancelled?'cancelled':'success';
   diagnosticEvent('switch.finished',{source:'menu',flowId:flow.flowId,sessionId:session.id,outcome,data:{kind:'saved_session'}});
   if (switched.cancelled) ctx.ui.notify('이전 대화 복귀가 취소됐습니다.', 'info');
+  } catch (error) {
+    outcome='failure';
+    ctx.ui.notify('저장 Pi 대화 탐색 또는 전환 실패: ' + String(error) + '. Pi /resume에서도 확인할 수 있습니다.', 'error');
   } finally { finishFlow(flow,'sessions.finished',{source:'slash',outcome}); }
 }
