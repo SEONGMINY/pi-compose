@@ -2,7 +2,8 @@ import { Type } from '@earendil-works/pi-ai';
 import { SessionManager, type ExtensionAPI, type ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { planLaunch, executeLaunch } from '../src/launch.ts';
 import { planResume, executeResume } from '../src/resume.ts';
-import { registerWorkReturn, showWorkPicker } from './work-return.ts';
+import { registerWorkReturn, showWorkPicker, showSavedSessions } from './work-return.ts';
+import { openWorkmuxMonitor } from './optional/workmux-dashboard.ts';
 import { registerTaskHub, showTaskHub, trackLaunchedTask, refreshTaskIndicator } from './task-hub.ts';
 import { fileURLToPath } from 'node:url';
 import { Text } from '@earendil-works/pi-tui';
@@ -104,7 +105,7 @@ export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, 
     const indexWarning = await trackLaunchedTask(pi, plan);
     if (indexWarning) ctx.ui.notify(indexWarning, 'warning');
     await refreshTaskIndicator(ctx, plan.cwd);
-    ctx.ui.notify(`위임 명령 실행 완료 · ${taskName(plan.task)} · 실제 Agent 활동은 Hub에서 확인`, 'info');
+    ctx.ui.notify(`Agent 실행 명령 전달 완료 · ${taskName(plan.task)} · 실행 상태: /compose monitor, 정확한 연결: /compose`, 'info');
     for (const warning of result.warnings) ctx.ui.notify(warning, 'warning');
   } catch (error: unknown) {
     ctx.ui.notify(`Launch failed: ${error instanceof Error ? error.message : String(error)}`, 'error');
@@ -116,11 +117,19 @@ export default function composeExtension(pi: ExtensionAPI): void {
   const openHub = (ctx: ExtensionContext) => showTaskHub(pi, ctx, () => showLaunchWizard(pi, ctx, 'launch'));
   registerTaskHub(pi, openHub);
   pi.registerCommand('compose', {
-    description: 'Pi Compose: /compose or Alt+W for tasks; /compose launch [task], /compose back [query], /compose resume',
+    description: 'Pi Compose: /compose related agents; /compose launch, /compose monitor, /compose sessions',
     handler: async (args, ctx) => {
       const [subcommand, ...rest] = args.trim().split(/\s+/);
       if (!subcommand || subcommand === 'work') {
         await openHub(ctx);
+        return;
+      }
+      if (subcommand === 'monitor' || subcommand === 'dashboard') {
+        await openWorkmuxMonitor(pi, ctx);
+        return;
+      }
+      if (subcommand === 'sessions') {
+        await showSavedSessions(ctx, rest.join(' '));
         return;
       }
       if (subcommand === 'back') {
@@ -164,7 +173,7 @@ export default function composeExtension(pi: ExtensionAPI): void {
         return;
       }
       if (subcommand !== 'launch' && subcommand !== 'preview') {
-        ctx.ui.notify('Usage: /compose launch [task], /compose preview [task], /compose work [query], /compose back [query], or /compose resume. Optional workmux View: /compose-workmux', 'info');
+        ctx.ui.notify('Usage: /compose, /compose launch [task], /compose monitor, /compose sessions [query], /compose back [query], /compose resume', 'info');
         return;
       }
       await showLaunchWizard(pi, ctx, subcommand, rest.join(' '));
@@ -228,7 +237,7 @@ export default function composeExtension(pi: ExtensionAPI): void {
       return {
         content: [{ type: 'text' as const,
           text: '위임 명령 실행 완료: ' + taskName(plan.task, params.title)
-            + '. 실제 Agent 활동은 미확인입니다. /compose에서 작업을 확인하세요.' }],
+            + '. 실제 Pi 활동은 미확인입니다. 관련 작업은 /compose, 실행 관찰은 /compose monitor.' }],
         details: result,
       };
     },

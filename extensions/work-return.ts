@@ -396,3 +396,38 @@ export async function returnToWorktree(pi: ExtensionAPI, ctx: ExtensionContext, 
     ctx.ui.notify('Could not open workmux target: ' + String(error), 'error');
   }
 }
+
+
+/** Kiro-style feature history: Pi's own per-project session index, no new DB or Pi process. */
+export async function showSavedSessions(
+  ctx: ExtensionCommandContext, query = '',
+): Promise<void> {
+  if (!ctx.hasUI) {
+    ctx.ui.notify('Pi 저장 대화는 /resume 또는 /compose sessions에서 선택하세요.', 'warning');
+    return;
+  }
+  let sessions: Awaited<ReturnType<typeof SessionManager.list>>;
+  try {
+    sessions = await SessionManager.list(ctx.cwd, ctx.sessionManager.getSessionDir());
+  } catch (error) {
+    ctx.ui.notify('Pi 대화 목록을 불러오지 못했습니다: ' + String(error), 'error');
+    return;
+  }
+  const current = ctx.sessionManager.getSessionFile();
+  const matches = sessions.filter(s => s.path !== current
+    && matches([s.name, s.firstMessage, s.id].join(' '), query)).slice(0, 50);
+  if (!matches.length) {
+    ctx.ui.notify('이 프로젝트에 일치하는 저장 Pi 대화가 없습니다. /resume에서 직접 찾을 수도 있습니다.', 'info');
+    return;
+  }
+  const labels = matches.map((session, index) =>
+    (index + 1) + '. ' + label(session.name || session.firstMessage || '(이름 없음)')
+    + ' [' + session.id.slice(0, 8) + '] · 저장된 Pi 대화');
+  const chosen = await ctx.ui.select('이전 기능·대화 · ' + (query || '현재 프로젝트'), labels);
+  if (!chosen) return;
+  const session = matches[labels.indexOf(chosen)];
+  if (!session) return;
+  // This is Pi's existing in-process session switch, NOT tmux/Pi spawning.
+  const switched = await ctx.switchSession(session.path);
+  if (switched.cancelled) ctx.ui.notify('이전 대화 복귀가 취소됐습니다.', 'info');
+}

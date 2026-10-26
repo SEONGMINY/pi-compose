@@ -1,35 +1,36 @@
-import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
+import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { dashboardArgs, type DashboardOptions } from '../../src/dashboard.ts';
 
 /**
- * Optional Pi view: load explicitly with -e or with Pi's settings.extensions.
- * The default pi-compose package only registers extensions/compose.ts.
+ * Use workmux's actual multi-project UI; no second agent status renderer.
+ * Shared sessions not managed by workmux remain available from /compose.
  */
+export async function openWorkmuxMonitor(
+  pi: ExtensionAPI, ctx: ExtensionContext, tab?: DashboardOptions['tab'],
+): Promise<void> {
+  if (!ctx.hasUI || !process.env.TMUX) {
+    ctx.ui.notify('workmux Dashboard는 tmux 안에서 열립니다. 터미널에서 workmux dashboard 실행 가능.', 'warning');
+    return;
+  }
+  const command = ['workmux', ...dashboardArgs({tab})].map(value => "'" + value.replaceAll("'", "'\\''") + "'").join(' ');
+  try {
+    const result = await pi.exec('tmux', ['display-popup', '-E', '-w', '90%', '-h', '90%', command], { cwd: ctx.cwd });
+    if (result.code !== 0) throw new Error(result.stderr || 'tmux popup exit ' + result.code);
+  } catch (error) {
+    ctx.ui.notify('workmux Dashboard를 열 수 없습니다. 설치된 tmux/workmux를 확인하세요: ' + String(error), 'error');
+  }
+}
+
 export default function workmuxDashboardExtension(pi: ExtensionAPI): void {
   pi.registerCommand('compose-workmux', {
-    description: 'Open the optional workmux dashboard from a tmux popup: /compose-workmux [agents|worktrees]',
+    description: 'Optional workmux Dashboard: /compose-workmux [agents|worktrees]',
     handler: async (args, ctx) => {
       const input = args.trim();
       if (input && input !== 'agents' && input !== 'worktrees') {
         ctx.ui.notify('Usage: /compose-workmux [agents|worktrees]', 'warning');
         return;
       }
-      if (!ctx.hasUI || !process.env.TMUX) {
-        ctx.ui.notify('The workmux View requires Pi running in tmux. You can also use "pi-compose dashboard" in a terminal.', 'warning');
-        return;
-      }
-      const tab: DashboardOptions['tab'] = input === 'agents' || input === 'worktrees' ? input : undefined;
-      // dashboardArgs contains only fixed arguments and the validated tab value.
-      // No user-controlled shell fragments are passed to tmux.
-      const command = ['workmux', ...dashboardArgs({ tab })].map(value => `'${value}'`).join(' ');
-      try {
-        const result = await pi.exec('tmux', ['display-popup', '-E', '-w', '90%', '-h', '90%', command]);
-        if (result.code !== 0) {
-          throw new Error(result.stderr || `tmux exited with code ${result.code}`);
-        }
-      } catch (error) {
-        ctx.ui.notify(`Could not open workmux dashboard: ${error instanceof Error ? error.message : String(error)}`, 'error');
-      }
+      await openWorkmuxMonitor(pi, ctx, input === 'agents' || input === 'worktrees' ? input : undefined);
     },
   });
 }

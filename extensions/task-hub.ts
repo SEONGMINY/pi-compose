@@ -2,13 +2,13 @@ import { basename, resolve } from 'node:path';
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import type { LaunchPlan } from '../src/launch.ts';
 import { listTasks, recordTask, type TaskRecord, type TaskLink, type TmuxLocation } from '../src/task-index.ts';
-import { focusSharedTaskTab, ghosttyEnabled } from '../src/ghostty.ts';
-import { parseWorkmuxStatus, worktreeStatus, type AgentObservation } from '../src/agent-status.ts';
-import { pickTask } from './compose-panel.ts';
-import { workmuxRows, returnToTmux, showWorkPicker, type OpenWorktree } from './work-return.ts';
+import { type AgentObservation } from '../src/agent-status.ts';
+import { openWorkmuxMonitor } from './optional/workmux-dashboard.ts';
+import { workmuxRows, returnToTmux, type OpenWorktree } from './work-return.ts';
+import { showSavedSessions } from './work-return.ts';
 
 type HubRow = {
-  kind: 'current' | 'main' | 'task' | 'history' | 'new';
+  kind: 'current' | 'main' | 'task' | 'history' | 'new' | 'monitor';
   label: string;
   record?: TaskRecord;
   target?: TmuxLocation;
@@ -71,11 +71,12 @@ function exactWorktree(record: TaskRecord, worktrees: OpenWorktree[]): OpenWorkt
 
 export function taskHubRows(
   records: TaskRecord[], worktrees: OpenWorktree[], live: TmuxLocation[], current?: TmuxLocation,
-  isMain = false, observations: AgentObservation[] = [],
+  isMain = false, _observations: AgentObservation[] = [],
 ): HubRow[] {
   const isLive = (location: TmuxLocation | undefined) =>
     Boolean(location && live.some(x => equalLocation(x, location)));
-  const currentTask = records.find(record => equalLocation(record.targetLocation, current));
+  const currentMatches = records.filter(record => equalLocation(record.targetLocation, current));
+  const currentTask = currentMatches.length === 1 ? currentMatches[0] : undefined;
   const rows: HubRow[] = [];
   if (currentTask) {
     const main = currentTask.mainLocation;
@@ -92,27 +93,23 @@ export function taskHubRows(
       + (current ? ' · 연결됨' : ' · 위치 확인 불가'),
   });
 
-  // Live work first; closed and unverified entries after it. Bounded to avoid
-  // turning the Hub into a second raw session management console.
+  // Spawn order never changes when an agent starts, stops, or finishes a turn.
+  // The durable index already sorts by creation timestamp; do not re-sort by runtime status.
   const titleCount = new Map<string, number>();
   for (const record of records) titleCount.set(record.title, (titleCount.get(record.title) || 0) + 1);
   const entries = records.map(record => {
     const worktree = record.workspace === 'worktree' ? exactWorktree(record, worktrees) : undefined;
     const available = isLive(record.targetLocation) && (record.workspace === 'shared' || Boolean(worktree?.is_open));
     const location = equalLocation(record.targetLocation, current) ? ' · 현재 작업' : '';
-    const observed = available && worktree ? worktreeStatus(observations, worktree.path) : undefined;
     const status = available
-      ? observed === 'working' ? 'AI 동작 중 (workmux 관측)'
-        : observed === 'waiting' ? '입력 대기 (workmux 관측)'
-        : observed === 'settled' ? '최근 응답 종료 · 개발 완료 미확인'
-        : '대상 열림 · AI 상태 미확인'
+      ? '대상 열림 · AI 상태는 workmux에서 확인'
       : record.targetLocation ? '대상 종료 또는 확인 불가' : '연결 정보 없음 · 이전 작업 탐색';
     const displayName = titleCount.get(record.title)! > 1 ? record.title + ' [' + record.id.slice(0, 8) + ']' : record.title;
     return { kind: 'task' as const, record, available, label: displayName
       + location + ' · ' + (record.workspace === 'shared' ? '같은 폴더' : '별도 작업 공간')
       + ' · ' + status
       + (record.handoff ? ' · 인계 기록' : '') + (record.review ? ' · 검토 기록' : '') };
-  }).sort((a, b) => Number(b.available) - Number(a.available));
+  });
   rows.push(...entries.slice(0, 15));
   rows.push({ kind: 'history', label: '다른 대화·이전 작업 찾기 (고급)' });
   return rows;
@@ -174,16 +171,64 @@ export async function trackLaunchedTask(pi: ExtensionAPI, plan: LaunchPlan, titl
   }
 }
 
-export async function refreshTaskIndicator(ctx: ExtensionContext, root = ctx.cwd): Promise<void> {
+
+/**
+ * A single small Pi-native picker. Running-work observations belong in workmux
+ * Dashboard, not a second TUI implementation in Pi Compose.
+ */
+export async function refreshTaskIndicator(ctx: ExtensionContext): Promise<void> {
   if (!ctx.hasUI) return;
-  // A count without refreshing other processes can be misleading. Keep the
-  // stable navigation affordance and compute real availability only in the Hub.
-  ctx.ui.setStatus('compose-tasks', '작업 · /compose');
-  // Keep one visible entry point; remove the old editor widget.
+  ctx.ui.setStatus('compose-tasks', '/compose · 관련 Agent');
   ctx.ui.setWidget('compose-hint', undefined);
 }
+const brief = (text: string, limit = 24): string => {
+  const chars = Array.from(text.replace(/\s+/g, ' ').trim());
+  return chars.length > limit ? chars.slice(0, limit).join('') + '…' : chars.join('');
+};
+const evidenceText = (record: TaskRecord): string => [
+  'Agent: ' + record.title,
+  'Git HEAD는 기록 시점의 값이며 현재 상태와 다를 수 있습니다.',
+  record.handoff ? '\n[개발자 인계 주장 · 독립 검증 전]\n'
+    + '작업 내용: ' + record.handoff.summary + '\nWHY / 제약: ' + record.handoff.why
+    + '\n실행했다고 보고한 검사: ' + record.handoff.checks
+    + '\n미해결: ' + record.handoff.outstanding
+    + '\n기록 HEAD: ' + record.handoff.gitHead : '\n인계 보고 없음. Agent에서 /compose-handoff 실행 가능 (선택형).',
+  record.review ? '\n[독립 검토 실행 · 통합 승인 아님]\n'
+    + record.review.reportExcerpt + '\n검토 HEAD: ' + record.review.gitHead
+    + (record.review.incomplete ? '\n검증 누락 범위가 있습니다.' : '')
+    : '\n독립 검토 없음. Agent에서 /compose-verify 실행 가능 (선택형).',
+  '\nMain에서 병합 또는 Worktree 정리를 자동으로 실행하지 않습니다.',
+].join('\n');
 
-/** Same Hub in Main and child Pi (when the navigation-only package is enabled). */
+async function taskActions(ctx: ExtensionContext, row: HubRow): Promise<'open' | 'back'> {
+  const record = row.record;
+  if (!record) return 'back';
+  const actions = [
+    ...(row.available ? ['기존 Agent 화면으로 이동'] : []),
+    '원본 위임 지시 확인',
+    '인계·검토 결과 확인',
+    '← 작업 목록으로',
+  ];
+  while (true) {
+    const choice = await ctx.ui.select('작업 · ' + brief(record.title, 34), actions);
+    if (!choice || choice.startsWith('←')) return 'back';
+    if (choice === '기존 Agent 화면으로 이동') return 'open';
+    if (choice === '원본 위임 지시 확인') {
+      // An exact recorded instruction is not a summary of the entire Pi Fork.
+      await ctx.ui.confirm('위임 원문 · 읽기 전용', [
+        '작업: ' + record.title,
+        '컨텍스트: ' + (record.context === 'fork' ? 'Fork' : 'Independent'),
+        ...(record.sourceSessionId ? ['원본 Pi 세션 ID: ' + record.sourceSessionId] : []),
+        '공간: ' + (record.workspace === 'worktree' ? 'Worktree' : 'Shared'),
+        ...(record.branch ? ['브랜치: ' + record.branch] : []),
+        '\n실제 위임 지시 (원본 대화 전체 아님):\n' + (record.instruction || record.title),
+      ].join('\n'));
+    } else if (choice === '인계·검토 결과 확인') {
+      await ctx.ui.confirm('작업 결과 · 읽기 전용', evidenceText(record));
+    }
+  }
+}
+
 export async function showTaskHub(
   pi: ExtensionAPI, ctx: ExtensionContext, onLaunch?: () => Promise<void>,
 ): Promise<void> {
@@ -191,63 +236,61 @@ export async function showTaskHub(
   const [mux, snapshot] = await Promise.all([workmuxRows(pi, ctx.cwd), tmuxSnapshot(pi, ctx.cwd)]);
   const root = await projectRoot(pi, ctx.cwd, mux.rows);
   const records = await listTasks(root);
-  // Read existing workmux Hook observations on demand. No polling or new state DB.
-  let observations: AgentObservation[] = [];
-  try {
-    const status = await pi.exec('workmux', ['status', '--json'], { cwd: root });
-    if (status.code === 0) observations = parseWorkmuxStatus(status.stdout, root);
-  } catch { /* Hooks unavailable; retain the honest unknown status. */ }
-  const taskRows = taskHubRows(
-    records, mux.rows, snapshot.rows, snapshot.current,
-    process.env.PIC_COMPOSE_MAIN === '1' || records.some(record => equalLocation(record.mainLocation, snapshot.current)),
-    observations,
-  );
-  // Returning to Main is always the first action from a known child Agent.
-  const rows: HubRow[] = taskRows[0]?.kind === 'main'
-    ? [taskRows[0], taskRows[1]!, ...(onLaunch ? [{ kind: 'new' as const, label: '+ 새 에이전트에게 맡기기' }] : []), ...taskRows.slice(2)]
-    : [...(onLaunch ? [{ kind: 'new' as const, label: '+ 새 에이전트에게 맡기기' }] : []), ...taskRows];
-  const selected = await pickTask(ctx, basename(root), rows);
-  if (selected === undefined) return;
-  const selectedRow = rows[selected];
-  if (!selectedRow) return;
-  if (selectedRow.kind === 'new') {
-    if (onLaunch) await onLaunch();
-    return;
-  }
-  if (selectedRow.kind === 'current') return;
-  if (selectedRow.kind === 'history') {
+  const taskRows = taskHubRows(records, mux.rows, snapshot.rows, snapshot.current,
+    process.env.PIC_COMPOSE_MAIN === '1'
+      || records.some(record => equalLocation(record.mainLocation, snapshot.current)));
+  // The current location stays the first row; cursor selection is a separate notion.
+  const rows: HubRow[] = [
+    ...taskRows.filter(row => row.kind === 'current' || row.kind === 'main'),
+    ...taskRows.filter(row => row.kind === 'task'),
+    ...(onLaunch ? [{ kind: 'new' as const, label: '+ 새 Agent에게 작업 위임' }] : []),
+    { kind: 'monitor', label: '전체 작업 관찰 · workmux Dashboard' },
+    { kind: 'history', label: '이전 Pi 대화·기능 찾기' },
+  ];
+  const choices = rows.map(row => {
+    if (row.kind !== 'task' || !row.record) return row.label;
+    const r = row.record;
+    const prefix = brief(r.title);
+    // Always distinguish identical names, without guessing by a branch name.
+    return prefix + ' [' + r.id.slice(0, 6) + '] · '
+      + (r.context === 'fork' ? 'Fork' : 'Independent') + ' · '
+      + (row.available ? '화면 연결됨' : '기록만 있음');
+  });
+  // Native select handles terminal width, keyboard focus and input restoration.
+  const selected = await ctx.ui.select('관련 작업 · ' + basename(root), choices);
+  if (!selected) return;
+  const row = rows[choices.indexOf(selected)];
+  if (!row || row.kind === 'current') return;
+  if (row.kind === 'new') { if (onLaunch) await onLaunch(); return; }
+  if (row.kind === 'monitor') { await openWorkmuxMonitor(pi, ctx); return; }
+  if (row.kind === 'history') {
+    // /compose sessions is an exact Pi-native switch, not another Agent list.
     if ('switchSession' in ctx && typeof ctx.switchSession === 'function') {
-      await showWorkPicker(pi, ctx as ExtensionCommandContext);
+      await showSavedSessions(ctx as ExtensionCommandContext);
     } else {
-      ctx.ui.notify('이전 대화 전환은 Main의 /compose back 또는 Pi의 /resume을 이용해 주세요.', 'info');
+      ctx.ui.notify('이전 기능 대화: /compose sessions 또는 Pi /resume', 'info');
     }
     return;
   }
-  const location = selectedRow.target || selectedRow.record?.targetLocation;
-  if (!location || !snapshot.rows.some(row => equalLocation(row, location))) {
-    ctx.ui.notify('정확한 실행 대상이 확인되지 않습니다. 새 Pi를 실행하지 않습니다.', 'warning');
+  if (row.kind === 'task' && await taskActions(ctx, row) !== 'open') return;
+
+  const target = row.target || row.record?.targetLocation;
+  if (!target || !snapshot.rows.some(live => equalLocation(live, target))) {
+    ctx.ui.notify('정확한 기존 tmux 창을 확인하지 못했습니다. 새로운 Pi는 실행하지 않습니다.', 'warning');
     return;
   }
-  if (selectedRow.record?.workspace === 'worktree'
-    && !exactWorktree(selectedRow.record, mux.rows)?.is_open) {
-    ctx.ui.notify('Worktree 실행 대상이 닫혔거나 연결 정보가 바뀌었습니다. 새로 시작하지 않습니다.', 'warning');
+  if (row.record?.workspace === 'worktree'
+    && !exactWorktree(row.record, mux.rows)?.is_open) {
+    ctx.ui.notify('Worktree 실행 창이 닫혔거나 연결 정보가 바뀌었습니다. 실행하지 않습니다.', 'warning');
     return;
   }
-  const record = selectedRow.record;
-  if (record && selectedRow.available && ghosttyEnabled()
-    && (record.workspace === 'shared' || exactWorktree(record, mux.rows)?.mode === 'session')) {
-    const opened = await focusSharedTaskTab(pi, record.title, record.id, location.session, root, location.windowId);
-    if (opened.ok) return;
-    ctx.ui.notify('Ghostty 탐색 실패. 기존 tmux 이동으로 전환: ' + opened.message, 'warning');
-  }
-  await returnToTmux(pi, ctx, {
-    name: location.session, cwd: root, windowId: location.windowId,
-  });
+  await returnToTmux(pi, ctx, { name: target.session, cwd: root, windowId: target.windowId });
 }
 
 export function registerTaskHub(pi: ExtensionAPI, openHub: (ctx: ExtensionContext) => Promise<void>): void {
+  // Optional fast path. /compose is the discoverable and portable default.
   pi.registerShortcut?.('alt+w', {
-    description: 'Pi Compose: 작업 보기 / Main 복귀',
+    description: 'Pi Compose: 관련 작업 탐색 (/compose)',
     handler: openHub,
   });
   pi.on?.('session_start', async (_event, ctx) => {
