@@ -1,6 +1,6 @@
 # ADR 0008 — One-time, consent-based Pi Compose setup
 
-- Status: **Accepted for PR #3** (2026-10-26)
+- Status: **Superseded for first-party package activation by ADR 0009** (2026-10-26)
 - Supersedes only the *startup behavior* of [ADR 0005](0005-pic-entry-and-pi-settings.md) and the *post-install onboarding* of [ADR 0006](0006-github-installer.md).
 - Preserves: Pi as the source of truth, user-controlled changes, no custom plugin registry, no silent changes to other agents, no Git/worktree/session mutations.
 
@@ -10,7 +10,9 @@ The existing installation prepared `pic` and its CLI dependencies but required u
 
 Pi's package manager supports local packages and per-resource filters. `pi install` writes to Pi's own global settings, and `pi config` can disable a previously installed package resource. `workmux setup` may change **other agent settings** in addition to Pi Hook configuration.
 
-## Decision: single Recommended configuration, no template picker
+## Historic decision: single Recommended configuration, no template picker
+
+> Newer decision: [ADR 0009](0009-automatic-default-and-ux-diagnostics.md) enables missing **first-party Pi Compose packages automatically**. Only external workmux Hook changes require a separate opt-in. The consent-first approach below remains as historical context.
 
 1. The official `scripts/install.sh` resolves **main** by default and can explicitly resolve a development branch with `PIC_COMPOSE_REF`. The guarded branch installer and direct Git SHA npm installs supply the same `pic` executable. npm `postinstall` is **not used** (direct install uses `--ignore-scripts`).
 2. The first **bare interactive** `pic` call checks existing Pi package declarations and workmux Pi status Hook read-only. If setup is missing, explain the scope and offer **one consent prompt**. Noninteractive Pi flags/CLI invocations never prompt.
