@@ -329,34 +329,34 @@ export async function showWorkPicker(pi: ExtensionAPI, ctx: ExtensionCommandCont
 }
 
 // Selection itself authorizes navigation, not a fresh Pi process or a Git change.
-export async function returnToTmux(pi: ExtensionAPI, ctx: ExtensionContext, target: LiveTmuxTarget): Promise<void> {
+export async function returnToTmux(pi: ExtensionAPI, ctx: ExtensionContext, target: LiveTmuxTarget): Promise<boolean> {
   const flow=startFlow('switch.started',{source:'menu',data:{kind:'tmux'}});
   let outcome:'success'|'failure'|'unavailable'='unavailable';
   try {
   if (!process.env.TMUX) {
     ctx.ui.notify('Pi is outside tmux. To connect to this target, run: tmux attach -t '
       + target.name, 'warning');
-    return;
+    return false;
   }
   try {
     const existing = await pi.exec('tmux', ['has-session', '-t', '=' + target.name], { cwd: ctx.cwd });
     if (existing.code !== 0) {
       ctx.ui.notify('The selected tmux target no longer exists. Refresh the work list.', 'warning');
-      return;
+      return false;
     }
     if (target.windowId) {
       // Main and workmux windows can share a single tmux session.
       // Validate the exact window ID before moving either the session or window.
       if (!/^@[0-9]+$/.test(target.windowId)) {
         ctx.ui.notify('Invalid tmux window ID. Nothing switched.', 'warning');
-        return;
+        return false;
       }
       const windows = await pi.exec('tmux', ['list-windows', '-a', '-F', '#{session_name}\t#{window_id}'], { cwd: ctx.cwd });
       const belongs = windows.code === 0 && windows.stdout.split('\n').some(row =>
         row === target.name + '\t' + target.windowId);
       if (!belongs) {
         ctx.ui.notify('Selected tmux window no longer belongs to its recorded session. Nothing switched.', 'warning');
-        return;
+        return false;
       }
     }
     const moved = await pi.exec('tmux', ['switch-client', '-t', '=' + target.name], { cwd: ctx.cwd });
@@ -366,9 +366,11 @@ export async function returnToTmux(pi: ExtensionAPI, ctx: ExtensionContext, targ
       if (window.code !== 0) throw new Error(window.stderr || 'select-window failed');
     }
     outcome='success';
+    return true;
   } catch (error) {
     outcome='failure';
     ctx.ui.notify('Could not switch tmux target: ' + String(error), 'error');
+    return false;
   }
   } finally { finishFlow(flow,'switch.finished',{source:'menu',outcome,data:{kind:'tmux'}}); }
 }

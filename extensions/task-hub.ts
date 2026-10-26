@@ -298,8 +298,8 @@ export async function showTaskHub(
     finishFlow(flow,'navigation.finished',{source:'menu',outcome:'unavailable',data:{reason:'worktree_closed'}});
     return;
   }
-  await returnToTmux(pi, ctx, { name: target.session, cwd: root, windowId: target.windowId });
-  finishFlow(flow,'navigation.finished',{source:'menu',outcome:'success',data:{kind:row.kind}});
+  const moved=await returnToTmux(pi, ctx, { name: target.session, cwd: root, windowId: target.windowId });
+  finishFlow(flow,'navigation.finished',{source:'menu',outcome:moved?'success':'failure',data:{kind:row.kind}});
 }
 
 /** Match only this running Pi's persisted session and exact tmux window. */
