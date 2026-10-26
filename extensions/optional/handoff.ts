@@ -1,6 +1,7 @@
 import { Type } from '@earendil-works/pi-ai';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { attachSessionEvidence, attachTaskEvidence } from '../../src/task-index.ts';
+import { diagnosticEvent, startFlow, finishFlow } from '../../src/diagnostics.mjs';
 
 /**
  * Optional handoff extension.
@@ -10,6 +11,7 @@ export default function handoffExtension(pi: ExtensionAPI): void {
   pi.registerCommand('compose-handoff', {
     description: 'Ask the current Pi agent to prepare an explicit, evidence-linked handoff; optionally send to a named workmux agent',
     handler: async (args, ctx) => {
+      diagnosticEvent('command.entered',{source:'slash',data:{route:'handoff'}});
       if (!ctx.hasUI) {
         ctx.ui.notify('Use an interactive Pi session to request a handoff.', 'warning');
         return;
@@ -39,6 +41,9 @@ export default function handoffExtension(pi: ExtensionAPI): void {
       recipient: Type.Optional(Type.String({ description: 'Optional exact workmux agent handle chosen by the user' })),
     }),
     async execute(_callId, params, _signal, _onUpdate, ctx) {
+      const flow=startFlow('handoff.started',{source:'natural-language'});
+      let outcome:'success'|'failure'='failure';
+      try {
       const cwd = ctx.cwd;
       const runGit = async (args: string[]): Promise<string> => {
         const result = await pi.exec('git', args, { cwd });
@@ -158,6 +163,7 @@ export default function handoffExtension(pi: ExtensionAPI): void {
           }
         }
       }
+      outcome='success';
       return {
         content: [{
           type: 'text' as const,
@@ -173,6 +179,7 @@ export default function handoffExtension(pi: ExtensionAPI): void {
           whitespaceCheck: checkState, delivery, hubLink,
         },
       };
+      } finally {finishFlow(flow,'handoff.finished',{source:'natural-language',outcome});}
     },
   });
 }
