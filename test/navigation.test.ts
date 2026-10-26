@@ -5,7 +5,7 @@ import { parseWorkmuxStatus, worktreeStatus } from '../src/agent-status.ts';
 import { returnToTmux } from '../extensions/work-return.ts';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 
-test('child Pi registers a single common work Hub and shortcut without the full compose tools', () => {
+test('child Pi registers the same navigation and explicit natural-language delegation tools', () => {
   const commands: string[] = [];
   const shortcuts: string[] = [];
   const tools: string[] = [];
@@ -24,7 +24,7 @@ test('child Pi registers a single common work Hub and shortcut without the full 
   }
   assert.deepEqual(commands, ['compose']);
   assert.deepEqual(shortcuts, ['alt+w']);
-  assert.deepEqual(tools, []);
+  assert.deepEqual(tools, ['compose_find_work', 'compose_return_work', 'compose_launch']);
 });
 
 test('navigation package does not conflict with the full Compose Extension in pic', () => {

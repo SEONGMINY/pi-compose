@@ -9,7 +9,7 @@ export async function openWorkmuxMonitor(
   pi: ExtensionAPI, ctx: ExtensionContext, tab?: DashboardOptions['tab'],
 ): Promise<void> {
   if (!ctx.hasUI || !process.env.TMUX) {
-    ctx.ui.notify('workmux Dashboard는 tmux 안에서 열립니다. 터미널에서 workmux dashboard 실행 가능.', 'warning');
+    ctx.ui.notify('The workmux View requires Pi running in tmux. In a terminal run: workmux dashboard. Run workmux setup to configure Pi status hooks.', 'warning');
     return;
   }
   const command = ['workmux', ...dashboardArgs({tab})].map(value => "'" + value.replaceAll("'", "'\\''") + "'").join(' ');
@@ -17,7 +17,7 @@ export async function openWorkmuxMonitor(
     const result = await pi.exec('tmux', ['display-popup', '-E', '-w', '90%', '-h', '90%', command], { cwd: ctx.cwd });
     if (result.code !== 0) throw new Error(result.stderr || 'tmux popup exit ' + result.code);
   } catch (error) {
-    ctx.ui.notify('workmux Dashboard를 열 수 없습니다. 설치된 tmux/workmux를 확인하세요: ' + String(error), 'error');
+    ctx.ui.notify('Could not open workmux dashboard: ' + (error instanceof Error ? error.message : String(error)) + '. Run workmux setup for Pi status hooks.', 'error');
   }
 }
 

@@ -77,3 +77,19 @@ test('shared task uses exact tmux window rather than mere session existence', ()
   assert.match(taskHubRows([shared], [], [main, agent], main).find(r => r.kind === 'task')!.label, /대상 열림/);
   assert.match(taskHubRows([shared], [], [main], main).find(r => r.kind === 'task')!.label, /대상 종료/);
 });
+
+
+test('task ordering remains stable as worktree activity changes', () => {
+  const older: TaskRecord = { ...record, id: '00000000-0000-4000-8000-000000000005',
+    title: '기능 A', branch: 'feat/older', worktreePath: '/tmp/w-old', workmuxHandle: 'old',
+    targetLocation: {session:'pic-project',windowId:'@3',windowName:'old'} };
+  const newer: TaskRecord = { ...record, id: '00000000-0000-4000-8000-000000000006',
+    title: '기능 B', branch: 'feat/newer', worktreePath: '/tmp/w-new', workmuxHandle: 'new',
+    targetLocation: {session:'pic-project',windowId:'@4',windowName:'new'} };
+  const rows1 = taskHubRows([newer, older], [], [main], main)
+    .filter(row => row.kind === 'task').map(row => row.record?.id);
+  const rows2 = taskHubRows([newer, older], [], [main, newer.targetLocation!, older.targetLocation!], main)
+    .filter(row => row.kind === 'task').map(row => row.record?.id);
+  assert.deepEqual(rows1, [newer.id, older.id]);
+  assert.deepEqual(rows2, [newer.id, older.id]);
+});
