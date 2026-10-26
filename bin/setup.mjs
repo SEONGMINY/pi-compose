@@ -132,6 +132,15 @@ export async function setupRecommended(root,{runPi,runWorkmux,firstRun=false,man
       finishFlow(flow,'setup.finished',{source:'automatic',outcome:'failure',data:{reason:'pi_package_error'}});
       return code||1;
     }
+    // A zero exit code is not sufficient if Pi did not persist the package.
+    const verified=inspectSetup(root);
+    const key=component==='navigation'?'navigation':'features';
+    if(verified.packages[key]==='missing'||verified.packages[key]==='unknown') {
+      console.error('pic: '+component+' command exited successfully but Pi package is not registered. Check pic doctor, retry pic setup.');
+      diagnosticEvent('setup.component',{source:'automatic',flowId:flow.flowId,outcome:'failure',data:{component}});
+      finishFlow(flow,'setup.finished',{source:'automatic',outcome:'failure',data:{reason:'pi_package_error'}});
+      return 1;
+    }
     diagnosticEvent('setup.component',{source:'automatic',flowId:flow.flowId,outcome:'success',data:{component}});
   }
   // This is an acknowledgement, not a feature registry. Never re-enable a
