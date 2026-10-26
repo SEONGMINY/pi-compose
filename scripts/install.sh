@@ -88,8 +88,18 @@ has workmux || fail "workmux is not available after installation."
 
 # Pin this installation to one exact Git commit. Do not rely on npm reusing a
 # cached main-branch clone when the same installer is run for an update.
-info "Resolving the current Pi Compose commit."
-revision="$(git ls-remote "$REPOSITORY" HEAD | awk 'NR == 1 { print $1 }')"
+install_ref="${PIC_COMPOSE_REF:-HEAD}"
+if [ "$install_ref" = "HEAD" ]; then
+  remote_ref="HEAD"
+else
+  # Only an explicitly requested Git branch is accepted. Resolve its HEAD to
+  # a fixed commit; refuse invalid names instead of falling back to main.
+  git check-ref-format --branch "$install_ref" >/dev/null 2>&1 \
+    || fail "PIC_COMPOSE_REF must be a valid Git branch. No fallback installation was attempted."
+  remote_ref="refs/heads/$install_ref"
+fi
+info "Resolving Pi Compose commit for $remote_ref."
+revision="$(git ls-remote --exit-code "$REPOSITORY" "$remote_ref" | awk 'NR == 1 { print $1 }')"
 case "$revision" in
   ''|*[!0-9a-fA-F]*) fail "Could not resolve a valid Pi Compose commit from GitHub." ;;
 esac
