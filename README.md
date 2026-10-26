@@ -6,34 +6,36 @@ Pi Compose는 Main의 요구사항과 설계 이유를 이어받아 다른 개�
 
 Main에서 충분히 논의한 뒤, **그 대화를 Fork해서 개발하거나**, 맥락이 필요 없는 탐색·테스트는 **Independent Agent**에게 맡길 수 있습니다. 작업 관찰과 터미널 관리는 Git·tmux·[workmux](https://workmux.dev/)가 담당합니다.
 
-## 시작하기
+## 설치와 최초 설정
 
-macOS, Node.js 22.19 이상, Pi, tmux, workmux가 필요합니다.
+macOS에서는 [공식 설치 스크립트](scripts/install.sh)를 사용합니다. 이 명령은 현재 **main** 버전을 설치하며, Draft PR #3의 설정 통합 기능은 머지 후 적용됩니다.
 
 ```bash
-# main의 안정 설치/업데이트
 curl -fsSL https://raw.githubusercontent.com/SEONGMINY/pi-compose/main/scripts/install.sh | bash
-
-cd ~/projects/my-app
-pic
 ```
 
-PR #3의 **아직 머지되지 않은 개발 버전**을 사용하려면 위 명령 대신 다음을 실행하세요.
+아직 Draft인 **PR #3**을 사용하려면 다음을 실행합니다. Node.js 22.19 이상·Pi·tmux·workmux가 필요하며, 이미 설치된 Pi 환경을 유지합니다.
 
 ```bash
 npm install -g --ignore-scripts --no-audit --no-fund \
   "git+https://github.com/SEONGMINY/pi-compose.git#feat/task-hub-ghostty"
 ```
 
-`pic`은 프로젝트별 tmux 세션을 재사용합니다. 이미 tmux 안에서는 세션을 중첩하지 않습니다. 최초 Pi 인증은 `/login`, 모델 선택은 `/model`입니다. 기존 Pi 로그인과 대화 기록을 재사용합니다.
-
-**Worktree 안의 개발 Agent에서도 Compose 명령과 자연어 위임을 사용하려면** 아래 명령을 최초 한 번 실행하세요.
-
 ```bash
-pic navigation enable
+cd ~/projects/my-app
+pic
 ```
 
-기존에 실행한 Pi에서는 `/reload`가 필요합니다. 설치된 Extension을 전역 Pi 설정에서 해제하려면 `pic navigation disable`을 실행합니다.
+최초 대화형 `pic` 실행 시, 필요하다면 **한 번만 권장 기능 설정을 확인**합니다. 동의하면 Child Navigation과 Handoff/Verify를 Pi의 공식 패키지 명령으로 설치합니다. workmux 상태 Hook은 다른 에이전트 설정에 영향을 줄 수 있으므로 **별도로 승인**하고 workmux의 자체 설정 화면에서 선택합니다. 건너뛰어도 핵심 Launch는 사용할 수 있습니다. 설치 후 다른 명령들을 외울 필요는 없습니다.
+
+```bash
+pic doctor  # 변경 없이 설치/설정 확인
+pic setup   # 권장 구성 재설정·누락 단계 재시도
+```
+
+기존 Pi 설정, Extension, Skill, 세션은 유지합니다. 사용자가 비활성화한 기능은 재설치나 업데이트로 강제 활성화하지 않습니다. 최초 모델 연결은 Pi에서 `/login`, `/model`을 사용합니다.
+
+**[설치·업데이트·문제 해결 상세](docs/SETUP.md)** · **[실전 시나리오 5개](docs/SCENARIOS.md)**
 
 ## 실제 개발 흐름
 
