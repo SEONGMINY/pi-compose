@@ -1,80 +1,55 @@
-# Task Hub와 위임 확인 — 3차 UI 구조 개선
+# PR #3 — 레퍼런스 기반 Launch·Navigation·Result UX 수동 점검
 
-기준: PR #3 `feat/task-hub-ghostty`. 실제 macOS Ghostty 화면 재검증 전.
+기준: \`feat/task-hub-ghostty\`. **이번 구현에서 GitHub Actions, E2E는 실행하지 않았습니다. 실macOS/Ghostty·인증된 Pi 모델 화면은 검증하지 못했습니다.** 이 문서는 실행 가능한 확인 절차이지 이미 통과한 검증 보고가 아닙니다.
 
-## 왜 구조를 바꿨나
+## 변경된 경계
 
-이전 버전의 중앙 Overlay에는 고정 크기(76·82열)와 자체 문자열 렌더링이 사용됐습니다. 기존 대화 위에 Overlay가 합성되고, 긴 제목은 문자열 길이로 잘리며, 목록과 상세가 같은 영역을 점유했습니다. 실제 사용자가 겹침·잘림·포커스 구분 실패를 보고했습니다.
+- **유지:** 사용자 명시적 실행, Fork/Independent, Shared/Worktree, 원본 Main 세션, 정확한 tmux 창, Pi 저장 대화, Handoff/Verify, 명시적 Resume
+- **통합:** 자연어와 Slash 모두 단일 Pi \`confirm()\` 승인 사용; Child Agent에서도 같은 \`compose_launch\` Tool 사용
+- **대체:** 자체 Task Hub Overlay/Dialog 렌더러 → Pi \`ctx.ui.select()\`; 전체 출력/상태 → workmux Dashboard; 이전 기능 → Pi SessionManager
+- **제거:** Compose 내부 workmux 상태 JSON 파서와 Ghostty 네이티브 AppleScript 탭 제어
+- **호환 유지:** \`/compose work\`, \`/compose back\`, \`/compose resume\`, \`/compose-workmux\`(선택형)
+- **중요:** workmux Dashboard Agents 보기는 Pi 상태 Hook이 필요하며 \`workmux setup\`은 사용자가 실행합니다. Shared Pi가 모두 표시되지는 않습니다.
 
-이번에는 **Overlay 자체를 기본 경로에서 제거**했습니다. Pi `ctx.ui.custom()`의 일반 Dialog를 활용하여 대화 위에 띄우지 않고, Pi TUI의 스크롤·복원 처리를 재사용합니다. 별도 렌더러나 터미널 제어 시스템을 만들지 않았습니다.
+## 검증 매트릭스
 
-## Main, 위임 확인, Task Hub
+| 시나리오 | 사용자 조작 | 완료 기준 |
+| --- | --- | --- |
+| 최초 진입 | \`pic\` | Pi 기본 대화 정상, Compose 상태 안내가 최소, Main 세션 기존 실행 보존 |
+| 실행 의도 없는 논의 | "Agent에게 맡기는 게 나을까?" | 작업·Worktree 생성 없음 |
+| 명시적 자연어 | "현재 대화 Fork, Worktree에서 구현해 줘" | 실행 옵션 및 지시 원문 확인, 승인 전 변경 없음 |
+| 직접 명령 | \`/compose launch API 구현\` | 자연어와 같은 승인 컴포넌트, Source/Workspace/브랜치 분리 |
+| 취소 | 실행 확인에서 취소 | tmux·Worktree에 새 대상 없음 |
+| 작업 탐색 | \`/compose\` | Main, 현재 Agent, 연결된 작업만 적절히 구분. 동명이인 각각 식별됨 |
+| 순서 안정성 | 3개 Agent 중 하나 종료 | 실행 가능 여부가 바뀌어도 목록 기본 순서 유지 |
+| 정확한 이동 | Main → Agent A → Main → B | tmux의 동일 세션·창 ID 재사용, 중복 Pi 미실행 |
+| 연결 정보 없거나 종료 | 오래된 작업 선택 | 새 Pi 자동 실행 없음. 고급 Resume 경로 분리 |
+| 모니터 | \`/compose monitor\` | workmux Dashboard 실행; 에이전트 Hook 설정 시 상태·미리보기 확인 |
+| Workmux 미지원 | Shared Directory 또는 Hook 미설치 | 대체 경로 \`/compose\` 존재, 거짓 상태·완료 없음 |
+| 기능 복귀 | \`/compose sessions 프로필\` | 정확한 Pi 저장 대화 선택, 같은 프로세스에서 전환 |
+| 다른 프로젝트 | 각 프로젝트 tmux/workmux | Compose에 별도 프로젝트 관리 DB 없음 |
+| 결과 작성 | Worktree Agent의 \`/compose-handoff\` | Git HEAD와 주장·WHY·미해결 사항 수집, 미수행 테스트 구분 |
+| 독립 검토 | \`/compose-verify main\` | 실제 승인 후 읽기 전용 Pi, 검토 범위와 미검증 구분 |
+| Main에서 결과 | \`/compose\` → 해당 Agent → 결과 보기 | 터미널 이동 없이 읽기. 기록 당시 HEAD 및 개발자 주장/독립 검토 구분 |
+| Shared 결과 | Shared Agent에서 Handoff | Git 변경 귀속을 추측하지 않고 해당 대화에서 보고서 확인 |
+| 좁은 화면 | 60×16, 80×24, 120×35 | Pi 네이티브 선택 UI·확인 Dialog 가독성, 입력·취소 복원 |
+| 긴 한글 지시 | 한글 100자·여러 줄 금지사항 | 텍스트 손상·오해 없이 읽을 수 있어야 함. 실제 검증 전 미완료 |
+| Ghostty와 일반 터미널 | 각각 동일 명령 | \`/compose\` 기본 동작은 Ghostty 전용 AppleScript에 의존하지 않음 |
 
-### Main
+## 구분해야 할 증거
 
-Pi 기본 대화를 유지하고 `작업 · /compose` 상태 한 줄만 표시합니다. Ghostty에서 Option+W가 동작하지 않으면 Pi 입력창에 `/compose`를 입력합니다.
+- **정적 코드 검토:** Shell 인자를 무단 변경하지 않는지, 등록된 명령이 정확히 한 번인지, 동일한 ID로 tmux 창을 확인하는지, 중복 렌더러/상태 데이터베이스가 없는지 확인할 수 있습니다.
+- **단위 수준:** 작성된 Extension 테스트는 사용자 요청에 따라 이번에는 실행하지 않았다면 \`미실행\`으로 보고해야 합니다.
+- **실제 macOS Pi:** Fork 전달, workmux Hook, Dashboard 프로젝트 간 탐색, TUI 입력 복원, Ghostty/tmux 창 이동은 사용자의 실제 환경에서 확인이 필요합니다.
 
-### 위임 확인
+### 설치 전제
 
-`/compose launch 프로필 표시명 추가` 또는 명시적인 자연어 위임을 사용합니다.
-
-- 기본: 작업명, 현재/선택한 Pi 대화 Fork 또는 Independent, Shared 또는 Worktree, 브랜치, 실행 경고
-- 여러 줄 위임 지시가 있다면 **원래 지시를 그대로** 줄바꿈해 표시합니다. 중요한 금지사항을 임의로 재작성하지 않습니다.
-- `Tab`: 실제 위임 지시 전체, Fork 원본 ID, 현재 대화 일부, 실행 디렉터리
-- `↑↓` 또는 `PgUp/PgDn`: 화면 스크롤
-- `Enter`: 실제 Agent 실행 승인
-- `Esc`: 취소 (새 에이전트/Worktree 생성 없음)
-
-자연어와 명령어는 같은 실행 승인 컴포넌트를 사용합니다. 모델이 불필요하게 채팅으로 재확인하지 않도록 Tool 지침을 개선했지만, 모델 반응을 항상 통제할 수 있는 것은 아닙니다. **명시적 실행 요청이 없는 경우 새 Agent를 만들지 않습니다.**
-
-### Task Hub
-
-`/compose`를 입력합니다.
-
-- **목록:** 현재 열린 Main/Agent 화면과 키보드 포커스를 서로 구분합니다. 작업명, Fork/Independent, Shared/Worktree, 확인된 실행 대상 상태만 주로 표시합니다. 같은 이름은 짧은 작업 ID로 구분합니다.
-- `↑↓`: 작업 선택. 목록이 길면 선택 작업이 보이는 범위 안에 있도록 페이지를 이동합니다.
-- `Tab`: 선택 작업의 **독립적인 읽기 전용 상세**로 이동. 전체 위임 원문, 원본 세션 ID, Worktree 경로, 인계·독립 검토 기록을 스크롤해 확인할 수 있습니다.
-- **상세의 Esc**: 목록 복귀. **목록의 Esc**: Hub 닫기.
-- `Enter`: 이미 살아 있는 것으로 확인된 실행 대상으로 이동. 대상이 종료됐거나 연결되지 않으면 자동으로 새 Pi를 시작하지 않습니다.
-- **Main으로 돌아가기**: 원래 Main의 정확한 tmux 세션·창 ID가 확인될 때만 표시합니다.
-
-Pi가 기본 제공하는 로그·모델 정보는 유지합니다. 작업 관련 긴 내부 세션 이름은 목록 대신 상세로 옮겼습니다.
-
-## 결과 인계와 독립 검토
-
-Pi Compose의 **선택형 Handoff/Verify Extension**을 설치한 경우에만 해당 명령을 사용할 수 있습니다.
-
-```bash
+\`\`\`bash
+pic navigation enable
+workmux setup
 pic features
-```
+\`\`\`
 
-개발 Agent에서 `/compose-handoff`를 요청하면 개발자 보고와 실제 Git 변경 경로/HEAD를 수집합니다. `/compose-verify`는 사용자 승인 이후 독립적인 읽기 전용 Pi를 실행하여 Git 근거를 검토합니다.
+첫 번째는 Worktree Agent의 Pi Navigation 등록, 두 번째는 선택적인 workmux 상태 Hook 설치, 세 번째는 선택형 결과 인계/검토 기능입니다. 각각 Pi 설정과 전역 사용자 환경에 영향을 줄 수 있으므로 **사용자가 직접 선택해 실행**합니다.
 
-- 정확한 Worktree 경로 + Git 브랜치와 매칭되는 **단일 작업 기록**에만 결과 일부를 연결합니다. Shared Directory와 복수 후보에는 기록을 연결하지 않습니다.
-- Hub의 **인계 보고 있음**은 개발자 주장이고, **독립 검토 기록 있음**은 검토 실행 결과입니다. 둘 다 검증 통과, 개발 완료, 인계 수신 확인 또는 Git 통합 승인이 아닙니다.
-- 결과에는 기록 당시 Git HEAD와 작성 시각이 포함됩니다. 이후의 변경 사항까지 반영한다는 의미가 아닙니다.
-- Handoff/Verify의 원본 Pi 대화와 Git 작업 디렉터리 데이터는 그대로 보존합니다. 임의의 대화 내용을 Main에 자동으로 붙여 넣지 않습니다.
-- Worktree 삭제, Git 병합, 프로세스 종료 또는 작업 정리는 자동으로 실행하지 않습니다. 사용자 승인과 별도의 구체적인 조작이 필요합니다.
-
-## 화면 품질 — 수동 점검 시나리오
-
-**이번 변경에서는 GitHub Actions와 E2E 테스트를 실행하지 않았습니다. 로컬 Pi를 인증해 Ghostty에서 실제 화면을 확인한 것도 아닙니다.**
-
-같은 프로젝트와 원래 Main 세션에서 아래 조건을 직접 확인해야 합니다.
-
-| 조건 | 기대 결과 |
-| --- | --- |
-| 60열 × 16행 | 제목, 컨텍스트, 작업 공간, Enter/Esc 안내가 읽힘 |
-| 80열 × 24행 | 기존 모델 대화와 확인 Dialog가 겹치지 않음 |
-| 120열 × 35행 | 불필요하게 대화 로그나 빈 영역을 차지하지 않음 |
-| 긴 한글 작업명 | 한글 깨짐 없이 셀 너비 기준으로 줄바꿈 |
-| 여러 줄 지시·강한 금지사항 | 기본 확인 또는 Tab 상세에서 전체 원문을 읽을 수 있음 |
-| 10개 이상 Agent | ↑↓로 이동해도 포커스 항목이 보임 |
-| Main과 Agent 같은 tmux 세션 | 저장된 창 ID로 정확하게 이동 |
-| UI 열린 상태에서 터미널 리사이즈 | 폭에 맞춰 재렌더링하고 조작 안내 유지 |
-| 모델 응답/Tool 출력 진행 중 | Dialog가 다른 대화의 문자와 겹쳐 보이지 않음 |
-| Tab 상세 → Esc 목록 → Esc 닫기 | 기존 Main 입력 초안과 대화 유지 |
-| Handoff 미작성 | 결과가 없다고 표시, 완료라고 추정하지 않음 |
-| Handoff/Verify 작성 | 정확한 Worktree에만 증거 연결, 검증 전 주장과 결과 구분 |
-
-Pi TUI와 연결된 Agent의 실제 Git 상태가 계속 변할 수 있으므로, 완료를 추정하는 자동 상태 추적은 추가하지 않았습니다.
+이전 기록에 정확한 Main·Worktree 연결이 없다면 비슷한 이름만으로 연결하지 않습니다. 실사용 검증에서 문제가 나왔을 때는 무작정 Overlay를 되살리지 않고 명시된 작업 흐름과 원본 식별을 먼저 확인합니다.

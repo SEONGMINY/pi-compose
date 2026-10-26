@@ -1,164 +1,134 @@
-# 사용 가이드
+# Pi Compose 사용 가이드
 
 [← README](../README.md)
 
-이 문서는 Pi Compose를 실제 작업에 사용할 때 필요한 선택과 명령을 정리합니다. Pi Runtime, 세션, 모델 인증, Extension 로딩은 기본적으로 [Pi](https://github.com/earendil-works/pi)가 담당합니다.
+## 1. 실행 준비
 
-## 시작하기
-
-macOS에서는 [설치 스크립트](../scripts/install.sh)를 사용합니다.
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/SEONGMINY/pi-compose/main/scripts/install.sh | bash
+\`\`\`bash
 cd ~/projects/my-app
 pic
-```
-
-인자 없는 대화형 `pic`을 일반 터미널에서 실행하면 현재 디렉터리의 tmux 세션(`pic-...`)을 만들거나 기존 세션에 연결합니다. 이미 tmux 안에 있다면 중첩하지 않습니다. 분리(`Ctrl+b`, `d`)한 후 같은 디렉터리에서 `pic`을 다시 실행하면 원래 작업으로 돌아갑니다. 옵션을 전달하는 Pi CLI 및 비대화형 사용은 이전과 동일합니다. tmux가 없을 때는 오류를 반환하고 설정 파일을 수정하지 않습니다.
-
-첫 실행에는 Pi TUI에서 `/login`으로 제공자를 인증하고 `/model`로 모델을 선택합니다. Azure를 사용하지 않는다면 Azure 설정은 필요하지 않습니다. 기존 `pi`의 설정·인증·세션·Skill·Theme가 공유됩니다.
-
-## 기본 작업 Hub
-
-Pi Compose 입력창 아래의 반복적인 도움말 Widget은 제거하고, 상태 영역에 **`작업 · /compose`**만 표시합니다. Pi 입력창에서 `/compose`를 입력하면 작업 Hub가 열립니다. `Alt+W`는 단축키를 올바르게 전달하는 터미널에서만 동작합니다. Mac에서 `Option+W`가 반응하지 않는 경우 `/compose`를 사용하세요.
-
-- **새 에이전트에게 맡기기:** 작업 이름을 입력하고 기존 Fork/Independent, Shared/Worktree 선택을 이어갑니다. 사용자의 실행 지시 없이 모델이 자동으로 에이전트를 생성하지 않습니다.
-- **내 작업:** 이번 개선 버전에서 명시적으로 시작한 작업을 제목별로 한 번씩 보여줍니다. tmux 또는 Worktree가 열려 있어도 실제 Pi 모델이 작업 중/완료라는 뜻은 아닙니다.
-- **Main으로 돌아가기:** 원래 Main의 정확한 tmux 세션과 창 ID가 확인되는 경우 첫 항목에 표시됩니다. 단순히 실행을 요청한 Agent를 Main이라고 추정하지 않습니다.
-- **다른 저장 대화 / 이전 작업 찾기:** 과거 Pi 대화와 기존 Worktree를 고급 메뉴에서 탐색합니다.
-
-### Worktree Agent에서 공통 작업 Hub 활성화
-
-`pic`은 Compose Extension을 직접 로드하지만 workmux가 실행한 `pi`는 그렇지 않을 수 있습니다. 해당 Agent에서도 동일한 `Alt+W` / `/compose`를 사용하려면 다음을 **명시적으로** 실행하세요.
-
-```bash
+# workmux가 만든 별도 Pi에서도 Compose 기능을 사용하려면 최초 한 번:
 pic navigation enable
-```
+\`\`\`
 
-Pi의 개인 설정에 탐색 전용 Extension을 설치합니다. 이미 열린 Agent는 `/reload` 또는 재시작이 필요합니다. `pic navigation disable`로 해제할 수 있습니다. 기본 `pic`과 등록이 중복되지 않도록 분리했습니다.
+\`pic\`은 프로젝트별 tmux 세션에 연결됩니다. 기존 Pi 인증과 세션을 사용합니다. Worktree Agent는 \`workmux add --agent pi\`로 실행되므로 사용자 Pi의 Navigation Package를 인식해야 동일한 명령과 자연어 도구가 나타납니다. 적용하려면 이미 실행 중인 Agent에서 \`/reload\`를 실행하거나 새 Agent를 시작하세요.
 
-macOS Ghostty를 사용하는 경우 `Option+W`가 문자로 입력되면 **`/compose`**로 Hub를 열어 주세요. Ghostty의 `macos-option-as-alt` 설정에 따라 Option 키가 Alt로 전달되지 않을 수 있습니다. Pi의 현재 단축키 설정은 `/hotkeys`에서 확인할 수 있습니다.
+\`pic features\`로 Handoff/Verify 선택형 Package를 활성화할 수 있습니다. \`pic features --local\`은 프로젝트 범위 설치입니다.
 
-[작업 Hub와 선택형 Ghostty 사용 상세](validation/task-hub-ux.md)
+## 2. Main에서 위임하기
 
-## 새 에이전트를 실행할 때
+\`\`\`text
+지금까지 논의한 프로필 표시명 구현을 새 Agent에게 맡겨줘.
+현재 Pi 대화를 Fork하고 새 Git Worktree를 만들어 줘.
+기존 name 필드는 클라이언트 호환성 때문에 절대 제거하지 마.
+\`\`\`
 
-```text
-/compose preview 회원 API 구현
-/compose launch 회원 API 구현
-```
+위임 실행을 **명시적으로 요청한 자연어**는 \`compose_launch\` Tool을 통해 실행 계획과 승인으로 연결됩니다. 구현을 다른 Agent에 맡기는 게 좋을지 **논의만 하는 요청**은 실행 의도가 아닙니다.
 
-Pi 선택 UI에서 **컨텍스트**와 **작업 공간**을 각각 정합니다.
+\`\`\`text
+/compose launch 프로필 표시명 구현
+/compose preview 프로필 표시명 구현
+\`\`\`
 
-| 선택 | 의미 | 사용하기 좋은 경우 |
-| --- | --- | --- |
-| Fork | 사용자가 지정한 Pi 대화에서 새 대화를 분기 | Main에서 합의한 요구사항·선택 근거·강한 제약을 이어서 개발할 때 |
-| Independent | 이전 대화를 상속하지 않는 새 세션 | 별개의 조사나 코드 탐색처럼 대화 맥락이 필요하지 않을 때 |
-| Shared Directory | 현재 작업 디렉터리 사용 | 같은 체크아웃에서 작업할 때. 다른 에이전트의 동시 수정에 주의 |
-| Git Worktree | 별도 브랜치·체크아웃 | 변경 파일을 분리해 개발할 때. workmux가 필요 |
+직접 명령어를 사용할 때는 작업명 입력, Context(Fork/Independent), Workspace(Shared/Worktree), 필요 시 정확한 원본 Pi 세션과 브랜치를 순서대로 선택합니다. 자연어에서 이미 특정한 정보는 다시 질문하지 않으며, 명시되지 않은 필수 옵션은 사용자 결정이 필요합니다.
 
-이 둘은 독립적인 선택이므로 네 가지 조합이 가능합니다.
+위임 전 **Pi 기본 \`confirm()\`**에 실제 지시 원문, Context, Workspace, 원본 ID, 브랜치, 경고가 표시됩니다. 확인하면 실행하며, 취소하면 어떤 Agent나 Worktree도 생성하지 않습니다. 실제 Fork가 선택된 세션의 대화 맥락을 완전하게 보존했는지는 개별 확인이 필요합니다. Fork는 작업 디렉터리의 미커밋 코드를 새 Worktree에 복제하지 않습니다.
 
-Fork는 **어느 Pi 세션을 원본으로 삼을지 직접 선택**해야 합니다. Pi Compose가 최근 세션이나 현재 세션을 자동으로 Main이라고 간주하지 않습니다. Worktree를 선택하면 새 브랜치 이름을 입력합니다. workmux Fork에는 원본 세션의 작업 디렉터리와 저장소 루트가 일치해야 하는 제약이 있습니다.
+## 3. 같은 기능의 Main↔Agent
 
-`/compose preview`는 실행 계획만 표시합니다. `/compose launch`는 Context, Workspace, Fork 원본, 브랜치를 선택한 후 **작업명·원본 맥락·Workspace를 우선 보여주고 Tab 상세로 전체 지시와 원본 ID를 확인한 뒤 한 번의 실행 승인으로 진행**합니다. 자연어 요청도 동일한 실행 계획을 사용하고 `compose_launch` Tool이 실제 실행 전 승인을 요청합니다. Fork 원본을 현재 세션으로 선택했다면, 실행 확인 화면의 **Tab 상세**에서 최근 사용자 메시지 일부와 정확한 원본 세션 ID를 확인할 수 있습니다. 이것은 원본 세션에 포함된 사용자 메시지의 **일부**이며 전체 대화 및 Fork 결과 검증은 아닙니다.
+\`\`\`text
+/compose
+\`\`\`
 
-Worktree Launch는 workmux의 `--background`와 고유 `--target-name` 옵션으로 현재 Main 화면을 유지하고 실행 대상을 식별합니다. Ghostty 네이티브 탭을 명시적으로 켜면 새 Worktree는 `--mode session`도 사용합니다. 개발 에이전트를 보려면 `Alt+W` 또는 `/compose`에서 선택하세요. Shared Launch도 별도 tmux 세션에서 시작하고 Main 화면을 유지합니다.
+Pi 기본 선택 UI를 사용하며 예시 순서는 다음과 같습니다.
 
-시작 명령 성공은 모델이 실제로 작업 중이라는 증거가 아닙니다. Hub는 workmux `status --json`이 정확히 한 Agent를 정상적으로 관측했을 때만 작업 상태를 보조적으로 표시합니다. `done`은 **최근 응답 종료**이지 개발 완료가 아닙니다. Hook이 없으면 상태 미확인으로 표시합니다.
+\`\`\`text
+← Main으로 돌아가기                (정확히 연결된 경우)
+현재 화면 · 프로필 구현 Agent
+프로필 표시명 구현 [작업 ID] · Fork · 화면 연결됨
+프로필 테스트 작성 [작업 ID] · Independent · 기록만 있음
++ 새 Agent에게 작업 위임
+전체 작업 관찰 · workmux Dashboard
+이전 Pi 대화·기능 찾기
+\`\`\`
 
-## 이전 작업으로 돌아갈 때
+원래 Main을 모르면 Main을 추측해 표시하지 않습니다. 같은 작업명은 각각의 식별자가 있으며, 선택 항목과 현재 위치를 별개로 보여줍니다. 작업 목록은 실행 상태에 따라 재정렬하지 않습니다.
 
-```text
-/compose work
-/compose work 회원 API
-/compose back 회원 API
-```
+작업을 선택하면 **기존 Agent로 이동 / 실제 위임 지시 확인 / 결과 인계·검토 확인 / 목록 복귀**를 고릅니다. 위임 지시와 Handoff는 읽기 전용 Pi Dialog에 표시됩니다. 화면 이동은 정확한 기존 tmux **세션 및 창 ID**를 다시 확인하고 나서 수행합니다. 대상이 없거나 모호하면 **새 Pi를 실행하지 않습니다**.
 
-이 명령의 기본 화면은 **목록 우선 Task Hub**입니다. 일반 Pi Dialog에서 `↑↓`로 작업을 고르고 `Tab`으로 독립된 작업 상세를 봅니다. 상세의 `Esc`는 목록 복귀이며 목록의 `Esc`는 닫기입니다. `Enter`는 확인된 기존 실행 대상으로 이동하고, 원래 메인 창으로의 복귀도 동일한 경로를 사용합니다. 목록과 상세의 긴 한글 텍스트는 표시 폭에 맞춰 줄바꿈하고, 내용이 길면 `↑↓`로 스크롤할 수 있습니다. 이번 버전부터 생성한 작업은 하나의 이름으로 탐색할 수 있습니다. 기존 저장 대화와 과거 실행 대상은 Hub의 고급 메뉴나 `/compose back`에서 찾을 수 있습니다. 실행 중 tmux 세션은 **대상이 존재한다는 사실만** 보여주며 모델이 작업 중인지, 완료했는지는 알 수 없습니다.
+아직 대상이 연결되지 않은 과거 작업은 실행 가능한 것처럼 표시하지 않습니다. \`/compose back\`은 기존 workmux·tmux·Pi 기록을 탐색하는 고급 경로로 유지합니다. 닫힌 Worktree의 재개는 정확한 저장 Pi 세션을 선택하고 새로운 프로세스 실행에 **별도 동의**해야 합니다.
 
-- **실행 중인 tmux 대상:** tmux 안에서 선택하면 해당 세션으로 이동합니다. 새 에이전트를 만들지 않습니다. tmux 바깥에서는 직접 연결 명령을 안내합니다.
-- **저장된 Pi 대화:** Pi의 공식 세션 전환 API로 현재 프로세스에서 대화를 전환합니다. 일반적인 Pi 저장 대화 선택은 기본 `/resume`도 사용할 수 있습니다.
-- **열린 Worktree:** 선택한 workmux 대상을 사용자 확인 후 엽니다. workmux 창의 열림 상태는 해당 Pi 대화가 실제 실행 중이라는 증거가 아닙니다.
-- **닫힌 Worktree:** 해당 Worktree의 저장된 Pi 대화 중 정확한 세션을 직접 선택하고, 새로운 Pi 프로세스 생성에 동의한 경우에만 재개합니다.
-- **새 tmux에서 명시적으로 재개:** `/compose resume`. 저장된 대화의 단순 전환과는 다른 동작입니다.
+## 4. 여러 프로젝트의 작업 관찰
 
-자연어로 **“회원 API 작업을 찾아줘”**라고 요청하면 `compose_find_work`가 읽기 전용 목록을 제공합니다. **“회원 API 작업으로 돌아가고 싶어”**라고 요청하면 `compose_return_work`가 선택 UI를 열 수 있습니다.
+\`\`\`text
+/compose monitor
+\`\`\`
 
-자연어로 저장된 Pi 대화를 선택했을 때는 정확한 `/compose back id:<세션ID>` 명령이 입력창에 준비됩니다. **사용자가 Enter를 눌러야** 실제로 전환됩니다. 입력 중인 초안이 있다면 덮어쓰지 않습니다. 이는 Pi Tool에서 세션 직접 전환 API를 사용할 수 없는 제약에 따른 방식입니다.
+현재 tmux 내부에서 **workmux Dashboard**가 열립니다. Pi Compose가 상태나 터미널 미리보기를 따로 구현하지 않습니다. Pi 작업의 실시간 관측에는 사용자 설정이 필요합니다.
 
-검색은 현재 프로젝트 범위입니다. 다른 프로젝트의 모든 대화나 tmux 프로세스를 자동 탐색하지 않습니다.
+\`\`\`bash
+workmux setup
+\`\`\`
 
-## Handoff와 독립 검증 (선택형)
+workmux의 공식 설정 명령으로 Pi의 상태 Hook을 설치할 수 있습니다. Hook을 설치하지 않으면 Dashboard의 Agents 화면에 작업이 보이지 않을 수 있습니다. 상태 Hook은 Pi의 입력 대기를 완벽히 표시하지 못하며, 최근 응답 종료는 개발 완료가 아닙니다.
 
-```bash
+Dashboard는 등록된 Agent·Worktree의 조회, 실제 출력 미리보기, Git 변경, 프로젝트 간 탐색에 사용합니다. Shared Directory의 개별 Pi 세션은 등록되지 않았을 수 있으므로 **\`/compose\`에서 정확한 기존 tmux 창을 찾습니다**. Dashboard에 표시되지 않는다고 작업을 종료하거나 새로 시작하지 않습니다.
+
+원하지 않는 workmux 레이아웃 변경이나 자동 삭제는 하지 않습니다. Dashboard 내부의 \`X\`, Worktrees View의 \`r\` 등은 workmux 자체의 종료·삭제 동작이므로 직접 사용할 때 주의하세요.
+
+## 5. 같은 프로젝트의 다른 기능 대화 찾기
+
+\`\`\`text
+/compose sessions
+/compose sessions 결제
+\`\`\`
+
+Pi의 \`SessionManager.list()\`로 현재 프로젝트의 **저장 대화**를 찾아 이름·첫 발화와 정확한 세션 ID로 구분합니다. 선택하면 Pi의 \`ctx.switchSession()\`으로 **지금 Pi 프로세스 안에서** 대화가 전환됩니다. 새 Pi나 tmux 세션을 만들지 않습니다.
+
+Pi가 자체 제공하는 \`/resume\`도 사용할 수 있습니다. 다른 프로젝트의 대화는 해당 프로젝트로 이동하거나 Pi 기본 기능을 활용하세요. Pi Compose는 전체 프로젝트를 통합하는 새 대화 DB를 만들지 않습니다.
+
+자연어로 기존 작업을 검색할 때는 \`compose_find_work\`가 현재 프로젝트의 정보를 **읽기 전용**으로 확인합니다. 실제 복귀는 \`compose_return_work\` 또는 위 명령을 이용하며, 사용자 초안이 있으면 덮어쓰지 않습니다.
+
+## 6. Handoff → Verify → Main에서 결과 확인
+
+선택형 기능을 활성화합니다.
+
+\`\`\`bash
 pic features
-```
+\`\`\`
 
-Pi의 별도 선택형 Package를 설치한 뒤 `pi config` UI가 열립니다. **최초 설치 때 Dashboard·Handoff·Verify 세 기능이 모두 켜지므로**, 사용하지 않는 항목은 해당 UI에서 해제합니다. 현재 프로젝트에만 설치하려면 `pic features --local`을 사용합니다. 선택한 기능의 설정은 일반 `pi`와 `pic`가 공유합니다. 이미 열려 있는 Pi TUI에는 `/reload`로 변경된 Extension 구성을 다시 불러오거나 `pic`을 재실행해 적용합니다.
+개발 Agent에서:
 
-### 작업 결과 인계
-
-```text
+\`\`\`text
 /compose-handoff
-/compose-handoff <workmux-agent-handle>
-```
-
-현재 세션의 Pi 모델에 Handoff 작성을 요청합니다. `compose_handoff` Tool이 Git 변경 파일, HEAD, 작업 중인 변경, `git diff --check` 등을 확인하고 **구현 결과·WHY/원래 제약·실제로 수행한 검사·남은 일**을 모읍니다.
-
-수신자를 지정한 경우에만 사용자 승인 후 `workmux send`를 호출합니다. **전송 성공은 수신·읽음·정확성을 보증하지 않습니다.** 자동 병합·Worktree 삭제도 수행하지 않습니다.
-
-### 필요한 경우 별도 검증
-
-```text
-/compose-verify
 /compose-verify main
-```
+\`\`\`
 
-사용자 승인 후 별도의 Pi `--print` 호출에서 변경 사항과 관련 근거를 읽기 전용으로 검토합니다. `main` 같은 기준 Ref를 지정하면 그 기준 이후의 변경을 포함해 검토합니다. 기준을 생략하면 검사 범위가 제한됩니다. 긴 Diff와 변경 파일 목록은 일부 잘릴 수 있고, 개발자가 작성한 Handoff도 **검증 전 주장**으로 취급합니다.
+Handoff는 Agent가 작성하는 **구현 주장**에 실제 Git 파일 상태, 브랜치, HEAD, staged/unstaged 및 미추적 경로를 추가해 요약합니다. 엄격한 금지사항의 이유를 생략하거나 실행하지 않은 테스트를 통과했다고 주장해서는 안 됩니다.
 
-검증 결과는 자동 승인이나 Git 병합이 아닙니다. 실제 Worktree 경로와 현재 브랜치가 Pi Compose의 저장된 작업 중 **정확히 하나와 일치한 경우에만**, `/compose`의 해당 작업 상세에 인계 결과와 독립 검토 결과 일부가 나타납니다. Shared Directory 또는 일치하지 않는 과거 작업은 결과를 다른 Agent에 추측해 붙이지 않습니다. 인계는 개발자의 주장, 검토는 실행된 검토 보고입니다. 둘 다 작업 완료나 Git 통합 승인으로 승격하지 않습니다.
+Verify는 사용자의 별도 확인을 받은 뒤 독립적인 Pi \`--print\` 읽기 전용 검토를 실행합니다. 원본 계약과 현재 Diff를 확인하되, 파일 및 출력이 길면 검토 범위가 제한될 수 있습니다. 검토 이후 Git이 바뀌면 기록도 최신 근거로 볼 수 없습니다.
 
-### Worktree 화면 배치
+**Main에서 \`/compose\` → 해당 Agent → \`인계·검토 결과 확인\`**을 선택합니다. 작업을 만든 Worktree 경로와 브랜치가 기록에 유일하게 일치한 경우에만 보고서 일부가 연결됩니다. Main의 활성 대화에 전체 로그를 자동 주입하거나, 결과를 자동 승인하지 않습니다.
 
-workmux는 기본 설정에서 Pane 두 개를 생성할 수 있습니다. Pi Compose는 사용자의 기존 workmux 설정이나 Hook을 자동으로 덮어쓰지 않습니다. 기본적으로 한 에이전트 화면에 집중하려면 프로젝트의 `.workmux.yaml`에서 다음처럼 설정할 수 있습니다.
+Shared Directory에서는 여러 Agent가 Git 변경을 함께 만들 수 있습니다. 따라서 현재 구현은 Handoff/Verify를 Agent 세션에서 실행해 확인할 수 있지만, Git 변경을 특정 Agent의 것으로 **임의 귀속해 Main의 작업 기록에 연결하지 않습니다**. 원문은 실제 Agent 세션에서 확인하거나 명시적으로 \`workmux send\` 수신 대상을 선택합니다. 전송 성공은 상대가 읽었다는 증거가 아닙니다.
 
-```yaml
-panes:
-  - command: <agent>
-    focus: true
-```
+변경 통합, Git 병합, Worktree 삭제, 프로세스 종료는 모두 별도의 사용자 결정입니다.
 
-workmux의 `panes` 정의는 기존 Pane 배열을 대체합니다. 현재 프로젝트에서 개발 서버나 별도 Shell을 실행하고 있다면 해당 설정을 유지하거나 조정하세요. 분할 화면은 tmux 또는 workmux Pane 설정을 통해 필요할 때 사용할 수 있습니다.
+## 7. 명령 요약
 
-### 작업 View
-
-Pi가 tmux 안에서 실행 중이고 Dashboard Extension을 켠 경우:
-
-```text
-/compose-workmux
-/compose-workmux worktrees
-```
-
-workmux의 Dashboard를 tmux 팝업으로 엽니다. Pi Compose가 별도 Dashboard나 에이전트 상태 저장소를 만들지는 않습니다.
-
-## 그 밖의 직접 제어
-
-| 명령 | 용도 |
+| 명령 | 역할 |
 | --- | --- |
-| `pic config` | Pi 리소스 설정 TUI |
-| `pic config --local` | 프로젝트 범위 Pi 리소스 설정 |
-| `pic --resume` | Pi 기본 저장 세션 선택 |
-| `pic --model <모델>` | 이번 실행에서 사용할 Pi 모델 선택 |
-| `pic -e <extension-path>` | Pi Extension 추가 로드 |
-| `pi-compose --help` | 고급 CLI: 실행 계획, 명시적 재개, Git Worktree 조회 등 |
+| \`/compose\` | 현재 기능의 Main·관련 Agent 탐색 |
+| \`/compose launch [task]\` | 새 Agent 실행 옵션 선택 및 승인 |
+| \`/compose preview [task]\` | 실행 전 계획만 확인 |
+| \`/compose monitor\` | workmux Dashboard (설정된 Agent 관찰) |
+| \`/compose sessions [query]\` | Pi 저장 대화로 이동 |
+| \`/compose back [query]\` | 기존 고급 세션·Worktree·tmux 탐색 |
+| \`/compose resume\` | 정확한 저장 대화를 새 Pi로 명시적 재개 |
+| \`/compose-handoff\` | 선택형 인계 작성 |
+| \`/compose-verify [ref]\` | 선택형 독립 검토 |
+| \`pic navigation enable\` | Worktree Agent에서 같은 Pi 명령 활성화 |
+| \`workmux setup\` | workmux Pi 상태 Hook 설정 |
+| \`pic features\` | 선택형 Handoff/Verify 설정 |
 
-`pic`은 Pi Runtime 위에 기본 Compose Extension을 더하는 진입점입니다. 사용자 정의 Extension·Skill·Theme를 계속 사용할 수 있으며, 일반 `pi`도 독립적으로 실행할 수 있습니다. `pic update`는 Pi의 기존 update 명령으로 전달되므로 **Pi Compose 업데이트는 설치 명령을 다시 실행**하세요.
-
-## 더 자세한 자료
-
-- [아키텍처와 책임 경계](ARCHITECTURE.md)
-- [요구사항과 선택 원칙](PRD.md)
-- [구현 계획 및 남은 검증 범위](IMPLEMENTATION_PLAN.md)
-- [실제 도구 연동 검증 기록](validation/phase6-integration.md)
-- [설치·업데이트의 설계 결정](adr/0006-github-installer.md)
+[설계 판단](adr/0007-reference-led-navigation.md) · [실사용 점검 시나리오](validation/task-hub-ux.md)
