@@ -79,6 +79,8 @@ pic diagnostics clear --yes   # 저장된 JSONL 및 기본 export 파일 삭제
 | 위임 취소율 | \`launch.finished cancelled / launch.started\`. 의도적인 취소일 수 있음 |
 | 위임 시간 | 시작→종료 \`elapsedMs\`. 사용자의 선택·승인 시간이 포함됨 |
 | 탐색 선택 없는 종료율 | \`navigation.finished cancelled & reason=no_selection / navigation.opened\`. 화면을 잠깐 확인하고 정상 종료했을 수도 있음 |
+| 30초 내 같은 프로젝트 메뉴 재진입 | 동일 `runId`/`projectKey`의 연속 `navigation.opened` 간격이 30초 이하인 횟수. 반복 사용이 정상일 수도 있음 |
+| A→B→A 전환 후보 | 60초 내 같은 익명 대상키로 돌아오는 성공 전환 시퀀스 수. 실수의 증거가 아님 |
 | 탐색 선택 비중 | \`navigation.selected / navigation.opened\`. 다단계 선택일 수 있으므로 100%를 넘을 수도 있음 |
 | tmux 전환 실패율 | \`switch.finished failure / switch.started\`. 타겟 부재(\`unavailable\`)는 따로 확인 |
 | 이전 저장 대화 전환 성공률 | \`sessions.finished success / sessions.opened\` |
