@@ -4,6 +4,7 @@ import { showLaunchWizard, registerComposeLaunchTool } from '../../../extensions
 import { registerWorkReturn } from '../../../extensions/work-return.ts';
 import { showWorkPicker, showSavedSessions } from '../../../extensions/work-return.ts';
 import { openWorkmuxMonitor } from '../../../extensions/optional/workmux-dashboard.ts';
+import { diagnosticEvent } from '../../../src/diagnostics.mjs';
 
 /**
  * Optional Pi package for workmux-started child Pi sessions.
@@ -21,6 +22,9 @@ export default function navigationOnly(pi: ExtensionAPI): void {
     description: 'Pi Compose: related agents, launch, monitor, sessions, back',
     handler: async (args, ctx) => {
       const [subcommand, ...rest] = args.trim().split(/\s+/);
+      const route = ['launch','preview','monitor','dashboard','sessions','back','work'].includes(subcommand||'') ? subcommand : !subcommand?'home':'invalid';
+      diagnosticEvent('command.entered',{source:'slash',data:{route}});
+      if(route==='invalid') diagnosticEvent('command.invalid',{source:'slash',outcome:'failure',data:{route:'invalid'}});
       if (!subcommand || subcommand === 'work') return openHub(ctx);
       if (subcommand === 'monitor' || subcommand === 'dashboard') return openWorkmuxMonitor(pi, ctx);
       if (subcommand === 'sessions') return showSavedSessions(ctx, rest.join(' '));
