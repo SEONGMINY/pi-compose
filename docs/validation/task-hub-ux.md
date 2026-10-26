@@ -31,7 +31,7 @@
 | 결과 작성 | Worktree Agent의 `/compose-handoff` | Git HEAD와 주장·WHY·미해결 사항 수집, 미수행 테스트 구분 |
 | 독립 검토 | `/compose-verify main` | 실제 승인 후 읽기 전용 Pi, 검토 범위와 미검증 구분 |
 | Main에서 결과 | `/compose` → 해당 Agent → 결과 보기 | 터미널 이동 없이 읽기. 기록 당시 HEAD 및 개발자 주장/독립 검토 구분 |
-| Shared 결과 | Shared Agent에서 Handoff | Git 변경 귀속을 추측하지 않고 해당 대화에서 보고서 확인 |
+| Shared 결과 | Shared Agent에서 Handoff | 실제 Child Session 연결이 검증되면 Main에서 보고서를 확인하되 Git 변경 작성자는 추측하지 않음 |
 | 좁은 화면 | 60×16, 80×24, 120×35 | Pi 네이티브 선택 UI·확인 Dialog 가독성, 입력·취소 복원 |
 | 긴 한글 지시 | 한글 100자·여러 줄 금지사항 | 텍스트 손상·오해 없이 읽을 수 있어야 함. 실제 검증 전 미완료 |
 | Ghostty와 일반 터미널 | 각각 동일 명령 | `/compose` 기본 동작은 Ghostty 전용 AppleScript에 의존하지 않음 |
