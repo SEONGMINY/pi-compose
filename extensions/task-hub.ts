@@ -153,10 +153,12 @@ export async function trackLaunchedTask(pi: ExtensionAPI, plan: LaunchPlan, titl
           }
         } catch { /* Ambiguous or unavailable pane identity remains unverified. */ }
       }
-      if (worktrees.length === 1 && windows.length === 1) {
+      if (worktrees.length === 1) {
+        // The Git/workmux identity is already exact even if the tmux window is
+        // still starting. Preserve it for Handoff; never invent a live target.
         link.worktreePath = worktrees[0]!.path;
         link.workmuxHandle = worktrees[0]!.handle;
-        link.targetLocation = windows[0];
+        if (windows.length === 1) link.targetLocation = windows[0];
       }
     }
 
