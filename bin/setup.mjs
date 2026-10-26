@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
-import { diagnosticEvent, discloseDiagnostics, startFlow, finishFlow } from '../src/diagnostics.mjs';
+import { diagnosticEvent, diagnosticStatus, discloseDiagnostics, startFlow, finishFlow } from '../src/diagnostics.mjs';
 
 const agentDir = () => {
   const custom = process.env.PI_CODING_AGENT_DIR;
@@ -90,6 +90,8 @@ export function printDoctor(root) {
   if (nodeMajor < 22 || (nodeMajor === 22 && nodeMinor < 19))
     console.log('WARNING: Node.js >= 22.19.0 is required. Select a compatible Node version.');
   console.log('Child navigation: '+s.packages.navigation+' | Handoff/Verify: '+s.packages.features+' | Pi status Hook: '+s.hook);
+  const diag=diagnosticStatus();
+  console.log('Local UX diagnostics: '+(diag.enabled?'enabled':'disabled')+' | Retention: '+diag.retentionDays+' days | Inspect: pic diagnostics status');
   if (!s.settingsOk) console.log('WARNING: Pi settings.json cannot be parsed. No configuration will be modified.');
   if (s.packages.navigation === 'custom' || s.packages.features === 'custom')
     console.log('Pi resource filters were customized; inspect exact enabled extensions with pi config.');
