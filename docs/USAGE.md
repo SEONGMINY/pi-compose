@@ -110,7 +110,7 @@ Verify는 사용자의 별도 확인을 받은 뒤 독립적인 Pi `--print` 읽
 
 **Main에서 `/compose` → 해당 Agent → `인계·검토 결과 확인`**을 선택합니다. 작업을 만든 Worktree 경로와 브랜치가 기록에 유일하게 일치한 경우에만 보고서 일부가 연결됩니다. Main의 활성 대화에 전체 로그를 자동 주입하거나, 결과를 자동 승인하지 않습니다.
 
-Shared Directory에서는 여러 Agent가 Git 변경을 함께 만들 수 있습니다. 따라서 현재 구현은 Handoff/Verify를 Agent 세션에서 실행해 확인할 수 있지만, Git 변경을 특정 Agent의 것으로 **임의 귀속해 Main의 작업 기록에 연결하지 않습니다**. 원문은 실제 Agent 세션에서 확인하거나 명시적으로 `workmux send` 수신 대상을 선택합니다. 전송 성공은 상대가 읽었다는 증거가 아닙니다.
+Shared Directory에서는 여러 Agent가 Git 변경을 함께 만들 수 있습니다. 실제 Child Pi 세션 ID와 tmux 창이 정확히 연결된 경우 Handoff·Verify *보고서*만 작업 기록에서 확인할 수 있습니다. 이것이 Git 변경을 그 Agent 혼자 작성했다는 뜻은 아닙니다. 세션 연결이 없다면 원문은 Agent 세션에서 확인하거나 명시적으로 `workmux send` 대상을 선택합니다. 전송 성공은 상대가 읽었다는 증거가 아닙니다.
 
 변경 통합, Git 병합, Worktree 삭제, 프로세스 종료는 모두 별도의 사용자 결정입니다.
 
