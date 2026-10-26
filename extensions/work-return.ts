@@ -330,7 +330,7 @@ export async function showWorkPicker(pi: ExtensionAPI, ctx: ExtensionCommandCont
 
 // Selection itself authorizes navigation, not a fresh Pi process or a Git change.
 export async function returnToTmux(pi: ExtensionAPI, ctx: ExtensionContext, target: LiveTmuxTarget): Promise<boolean> {
-  const flow=startFlow('switch.started',{source:'menu',data:{kind:'tmux'}});
+  const flow=startFlow('switch.started',{source:'menu',taskId:target.name+':'+(target.windowId||''),data:{kind:'tmux'}});
   let outcome:'success'|'failure'|'unavailable'='unavailable';
   try {
   if (!process.env.TMUX) {
@@ -372,7 +372,7 @@ export async function returnToTmux(pi: ExtensionAPI, ctx: ExtensionContext, targ
     ctx.ui.notify('Could not switch tmux target: ' + String(error), 'error');
     return false;
   }
-  } finally { finishFlow(flow,'switch.finished',{source:'menu',outcome,data:{kind:'tmux'}}); }
+  } finally { finishFlow(flow,'switch.finished',{source:'menu',outcome,taskId:target.name+':'+(target.windowId||''),data:{kind:'tmux'}}); }
 }
 
 /** Move to an explicitly selected workmux target; no guessing about Pi session identity. */
