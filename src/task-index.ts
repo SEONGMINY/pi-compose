@@ -18,6 +18,7 @@ export type TaskLink = {
   worktreePath?: string;
   workmuxHandle?: string;
   title?: string;
+  diagnosticFlowId?: string;
 };
 
 /** Work result snapshots are claims, not approvals, agent completion, or live state. */
@@ -45,6 +46,7 @@ export type TaskRecord = {
   title: string;
   /** Exact original instruction, not a summary of the Forked session. */
   instruction?: string;
+  diagnosticFlowId?: string;
   projectRoot: string;
   /** Shared launch cwd (Worktree launch runs from the main checkout). */
   launchCwd?: string;
@@ -80,6 +82,7 @@ export async function recordTask(plan: LaunchPlan, link: TaskLink = {}): Promise
     title: (link.title?.trim() || plan.task.split('\n').find(line => line.trim()) || plan.task)
       .replace(/\s+/g, ' ').trim().slice(0, 96),
     instruction: plan.task,
+    ...(link.diagnosticFlowId && /^[0-9a-f-]{36}$/.test(link.diagnosticFlowId) ? {diagnosticFlowId:link.diagnosticFlowId} : {}),
     projectRoot: resolve(link.projectRoot || plan.cwd),
     launchCwd: resolve(plan.cwd),
     workspace: plan.workspace,
@@ -121,6 +124,7 @@ function isRecord(value: unknown): value is TaskRecord {
   const x = value as Partial<TaskRecord>;
   return typeof x.id === 'string' && /^[0-9a-f-]{36}$/.test(x.id)
     && typeof x.title === 'string' && x.title.length > 0 && x.title.length <= 100
+    && (x.diagnosticFlowId===undefined || (typeof x.diagnosticFlowId==='string' && /^[0-9a-f-]{36}$/.test(x.diagnosticFlowId)))
     && typeof x.projectRoot === 'string' && x.projectRoot.startsWith('/')
     && (x.workspace === 'shared' || x.workspace === 'worktree')
     && (x.context === 'fork' || x.context === 'independent')

@@ -119,7 +119,7 @@ export function taskHubRows(
  * Record a link only after workmux/tmux reports the precise target created by
  * this launch. We never treat an agent name or matching branch as identity.
  */
-export async function trackLaunchedTask(pi: ExtensionAPI, plan: LaunchPlan, title?: string): Promise<string | undefined> {
+export async function trackLaunchedTask(pi: ExtensionAPI, plan: LaunchPlan, title?: string, diagnosticFlowId?: string): Promise<string | undefined> {
   try {
     const [snapshot, mux] = await Promise.all([tmuxSnapshot(pi, plan.cwd), workmuxRows(pi, plan.cwd)]);
     const root = await projectRoot(pi, plan.cwd, mux.rows);
@@ -127,7 +127,7 @@ export async function trackLaunchedTask(pi: ExtensionAPI, plan: LaunchPlan, titl
     const current = snapshot.current;
     const origin = current && known.find(t => equalLocation(t.targetLocation, current));
     const main = process.env.PIC_COMPOSE_MAIN === '1' ? current : origin?.mainLocation;
-    const link: TaskLink = { projectRoot: root, ...(title ? { title } : {}) };
+    const link: TaskLink = { projectRoot: root, ...(title ? { title } : {}), ...(diagnosticFlowId ? {diagnosticFlowId} : {}) };
     if (main) link.mainLocation = main;
 
     if (plan.workspace === 'shared' && plan.tmuxTarget) {
@@ -312,7 +312,10 @@ async function linkCurrentPi(pi: ExtensionAPI, ctx: ExtensionContext): Promise<v
   const root = await projectRoot(pi, ctx.cwd, worktrees.rows);
   const linked=await bindAgentSession(root, snapshot.current, ctx.cwd,
     ctx.sessionManager.getSessionId(), sessionFile);
-  if(linked==='saved') diagnosticEvent('launch.agent_linked',{source:'automatic',outcome:'success',sessionId:ctx.sessionManager.getSessionId(),projectId:root,data:{linked:true}});
+  if(linked==='saved') {
+    const task=(await listTasks(root)).find(t=>t.agentSessionId===ctx.sessionManager.getSessionId());
+    diagnosticEvent('launch.agent_linked',{source:'automatic',flowId:task?.diagnosticFlowId,outcome:'success',sessionId:ctx.sessionManager.getSessionId(),taskId:task?.id,projectId:root,data:{linked:true}});
+  }
 }
 
 export function registerTaskHub(pi: ExtensionAPI, openHub: (ctx: ExtensionContext) => Promise<void>): void {

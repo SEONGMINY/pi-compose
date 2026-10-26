@@ -112,7 +112,7 @@ export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, 
     if (approval !== true) return;
     const result = await executeLaunch(plan);
     outcome='success';
-    const indexWarning = await trackLaunchedTask(pi, plan);
+    const indexWarning = await trackLaunchedTask(pi, plan, undefined, flow.flowId);
     if (indexWarning) ctx.ui.notify(indexWarning, 'warning');
     await refreshTaskIndicator(ctx, plan.cwd);
     ctx.ui.notify(`Agent 실행 명령 전달 완료 · ${taskName(plan.task)} · 실행 상태: /compose monitor, 정확한 연결: /compose`, 'info');
@@ -258,7 +258,7 @@ export function registerComposeLaunchTool(pi: ExtensionAPI): void {
       }
       const result = await executeLaunch(plan);
       outcome='success';
-      const indexWarning = await trackLaunchedTask(pi, plan, params.title);
+      const indexWarning = await trackLaunchedTask(pi, plan, params.title, flow.flowId);
       if (indexWarning) ctx.ui.notify(indexWarning, 'warning');
       await refreshTaskIndicator(ctx, plan.cwd);
       return {
