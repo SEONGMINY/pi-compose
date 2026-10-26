@@ -6,6 +6,7 @@ import { constants } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { maybeOnboard, setupRecommended, printDoctor } from './setup.mjs';
+import { diagnosticsCli } from './diagnostics.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const coreExtension = resolve(root, 'extensions/compose.ts');
@@ -78,14 +79,16 @@ function runInProjectTmux() {
 const args = process.argv.slice(2);
 const command = args[0];
 
-// A one-time, explicit opt-in to the optional feature bundle. All three features
-// are initially enabled by Pi on installation; pi config owns later selection.
-if (command === 'doctor') {
+// Core Compose packages are the default. Pi still owns their settings,
+// including individually disabled resources. External Hook changes require consent.
+if (command === 'diagnostics') {
+  process.exitCode = diagnosticsCli(args.slice(1));
+} else if (command === 'doctor') {
   if (args.length !== 1) { console.error('Usage: pic doctor'); process.exitCode = 2; }
   else process.exitCode = printDoctor(root);
 } else if (command === 'setup') {
   if (args.length !== 1) { console.error('Usage: pic setup'); process.exitCode = 2; }
-  else process.exitCode = await setupRecommended(root, { runPi, runWorkmux });
+  else process.exitCode = await setupRecommended(root, { runPi, runWorkmux, manual: true });
 } else if (command === 'navigation') {
   const [operation, ...extra] = args.slice(1);
   if (!new Set(['enable', 'disable']).has(operation) || extra.length) {
