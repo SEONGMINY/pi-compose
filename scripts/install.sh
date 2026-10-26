@@ -108,5 +108,8 @@ pic --version >/dev/null || fail "'pic' is installed but could not launch Pi."
 
 info "Pi Compose installed successfully at $short_revision."
 info "Open any project directory and run: pic"
+info "On the first interactive pic launch, you can approve the recommended Navigation + Handoff/Verify setup."
+info "Pi settings are changed only after you confirm. workmux setup requires a separate approval."
+info "Read-only installation diagnostics: pic doctor | Retry or change setup: pic setup"
 info "To update Pi Compose, rerun the same install command."
 info "Existing Pi, Pi settings, sessions and optional feature selections were not changed."
