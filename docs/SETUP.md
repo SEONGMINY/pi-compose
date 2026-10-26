@@ -35,40 +35,31 @@ npm install -g --ignore-scripts --no-audit --no-fund \
 
 The **direct npm command** requires compatible Node, Pi, tmux and workmux to already be installed, and it does not offer the install script's collision checks. To pin an exact release candidate, replace `feat/task-hub-ghostty` with the final 40-character PR #3 commit SHA. Both routes support first-run setup. The direct command intentionally uses `--ignore-scripts`; setup lives in **`pic`, not npm postinstall**, so both install paths behave the same.
 
-## First interactive launch
+## First interactive launch — Core features enabled by default
 
 ```bash
 cd ~/projects/my-app
 pic
 ```
 
-For first-time users without the recommended Pi Packages/Hook, the terminal displays roughly:
+Pi Compose **automatically installs missing first-party packages** using Pi's official `pi install`: Child Navigation, Handoff, Verify, and the optional Dashboard command. No Recommended/Minimal/Custom preset and no first-party feature approval prompt.
 
-```text
-Pi Compose recommended setup (one-time):
-Child Pi navigation: new Pi package
-Handoff + Verify: new Pi package
-workmux Pi Hook: optional workmux setup
-Pi packages affect normal pi too.
-Prepare the missing recommended features? [Y/n]
-```
+It respects existing settings: a previously installed Package (including `pi config` resource filters) is not overwritten, and a previous onboarding decision is not silently reset after an update. The operation affects normal `pi` too because Pi itself owns package settings. Existing Pi Skill/Theme/Auth/Session files are not replaced.
 
-- **Y / Enter:** `pi install` adds missing local Navigation and Handoff/Verify Packages to Pi's global settings; any existing Pi package settings, skills, models and themes are preserved.
-- **N:** skip optional setup. Core Launch/Compose remains available. This decision is remembered to avoid nagging.
-- If the Pi status Hook was not detected, a **separate [y/N]** question offers `workmux setup`. This can also offer configuration for other detected coding agents: review its own prompts carefully and choose Pi only if desired.
-- Installed Packages are also visible in normal **`pi`** sessions, not only `pic`. This is why first-time setup explicitly asks permission.
-- Pi's current process may need `/reload` after setup. Pi opened **after** setup loads the new Extensions without reloading.
+When the workmux status Hook is missing, the CLI explains that workmux's configuration may affect **other installed coding agents** and asks **separate consent** before running official `workmux setup --hooks`. There is no confirmed official flag to target only Pi; inspect the choices workmux displays before approving. Declining Hook setup leaves basic Launch, Navigation, Handoff and Verify usable; Dashboard Agents may be empty. No custom workmux config editing is used.
 
-No Agent, Git branch, Worktree or model login is created by initial setup.
+Local UX diagnostic events are collected by default, with a first-use notice. The stored data excludes prompts, code, Diff and raw project/file paths. You can disable recording with `pic diagnostics off`.
+
+The initial setup never authenticates to a model, starts a new Agent, merges Git branches or deletes a Worktree. Login/model selection remain user actions via `/login` and `/model`. Newly started Pi processes load configured Extensions; already running Pi processes may require `/reload`.
 
 ## Already installed / upgrading
 
 - **Existing Pi:** existing settings and registered Extension/Skill/Theme stay in place. Only an expressly approved missing Package is installed.
-- **Existing Pi Compose:** the first run of the new wrapper offers the recommended setup once if components are missing. If packages were installed earlier, they are not reinstalled. Existing `pi config` resource exclusions are left unchanged.
+- **Existing Pi Compose:** the first run of the new wrapper installs missing first-party Compose Packages automatically unless the user previously opted out. Already installed Pi Packages and customized resource filters are never reinstalled or reset. Existing `pi config` resource exclusions are left unchanged.
 - **Partial setup:** `pic setup` inspects missing steps and can install only those after consent. A failed step does not roll back successfully completed earlier steps.
 - **Project-scoped Pi packages:** previously configured `.pi/settings.json` sources are detected as `project-only` and not silently duplicated into global Pi settings. Another Git Worktree might not inherit that project's package declaration; choose an explicit global Navigation install if you need cross-worktree access.
 - **Repeat installs:** the official installer reinstalls Pi Compose at the resolved commit only; it doesn't reset onboarding or the Pi resource filters. Direct PR #3 updates use `npm install -g` with the newer SHA/branch, again without postinstall.
-- **Previously declined:** no repeated prompt on future launches; run `pic setup` explicitly when ready.
+- **Previously declined:** no automatic re-enable on future launches; run `pic setup` explicitly when ready.
 - **Existing running Pi sessions:** enter `/reload` to load newly configured Extensions; starting a new agent/session loads them without user intervention.
 
 ## Check state and fix problems
@@ -102,7 +93,7 @@ To remove Handoff/Verify Package entirely, use Pi's built-in package manager (`p
 | `/compose-handoff` missing | `pi config` whether Handoff/Verify resource is enabled, then `/reload` |
 | setup partially failed | `pic doctor` then `pic setup`. Do not remove existing folders, sessions or worktrees |
 | Pi settings cannot be parsed | Correct malformed Pi settings using Pi's own commands/manual inspection; setup refuses to rewrite the file |
-| No setup prompt | This is expected after accepting/declining once; `pic setup` always opens explicit configuration |
+| No setup prompt | This is expected when existing preferences are preserved; `pic setup` can explicitly repair missing components |
 
 ## After installation
 
