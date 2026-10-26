@@ -2,7 +2,7 @@
 
 [← README](../README.md) · [Installation](SETUP.md)
 
-**Prerequisite:** install the PR #3 build, run `pic`, approve the recommended initial setup (or `pic setup` later), authenticate Pi with `/login`, and select `/model`. Handoff/Verify must be enabled in `pi config` for the corresponding slash commands. Workmux's Pi Hook must be configured for Dashboard agent statuses.
+**Prerequisite:** install the PR #3 build, run `pic`, allow the automatic Pi Compose core setup to complete (or use `pic setup` to retry missing packages), authenticate Pi with `/login`, and select `/model`. Handoff/Verify must be enabled in `pi config` for the corresponding slash commands. Workmux's Pi Hook must be configured for Dashboard agent statuses.
 
 ## 1. Fork a Main API design into a separate Worktree
 
@@ -97,7 +97,7 @@ cd ~/projects/payment-sdk && pic
 
 Each bare `pic` manages its own project-scoped tmux session. Within Pi, **`/compose monitor`** opens workmux's Dashboard, which can show Hook-registered agents across projects. You can inspect recent terminal output and Git changes or jump to a registered Agent there.
 
-For a workmux state Hook, approve `workmux setup` during the first-time `pic` setup, or run `pic setup`. Without Hook registration, the Agents view may be empty. Shared Directory Pi processes not managed by workmux can still be reached via each project's `/compose` and ordinary tmux sessions.
+For a workmux state Hook, approve the separate external workmux Hook prompt during first `pic` setup, or run `pic setup`. Without Hook registration, the Agents view may be empty. Shared Directory Pi processes not managed by workmux can still be reached via each project's `/compose` and ordinary tmux sessions.
 
 **Responsibility:** Pi Compose knows the exact Main↔Agent relationship *inside a project*; workmux/tmux owns cross-project switching and observations. Do not interpret workmux's recently finished response as a completed product feature.
 
