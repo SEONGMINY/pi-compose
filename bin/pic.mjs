@@ -5,6 +5,7 @@ import { realpathSync } from 'node:fs';
 import { constants } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { maybeOnboard, setupRecommended, printDoctor } from './setup.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const coreExtension = resolve(root, 'extensions/compose.ts');
@@ -27,6 +28,21 @@ function runPi(args) {
     child.once('close', (code, signal) => {
       if (failed) return;
       done(signal ? 128 + (constants.signals[signal] || 1) : (code ?? 1));
+    });
+  });
+}
+
+function runWorkmux(args) {
+  return new Promise(done => {
+    const child = spawn('workmux', args, { stdio: 'inherit', cwd: process.cwd() });
+    let failed = false;
+    child.once('error', error => {
+      failed = true;
+      console.error('pic: workmux could not start: ' + error.message);
+      done(127);
+    });
+    child.once('close', (code, signal) => {
+      if (!failed) done(signal ? 128 + (constants.signals[signal] || 1) : (code ?? 1));
     });
   });
 }
@@ -64,7 +80,13 @@ const command = args[0];
 
 // A one-time, explicit opt-in to the optional feature bundle. All three features
 // are initially enabled by Pi on installation; pi config owns later selection.
-if (command === 'navigation') {
+if (command === 'doctor') {
+  if (args.length !== 1) { console.error('Usage: pic doctor'); process.exitCode = 2; }
+  else process.exitCode = printDoctor(root);
+} else if (command === 'setup') {
+  if (args.length !== 1) { console.error('Usage: pic setup'); process.exitCode = 2; }
+  else process.exitCode = await setupRecommended(root, { runPi, runWorkmux });
+} else if (command === 'navigation') {
   const [operation, ...extra] = args.slice(1);
   if (!new Set(['enable', 'disable']).has(operation) || extra.length) {
     console.error('Usage: pic navigation enable|disable');
@@ -94,6 +116,9 @@ if (command === 'navigation') {
   // Explicit -e is the only difference from an ordinary "pi" invocation.
   // Pi flags and noninteractive calls keep their previous behavior. Only bare
   // interactive pic automatically manages tmux; inside tmux never nest it.
+  // All installation paths (git SHA, development branch, macOS installer) pass
+  // through this same first-run gate. It never runs for flags or scripts.
+  if (!command) await maybeOnboard(root, { runPi, runWorkmux });
   process.exitCode = !command && process.stdin.isTTY && process.stdout.isTTY
     && !process.env.TMUX && process.platform !== 'win32'
     ? await runInProjectTmux()
