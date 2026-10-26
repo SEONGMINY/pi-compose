@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import navigationOnly from '../packages/navigation/extensions/navigator.ts';
-import { parseWorkmuxStatus, worktreeStatus } from '../src/agent-status.ts';
 import { returnToTmux } from '../extensions/work-return.ts';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 
@@ -41,42 +40,6 @@ test('navigation package does not conflict with the full Compose Extension in pi
     if (original === undefined) delete process.env.PIC_COMPOSE_CORE;
     else process.env.PIC_COMPOSE_CORE = original;
   }
-});
-
-const baseReport = {
-  context: { backend: 'tmux', instance: '/tmp/tmux-instance' },
-  scope: { repository: '/tmp/project', all: false, targets: [] },
-  state_files_invalid_matching_context: 0,
-  state_files_invalid_unattributed: 0,
-  target_errors: [],
-  agents: [{ status: 'working', workdir: '/tmp/worktree', project_path: '/tmp/project', agent_kind: 'pi' }],
-};
-
-test('workmux observation shows actual working state but not a fabricated waiting state for Pi', () => {
-  const rows = parseWorkmuxStatus(JSON.stringify(baseReport), '/tmp/project');
-  assert.equal(worktreeStatus(rows, '/tmp/worktree'), 'working');
-  assert.equal(worktreeStatus(rows, '/tmp/other'), undefined);
-  const waiting = parseWorkmuxStatus(JSON.stringify({
-    ...baseReport, agents: [{ ...baseReport.agents[0], status: 'waiting' }],
-  }), '/tmp/project');
-  assert.equal(worktreeStatus(waiting, '/tmp/worktree'), undefined);
-  const done = parseWorkmuxStatus(JSON.stringify({
-    ...baseReport, agents: [{ ...baseReport.agents[0], status: 'done' }],
-  }), '/tmp/project');
-  assert.equal(worktreeStatus(done, '/tmp/worktree'), 'settled');
-});
-
-test('ambiguous agent snapshots and errors must never display a confident state', () => {
-  const duplicated = parseWorkmuxStatus(JSON.stringify({
-    ...baseReport, agents: [...baseReport.agents, ...baseReport.agents],
-  }), '/tmp/project');
-  assert.equal(worktreeStatus(duplicated, '/tmp/worktree'), undefined);
-  const damaged = parseWorkmuxStatus(JSON.stringify({
-    ...baseReport, state_files_invalid_matching_context: 1,
-  }), '/tmp/project');
-  assert.deepEqual(damaged, []);
-  const otherProject = parseWorkmuxStatus(JSON.stringify(baseReport), '/tmp/unrelated');
-  assert.deepEqual(otherProject, []);
 });
 
 test('return to Main verifies exact window membership and does not spawn Pi', async t => {

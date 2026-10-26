@@ -2,7 +2,6 @@ import { basename, resolve } from 'node:path';
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import type { LaunchPlan } from '../src/launch.ts';
 import { listTasks, recordTask, type TaskRecord, type TaskLink, type TmuxLocation } from '../src/task-index.ts';
-import { type AgentObservation } from '../src/agent-status.ts';
 import { openWorkmuxMonitor } from './optional/workmux-dashboard.ts';
 import { workmuxRows, returnToTmux, type OpenWorktree } from './work-return.ts';
 import { showSavedSessions } from './work-return.ts';
@@ -71,7 +70,7 @@ function exactWorktree(record: TaskRecord, worktrees: OpenWorktree[]): OpenWorkt
 
 export function taskHubRows(
   records: TaskRecord[], worktrees: OpenWorktree[], live: TmuxLocation[], current?: TmuxLocation,
-  isMain = false, _observations: AgentObservation[] = [],
+  isMain = false,
 ): HubRow[] {
   const isLive = (location: TmuxLocation | undefined) =>
     Boolean(location && live.some(x => equalLocation(x, location)));
@@ -247,12 +246,12 @@ export async function showTaskHub(
     { kind: 'monitor', label: '전체 작업 관찰 · workmux Dashboard' },
     { kind: 'history', label: '이전 Pi 대화·기능 찾기' },
   ];
-  const choices = rows.map(row => {
+  const choices = rows.map((row, index) => {
     if (row.kind !== 'task' || !row.record) return row.label;
     const r = row.record;
     const prefix = brief(r.title);
     // Always distinguish identical names, without guessing by a branch name.
-    return prefix + ' [' + r.id.slice(0, 6) + '] · '
+    return (index + 1) + '. ' + prefix + ' [' + r.id.slice(0, 8) + '] · '
       + (r.context === 'fork' ? 'Fork' : 'Independent') + ' · '
       + (row.available ? '화면 연결됨' : '기록만 있음');
   });
