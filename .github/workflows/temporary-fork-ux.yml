@@ -1,0 +1,15 @@
+name: Temporary Fork UX validation
+on:
+  push:
+    branches: [feat/task-hub-ghostty]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.20.0'
+      - run: npm install --no-audit --no-fund
+      - run: node --check bin/pic.mjs
+      - run: npm run check
