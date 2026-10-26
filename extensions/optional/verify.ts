@@ -1,5 +1,6 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { attachSessionEvidence, attachTaskEvidence } from '../../src/task-index.ts';
+import { diagnosticEvent, startFlow, finishFlow } from '../../src/diagnostics.mjs';
 
 const MAX_PATCH_CHARS = 36_000;
 const MAX_PATHS_IN_PROMPT = 400;
@@ -13,6 +14,10 @@ export default function verificationExtension(pi: ExtensionAPI): void {
   pi.registerCommand('compose-verify', {
     description: 'Verify this working tree in an independent read-only Pi run: /compose-verify [base-ref]',
     handler: async (args, ctx) => {
+      const flow=startFlow('verify.started',{source:'slash'});
+      let outcome:'success'|'failure'|'cancelled'='failure';
+      diagnosticEvent('command.entered',{source:'slash',data:{route:'verify'}});
+      try {
       if (!ctx.hasUI) {
         ctx.ui.notify('An interactive confirmation is required to start independent verification.', 'warning');
         return;
@@ -204,9 +209,11 @@ export default function verificationExtension(pi: ExtensionAPI): void {
           ...(clipped ? ['[Review output clipped; this is not the complete reviewer report.]'] : []),
         ].join('\n');
         pi.sendMessage({ customType: 'pi-compose-review', content: brief, display: true });
+        outcome='success';
       } catch (error) {
         ctx.ui.notify('Independent verification could not run: ' + (error instanceof Error ? error.message : String(error)), 'error');
       }
+      } finally {finishFlow(flow,'verify.finished',{source:'slash',outcome});}
     },
   });
 }
