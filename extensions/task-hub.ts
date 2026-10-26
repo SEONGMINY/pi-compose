@@ -1,7 +1,7 @@
 import { basename, resolve } from 'node:path';
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import type { LaunchPlan } from '../src/launch.ts';
-import { listTasks, recordTask, type TaskRecord, type TaskLink, type TmuxLocation } from '../src/task-index.ts';
+import { bindAgentSession, listTasks, recordTask, type TaskRecord, type TaskLink, type TmuxLocation } from '../src/task-index.ts';
 import { openWorkmuxMonitor } from './optional/workmux-dashboard.ts';
 import { workmuxRows, returnToTmux, type OpenWorktree } from './work-return.ts';
 import { showSavedSessions } from './work-return.ts';
@@ -219,7 +219,8 @@ async function taskActions(ctx: ExtensionContext, row: HubRow): Promise<'open' |
       await ctx.ui.confirm('위임 원문 · 읽기 전용', [
         '작업: ' + record.title,
         '컨텍스트: ' + (record.context === 'fork' ? 'Fork' : 'Independent'),
-        ...(record.sourceSessionId ? ['원본 Pi 세션 ID: ' + record.sourceSessionId] : []),
+        ...(record.sourceSessionId ? ['Fork 원본 세션 ID: ' + record.sourceSessionId] : []),
+        ...(record.agentSessionId ? ['실제 Agent Pi 세션 ID: ' + record.agentSessionId] : ['실제 Agent Pi 세션: 연결 미확인']),
         '공간: ' + (record.workspace === 'worktree' ? 'Worktree' : 'Shared'),
         ...(record.branch ? ['브랜치: ' + record.branch] : []),
         '\n실제 위임 지시 (원본 대화 전체 아님):\n' + (record.instruction || record.title),
@@ -288,6 +289,18 @@ export async function showTaskHub(
   await returnToTmux(pi, ctx, { name: target.session, cwd: root, windowId: target.windowId });
 }
 
+/** Match only this running Pi's persisted session and exact tmux window. */
+async function linkCurrentPi(pi: ExtensionAPI, ctx: ExtensionContext): Promise<void> {
+  const sessionFile = ctx.sessionManager.getSessionFile();
+  if (!sessionFile || !process.env.TMUX) return;
+  const snapshot = await tmuxSnapshot(pi, ctx.cwd);
+  if (!snapshot.current) return;
+  const worktrees = await workmuxRows(pi, ctx.cwd);
+  const root = await projectRoot(pi, ctx.cwd, worktrees.rows);
+  await bindAgentSession(root, snapshot.current, ctx.cwd,
+    ctx.sessionManager.getSessionId(), sessionFile);
+}
+
 export function registerTaskHub(pi: ExtensionAPI, openHub: (ctx: ExtensionContext) => Promise<void>): void {
   // Optional fast path. /compose is the discoverable and portable default.
   pi.registerShortcut?.('alt+w', {
@@ -296,5 +309,13 @@ export function registerTaskHub(pi: ExtensionAPI, openHub: (ctx: ExtensionContex
   });
   pi.on?.('session_start', async (_event, ctx) => {
     await refreshTaskIndicator(ctx);
+  });
+  // Pi may not persist its session file until the first conversation message.
+  // These existing Pi events retry without polling, timers or a daemon.
+  pi.on?.('agent_start', async (_event, ctx) => {
+    await linkCurrentPi(pi, ctx).catch(() => undefined);
+  });
+  pi.on?.('agent_settled', async (_event, ctx) => {
+    await linkCurrentPi(pi, ctx).catch(() => undefined);
   });
 }
