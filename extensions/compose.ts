@@ -8,6 +8,7 @@ import { registerTaskHub, showTaskHub, trackLaunchedTask, refreshTaskIndicator }
 import { fileURLToPath } from 'node:url';
 import { Text } from '@earendil-works/pi-tui';
 import { approveLaunch, taskName } from './compose-panel.ts';
+import { diagnosticEvent, startFlow, finishFlow } from '../src/diagnostics.mjs';
 
 const baseExtension = fileURLToPath(import.meta.url);
 
@@ -67,6 +68,11 @@ async function chooseForkSource(ctx: ExtensionContext, { includeCurrent = true }
 }
 
 export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, mode: 'launch' | 'preview', suppliedTask = ''): Promise<void> {
+  const flow = startFlow('launch.started',{source:'slash',data:{route:mode}});
+  let outcome: 'success'|'failure'|'cancelled' = 'cancelled';
+  let chosenContext: 'fork'|'independent'|undefined;
+  let chosenWorkspace: 'shared'|'worktree'|undefined;
+  try {
   if (!ctx.hasUI) {
     ctx.ui.notify('Interactive options are required. Use the pi-compose CLI in non-UI environments.', 'warning');
     return;
@@ -79,6 +85,7 @@ export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, 
   if (!workspaceChoice) return;
   const context = contextChoice.startsWith('Fork') ? 'fork' : 'independent';
   const workspace = workspaceChoice === 'Git Worktree' ? 'worktree' : 'shared';
+  chosenContext=context; chosenWorkspace=workspace;
   let sourceSessionFile: string | undefined;
   try {
     sourceSessionFile = context === 'fork' ? await chooseForkSource(ctx) : undefined;
@@ -93,6 +100,7 @@ export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, 
   try {
     const plan = await planLaunch({ task, context, workspace, cwd: ctx.cwd, sourceSessionFile, branch, composeExtensionFile: baseExtension });
     if (mode === 'preview') {
+      outcome='success';
       ctx.ui.notify(`Preview only: ${plan.program} ${plan.args.join(' ')}${plan.warnings.length ? `\n${plan.warnings.join('\n')}` : ''}`, 'info');
       return;
     }
@@ -100,16 +108,20 @@ export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, 
       current: plan.source?.path === ctx.sessionManager.getSessionFile(),
       conversationPreview: currentConversationPreview(ctx)?.preview,
     });
+    diagnosticEvent('launch.approval',{source:'slash',flowId:flow.flowId,outcome:approval?'success':'cancelled',data:{context,workspace}});
     if (approval !== true) return;
     const result = await executeLaunch(plan);
+    outcome='success';
     const indexWarning = await trackLaunchedTask(pi, plan);
     if (indexWarning) ctx.ui.notify(indexWarning, 'warning');
     await refreshTaskIndicator(ctx, plan.cwd);
     ctx.ui.notify(`Agent 실행 명령 전달 완료 · ${taskName(plan.task)} · 실행 상태: /compose monitor, 정확한 연결: /compose`, 'info');
     for (const warning of result.warnings) ctx.ui.notify(warning, 'warning');
   } catch (error: unknown) {
+    outcome='failure';
     ctx.ui.notify(`Launch failed: ${error instanceof Error ? error.message : String(error)}`, 'error');
   }
+  } finally { finishFlow(flow,'launch.finished',{source:'slash',outcome,data:{context:chosenContext,workspace:chosenWorkspace,route:mode}}); }
 }
 
 export default function composeExtension(pi: ExtensionAPI): void {
@@ -120,6 +132,9 @@ export default function composeExtension(pi: ExtensionAPI): void {
     description: 'Pi Compose: /compose related agents; /compose launch, /compose monitor, /compose sessions',
     handler: async (args, ctx) => {
       const [subcommand, ...rest] = args.trim().split(/\s+/);
+      const route = ['launch','preview','monitor','dashboard','sessions','back','resume','work'].includes(subcommand||'') ? subcommand : !subcommand?'home':'invalid';
+      diagnosticEvent('command.entered',{source:'slash',data:{route}});
+      if(route==='invalid') diagnosticEvent('command.invalid',{source:'slash',outcome:'failure',data:{route:'invalid'}});
       if (!subcommand || subcommand === 'work') {
         await openHub(ctx);
         return;
@@ -202,6 +217,9 @@ export function registerComposeLaunchTool(pi: ExtensionAPI): void {
       cwd: Type.Optional(Type.String({ description: 'Target directory. Defaults to this Pi session cwd' })),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const flow = startFlow('launch.started',{source:'natural-language',data:{context:params.context,workspace:params.workspace}});
+      let outcome: 'success'|'failure'|'cancelled'|'unavailable' = 'failure';
+      try {
       if (params.context === 'fork' && !params.source) {
         throw new Error('Fork requires an explicit source: current Pi session or an exact session file.');
       }
@@ -216,6 +234,7 @@ export function registerComposeLaunchTool(pi: ExtensionAPI): void {
       }
       // Model tool calls alone never authorize process creation. A real user's confirmation is required.
       if (!ctx.hasUI) {
+        outcome='unavailable';
         return {
           content: [{ type: 'text' as const, text: 'Launch was NOT executed: confirmation UI unavailable. Ask the user to run /compose launch or use the CLI.' }],
           details: { status: 'not_executed_confirmation_unavailable' },
@@ -232,10 +251,13 @@ export function registerComposeLaunchTool(pi: ExtensionAPI): void {
         conversationPreview: params.source?.kind === 'current'
           ? currentConversationPreview(ctx)?.preview : undefined,
       });
+      diagnosticEvent('launch.approval',{source:'natural-language',flowId:flow.flowId,outcome:approved?'success':'cancelled',data:{context:params.context,workspace:params.workspace}});
       if (approved !== true) {
+        outcome='cancelled';
         return { content: [{ type: 'text' as const, text: 'Launch cancelled by user. No agent was started.' }], details: { status: 'cancelled' } };
       }
       const result = await executeLaunch(plan);
+      outcome='success';
       const indexWarning = await trackLaunchedTask(pi, plan, params.title);
       if (indexWarning) ctx.ui.notify(indexWarning, 'warning');
       await refreshTaskIndicator(ctx, plan.cwd);
@@ -245,6 +267,7 @@ export function registerComposeLaunchTool(pi: ExtensionAPI): void {
             + '. 실제 Pi 활동은 미확인입니다. 관련 작업은 /compose, 실행 관찰은 /compose monitor.' }],
         details: result,
       };
+      } finally { finishFlow(flow,'launch.finished',{source:'natural-language',outcome,data:{context:params.context,workspace:params.workspace}}); }
     },
     renderCall(args, theme) {
       return new Text(theme.fg('accent', '↗ 개발 위임 · ' + taskName(args.task, args.title)), 0, 0);
