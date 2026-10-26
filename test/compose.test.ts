@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import composeExtension from '../extensions/compose.ts';
 import { delegationPrompt } from '../src/launch.ts';
+import { taskName } from '../extensions/compose-panel.ts';
 import type { ExtensionAPI, ExtensionContext, ExtensionToolContext } from '@earendil-works/pi-coding-agent';
 
 type LaunchParams = {
@@ -111,8 +112,8 @@ test('model tool asks for explicit approval and cancel never launches', async t 
       ui: { confirm: async (_title: string, text: string) => { confirmations++; shown = text; return false; } },
     } as unknown as ExtensionToolContext);
   assert.equal(confirmations, 1);
-  assert.match(shown, /개발 Agent에게 맡길 작업:\nImplement members/);
-  assert.match(shown, /기존 Main 대화는 전달되지 않습니다/);
+  assert.match(shown, /작업: Implement members/);
+  assert.match(shown, /맥락: 독립 실행 · Main 대화 미전달/);
   assert.deepEqual(result.details, { status: 'cancelled' });
 });
 
@@ -225,8 +226,16 @@ test('Fork confirmation shows which current session and user decisions will be i
   assert.deepEqual(result.details, { status: 'cancelled' });
   assert.match(shown, /Add displayName, preserve name compatibility/);
   assert.match(shown, /chosen-main/);
-  assert.match(shown, /사용자 메시지: 2개/);
+  assert.match(shown, /최근 사용자 발화 \(대화 전체 아님\)/);
   assert.match(shown, /keep the old name field/);
   assert.match(shown, /Also add displayName/);
-  assert.match(shown, /미리보기는 대화 전체가 아닙니다/);
+  assert.match(shown, /대화 전체 아님/);
+});
+
+// Lightweight unit-level review assertions; not executed by this change.
+test('a short display name never replaces the actionable handoff instruction', () => {
+  const name = taskName('Add displayName to the API. Keep existing name consumers compatible.');
+  assert.ok(name.startsWith('Add displayName to the API.'));
+  assert.ok(name.length <= 64);
+  assert.equal(taskName('Long task instruction', 'Profile API compatibility'), 'Profile API compatibility');
 });

@@ -41,7 +41,10 @@ export async function approveLaunch(
   if (ctx.mode !== 'tui') {
     return await ctx.ui.confirm('개발 Agent 실행', summary
       + '\n\n위임 지시 원문:\n' + plan.task
-      + (plan.source ? '\n\n원본 세션: ' + plan.source.id : ''));
+      + (plan.source ? '\n\n원본 세션: ' + plan.source.id : '')
+      + (origin.conversationPreview?.length
+        ? '\n\n최근 사용자 발화 (대화 전체 아님):\n' + origin.conversationPreview.join('\n')
+        : ''));
   }
 
   return await ctx.ui.custom<boolean>((tui, theme, keys, done) => {
@@ -112,7 +115,7 @@ export async function pickTask(
         for (let i = first; i < Math.min(items.length, first + pageSize); i++) {
           const item = items[i]!;
           const label = item.kind === 'task' && item.record
-            ? taskName(item.record.title) : short(item.label, 120);
+            ? short(item.label.split(' · ')[0] || item.record.title, 120) : short(item.label, 120);
           rows.push((i === selected ? theme.fg('accent', '❯ ') : '  ')
             + (i === selected ? theme.fg('accent', label) : label));
         }
