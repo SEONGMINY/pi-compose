@@ -20,8 +20,20 @@ const SAFE_KEYS = new Set([
   'availableTargets','choiceCount','selectionCount','elapsedMs','stepCount',
   'attempt','linked','hasResult','configured','component','status'
 ]);
-const ENUM = new Set(['action','route','reason','screen','context','workspace','from','to','kind','component','status']);
-const token = /^[a-z][a-z0-9_.-]{0,50}$/;
+const CATEGORIES = {
+  action: ['select','open','cancel','back','confirm','switch','view'],
+  route: ['home','work','launch','preview','monitor','dashboard','sessions','back','resume','handoff','verify','invalid'],
+  reason: ['no_selection','current','target_unavailable','worktree_closed','settings_invalid','pi_package_error','workmux_hook_error','not_found','no_result','unsupported','unknown'],
+  screen: ['main','agent','unknown'],
+  context: ['fork','independent'],
+  workspace: ['shared','worktree'],
+  from: ['main','agent','session','project','unknown'],
+  to: ['main','agent','session','project','unknown'],
+  kind: ['task','history','monitor','new','current','main','tmux','saved_session','result','instruction','agent','unknown'],
+  component: ['navigation','handoff-verify','workmux_hook','diagnostics','other'],
+  status: ['ready','missing','custom','disabled','partial','unknown']
+};
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const runId = randomUUID();
 const maxBytes=2*1024*1024;
 const retentionDays=14;
@@ -51,7 +63,7 @@ function safeData(data) {
     if((k==='availableTargets'||k==='choiceCount'||k==='selectionCount'||k==='elapsedMs'||k==='stepCount'||k==='attempt')
       &&typeof v==='number'&&Number.isFinite(v)) {result[k]=Math.min(86_400_000,Math.max(0,Math.round(v)));continue;}
     if(k==='linked'||k==='hasResult'||k==='configured') { if(typeof v==='boolean')result[k]=v;continue; }
-    if(ENUM.has(k)&&typeof v==='string'&&token.test(v)) result[k]=v;
+    if(Object.hasOwn(CATEGORIES,k) && typeof v==='string'&&CATEGORIES[k].includes(v))result[k]=v;
   }
   return result;
 }
@@ -89,7 +101,7 @@ export function diagnosticEvent(event,{source='unknown',flowId,run=runId,outcome
   try {
     const row={
       schemaVersion:SCHEMA_VERSION,timestamp:new Date().toISOString(),
-      runId:run,flowId:flowId||randomUUID(),event,
+      runId:typeof run==='string'&&UUID.test(run)?run:runId,flowId:typeof flowId==='string'&&UUID.test(flowId)?flowId:randomUUID(),event,
       source:SOURCES.has(source)?source:'unknown',
       outcome:OUTCOMES.has(outcome)?outcome:'unknown',
       data:safeData(data),
@@ -126,11 +138,11 @@ export function readDiagnosticEvents({days=7}={}) {
         const row=JSON.parse(line);
         if(row?.schemaVersion!==1||!VALID.has(row.event)||!SOURCES.has(row.source)||!OUTCOMES.has(row.outcome)||Number.isNaN(Date.parse(row.timestamp)))continue;
         if(Date.parse(row.timestamp)<cutoff)continue;
-        rows.push({schemaVersion:1,timestamp:row.timestamp,runId:typeof row.runId==='string'&&/^[0-9a-f-]{36}$/.test(row.runId)?row.runId:'',
-          flowId:typeof row.flowId==='string'&&/^[0-9a-f-]{36}$/.test(row.flowId)?row.flowId:'',event:row.event,source:row.source,outcome:row.outcome,
-          data:safeData(row.data),...(typeof row.taskKey==='string'?{taskKey:row.taskKey}:{}),
-          ...(typeof row.sessionKey==='string'?{sessionKey:row.sessionKey}:{}),
-          ...(typeof row.projectKey==='string'?{projectKey:row.projectKey}:{})});
+        rows.push({schemaVersion:1,timestamp:row.timestamp,runId:typeof row.runId==='string'&&UUID.test(row.runId)?row.runId:'',
+          flowId:typeof row.flowId==='string'&&UUID.test(row.flowId)?row.flowId:'',event:row.event,source:row.source,outcome:row.outcome,
+          data:safeData(row.data),...(typeof row.taskKey==='string'&&/^[0-9a-f]{20}$/.test(row.taskKey)?{taskKey:row.taskKey}:{}),
+          ...(typeof row.sessionKey==='string'&&/^[0-9a-f]{20}$/.test(row.sessionKey)?{sessionKey:row.sessionKey}:{}),
+          ...(typeof row.projectKey==='string'&&/^[0-9a-f]{20}$/.test(row.projectKey)?{projectKey:row.projectKey}:{})});
       }
     }catch{}
   }
