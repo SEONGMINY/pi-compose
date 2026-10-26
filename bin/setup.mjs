@@ -4,8 +4,12 @@ import { homedir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 
-const agentDir = () => resolve(process.env.PI_CODING_AGENT_DIR || join(homedir(), '.pi', 'agent'));
-const consentPath = () => join(homedir(), '.pi', 'compose', 'onboarding-v1.json');
+const agentDir = () => {
+  const custom = process.env.PI_CODING_AGENT_DIR;
+  return custom?.startsWith('~/') ? resolve(homedir(), custom.slice(2))
+    : resolve(custom || join(homedir(), '.pi', 'agent'));
+};
+const consentPath = () => join(agentDir(), 'compose', 'onboarding-v1.json');
 // Only the once-shown consent is stored here. Pi/workmux still own all feature settings.
 function json(path) {
   if (!existsSync(path)) return { ok: true, value: {} };
