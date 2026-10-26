@@ -189,6 +189,7 @@ const brief = (text: string, limit = 24): string => {
 const evidenceText = (record: TaskRecord): string => [
   'Agent: ' + record.title,
   'Git HEAD는 기록 시점의 값이며 현재 상태와 다를 수 있습니다.',
+  ...(record.workspace === 'shared' ? ['Shared Directory의 Git 변경은 개별 Agent에 귀속되지 않습니다.'] : []),
   record.handoff ? '\n[개발자 인계 주장 · 독립 검증 전]\n'
     + '작업 내용: ' + record.handoff.summary + '\nWHY / 제약: ' + record.handoff.why
     + '\n실행했다고 보고한 검사: ' + record.handoff.checks

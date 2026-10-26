@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import { attachTaskEvidence } from '../../src/task-index.ts';
+import { attachSessionEvidence, attachTaskEvidence } from '../../src/task-index.ts';
 
 const MAX_PATCH_CHARS = 36_000;
 const MAX_PATHS_IN_PROMPT = 400;
@@ -181,6 +181,17 @@ export default function verificationExtension(pi: ExtensionAPI): void {
                   incomplete: changedAfter || patchTruncated || pathListTruncated,
                 },
               });
+            if (hubLink !== 'saved') {
+              hubLink = await attachSessionEvidence(mainCheckout,
+                ctx.sessionManager.getSessionId(), {
+                  review: {
+                    kind: 'independent_review_executed',
+                    recordedAt: new Date().toISOString(),
+                    gitHead: head, reportExcerpt: result.stdout.slice(0, 3500),
+                    incomplete: changedAfter || patchTruncated || pathListTruncated,
+                  },
+                });
+            }
           }
         } catch { /* Review remains visible in Pi session even when link is unavailable. */ }
         const brief = [

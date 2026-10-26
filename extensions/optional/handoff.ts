@@ -1,6 +1,6 @@
 import { Type } from '@earendil-works/pi-ai';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import { attachTaskEvidence } from '../../src/task-index.ts';
+import { attachSessionEvidence, attachTaskEvidence } from '../../src/task-index.ts';
 
 /**
  * Optional handoff extension.
@@ -119,6 +119,19 @@ export default function handoffExtension(pi: ExtensionAPI): void {
               outstanding: params.outstanding.slice(0, 2000), changedFileCount: names.length,
             },
           });
+        // On Shared Directory Git changes are not attributable to an Agent.
+        // Only its verified actual Pi session may own a developer's Handoff claim.
+        if (hubLink !== 'saved' && mainCheckout) {
+          hubLink = await attachSessionEvidence(mainCheckout,
+            ctx.sessionManager.getSessionId(), {
+              handoff: {
+                kind: 'developer_claim', recordedAt: new Date().toISOString(),
+                gitHead: head, summary: params.summary.slice(0, 3000),
+                why: params.why.slice(0, 3000), checks: params.checks.slice(0, 2000),
+                outstanding: params.outstanding.slice(0, 2000), changedFileCount: names.length,
+              },
+            });
+        }
       } catch { /* Handoff remains in this session; never claim it was linked. */ }
 
       let delivery: 'not_requested' | 'cancelled' | 'confirmation_unavailable' | 'submitted_unverified' | 'failed' = 'not_requested';
