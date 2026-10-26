@@ -6,8 +6,8 @@ Branch: `feat/task-hub-ghostty`, PR #3. Date: 2026-10-26 (KST).
 
 - Reviewed `scripts/install.sh`, `bin/pic.mjs`, Pi package declarations and official Pi package manager implementation.
 - Both official main and guarded PR #3 installation resolve a Git commit and call `npm install -g --ignore-scripts`. No npm postinstall writes Pi settings.
-- First bare interactive `pic` checks existing global and project Pi package paths before requesting permission. `pic --version`, direct Pi options, noninteractive calls and `pic doctor` do not request setup.
-- A declined setup is remembered once. Already registered Pi package resources (including customized filters) are preserved. Project-only package declarations are not silently promoted to global scope.
+- First bare interactive `pic` checks existing global and project Pi package paths before automatically preparing missing first-party packages. The workmux Hook requires separate permission. `pic --version`, direct Pi options, noninteractive calls and `pic doctor` do not request setup.
+- External Hook opt-outs and previous onboarding choices are remembered. Already registered Pi package resources (including customized filters) are preserved. Project-only package declarations are not silently promoted to global scope.
 - `workmux setup` is opened only after a separate opt-in and remains the official interactive configuration interface. Hook file detection is not claimed as proof of an actively reporting Agent.
 - Static V8 parse of the new `bin/setup.mjs` and revised `bin/pic.mjs`: PASS after stripping module imports for static parsing, **not running them in an installed Pi environment**.
 - Isolated local sample setup-status logic: PASS for missing package detection, existing configured/custom resources, workmux Hook presence and no modifications to an existing Pi settings file.
@@ -19,11 +19,11 @@ Branch: `feat/task-hub-ghostty`, PR #3. Date: 2026-10-26 (KST).
 
 | Manual scenario | Expected behavior | Current status |
 | --- | --- | --- |
-| New macOS user runs main installer | Existing dependency checks preserved, then first `pic` offers setup | NOT_RUN |
+| New macOS user runs main installer | Dependency checks preserved; after PR merge first `pic` auto-configures missing core packages | NOT_RUN |
 | New macOS user runs PR #3 guarded installer | Explicit branch SHA resolved; missing binaries protected by installer | NOT_RUN |
-| Direct Git SHA npm install | `--ignore-scripts` succeeds with prerequisites already installed; first `pic` prompts | NOT_RUN |
-| First `pic`, accept recommended | Missing Navigation and Handoff/Verify installed via Pi, no duplicate packages | NOT_RUN |
-| First `pic`, decline | Core Launch still works; second `pic` does not nag | NOT_RUN |
+| Direct Git SHA npm install | `--ignore-scripts` succeeds with prerequisites already installed; first `pic` auto-configures core | NOT_RUN |
+| First `pic` | Missing Navigation and Handoff/Verify installed automatically via Pi, no package approval prompt or duplicates | NOT_RUN |
+| First `pic`, decline external workmux Hook | Internal core packages installed; Hook remains absent; second `pic` does not prompt repeatedly | NOT_RUN |
 | Partial Pi packages, user resource exclusions | Existing packages and per-resource settings unchanged | NOT_RUN |
 | Custom `PI_CODING_AGENT_DIR` | Consent and setting scans use selected Pi profile | NOT_RUN |
 | Project-only `.pi/settings.json` | Local source not duplicated globally; Worktree scope limitation shown | NOT_RUN |
