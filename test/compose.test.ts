@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import composeExtension from '../extensions/compose.ts';
+import { delegationPrompt } from '../src/launch.ts';
 import type { ExtensionAPI, ExtensionContext, ExtensionToolContext } from '@earendil-works/pi-coding-agent';
 
 type LaunchParams = {
@@ -110,7 +111,8 @@ test('model tool asks for explicit approval and cancel never launches', async t 
       ui: { confirm: async (_title: string, text: string) => { confirmations++; shown = text; return false; } },
     } as unknown as ExtensionToolContext);
   assert.equal(confirmations, 1);
-  assert.match(shown, /Task: Implement members/);
+  assert.match(shown, /개발 Agent에게 맡길 작업:\nImplement members/);
+  assert.match(shown, /기존 Main 대화는 전달되지 않습니다/);
   assert.deepEqual(result.details, { status: 'cancelled' });
 });
 
@@ -190,4 +192,41 @@ test('resume slash command will not reopen its currently running Pi session', as
     },
   } as unknown as ExtensionContext);
   assert.match(messages[0] ?? '', /already open in this Pi process/);
+});
+
+test('fork delegation prompt preserves explicit prohibitions and never claims context was delivered', () => {
+  const prompt = delegationPrompt('Add displayName, keep existing name field', 'fork');
+  assert.match(prompt, /^Add displayName, keep existing name field/);
+  assert.match(prompt, /requirements, decisions, reasons, and explicit constraints/);
+  assert.match(prompt, /If the inherited discussion or actionable requirements are not present/);
+  assert.doesNotMatch(delegationPrompt('Find code', 'independent'), /inherited discussion/);
+  assert.equal(delegationPrompt('Find code', 'independent'), 'Find code');
+});
+
+test('Fork confirmation shows which current session and user decisions will be inherited', async t => {
+  const { cwd, file } = await fixture(t);
+  const { tool } = register();
+  let shown = '';
+  const result = await tool.execute('fork-preview', {
+    task: 'Add displayName, preserve name compatibility', context: 'fork', workspace: 'shared',
+    source: { kind: 'current' },
+  }, undefined, undefined, {
+    cwd, hasUI: true,
+    sessionManager: {
+      getSessionFile: () => file,
+      getBranch: () => [
+        { type: 'message', message: { role: 'user', content: 'Please keep the old name field for compatibility.' } },
+        { type: 'message', message: { role: 'assistant', content: 'Okay.' } },
+        { type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'Also add displayName.' }] } },
+      ],
+    },
+    ui: { confirm: async (_title: string, text: string) => { shown = text; return false; } },
+  } as unknown as ExtensionToolContext);
+  assert.deepEqual(result.details, { status: 'cancelled' });
+  assert.match(shown, /Add displayName, preserve name compatibility/);
+  assert.match(shown, /chosen-main/);
+  assert.match(shown, /사용자 메시지: 2개/);
+  assert.match(shown, /keep the old name field/);
+  assert.match(shown, /Also add displayName/);
+  assert.match(shown, /미리보기는 대화 전체가 아닙니다/);
 });
