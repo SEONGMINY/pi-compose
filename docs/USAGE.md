@@ -13,11 +13,11 @@ cd ~/projects/my-app
 pic
 ```
 
-최초 대화형 실행에서 필요한 권장 기능의 준비 여부를 확인합니다. 동의하면 **Navigation과 Handoff/Verify**가 Pi의 기존 패키지 관리 방식으로 설치됩니다. workmux 상태 Hook은 별도로 승인하고 `workmux setup`의 공식 화면에서 선택합니다. 이미 활성화한 항목과 사용자가 비활성화한 리소스는 변경하지 않습니다. 프로젝트의 `.pi/settings.json`에만 설치한 패키지도 중복 전역 등록하지 않으며, 새 Worktree에서는 해당 프로젝트 전용 설정이 적용되지 않을 수 있습니다. 설정을 건너뛰면 기본 Launch는 계속 동작합니다.
+최초 대화형 실행에서 누락된 **Navigation·Handoff·Verify를 자동 준비**합니다. Pi의 공식 패키지 관리 기능을 사용하며, workmux 상태 Hook은 별도로 승인을 받은 후 `workmux setup --hooks`의 공식 화면에서 선택합니다. 이미 활성화한 항목과 사용자가 비활성화한 리소스는 변경하지 않습니다. 프로젝트의 `.pi/settings.json`에만 설치한 패키지도 중복 전역 등록하지 않으며, 새 Worktree에서는 해당 프로젝트 전용 설정이 적용되지 않을 수 있습니다. 외부 Hook 설정을 건너뛰어도 위임과 관련 Agent 탐색은 사용할 수 있습니다.
 
 ```bash
 pic doctor   # 읽기 전용 진단
-pic setup    # 기능 설치/복구 (명시적 승인)
+pic setup    # 누락 기능 명시적 복구 (첫 번째 Pi Compose 패키지는 자동 설치)
 pic config   # Pi가 제공하는 개별 기능 활성화 및 비활성화
 ```
 
@@ -101,7 +101,7 @@ Pi가 자체 제공하는 `/resume`도 사용할 수 있습니다. 다른 프로
 
 ## 6. Handoff → Verify → Main에서 결과 확인
 
-최초 권장 구성을 승인했다면 Handoff/Verify Package가 설치돼 있습니다. 개별 기능을 비활성화한 경우에는 `pic config`에서 확인합니다.
+최초 자동 설정이 성공했다면 Handoff/Verify Package가 설치돼 있습니다. 개별 기능을 비활성화한 경우에는 `pic config`에서 확인합니다.
 
 개발 Agent에서:
 
@@ -120,7 +120,19 @@ Shared Directory에서는 여러 Agent가 Git 변경을 함께 만들 수 있습
 
 변경 통합, Git 병합, Worktree 삭제, 프로세스 종료는 모두 별도의 사용자 결정입니다.
 
-## 7. 명령 요약
+## 7. UX 진단
+
+```bash
+pic diagnostics status
+pic diagnostics export
+pic diagnostics off
+pic diagnostics on
+pic diagnostics clear --yes
+```
+
+로컬에서 허용된 행동 메타데이터만 수집하고 외부 전송은 하지 않습니다. 내보낸 파일을 사용자가 직접 전달하면 흐름별 취소·실패·반복을 분석할 수 있습니다. [진단 이벤트와 분석 가이드](UX_DIAGNOSTICS.md)
+
+## 8. 명령 요약
 
 | 명령 | 역할 |
 | --- | --- |
