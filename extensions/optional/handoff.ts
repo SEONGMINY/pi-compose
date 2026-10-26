@@ -1,5 +1,6 @@
 import { Type } from '@earendil-works/pi-ai';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
+import { attachTaskEvidence } from '../../src/task-index.ts';
 
 /**
  * Optional handoff extension.
@@ -101,6 +102,25 @@ export default function handoffExtension(pi: ExtensionAPI): void {
         'Handoff is a claim to check; it does not authorize changing the user contract, merging, or cleanup.',
       ].join('\n');
 
+      let hubLink = 'not_linked';
+      try {
+      // Git owns Worktree provenance; never associate a report using a title or
+      // branch alone. Only an exact, unique path+branch Task Hub record may match.
+      const worktrees = await pi.exec('git', ['worktree', 'list', '--porcelain'], { cwd });
+      const mainCheckout = worktrees.code === 0
+        ? worktrees.stdout.split('\n').find(line => line.startsWith('worktree '))?.slice(9)
+        : undefined;
+        if (mainCheckout && branch) hubLink = await attachTaskEvidence(
+          mainCheckout, gitRoot, branch, {
+            handoff: {
+              kind: 'developer_claim', recordedAt: new Date().toISOString(),
+              gitHead: head, summary: params.summary.slice(0, 3000),
+              why: params.why.slice(0, 3000), checks: params.checks.slice(0, 2000),
+              outstanding: params.outstanding.slice(0, 2000), changedFileCount: names.length,
+            },
+          });
+      } catch { /* Handoff remains in this session; never claim it was linked. */ }
+
       let delivery: 'not_requested' | 'cancelled' | 'confirmation_unavailable' | 'submitted_unverified' | 'failed' = 'not_requested';
       let deliveryError: string | undefined;
       if (params.recipient?.trim()) {
@@ -129,14 +149,15 @@ export default function handoffExtension(pi: ExtensionAPI): void {
         content: [{
           type: 'text' as const,
           text: message + '\n\nDelivery: ' + delivery + (deliveryError ? ' (' + deliveryError + ')' : '') +
-            (delivery === 'submitted_unverified' ? '. Receipt/read not confirmed.' : ''),
+            (delivery === 'submitted_unverified' ? '. Receipt/read not confirmed.' : '') +
+            '\nTask Hub result link: ' + hubLink + ' (only exact Worktree matches are linked)',
         }],
         details: {
           status: 'handoff_prepared_not_verified',
           cwd: gitRoot, head, base: base || null, sessionFile,
           changedFileCount: names.length, changedPaths: names, stagedCount: staged.length,
           unstagedCount: unstaged.length, untrackedCount: untracked.length,
-          whitespaceCheck: checkState, delivery,
+          whitespaceCheck: checkState, delivery, hubLink,
         },
       };
     },
