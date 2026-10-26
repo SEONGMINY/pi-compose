@@ -22,7 +22,7 @@ export function taskName(instruction: string, suppliedTitle?: string): string {
 export async function approveLaunch(
   ctx: ExtensionContext,
   plan: LaunchPlan,
-  origin: { current: boolean; sessionName?: string; conversationPreview?: string[] },
+  origin: { current: boolean; title?: string; conversationPreview?: string[] },
 ): Promise<boolean> {
   const label = plan.context === 'fork'
     ? (origin.current ? '현재 Pi 대화 Fork' : '선택한 저장 대화 Fork')
@@ -30,7 +30,7 @@ export async function approveLaunch(
   const destination = plan.workspace === 'worktree'
     ? 'Git Worktree · ' + plan.branch : '현재 디렉터리';
   const summary = [
-    '작업: ' + taskName(plan.task),
+    '작업: ' + taskName(plan.task, origin.title),
     '맥락: ' + label,
     '공간: ' + destination,
     ...plan.warnings.map(x => '주의: ' + x),
@@ -57,7 +57,7 @@ export async function approveLaunch(
         const out: string[] = [
           theme.fg('accent', '새 개발 Agent 실행'),
           '',
-          '작업  ' + taskName(plan.task),
+          '작업  ' + taskName(plan.task, origin.title),
           '맥락  ' + label,
           '공간  ' + destination,
           ...plan.warnings.map(x => theme.fg('warning', '주의: ' + x)),

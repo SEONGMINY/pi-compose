@@ -214,6 +214,7 @@ export default function composeExtension(pi: ExtensionAPI): void {
       });
       const approved = await approveLaunch(ctx, plan, {
         current: params.source?.kind === 'current',
+        title: params.title,
         conversationPreview: params.source?.kind === 'current'
           ? currentConversationPreview(ctx)?.preview : undefined,
       });
