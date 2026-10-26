@@ -13,7 +13,7 @@ cd ~/projects/my-app
 pic
 ```
 
-최초 대화형 실행에서 필요한 권장 기능의 준비 여부를 확인합니다. 동의하면 **Navigation과 Handoff/Verify**가 Pi의 기존 패키지 관리 방식으로 설치됩니다. workmux 상태 Hook은 별도로 승인하고 `workmux setup`의 공식 화면에서 선택합니다. 이미 활성화한 항목과 사용자가 비활성화한 리소스는 변경하지 않습니다. 설정을 건너뛰면 기본 Launch는 계속 동작합니다.
+최초 대화형 실행에서 필요한 권장 기능의 준비 여부를 확인합니다. 동의하면 **Navigation과 Handoff/Verify**가 Pi의 기존 패키지 관리 방식으로 설치됩니다. workmux 상태 Hook은 별도로 승인하고 `workmux setup`의 공식 화면에서 선택합니다. 이미 활성화한 항목과 사용자가 비활성화한 리소스는 변경하지 않습니다. 프로젝트의 `.pi/settings.json`에만 설치한 패키지도 중복 전역 등록하지 않으며, 새 Worktree에서는 해당 프로젝트 전용 설정이 적용되지 않을 수 있습니다. 설정을 건너뛰면 기본 Launch는 계속 동작합니다.
 
 ```bash
 pic doctor   # 읽기 전용 진단
