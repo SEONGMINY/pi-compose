@@ -30,6 +30,8 @@
 | [ADR 0006](adr/0006-github-installer.md) | macOS 한 줄 설치·업데이트, 기존 Pi 환경 보존 |
 | [설치·진단](SETUP.md) | 최초 1회 승인, 버전별 설치, 중복 방지, 장애 복구 |
 | [다섯 가지 실전 시나리오](SCENARIOS.md) | Fork 개발, 독립 조사, 기능/프로젝트 전환, Handoff·Verify |
+| [UX 진단 및 지표](UX_DIAGNOSTICS.md) | 로컬 행동 이벤트·내보내기·지표·분석 한계 |
+| [ADR 0009](adr/0009-automatic-default-and-ux-diagnostics.md) | 기본 자동 설치·외부 Hook 승인·프라이버시 진단 |
 | [ADR 0008](adr/0008-first-run-setup.md) | 최초 실행 권장 구성·설정 승인·Pi/workmux 정본 활용 |
 | [ADR 0007](adr/0007-reference-led-navigation.md) | **PR #3 B안:** Pi Native 선택, workmux Dashboard, Pi 세션 탐색, Handoff 결과 회수와 책임 경계 |
 
