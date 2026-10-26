@@ -267,7 +267,7 @@ export async function showTaskHub(
   const selected = await ctx.ui.select('관련 작업 · ' + basename(root), choices);
   if (!selected) {finishFlow(flow,'navigation.finished',{source:'slash',outcome:'cancelled',data:{reason:'no_selection'}});return;}
   const row = rows[choices.indexOf(selected)];
-  diagnosticEvent('navigation.selected',{source:'menu',flowId:flow.flowId,outcome:'success',data:{kind:row?.kind||'unknown'}});
+  diagnosticEvent('navigation.selected',{source:'menu',flowId:flow.flowId,outcome:'success',data:{kind:row?.kind||'unknown',elapsedMs:Date.now()-flow.started}});
   if (!row || row.kind === 'current') {finishFlow(flow,'navigation.finished',{source:'menu',outcome:'cancelled',data:{reason:'current'}});return;}
   if (row.kind === 'new') { if (onLaunch) await onLaunch(); finishFlow(flow,'navigation.finished',{source:'menu',outcome:'success',data:{kind:'new'}}); return; }
   if (row.kind === 'monitor') { const opened=await openWorkmuxMonitor(pi, ctx); finishFlow(flow,'navigation.finished',{source:'menu',outcome:opened?'success':'failure',data:{kind:'monitor'}});return; }
