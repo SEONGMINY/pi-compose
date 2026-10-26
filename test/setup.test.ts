@@ -55,3 +55,30 @@ test('malformed existing Pi settings disable automated setup instead of overwrit
   assert.equal(state.packages.navigation, 'unknown');
   assert.equal(await readFile(join(dir, 'settings.json'), 'utf8'), '{ broken json');
 });
+
+test('project-only configuration is not mistaken for a missing global package', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'pic-local-package-'));
+  const project = join(dir, 'project');
+  const agentDir = join(dir, 'agent');
+  await mkdir(join(project, '.pi'), { recursive: true });
+  await mkdir(agentDir, { recursive: true });
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const previousDir = process.env.PI_CODING_AGENT_DIR;
+  const previousCwd = process.cwd();
+  process.env.PI_CODING_AGENT_DIR = agentDir;
+  process.chdir(project);
+  t.after(() => {
+    process.chdir(previousCwd);
+    if (previousDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = previousDir;
+  });
+  const before = JSON.stringify({
+    theme: 'custom',
+    packages: [join(repoRoot, 'packages/navigation')],
+  });
+  await writeFile(join(project, '.pi', 'settings.json'), before);
+  const state = inspectSetup(repoRoot);
+  assert.equal(state.packages.navigation, 'project-only');
+  assert.equal(state.packages.features, 'missing');
+  assert.equal(await readFile(join(project, '.pi', 'settings.json'), 'utf8'), before);
+});
