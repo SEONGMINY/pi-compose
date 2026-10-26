@@ -22,6 +22,7 @@ export function diagnosticsDir():string;
 export function diagnosticEnabled():boolean;
 export function diagnosticStatus():{enabled:boolean;dir:string;retentionDays:number;maxBytes:number};
 export function configureDiagnostics(enabled:boolean):void;
+export function discloseDiagnostics():boolean;
 export function diagnosticEvent(event:DiagnosticEvent,options?:DiagnosticOptions):void;
 export function startFlow(event:DiagnosticEvent,details?:DiagnosticOptions):Flow;
 export function finishFlow(flow:Flow|undefined,event:DiagnosticEvent,details?:DiagnosticOptions):void;
