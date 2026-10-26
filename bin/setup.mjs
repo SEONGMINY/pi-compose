@@ -85,6 +85,9 @@ export function printDoctor(root) {
   try { pkgVersion = JSON.parse(readFileSync(join(root,'package.json'),'utf8')).version; } catch {}
   console.log('Pi Compose version: ' + pkgVersion + ' (Git SHA: see npm install source)');
   console.log('Node: '+s.node+' | Pi: '+(s.pi||'missing')+' | tmux: '+(s.tmux||'missing')+' | workmux: '+(s.workmux||'missing'));
+  const [nodeMajor, nodeMinor] = process.versions.node.split('.').map(Number);
+  if (nodeMajor < 22 || (nodeMajor === 22 && nodeMinor < 19))
+    console.log('WARNING: Node.js >= 22.19.0 is required. Select a compatible Node version.');
   console.log('Child navigation: '+s.packages.navigation+' | Handoff/Verify: '+s.packages.features+' | Pi status Hook: '+s.hook);
   if (!s.settingsOk) console.log('WARNING: Pi settings.json cannot be parsed. No configuration will be modified.');
   if (s.packages.navigation === 'custom' || s.packages.features === 'custom')
