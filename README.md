@@ -47,8 +47,6 @@ pic diagnostics export  # 최근 7일 UX 데이터 + 집계 JSON 1개 생성
 
 기존 Pi 설정, Extension, Skill, 세션은 유지합니다. 사용자가 비활성화한 기능은 재설치나 업데이트로 강제 활성화하지 않습니다. 최초 모델 연결은 Pi에서 `/login`, `/model`을 사용합니다.
 
-**[설치·업데이트·문제 해결 상세](docs/SETUP.md)** · **[실전 시나리오 5개](docs/SCENARIOS.md)**
-
 ## 실제 개발 흐름
 
 **1. Main에서 요구사항을 논의합니다.**
@@ -87,11 +85,7 @@ macOS에서 `Option+W`가 동작하지 않더라도 **`/compose`를 기본 명�
 
 **5. Agent 결과를 확인합니다.**
 
-선택형 Handoff/Verify Extension을 사용하려면:
-
-```bash
-pic features
-```
+Handoff와 Verify는 최초 기본 설정에서 준비되므로 별도 활성화 명령이 필요하지 않습니다. 기존에 실행 중이던 Pi에 기능이 보이지 않으면 `/reload` 후 확인하세요.
 
 Agent에서 다음을 실행합니다.
 
@@ -108,11 +102,7 @@ Handoff는 개발자의 주장이고 검토 결과도 자동 승인이나 Git �
 
 `/compose monitor`는 tmux 안에서 기존 workmux Dashboard를 엽니다. Dashboard는 작업 목록, 실행 출력 미리보기, Git 변경 정보, 프로젝트 간 탐색을 지원합니다.
 
-**Pi Agent가 Dashboard에 표시되려면 workmux의 상태 Hook이 필요합니다.** 사용자가 직접 선택해 설정하세요.
-
-```bash
-workmux setup
-```
+**Pi Agent가 Dashboard에 표시되려면 workmux의 상태 Hook이 필요합니다.** 신규 설치 시 최초 `pic`이 별도로 동의를 구하고 `workmux setup --hooks`를 열어줍니다. 해당 과정을 건너뛰었다면 `pic setup`에서 다시 설정할 수 있습니다.
 
 Pi와 workmux를 재시작하거나 새 Agent를 실행해야 Hook을 인식할 수 있습니다. Pi의 *작업 중/최근 응답 종료*와 **실제 구현 완료, 인계, 검증, 코드 통합**은 다릅니다. Pi의 사용자 입력 대기 상태는 Hook만으로 항상 알 수 없습니다.
 
