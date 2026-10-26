@@ -12,6 +12,25 @@ import { diagnosticEvent, startFlow, finishFlow } from '../src/diagnostics.mjs';
 
 const baseExtension = fileURLToPath(import.meta.url);
 
+// Fixed diagnostic categories. Never export stderr, session paths or the task prompt.
+function failureKind(error: unknown, stage: string): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/Source cwd \(|source repository root|source was created in a different cwd/i.test(message)) return 'source_cwd_mismatch';
+  if (/source Pi session|source session|no saved session file/i.test(message)) return 'source_missing';
+  if (/Branch already exists/i.test(message)) return 'branch_exists';
+  if (stage === 'dispatch' && /workmux/i.test(message)) return 'workmux_dispatch';
+  if (stage === 'dispatch' && /tmux/i.test(message)) return 'tmux_dispatch';
+  if (stage === 'plan' && /git |branch|worktree/i.test(message)) return 'git_preflight';
+  return 'unknown';
+}
+function recoveryHint(kind: string): string {
+  if (kind === 'source_cwd_mismatch') return 'Worktree Fork는 원본 Pi 세션의 cwd가 Git 저장소 루트여야 합니다. 원본 Pi의 /session을 확인하거나 Fork + Shared를 사용하세요.';
+  if (kind === 'branch_exists') return '기존 브랜치가 있습니다. /compose에서 기존 작업을 찾거나 새 작업에 다른 브랜치 이름을 사용하세요.';
+  if (kind === 'source_missing') return '원본 Pi에서 /session으로 저장된 세션 파일을 확인하세요.';
+  if (kind === 'workmux_dispatch' || kind === 'tmux_dispatch') return '부분 생성된 리소스가 있을 수 있습니다. 같은 브랜치로 다시 실행하기 전에 git worktree list와 /compose를 확인하세요. 자동으로 삭제하지 않습니다.';
+  return 'pic doctor 및 세션과 Git 상태를 확인하세요. Worktree 오류 후에는 git worktree list에서 남은 작업을 먼저 확인하세요.';
+}
+
 // Session selection always uses an explicit source. 'Current' is not inferred to mean 'Main'.
 /** A selected Pi conversation and the launch instruction are two separate sources of context. */
 function currentConversationPreview(ctx: ExtensionContext): { messages: number; preview: string[] } | undefined {
@@ -72,6 +91,7 @@ export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, 
   let outcome: 'success'|'failure'|'cancelled' = 'cancelled';
   let chosenContext: 'fork'|'independent'|undefined;
   let chosenWorkspace: 'shared'|'worktree'|undefined;
+  let stage='input';
   try {
   if (!ctx.hasUI) {
     ctx.ui.notify('Interactive options are required. Use the pi-compose CLI in non-UI environments.', 'warning');
@@ -97,29 +117,38 @@ export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, 
   const branch = workspace === 'worktree'
     ? await ctx.ui.input('New branch name', 'feat/example') : undefined;
   if (workspace === 'worktree' && !branch?.trim()) return;
+  stage='plan';
   try {
     const plan = await planLaunch({ task, context, workspace, cwd: ctx.cwd, sourceSessionFile, branch, composeExtensionFile: baseExtension });
     if (mode === 'preview') {
+      diagnosticEvent('launch.stage',{source:'slash',flowId:flow.flowId,outcome:'success',data:{stage:'plan'}});
       outcome='success';
       ctx.ui.notify(`Preview only: ${plan.program} ${plan.args.join(' ')}${plan.warnings.length ? `\n${plan.warnings.join('\n')}` : ''}`, 'info');
       return;
     }
+    stage='approval';
     const approval = await approveLaunch(ctx, plan, {
       current: plan.source?.path === ctx.sessionManager.getSessionFile(),
       conversationPreview: currentConversationPreview(ctx)?.preview,
     });
     diagnosticEvent('launch.approval',{source:'slash',flowId:flow.flowId,outcome:approval?'success':'cancelled',data:{context,workspace}});
     if (approval !== true) return;
+    stage='dispatch';
     const result = await executeLaunch(plan);
-    outcome='success';
+    outcome='success'; // Dispatch succeeded; Pi/model readiness is distinct.
+    diagnosticEvent('launch.stage',{source:'slash',flowId:flow.flowId,outcome:'success',data:{stage}});
+    stage='target';
     const indexWarning = await trackLaunchedTask(pi, plan, undefined, flow.flowId);
+    diagnosticEvent('launch.stage',{source:'slash',flowId:flow.flowId,outcome:indexWarning?'unavailable':'success',data:{stage,failureKind:indexWarning?'record_unlinked':undefined}});
     if (indexWarning) ctx.ui.notify(indexWarning, 'warning');
     await refreshTaskIndicator(ctx, plan.cwd);
-    ctx.ui.notify(`Agent 실행 명령 전달 완료 · ${taskName(plan.task)} · 실행 상태: /compose monitor, 정확한 연결: /compose`, 'info');
+    ctx.ui.notify(`실행 요청 전달: ${taskName(plan.task)}. 실제 Child Pi의 모델 실행과 개발 지시 처리는 확인되지 않았습니다.\n다음: /compose → 해당 작업 → 기존 Agent 화면으로 이동해 확인하세요. 결과 보고서는 Agent가 /compose-handoff를 실행한 뒤에만 나타납니다.`, 'info');
     for (const warning of result.warnings) ctx.ui.notify(warning, 'warning');
   } catch (error: unknown) {
-    outcome='failure';
-    ctx.ui.notify(`Launch failed: ${error instanceof Error ? error.message : String(error)}`, 'error');
+    if (stage !== 'target') outcome='failure';
+    const kind=failureKind(error,stage);
+    diagnosticEvent('launch.stage',{source:'slash',flowId:flow.flowId,outcome:'failure',data:{stage,failureKind:kind}});
+    ctx.ui.notify(`Launch problem (${stage}): ${error instanceof Error ? error.message : String(error)}\n${recoveryHint(kind)}`, 'error');
   }
   } finally { finishFlow(flow,'launch.finished',{source:'slash',outcome,data:{context:chosenContext,workspace:chosenWorkspace,route:mode}}); }
 }
@@ -221,6 +250,7 @@ export function registerComposeLaunchTool(pi: ExtensionAPI): void {
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const flow = startFlow('launch.started',{source:'natural-language',data:{context:params.context,workspace:params.workspace}});
       let outcome: 'success'|'failure'|'cancelled'|'unavailable' = 'failure';
+      let stage='plan';
       try {
       if (params.context === 'fork' && !params.source) {
         throw new Error('Fork requires an explicit source: current Pi session or an exact session file.');
@@ -247,6 +277,7 @@ export function registerComposeLaunchTool(pi: ExtensionAPI): void {
         cwd: params.cwd || ctx.cwd, sourceSessionFile, branch: params.branch,
         composeExtensionFile: baseExtension,
       });
+      stage='approval';
       const approved = await approveLaunch(ctx, plan, {
         current: params.source?.kind === 'current',
         title: params.title,
@@ -258,17 +289,25 @@ export function registerComposeLaunchTool(pi: ExtensionAPI): void {
         outcome='cancelled';
         return { content: [{ type: 'text' as const, text: 'Launch cancelled by user. No agent was started.' }], details: { status: 'cancelled' } };
       }
+      stage='dispatch';
       const result = await executeLaunch(plan);
-      outcome='success';
+      outcome='success'; // Dispatch only.
+      diagnosticEvent('launch.stage',{source:'natural-language',flowId:flow.flowId,outcome:'success',data:{stage}});
+      stage='target';
       const indexWarning = await trackLaunchedTask(pi, plan, params.title, flow.flowId);
+      diagnosticEvent('launch.stage',{source:'natural-language',flowId:flow.flowId,outcome:indexWarning?'unavailable':'success',data:{stage,failureKind:indexWarning?'record_unlinked':undefined}});
       if (indexWarning) ctx.ui.notify(indexWarning, 'warning');
       await refreshTaskIndicator(ctx, plan.cwd);
       return {
         content: [{ type: 'text' as const,
-          text: '위임 명령 실행 완료: ' + taskName(plan.task, params.title)
-            + '. 실제 Pi 활동은 미확인입니다. 관련 작업은 /compose, 실행 관찰은 /compose monitor.' }],
+          text: '위임 요청 전송: ' + taskName(plan.task, params.title)
+            + '. Child Pi에서 모델 작업은 아직 확인되지 않았습니다. /compose → 해당 작업 → 기존 Agent 화면으로 이동해 확인하세요. /compose-handoff 이후 보고서가 표시됩니다.' }],
         details: result,
       };
+      } catch(error) {
+        diagnosticEvent('launch.stage',{source:'natural-language',flowId:flow.flowId,outcome:'failure',
+          data:{stage,failureKind:failureKind(error,stage)}});
+        throw error;
       } finally { finishFlow(flow,'launch.finished',{source:'natural-language',outcome,data:{context:params.context,workspace:params.workspace}}); }
     },
     renderCall(args, theme) {
@@ -280,7 +319,7 @@ export function registerComposeLaunchTool(pi: ExtensionAPI): void {
       const message = result.content.filter(item => item.type === 'text')
         .map(item => item.text).join(' ').replace(/\s+/g, ' ').trim();
       const success = status !== 'cancelled' && status !== 'not_executed_confirmation_unavailable'
-        && message.startsWith('위임 명령 실행 완료');
+        && message.startsWith('위임 요청 전송');
       return new Text(theme.fg(success ? 'success' : 'dim',
         (success ? '✓ ' : '· ') + message.slice(0, 190)), 0, 0);
     },
