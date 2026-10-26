@@ -23,7 +23,6 @@ const SAFE_KEYS = new Set([
 const ENUM = new Set(['action','route','reason','screen','context','workspace','from','to','kind','component','status']);
 const token = /^[a-z][a-z0-9_.-]{0,50}$/;
 const runId = randomUUID();
-const activeFlows = new Map();
 const maxBytes=2*1024*1024;
 const retentionDays=14;
 const agentDir = () => {
@@ -32,7 +31,7 @@ const agentDir = () => {
 };
 export const diagnosticsDir = () => join(agentDir(),'compose','diagnostics');
 const preferencesFile = () => join(diagnosticsDir(),'settings.json');
-function secureDir() { const dir=diagnosticsDir(); mkdirSync(dir,{recursive:true,mode:0o700}); return dir; }
+function secureDir() { const dir=diagnosticsDir(); mkdirSync(dir,{recursive:true,mode:0o700}); chmodSync(dir,0o700); return dir; }
 function settings() {
   try { const cfg=JSON.parse(readFileSync(preferencesFile(),'utf8')); return cfg && typeof cfg==='object'?cfg:{}; }
   catch { return {}; }
@@ -144,7 +143,7 @@ export function analyzeDiagnostics(events) {
   const byEvent=Object.fromEntries([...new Set(events.map(e=>e.event))].sort().map(k=>[k,events.filter(e=>e.event===k).length]));
   const durations=(event)=>events.filter(e=>e.event===event&&e.data?.elapsedMs!==undefined).map(e=>e.data.elapsedMs);
   const launchStarted=count(events,'launch.started'),launchSuccess=count(events,'launch.finished','success');
-  const navOpen=count(events,'navigation.opened'),navCancel=count(events,'navigation.finished','cancelled');
+  const navOpen=count(events,'navigation.opened'),navCancel=events.filter(e=>e.event==='navigation.finished'&&e.outcome==='cancelled'&&e.data?.reason==='no_selection').length;
   const navSelected=count(events,'navigation.selected'),switchReq=count(events,'switch.started'),switchOk=count(events,'switch.finished','success');
   const sessionsOpen=count(events,'sessions.opened'),sessionsOk=count(events,'sessions.finished','success');
   const handoff=count(events,'handoff.finished','success'),verify=count(events,'verify.finished','success');
@@ -152,22 +151,25 @@ export function analyzeDiagnostics(events) {
   return {
     schemaVersion:1,observedEvents:events.length,byEvent,
     metrics:{
-      delegation:{started:launchStarted,success:launchSuccess,completionPercent:rate(launchSuccess,launchStarted),
+      delegation:{started:launchStarted,dispatchSucceeded:launchSuccess,dispatchSuccessPercent:rate(launchSuccess,launchStarted),
+        childPiLinked:count(events,'launch.agent_linked','success'),
         cancellationPercent:rate(count(events,'launch.finished','cancelled'),launchStarted),
         failures:count(events,'launch.finished','failure'),
         durationMsP50:percentile(durations('launch.finished'),.5),
         durationMsP90:percentile(durations('launch.finished'),.9)},
-      navigation:{opened:navOpen,selected:navSelected,noActionExitPercent:rate(navCancel,navOpen),
+      navigation:{opened:navOpen,selected:navSelected,noSelectionExitPercent:rate(navCancel,navOpen),
         selectedToOpenPercent:rate(navSelected,navOpen),durationMsP50:percentile(durations('navigation.finished'),.5)},
       switching:{started:switchReq,completed:switchOk,failurePercent:rate(count(events,'switch.finished','failure'),switchReq)},
       sessions:{opened:sessionsOpen,completed:sessionsOk,successPercent:rate(sessionsOk,sessionsOpen)},
       result:{handoffCreated:handoff,verifyExecuted:verify,reportOpened:count(events,'result.opened')},
+      commands:{routes:Object.fromEntries([...new Set(events.filter(e=>e.event==='command.entered').map(e=>e.data?.route))].filter(Boolean).map(r=>[r,events.filter(e=>e.event==='command.entered'&&e.data?.route===r).length])),invalid:count(events,'command.invalid')},
       setup:{attempts:count(events,'setup.started'),failures:count(events,'setup.finished','failure'),
         missingComponents:count(events,'setup.component','unavailable')}
     },
     facts:observed?[
       'Counts and durations include only instrumented Compose commands/tools in the selected time range.',
       'Missing events do not prove the user did not notice or need a feature.',
+      'Successful launch dispatch is not evidence of a running Pi session; childPiLinked is a distinct observation.',
     ]:['No recorded events in the selected period. Metrics are not interpretable.'],
     hypotheses:observed?[
       'Frequent cancelled navigation might indicate poor discoverability OR harmless inspection; correlate with follow-up actions.',
