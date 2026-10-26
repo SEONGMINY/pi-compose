@@ -150,7 +150,12 @@ export async function maybeOnboard(root, handlers) {
   if (!process.stdin.isTTY || !process.stdout.isTTY || process.env.PIC_SETUP_SKIP==='1') return;
   const s=inspectSetup(root);
   if (!s.settingsOk || s.prompted) return;
-  if (s.packages.navigation!=='missing' && s.packages.features!=='missing' && s.hook!=='not-detected') return;
+  if (s.packages.navigation!=='missing' && s.packages.features!=='missing' && s.hook!=='not-detected') {
+    // Mark an already-configured environment as onboarded; if the user disables
+    // something later, do not reinterpret that decision as a fresh install.
+    remember('existing');
+    return;
+  }
   const result=await setupRecommended(root,{...handlers,firstRun:true});
   if (result!==0) console.error('pic: Optional setup incomplete. Core Pi Compose can still start; fix with pic setup.');
 }
