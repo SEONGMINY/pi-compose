@@ -164,11 +164,11 @@ export async function trackLaunchedTask(pi: ExtensionAPI, plan: LaunchPlan, titl
     }
 
     await recordTask(plan, link);
-    if (!link.targetLocation) return 'Agent launch succeeded, but the exact running target was not verified. '
+    if (!link.targetLocation) return 'Launch command was accepted, but the exact running target was not verified. '
       + 'The work is listed as unverified; use the advanced work picker to inspect it.';
     return undefined;
   } catch (error) {
-    return 'Agent launch succeeded but the work link could not be saved: ' + String(error)
+    return 'Launch command was accepted but the work link could not be saved: ' + String(error)
       + '. Existing tmux and Git resources were not changed.';
   }
 }
@@ -209,7 +209,7 @@ async function taskActions(ctx: ExtensionContext, row: HubRow, flowId?: string):
   const actions = [
     ...(row.available ? ['기존 Agent 화면으로 이동'] : []),
     '원본 위임 지시 확인',
-    '인계·검토 결과 확인',
+    ...(record.handoff || record.review ? ['인계·검토 결과 확인'] : []),
     '← 작업 목록으로',
   ];
   while (true) {
@@ -249,8 +249,8 @@ export async function showTaskHub(
   // The current location stays the first row; cursor selection is a separate notion.
   const rows: HubRow[] = [
     ...taskRows.filter(row => row.kind === 'current' || row.kind === 'main'),
-    ...taskRows.filter(row => row.kind === 'task'),
     ...(onLaunch ? [{ kind: 'new' as const, label: '+ 새 Agent에게 작업 위임' }] : []),
+    ...taskRows.filter(row => row.kind === 'task'),
     { kind: 'monitor', label: '전체 작업 관찰 · workmux Dashboard' },
     { kind: 'history', label: '이전 Pi 대화·기능 찾기' },
   ];
