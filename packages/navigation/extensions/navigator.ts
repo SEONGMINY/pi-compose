@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { registerTaskHub, showTaskHub } from '../../../extensions/task-hub.ts';
-import { showLaunchWizard } from '../../../extensions/compose.ts';
+import { showLaunchWizard, registerComposeLaunchTool } from '../../../extensions/compose.ts';
+import { registerWorkReturn } from '../../../extensions/work-return.ts';
 import { showWorkPicker, showSavedSessions } from '../../../extensions/work-return.ts';
 import { openWorkmuxMonitor } from '../../../extensions/optional/workmux-dashboard.ts';
 
@@ -11,6 +12,8 @@ import { openWorkmuxMonitor } from '../../../extensions/optional/workmux-dashboa
  */
 export default function navigationOnly(pi: ExtensionAPI): void {
   if (process.env.PIC_COMPOSE_CORE === '1') return;
+  registerWorkReturn(pi);
+  registerComposeLaunchTool(pi);
   const openHub = (ctx: Parameters<typeof showTaskHub>[1]) =>
     showTaskHub(pi, ctx, () => showLaunchWizard(pi, ctx, 'launch'));
   registerTaskHub(pi, openHub);

@@ -180,6 +180,11 @@ export default function composeExtension(pi: ExtensionAPI): void {
     },
   });
 
+  registerComposeLaunchTool(pi);
+}
+
+/** Same explicit natural-language handoff is available in Main and in a child Pi. */
+export function registerComposeLaunchTool(pi: ExtensionAPI): void {
   pi.registerTool({
     name: 'compose_launch',
     label: 'Launch coding agent',
