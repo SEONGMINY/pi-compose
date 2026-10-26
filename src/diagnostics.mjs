@@ -199,7 +199,7 @@ export function analyzeDiagnostics(events) {
         durationMsP50:percentile(durations('launch.finished'),.5),
         durationMsP90:percentile(durations('launch.finished'),.9)},
       navigation:{opened:navOpen,selected:navSelected,reopenedWithin30Seconds:reopens,noSelectionExitPercent:rate(navCancel,navOpen),
-        selectedToOpenPercent:rate(navSelected,navOpen),durationMsP50:percentile(durations('navigation.finished'),.5)},
+        selectedToOpenPercent:rate(navSelected,navOpen),selectionTimeMsP50:percentile(durations('navigation.selected'),.5),totalFlowDurationMsP50:percentile(durations('navigation.finished'),.5)},
       switching:{started:switchReq,completed:switchOk,fastReturnCandidates,failurePercent:rate(count(events,'switch.finished','failure'),switchReq)},
       sessions:{opened:sessionsOpen,completed:sessionsOk,successPercent:rate(sessionsOk,sessionsOpen)},
       result:{handoffCreated:handoff,verifyExecuted:verify,reportOpened:count(events,'result.opened')},
