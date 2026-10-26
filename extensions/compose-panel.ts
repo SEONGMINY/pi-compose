@@ -98,7 +98,9 @@ export function hubListLines(
 ): Segment[] {
   const results: Segment[] = [part('작업 탐색', 'accent'), separator(width)];
   // Keep the focused task in the list viewport, even with many agents.
-  const first = Math.max(0, Math.min(selected, Math.max(0, items.length - pageSize)));
+  // Prioritize the selected task when the terminal is narrow; showing earlier
+  // entries is less important than a visible focus marker and its summary.
+  const first = selected;
   for (let i = first; i < Math.min(items.length, first + pageSize); i++) {
     const item = items[i]!;
     // Always distinguish cursor/focus from the location currently opened.
