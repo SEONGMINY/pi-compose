@@ -38,28 +38,29 @@ Pi Compose가 기존 대화를 이어받을지, 어느 작업 공간에서 개�
 
 ## 어떻게 동작하나요?
 
-Pi Compose는 **대화 맥락(Context)**과 **코드 작업 공간(Workspace)**을 따로 선택해요. Fork를 선택해도 Worktree가 자동으로 만들어지지는 않고, Independent 세션도 Worktree에서 실행할 수 있습니다.
+Pi Compose에서는 **대화 맥락(Context)**과 **파일 작업 공간(Workspace)**을 따로 선택해요. Fork와 Independent 중 어느 쪽을 선택해도 Shared Directory와 Git Worktree를 사용할 수 있습니다.
 
 ```mermaid
 flowchart TB
-    Main["Main Pi 대화<br/>그대로 유지"] -->|작업 시작| Compose["Pi Compose<br/>대화·작업 공간 선택"]
-    Compose --> Context["Context · Pi<br/>Fork / Independent"]
-    Compose --> Workspace["Workspace · 파일<br/>Shared / Git Worktree"]
-    Context --> Agent["새 Pi 개발 세션<br/>tmux에서 실행"]
-    Workspace --> Agent
+    Main["Main Pi 대화<br/>원본 유지"] --> Launch["/compose launch"]
+    Launch --> Context{"① Context 선택"}
+    Context -->|"Fork · 기존 대화 분기"| Workspace{"② Workspace 선택"}
+    Context -->|"Independent · 새 대화"| Workspace
+    Workspace -->|"Shared · 현재 디렉터리"| Shared["tmux<br/>새 Pi 실행"]
+    Workspace -->|"Git Worktree · 별도 체크아웃"| Worktree["workmux<br/>Worktree 준비 + tmux에서 Pi 실행"]
 ```
 
-**대화 맥락은 Pi가 관리합니다.** Fork는 사용자가 지정한 Pi 대화를 분기해 새 세션에서 이어받고, Independent는 원본 대화를 이어받지 않고 새로 시작해요. 원래 Main 대화는 그대로 남습니다.
+**Context는 Pi 대화를 결정합니다.** Fork는 지정한 기존 대화를 분기하고, Independent는 원본 대화를 이어받지 않고 새로 시작해요. 어느 쪽이든 원래 Main 대화는 그대로 남습니다.
 
-**파일 작업 공간은 별개의 선택입니다.** Shared는 현재 디렉터리를 함께 사용합니다. Git Worktree는 별도 브랜치와 체크아웃을 만들어요. 대화를 Fork한다고 파일까지 복사되는 것은 아닙니다.
+**Workspace는 작업할 파일을 결정합니다.** Shared는 현재 디렉터리를 사용하고, Git Worktree는 별도 브랜치와 체크아웃에서 작업해요. 대화를 Fork한다고 파일이나 미커밋 변경사항까지 복사되지는 않습니다.
 
-**실행 준비는 Pi Compose가 연결합니다.** Shared는 tmux에서 Pi를 실행하고, Worktree는 workmux가 Git Worktree와 tmux 실행을 준비해요. Pi Compose가 새로운 세션·Worktree 기능을 직접 구현하거나 Git 변경을 자동으로 병합하지는 않습니다.
+**Execution은 선택한 작업 공간에 따라 달라집니다.** Shared는 tmux에서 Pi를 실행하고, Git Worktree는 workmux가 작업 공간과 tmux 실행을 준비합니다.
 
 ## Pi나 workmux만 사용할 때와 무엇이 다른가요?
 
-Pi에서도 대화를 Fork할 수 있고, [workmux](https://github.com/raine/workmux)도 한 명령으로 Pi 세션을 Fork해 Git Worktree에서 실행할 수 있어요.
+Pi는 대화 Fork를 지원하고, [workmux](https://github.com/raine/workmux)는 Pi Fork와 Git Worktree 실행을 한 명령으로 처리할 수 있어요.
 
-차이는 **실행할 작업을 선택하는 과정**에 있습니다. workmux를 직접 사용한다면 실행 옵션을 정하고, 특정 Pi 대화를 이어받을 때는 `--fork=<session-id>`처럼 원본을 지정할 수 있습니다. Pi Compose에서는 **Main 대화 안에서 `/compose launch`를 실행하고, 이어받을 대화와 작업 공간을 메뉴에서 고릅니다.** Git Worktree를 사용하지 않고 현재 디렉터리에서 시작하는 것도 같은 흐름에서 선택할 수 있어요.
+**Pi Compose가 줄여주는 것은 실행 전 준비 과정입니다.** workmux로 특정 Pi 대화를 이어받으려면 원본 세션 ID를 확인하고 `--fork=<session-id>` 같은 실행 옵션을 지정해야 해요. Pi Compose에서는 **현재 Pi 화면에서 `/compose launch`를 실행하고 원본 대화와 작업 공간을 메뉴로 선택합니다.** 별도 Worktree가 필요 없는 작업도 같은 흐름에서 시작할 수 있습니다.
 
 ## 설치 및 첫 실행
 
