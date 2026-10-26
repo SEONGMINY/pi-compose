@@ -9,6 +9,7 @@ pic diagnostics status        # 저장 위치·활성화·보존 기간
 pic diagnostics export        # 기본 최근 7일의 분석용 JSON 파일 한 개
 pic diagnostics summary       # 집계만 터미널에 JSON 출력
 pic diagnostics export --days 14
+pic diagnostics export --days 7 --run 00000000-0000-4000-8000-000000000001 # 실제 보고서의 runId로 교체
 pic diagnostics export --days 3 --output ~/Desktop/pi-compose-ux.json
 pic diagnostics off           # 다음 이벤트부터 기록 중지
 pic diagnostics on            # 로컬 기록 다시 활성화
@@ -87,7 +88,7 @@ pic diagnostics clear --yes   # 저장된 JSONL 및 기본 export 파일 삭제
 | 결과 회수 | 성공한 Handoff·Verify와 열어본 보고서 이벤트의 단순 카운트 |
 | 초기 설정 문제 | \`setup.finished failure\`, \`setup.component unavailable\` |
 
-\`summary.byEvent\`와 순서가 보존된 \`events\`를 함께 내보냅니다. 원본 이벤트를 통한 탐색 반복/전환 역행 분석은 추후 분석자가 같은 \`runId\`, \`flowId\` 내 순서를 기준으로 계산할 수 있습니다.
+\`summary.byEvent\`와 순서가 보존된 \`events\`를 함께 내보냅니다. 특정 실행 프로세스만 분석할 때는 앞서 추출한 보고서의 \`runId\`를 선택해 \`--run <UUID>\`로 내보낼 수 있습니다. \`--run\`은 JSON 보고서 출력에 적용되며 다른 프로세스의 이벤트는 포함하지 않습니다. 원본 이벤트를 통한 탐색 반복/전환 역행 분석은 추후 분석자가 같은 \`runId\`, \`flowId\` 내 순서를 기준으로 계산할 수 있습니다.
 
 ## 5. 문제 판단 방법
 

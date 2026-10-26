@@ -29,5 +29,5 @@ export function finishFlow(flow:Flow|undefined,event:DiagnosticEvent,details?:Di
 export function diagnosticFlowId():string;
 export function readDiagnosticEvents(options?:{days?:number}): Array<{event:DiagnosticEvent; timestamp:string; flowId:string; source:DiagnosticSource; outcome:DiagnosticOutcome; data:Record<string,unknown>}>;
 export function analyzeDiagnostics(events:Array<Record<string,any>>):Record<string,unknown>;
-export function exportDiagnostics(options?:{days?:number;output?:string}):{path?:string;report:Record<string,any>};
+export function exportDiagnostics(options?:{days?:number;output?:string;runId?:string}):{path?:string;report:Record<string,any>};
 export function clearDiagnostics():number;

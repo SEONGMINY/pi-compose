@@ -225,10 +225,12 @@ export function analyzeDiagnostics(events) {
     ]
   };
 }
-export function exportDiagnostics({days=7,output}={}) {
-  const events=readDiagnosticEvents({days});
+export function exportDiagnostics({days=7,output,runId}={}) {
+  const all=readDiagnosticEvents({days});
+  const events=runId?all.filter(event=>event.runId===runId):all;
   const report={kind:'pi-compose-ux-diagnostics',schemaVersion:1,generatedAt:new Date().toISOString(),
-    periodDays:Math.min(30,Math.max(1,Number(days)||7)),summary:analyzeDiagnostics(events),events};
+    periodDays:Math.min(30,Math.max(1,Number(days)||7)),
+    ...(runId?{filteredRunId:runId}:{}),summary:analyzeDiagnostics(events),events};
   if(output) {
     const dest=resolve(output);const parent=dirname(dest);
     if(!existsSync(parent))throw new Error('Output directory does not exist: '+parent);
