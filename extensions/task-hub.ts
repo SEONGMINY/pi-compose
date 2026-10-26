@@ -2,6 +2,7 @@ import { basename, resolve } from 'node:path';
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import type { LaunchPlan } from '../src/launch.ts';
 import { bindAgentSession, listTasks, recordTask, type TaskRecord, type TaskLink, type TmuxLocation } from '../src/task-index.ts';
+import { diagnosticEvent, startFlow, finishFlow } from '../src/diagnostics.mjs';
 import { openWorkmuxMonitor } from './optional/workmux-dashboard.ts';
 import { workmuxRows, returnToTmux, type OpenWorktree } from './work-return.ts';
 import { showSavedSessions } from './work-return.ts';
@@ -202,7 +203,7 @@ const evidenceText = (record: TaskRecord): string => [
   '\nMain에서 병합 또는 Worktree 정리를 자동으로 실행하지 않습니다.',
 ].join('\n');
 
-async function taskActions(ctx: ExtensionContext, row: HubRow): Promise<'open' | 'back'> {
+async function taskActions(ctx: ExtensionContext, row: HubRow, flowId?: string): Promise<'open' | 'back'> {
   const record = row.record;
   if (!record) return 'back';
   const actions = [
@@ -214,6 +215,7 @@ async function taskActions(ctx: ExtensionContext, row: HubRow): Promise<'open' |
   while (true) {
     const choice = await ctx.ui.select('작업 · ' + brief(record.title, 34), actions);
     if (!choice || choice.startsWith('←')) return 'back';
+    diagnosticEvent('navigation.detail',{source:'menu',flowId,data:{kind:choice==='기존 Agent 화면으로 이동'?'agent':choice==='원본 위임 지시 확인'?'instruction':'result'},taskId:record.id});
     if (choice === '기존 Agent 화면으로 이동') return 'open';
     if (choice === '원본 위임 지시 확인') {
       // An exact recorded instruction is not a summary of the entire Pi Fork.
@@ -227,6 +229,7 @@ async function taskActions(ctx: ExtensionContext, row: HubRow): Promise<'open' |
         '\n실제 위임 지시 (원본 대화 전체 아님):\n' + (record.instruction || record.title),
       ].join('\n'));
     } else if (choice === '인계·검토 결과 확인') {
+      diagnosticEvent(record.handoff||record.review?'result.opened':'result.unavailable', {source:'menu',flowId,outcome:record.handoff||record.review?'success':'unavailable',taskId:record.id,data:{hasResult:!!(record.handoff||record.review)}});
       await ctx.ui.confirm('작업 결과 · 읽기 전용', evidenceText(record));
     }
   }
@@ -239,6 +242,7 @@ export async function showTaskHub(
   const [mux, snapshot] = await Promise.all([workmuxRows(pi, ctx.cwd), tmuxSnapshot(pi, ctx.cwd)]);
   const root = await projectRoot(pi, ctx.cwd, mux.rows);
   const records = await listTasks(root);
+  const flow=startFlow('navigation.opened',{source:'slash',projectId:root,data:{availableTargets:records.length,screen:process.env.PIC_COMPOSE_MAIN==='1'?'main':'agent'}});
   const taskRows = taskHubRows(records, mux.rows, snapshot.rows, snapshot.current,
     process.env.PIC_COMPOSE_MAIN === '1'
       || records.some(record => equalLocation(record.mainLocation, snapshot.current)));
@@ -261,11 +265,12 @@ export async function showTaskHub(
   });
   // Native select handles terminal width, keyboard focus and input restoration.
   const selected = await ctx.ui.select('관련 작업 · ' + basename(root), choices);
-  if (!selected) return;
+  if (!selected) {finishFlow(flow,'navigation.finished',{source:'slash',outcome:'cancelled',data:{reason:'no_selection'}});return;}
   const row = rows[choices.indexOf(selected)];
-  if (!row || row.kind === 'current') return;
-  if (row.kind === 'new') { if (onLaunch) await onLaunch(); return; }
-  if (row.kind === 'monitor') { await openWorkmuxMonitor(pi, ctx); return; }
+  diagnosticEvent('navigation.selected',{source:'menu',flowId:flow.flowId,outcome:'success',data:{kind:row?.kind||'unknown'}});
+  if (!row || row.kind === 'current') {finishFlow(flow,'navigation.finished',{source:'menu',outcome:'cancelled',data:{reason:'current'}});return;}
+  if (row.kind === 'new') { if (onLaunch) await onLaunch(); finishFlow(flow,'navigation.finished',{source:'menu',outcome:'success',data:{kind:'new'}}); return; }
+  if (row.kind === 'monitor') { await openWorkmuxMonitor(pi, ctx); finishFlow(flow,'navigation.finished',{source:'menu',outcome:'success',data:{kind:'monitor'}});return; }
   if (row.kind === 'history') {
     // /compose sessions is an exact Pi-native switch, not another Agent list.
     if ('switchSession' in ctx && typeof ctx.switchSession === 'function') {
@@ -273,21 +278,28 @@ export async function showTaskHub(
     } else {
       ctx.ui.notify('이전 기능 대화: /compose sessions 또는 Pi /resume', 'info');
     }
+    finishFlow(flow,'navigation.finished',{source:'menu',outcome:'success',data:{kind:'history'}});
     return;
   }
-  if (row.kind === 'task' && await taskActions(ctx, row) !== 'open') return;
+  if (row.kind === 'task' && await taskActions(ctx, row, flow.flowId) !== 'open') {
+    finishFlow(flow,'navigation.finished',{source:'menu',outcome:'cancelled',data:{kind:'task'}});
+    return;
+  }
 
   const target = row.target || row.record?.targetLocation;
   if (!target || !snapshot.rows.some(live => equalLocation(live, target))) {
     ctx.ui.notify('정확한 기존 tmux 창을 확인하지 못했습니다. 새로운 Pi는 실행하지 않습니다.', 'warning');
+    finishFlow(flow,'navigation.finished',{source:'menu',outcome:'unavailable',data:{reason:'target_unavailable'}});
     return;
   }
   if (row.record?.workspace === 'worktree'
     && !exactWorktree(row.record, mux.rows)?.is_open) {
     ctx.ui.notify('Worktree 실행 창이 닫혔거나 연결 정보가 바뀌었습니다. 실행하지 않습니다.', 'warning');
+    finishFlow(flow,'navigation.finished',{source:'menu',outcome:'unavailable',data:{reason:'worktree_closed'}});
     return;
   }
   await returnToTmux(pi, ctx, { name: target.session, cwd: root, windowId: target.windowId });
+  finishFlow(flow,'navigation.finished',{source:'menu',outcome:'success',data:{kind:row.kind}});
 }
 
 /** Match only this running Pi's persisted session and exact tmux window. */
@@ -298,8 +310,9 @@ async function linkCurrentPi(pi: ExtensionAPI, ctx: ExtensionContext): Promise<v
   if (!snapshot.current) return;
   const worktrees = await workmuxRows(pi, ctx.cwd);
   const root = await projectRoot(pi, ctx.cwd, worktrees.rows);
-  await bindAgentSession(root, snapshot.current, ctx.cwd,
+  const linked=await bindAgentSession(root, snapshot.current, ctx.cwd,
     ctx.sessionManager.getSessionId(), sessionFile);
+  if(linked==='saved') diagnosticEvent('launch.agent_linked',{source:'automatic',outcome:'success',sessionId:ctx.sessionManager.getSessionId(),projectId:root,data:{linked:true}});
 }
 
 export function registerTaskHub(pi: ExtensionAPI, openHub: (ctx: ExtensionContext) => Promise<void>): void {
