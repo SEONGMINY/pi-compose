@@ -4,6 +4,7 @@ import type { LaunchPlan } from '../src/launch.ts';
 import { listTasks, recordTask, type TaskRecord, type TaskLink, type TmuxLocation } from '../src/task-index.ts';
 import { focusSharedTaskTab, ghosttyEnabled } from '../src/ghostty.ts';
 import { parseWorkmuxStatus, worktreeStatus, type AgentObservation } from '../src/agent-status.ts';
+import { pickTask } from './compose-panel.ts';
 import { workmuxRows, returnToTmux, showWorkPicker, type OpenWorktree } from './work-return.ts';
 
 type HubRow = {
@@ -119,7 +120,7 @@ export function taskHubRows(
  * Record a link only after workmux/tmux reports the precise target created by
  * this launch. We never treat an agent name or matching branch as identity.
  */
-export async function trackLaunchedTask(pi: ExtensionAPI, plan: LaunchPlan): Promise<string | undefined> {
+export async function trackLaunchedTask(pi: ExtensionAPI, plan: LaunchPlan, title?: string): Promise<string | undefined> {
   try {
     const [snapshot, mux] = await Promise.all([tmuxSnapshot(pi, plan.cwd), workmuxRows(pi, plan.cwd)]);
     const root = await projectRoot(pi, plan.cwd, mux.rows);
@@ -127,7 +128,7 @@ export async function trackLaunchedTask(pi: ExtensionAPI, plan: LaunchPlan): Pro
     const current = snapshot.current;
     const origin = current && known.find(t => equalLocation(t.targetLocation, current));
     const main = process.env.PIC_COMPOSE_MAIN === '1' ? current : origin?.mainLocation;
-    const link: TaskLink = { projectRoot: root };
+    const link: TaskLink = { projectRoot: root, ...(title ? { title } : {}) };
     if (main) link.mainLocation = main;
 
     if (plan.workspace === 'shared' && plan.tmuxTarget) {
@@ -175,10 +176,9 @@ export async function refreshTaskIndicator(ctx: ExtensionContext, root = ctx.cwd
   if (!ctx.hasUI) return;
   // A count without refreshing other processes can be misleading. Keep the
   // stable navigation affordance and compute real availability only in the Hub.
-  ctx.ui.setStatus('compose-tasks', '작업 보기: /compose');
-  ctx.ui.setWidget('compose-hint', [
-    'Pi Compose · /compose 작업 보기 · Alt+W (지원 터미널) · 자연어로 Agent 실행',
-  ], { placement: 'belowEditor' });
+  ctx.ui.setStatus('compose-tasks', '작업 · /compose');
+  // Keep one visible entry point; remove the old editor widget.
+  ctx.ui.setWidget('compose-hint', undefined);
 }
 
 /** Same Hub in Main and child Pi (when the navigation-only package is enabled). */
@@ -204,10 +204,9 @@ export async function showTaskHub(
   const rows: HubRow[] = taskRows[0]?.kind === 'main'
     ? [taskRows[0], taskRows[1]!, ...(onLaunch ? [{ kind: 'new' as const, label: '+ 새 에이전트에게 맡기기' }] : []), ...taskRows.slice(2)]
     : [...(onLaunch ? [{ kind: 'new' as const, label: '+ 새 에이전트에게 맡기기' }] : []), ...taskRows];
-  const choices = rows.map((row, index) => (index + 1) + '. ' + row.label);
-  const selected = await ctx.ui.select('작업 · ' + basename(root), choices);
-  if (!selected) return;
-  const selectedRow = rows[choices.indexOf(selected)];
+  const selected = await pickTask(ctx, basename(root), rows);
+  if (selected === undefined) return;
+  const selectedRow = rows[selected];
   if (!selectedRow) return;
   if (selectedRow.kind === 'new') {
     if (onLaunch) await onLaunch();

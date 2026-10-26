@@ -17,11 +17,14 @@ export type TaskLink = {
   targetLocation?: TmuxLocation;
   worktreePath?: string;
   workmuxHandle?: string;
+  title?: string;
 };
 
 export type TaskRecord = {
   id: string;
   title: string;
+  /** Exact original instruction, not a summary of the Forked session. */
+  instruction?: string;
   projectRoot: string;
   workspace: 'shared' | 'worktree';
   context: 'fork' | 'independent';
@@ -46,7 +49,9 @@ function directory(root: string): string {
 export async function recordTask(plan: LaunchPlan, link: TaskLink = {}): Promise<TaskRecord> {
   const task: TaskRecord = {
     id: randomUUID(),
-    title: plan.task.replace(/\s+/g, ' ').trim().slice(0, 100),
+    title: (link.title?.trim() || plan.task.split('\n').find(line => line.trim()) || plan.task)
+      .replace(/\s+/g, ' ').trim().slice(0, 96),
+    instruction: plan.task,
     projectRoot: resolve(link.projectRoot || plan.cwd),
     workspace: plan.workspace,
     context: plan.context,
@@ -91,6 +96,7 @@ function isRecord(value: unknown): value is TaskRecord {
     && (x.workspace === 'shared' || x.workspace === 'worktree')
     && (x.context === 'fork' || x.context === 'independent')
     && (typeof x.branch === 'string' || typeof x.tmuxTarget === 'string')
+    && (x.instruction === undefined || (typeof x.instruction === 'string' && x.instruction.length <= 20000))
     && typeof x.createdAt === 'string'
     && (x.mainLocation === undefined || validLocation(x.mainLocation))
     && (x.targetLocation === undefined || validLocation(x.targetLocation))

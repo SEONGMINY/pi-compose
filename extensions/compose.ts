@@ -5,6 +5,8 @@ import { planResume, executeResume } from '../src/resume.ts';
 import { registerWorkReturn, showWorkPicker } from './work-return.ts';
 import { registerTaskHub, showTaskHub, trackLaunchedTask, refreshTaskIndicator } from './task-hub.ts';
 import { fileURLToPath } from 'node:url';
+import { Text } from '@earendil-works/pi-tui';
+import { approveLaunch, taskName } from './compose-panel.ts';
 
 const baseExtension = fileURLToPath(import.meta.url);
 
@@ -30,27 +32,6 @@ function currentConversationPreview(ctx: ExtensionContext): { messages: number; 
   } catch { return undefined; }
 }
 
-function launchConfirmation(plan: Awaited<ReturnType<typeof planLaunch>>, isCurrent: boolean,
-  conversation: ReturnType<typeof currentConversationPreview>): string {
-  return [
-    '개발 Agent에게 맡길 작업:',
-    plan.task,
-    '',
-    '컨텍스트: ' + (plan.context === 'fork'
-      ? '선택한 Pi 대화 Fork (원본 세션 ' + plan.source?.id + ')' : '독립적인 새 대화'),
-    ...(plan.context === 'fork' && isCurrent && conversation
-      ? ['현재 대화의 사용자 메시지: ' + conversation.messages + '개',
-        ...conversation.preview.map((p, i) => '최근 메시지 ' + (i + 1) + ': ' + p)] : []),
-    ...(plan.context === 'fork'
-      ? ['위 미리보기는 대화 전체가 아닙니다. 실제 컨텍스트는 Pi Fork가 전달합니다.']
-      : ['기존 Main 대화는 전달되지 않습니다. 작업 지시만 전달됩니다.']),
-    '작업 공간: ' + (plan.workspace === 'worktree' ? '별도 Git Worktree' : '현재 디렉터리'),
-    ...(plan.branch ? ['브랜치: ' + plan.branch] : []),
-    ...plan.warnings,
-    '',
-    '이 조건으로 실제 Agent를 실행할까요?',
-  ].join('\n');
-}
 
 async function chooseForkSource(ctx: ExtensionContext, { includeCurrent = true }: { includeCurrent?: boolean } = {}): Promise<string | undefined> {
   const current = ctx.sessionManager.getSessionFile();
@@ -114,16 +95,16 @@ export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, 
       ctx.ui.notify(`Preview only: ${plan.program} ${plan.args.join(' ')}${plan.warnings.length ? `\n${plan.warnings.join('\n')}` : ''}`, 'info');
       return;
     }
-    const approval = await ctx.ui.confirm('개발 Agent 실행 확인', launchConfirmation(
-      plan, plan.source?.path === ctx.sessionManager.getSessionFile(),
-      currentConversationPreview(ctx),
-    ));
+    const approval = await approveLaunch(ctx, plan, {
+      current: plan.source?.path === ctx.sessionManager.getSessionFile(),
+      conversationPreview: currentConversationPreview(ctx)?.preview,
+    });
     if (approval !== true) return;
     const result = await executeLaunch(plan);
     const indexWarning = await trackLaunchedTask(pi, plan);
     if (indexWarning) ctx.ui.notify(indexWarning, 'warning');
     await refreshTaskIndicator(ctx, plan.cwd);
-    ctx.ui.notify(`Launch command completed (${result.status}). ${result.workspace} ${result.branch || result.cwd}. Agent readiness unverified.`, 'info');
+    ctx.ui.notify(`위임 명령 실행 완료 · ${taskName(plan.task)} · 실제 Agent 활동은 Hub에서 확인`, 'info');
     for (const warning of result.warnings) ctx.ui.notify(warning, 'warning');
   } catch (error: unknown) {
     ctx.ui.notify(`Launch failed: ${error instanceof Error ? error.message : String(error)}`, 'error');
@@ -193,9 +174,10 @@ export default function composeExtension(pi: ExtensionAPI): void {
   pi.registerTool({
     name: 'compose_launch',
     label: 'Launch coding agent',
-    description: 'Launch a NEW coding agent only on an explicit user instruction to start/delegate work, including natural language. Never call for mere discussion or recommendations. The task must describe the actionable implementation goal using requirements already established in this conversation; do not substitute a vague phrase such as "implement what we discussed". If no concrete task was discussed, ask what to implement instead of calling the tool. Fork the current Pi session only when it is explicitly the source; independent means no inherited conversation. Show the exact task and source for approval before executing.',
+    description: 'On an explicit user instruction to start/delegate implementation, call this tool directly without asking for additional conversational permission: the extension shows ONE execution approval. For planning or discussing whether to delegate, never call. Preserve established requirements, prohibitions and WHY in the task; do not invent constraints. Fork inherits the specifically selected Pi session. Do not ask for an already specified context, workspace or branch. If a required detail is missing, ask only for that detail. Never assert Fork context arrived solely from successful launch.',
     parameters: Type.Object({
-      task: Type.String({ description: 'The task the NEW development agent should perform' }),
+      task: Type.String({ description: 'Exact actionable implementation instruction, preserving established constraints and reasons.' }),
+      title: Type.Optional(Type.String({ description: 'Short human-readable task name for the Hub. Does not replace the full instruction.' })),
       context: Type.Union([Type.Literal('fork'), Type.Literal('independent')]),
       workspace: Type.Union([Type.Literal('shared'), Type.Literal('worktree')]),
       source: Type.Optional(Type.Union([
@@ -230,21 +212,37 @@ export default function composeExtension(pi: ExtensionAPI): void {
         cwd: params.cwd || ctx.cwd, sourceSessionFile, branch: params.branch,
         composeExtensionFile: baseExtension,
       });
-      const approved = await ctx.ui.confirm('개발 Agent 실행 확인', launchConfirmation(
-        plan, params.source?.kind === 'current',
-        params.source?.kind === 'current' ? currentConversationPreview(ctx) : undefined,
-      ));
+      const approved = await approveLaunch(ctx, plan, {
+        current: params.source?.kind === 'current',
+        conversationPreview: params.source?.kind === 'current'
+          ? currentConversationPreview(ctx)?.preview : undefined,
+      });
       if (approved !== true) {
         return { content: [{ type: 'text' as const, text: 'Launch cancelled by user. No agent was started.' }], details: { status: 'cancelled' } };
       }
       const result = await executeLaunch(plan);
-      const indexWarning = await trackLaunchedTask(pi, plan);
+      const indexWarning = await trackLaunchedTask(pi, plan, params.title);
       if (indexWarning) ctx.ui.notify(indexWarning, 'warning');
       await refreshTaskIndicator(ctx, plan.cwd);
       return {
-        content: [{ type: 'text' as const, text: `Launch command succeeded for ${plan.task}; agent readiness is not yet verified. Workspace: ${plan.workspace}; target: ${plan.branch || plan.cwd}` }],
+        content: [{ type: 'text' as const,
+          text: '위임 명령 실행 완료: ' + taskName(plan.task, params.title)
+            + '. 실제 Agent 활동은 미확인입니다. /compose에서 작업을 확인하세요.' }],
         details: result,
       };
+    },
+    renderCall(args, theme) {
+      return new Text(theme.fg('accent', '↗ 개발 위임 · ' + taskName(args.task, args.title)), 0, 0);
+    },
+    renderResult(result, _options, theme) {
+      const status = result.details && typeof result.details === 'object' && 'status' in result.details
+        ? String(result.details.status) : '';
+      const message = result.content.filter(item => item.type === 'text')
+        .map(item => item.text).join(' ').replace(/\s+/g, ' ').trim();
+      const success = status !== 'cancelled' && status !== 'not_executed_confirmation_unavailable'
+        && message.startsWith('위임 명령 실행 완료');
+      return new Text(theme.fg(success ? 'success' : 'dim',
+        (success ? '✓ ' : '· ') + message.slice(0, 190)), 0, 0);
     },
   });
 }
