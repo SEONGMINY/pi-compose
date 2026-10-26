@@ -2,18 +2,28 @@
 
 [← README](../README.md)
 
-## 1. 실행 준비
+## 1. 설치와 실행 준비
+
+macOS의 공식 설치는 **main** 버전을 설치합니다. Draft PR #3을 쓰려면 현재 브랜치에서 직접 설치합니다. 자세한 버전 구분과 의존성은 [설치 가이드](SETUP.md)를 보세요.
 
 ```bash
+npm install -g --ignore-scripts --no-audit --no-fund \
+  "git+https://github.com/SEONGMINY/pi-compose.git#feat/task-hub-ghostty"
 cd ~/projects/my-app
 pic
-# workmux가 만든 별도 Pi에서도 Compose 기능을 사용하려면 최초 한 번:
-pic navigation enable
 ```
 
-`pic`은 프로젝트별 tmux 세션에 연결됩니다. 기존 Pi 인증과 세션을 사용합니다. Worktree Agent는 `workmux add --agent pi`로 실행되므로 사용자 Pi의 Navigation Package를 인식해야 동일한 명령과 자연어 도구가 나타납니다. 적용하려면 이미 실행 중인 Agent에서 `/reload`를 실행하거나 새 Agent를 시작하세요.
+최초 대화형 실행에서 필요한 권장 기능의 준비 여부를 확인합니다. 동의하면 **Navigation과 Handoff/Verify**가 Pi의 기존 패키지 관리 방식으로 설치됩니다. workmux 상태 Hook은 별도로 승인하고 `workmux setup`의 공식 화면에서 선택합니다. 이미 활성화한 항목과 사용자가 비활성화한 리소스는 변경하지 않습니다. 설정을 건너뛰면 기본 Launch는 계속 동작합니다.
 
-`pic features`로 Handoff/Verify 선택형 Package를 활성화할 수 있습니다. `pic features --local`은 프로젝트 범위 설치입니다.
+```bash
+pic doctor   # 읽기 전용 진단
+pic setup    # 기능 설치/복구 (명시적 승인)
+pic config   # Pi가 제공하는 개별 기능 활성화 및 비활성화
+```
+
+새 Pi 세션은 설정을 자동으로 읽으며, 이미 실행 중이던 Pi에서는 `/reload`가 필요할 수 있습니다. 최초 로그인과 모델은 `/login`과 `/model`을 사용합니다.
+
+**[다섯 가지 개발 시나리오](SCENARIOS.md)**
 
 ## 2. Main에서 위임하기
 
@@ -91,11 +101,7 @@ Pi가 자체 제공하는 `/resume`도 사용할 수 있습니다. 다른 프로
 
 ## 6. Handoff → Verify → Main에서 결과 확인
 
-선택형 기능을 활성화합니다.
-
-```bash
-pic features
-```
+최초 권장 구성을 승인했다면 Handoff/Verify Package가 설치돼 있습니다. 개별 기능을 비활성화한 경우에는 `pic config`에서 확인합니다.
 
 개발 Agent에서:
 
@@ -127,8 +133,10 @@ Shared Directory에서는 여러 Agent가 Git 변경을 함께 만들 수 있습
 | `/compose resume` | 정확한 저장 대화를 새 Pi로 명시적 재개 |
 | `/compose-handoff` | 선택형 인계 작성 |
 | `/compose-verify [ref]` | 선택형 독립 검토 |
-| `pic navigation enable` | Worktree Agent에서 같은 Pi 명령 활성화 |
-| `workmux setup` | workmux Pi 상태 Hook 설정 |
+| `pic doctor` | 설정·의존성 읽기 전용 확인 |
+| `pic setup` | 최초 설치 또는 누락된 권장 기능의 승인형 설정 |
+| `pic navigation enable` | Child 탐색 기능을 나중에 개별 활성화 |
+| `workmux setup` | 공식 workmux Hook 설정 화면 (필요할 때 승인 후 실행) |
 | `pic features` | 선택형 Handoff/Verify 설정 |
 
 [설계 판단](adr/0007-reference-led-navigation.md) · [실사용 점검 시나리오](validation/task-hub-ux.md)
