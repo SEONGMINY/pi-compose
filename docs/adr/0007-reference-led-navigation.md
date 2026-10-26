@@ -28,7 +28,7 @@
 1. `/compose`: 현재 프로젝트의 Main·관련 Agent 선택. **지속 상태 모니터링, 로그 미리보기, Git diff 렌더링 없음.**
 2. `/compose monitor`: workmux Dashboard를 tmux 팝업에서 호출. **Pi Hook 미설치라면 목록이 비어 있을 수 있음**. Pi의 waiting 상태는 보장되지 않음.
 3. `/compose sessions`: 현재 프로젝트의 Pi 저장 대화 → Pi `ctx.switchSession()`. 다른 프로세스·Worktree 생성 없음.
-4. Handoff/Verify: 사용자 요청으로만 실행하고 기록 당시 Git HEAD를 포함해 정확히 단일 Worktree에 매핑. 독립 검토가 존재해도 결과 승인이나 Git 통합을 뜻하지 않음.
+4. Handoff/Verify: 사용자 요청으로만 실행하고 기록 당시 Git HEAD를 포함해 정확히 단일 Worktree 또는 검증된 Child Pi Session에 매핑. 독립 검토가 존재해도 결과 승인이나 Git 통합을 뜻하지 않음.
 5. Ghostty의 AppleScript 탭 자동 제어는 제거. 터미널 전용 동작을 기본 계약으로 만들지 않음. 기존 tmux/workmux 창 이동 재사용.
 6. Child Pi에서는 사용자가 `pic navigation enable`을 선택해 동일한 Launch·관련 Agent·저장 대화 탐색 도구를 로드함. 별도 사용자 설정의 무단 변경 없음.
 
