@@ -7,7 +7,7 @@ import {join} from 'node:path';
 import {
  configureDiagnostics,diagnosticEvent,startFlow,finishFlow,
  diagnosticsDir,readDiagnosticEvents,analyzeDiagnostics,
- exportDiagnostics,clearDiagnostics,diagnosticStatus
+ exportDiagnostics,clearDiagnostics,diagnosticStatus,discloseDiagnostics
 } from '../src/diagnostics.mjs';
 
 test('private local events use an allowlist and stable flow IDs', async t=>{
@@ -35,6 +35,10 @@ test('private local events use an allowlist and stable flow IDs', async t=>{
  assert.equal(statSync(join(folder,files[0])).mode&0o777,0o600);
  const out=join(folder,'export.json');
  const exported=exportDiagnostics({days:1,output:out});
+ const filtered=exportDiagnostics({days:1,runId:events[0].runId});
+ assert.equal(filtered.report.events.length,3);
+ assert.equal(filtered.report.filteredRunId,events[0].runId);
+ assert.equal(exportDiagnostics({days:1,runId:'00000000-0000-4000-8000-000000000000'}).report.events.length,0);
  assert.equal(exported.report.summary.metrics.delegation.dispatchSucceeded,1);
  assert.equal(statSync(out).mode&0o777,0o600);
  assert.ok(!readFileSync(out,'utf8').includes('SECRET prompt'));
@@ -45,7 +49,9 @@ test('disabled collection does not append events',async t=>{
  const dir=mkdtempSync(join(tmpdir(),'pic-ux-off-'));const prev=process.env.PI_CODING_AGENT_DIR;
  process.env.PI_CODING_AGENT_DIR=dir;
  t.after(async()=>{if(prev===undefined)delete process.env.PI_CODING_AGENT_DIR;else process.env.PI_CODING_AGENT_DIR=prev;await rm(dir,{recursive:true,force:true});});
+ assert.equal(discloseDiagnostics(),true);
  configureDiagnostics(false);
+ assert.equal(discloseDiagnostics(),false,'collection toggle must preserve the original disclosure');
  assert.equal(diagnosticStatus().enabled,false);
  diagnosticEvent('navigation.opened',{source:'slash',data:{availableTargets:4}});
  assert.equal(readDiagnosticEvents({days:1}).length,0);
