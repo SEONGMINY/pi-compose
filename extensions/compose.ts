@@ -15,9 +15,13 @@ function currentConversationPreview(ctx: ExtensionContext): { messages: number; 
     const entries = ctx.sessionManager.getBranch();
     const prompts = entries
       .filter(e => e.type === 'message' && e.message.role === 'user')
-      .map(e => e.type === 'message' && e.message.role === 'user'
-        ? e.message.content.filter(c => c.type === 'text').map(c => c.text).join(' ')
-        : '')
+      .map(e => {
+        if (e.type !== 'message' || e.message.role !== 'user') return '';
+        const content = e.message.content;
+        return typeof content === 'string'
+          ? content
+          : content.filter(c => c.type === 'text').map(c => c.text).join(' ');
+      })
       .filter(Boolean);
     return {
       messages: prompts.length,
