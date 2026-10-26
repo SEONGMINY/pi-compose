@@ -99,7 +99,9 @@ else
   remote_ref="refs/heads/$install_ref"
 fi
 info "Resolving Pi Compose commit for $remote_ref."
-revision="$(git ls-remote --exit-code "$REPOSITORY" "$remote_ref" | awk 'NR == 1 { print $1 }')"
+if ! revision="$(git ls-remote --exit-code "$REPOSITORY" "$remote_ref" | awk 'NR == 1 { print $1 }')"; then
+  fail "Cannot resolve $remote_ref on GitHub. Check the branch name and network; nothing was installed."
+fi
 case "$revision" in
   ''|*[!0-9a-fA-F]*) fail "Could not resolve a valid Pi Compose commit from GitHub." ;;
 esac
