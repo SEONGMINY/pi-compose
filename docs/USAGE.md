@@ -20,7 +20,7 @@ pic
 
 ## 기본 작업 Hub
 
-Pi Compose를 실행하면 화면 아래에 `Alt+W 작업 보기` 안내가 표시됩니다. **`Alt+W`** 또는 **`/compose`**로 작업 Hub를 열 수 있습니다.
+Pi Compose 입력창 아래에 **`/compose 작업 보기`**가 표시됩니다. Pi 입력창에서 `/compose`를 입력하면 작업 Hub가 열립니다. `Alt+W`는 단축키를 올바르게 전달하는 터미널에서만 동작합니다. Mac에서 `Option+W`가 반응하지 않는 경우 `/compose`를 사용하세요.
 
 - **새 에이전트에게 맡기기:** 작업 이름을 입력하고 기존 Fork/Independent, Shared/Worktree 선택을 이어갑니다. 사용자의 실행 지시 없이 모델이 자동으로 에이전트를 생성하지 않습니다.
 - **내 작업:** 이번 개선 버전에서 명시적으로 시작한 작업을 제목별로 한 번씩 보여줍니다. tmux 또는 Worktree가 열려 있어도 실제 Pi 모델이 작업 중/완료라는 뜻은 아닙니다.
@@ -61,7 +61,7 @@ Pi 선택 UI에서 **컨텍스트**와 **작업 공간**을 각각 정합니다.
 
 Fork는 **어느 Pi 세션을 원본으로 삼을지 직접 선택**해야 합니다. Pi Compose가 최근 세션이나 현재 세션을 자동으로 Main이라고 간주하지 않습니다. Worktree를 선택하면 새 브랜치 이름을 입력합니다. workmux Fork에는 원본 세션의 작업 디렉터리와 저장소 루트가 일치해야 하는 제약이 있습니다.
 
-`/compose preview`는 실행 계획만 표시합니다. `/compose launch`는 사용자가 명시적으로 선택한 옵션으로 실행합니다. 자연어로 에이전트 생성을 요청하면 `compose_launch` Tool이 **실행 전 승인을 요청**합니다.
+`/compose preview`는 실행 계획만 표시합니다. `/compose launch`는 Context, Workspace, Fork 원본, 브랜치를 선택한 후 **실제 전달할 작업과 실행 조건을 다시 보여주고 승인 시 실행**합니다. 자연어 요청도 동일한 실행 계획을 사용하고 `compose_launch` Tool이 실제 실행 전 승인을 요청합니다. Fork 원본을 현재 세션으로 선택했다면 최근 사용자 메시지 두 개를 미리보기로 보여줍니다. 이것은 원본 세션에 포함된 사용자 메시지의 **일부**이며 전체 대화 및 Fork 결과 검증은 아닙니다.
 
 Worktree Launch는 workmux의 `--background`와 고유 `--target-name` 옵션으로 현재 Main 화면을 유지하고 실행 대상을 식별합니다. Ghostty 네이티브 탭을 명시적으로 켜면 새 Worktree는 `--mode session`도 사용합니다. 개발 에이전트를 보려면 `Alt+W` 또는 `/compose`에서 선택하세요. Shared Launch도 별도 tmux 세션에서 시작하고 Main 화면을 유지합니다.
 
