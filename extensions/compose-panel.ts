@@ -48,7 +48,7 @@ export function launchReviewLines(
     part('맡길 작업', 'dim'),
     // The full instruction must stay reachable even if the short title is
     // ambiguous. Its first line is wrapped instead of being sliced.
-    part(taskName(plan.task, origin.title)),
+    part(origin.title?.trim() || plan.task.split('\n').find(line => line.trim()) || '새 작업'),
     part(''),
     part('컨텍스트', 'dim'),
     part(context),
@@ -66,7 +66,7 @@ export function launchReviewLines(
       ...origin.conversationPreview.map(x => part(x)));
     result.push(part(''), part('실행 디렉터리', 'dim'), part(plan.cwd));
   } else {
-    result.push(part(''), part('Tab: 지시 원문·세션 ID 보기', 'dim'));
+    result.push(part(''), part('강한 제약·지시 원문은 Tab 상세에서 확인', 'warning'));
   }
   // Preview metadata is NOT evidence that Pi's session Fork delivered context.
   return result;
@@ -88,10 +88,13 @@ function taskLabels(record: TaskRecord, current: boolean, available?: boolean): 
 }
 
 export function hubListLines(
-  items: readonly HubPreviewItem[], selected: number, width: number,
+  items: readonly HubPreviewItem[], selected: number, width: number, pageSize = 6,
 ): Segment[] {
   const results: Segment[] = [part('작업 탐색', 'accent'), separator(width)];
-  for (const [i, item] of items.entries()) {
+  // Keep the focused task in the list viewport, even with many agents.
+  const first = Math.max(0, Math.min(selected, Math.max(0, items.length - pageSize)));
+  for (let i = first; i < Math.min(items.length, first + pageSize); i++) {
+    const item = items[i]!;
     // Always distinguish cursor/focus from the location currently opened.
     const prefix = i === selected ? '❯ ' : '  ';
     const title = item.kind === 'task' && item.record
@@ -102,7 +105,9 @@ export function hubListLines(
       + (item.record.workspace === 'worktree' ? 'Worktree' : 'Shared') + ' · '
       + (item.available ? '실행 대상 열림' : '이동 대상 확인 불가'), 'dim'));
   }
-  results.push(separator(width), part('↑↓ 선택 · Enter 이동 · Tab 상세 · Esc 닫기', 'dim'));
+  if (items.length > pageSize) results.push(part('작업 ' + (first + 1) + '–'
+    + Math.min(items.length, first + pageSize) + '/' + items.length, 'dim'));
+  results.push(separator(width));
   return results;
 }
 
@@ -213,7 +218,8 @@ export async function pickTask(
         const height = viewportRows(tui);
         const data = detail
           ? hubDetailLines(items[selected]!, width)
-          : hubListLines(items, selected, width);
+          : hubListLines(items, selected, width,
+            Math.max(2, Math.min(6, Math.floor((height - 6) / 2))));
         // The project heading appears only in the list. Never show technical
         // tmux/window IDs unless the user opens a particular task's details.
         const page = detail ? data : [part('프로젝트 · ' + project, 'dim'), ...data];
@@ -231,11 +237,11 @@ export async function pickTask(
           detail = !detail; offset = 0; return tui.requestRender();
         }
         if (!detail && (keybindings.matches(data, 'tui.select.up') || matchesKey(data, Key.up))) {
-          selected = (selected + items.length - 1) % items.length; offset = Math.max(0, selected - 3);
+          selected = (selected + items.length - 1) % items.length; offset = 0;
           return tui.requestRender();
         }
         if (!detail && (keybindings.matches(data, 'tui.select.down') || matchesKey(data, Key.down))) {
-          selected = (selected + 1) % items.length; offset = Math.max(0, selected - 3);
+          selected = (selected + 1) % items.length; offset = 0;
           return tui.requestRender();
         }
         if (detail && (matchesKey(data, Key.down) || matchesKey(data, Key.pageDown))) { offset += 3; return tui.requestRender(); }
