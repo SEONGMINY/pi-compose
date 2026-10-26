@@ -102,7 +102,7 @@ export function taskHubRows(
     const available = isLive(record.targetLocation) && (record.workspace === 'shared' || Boolean(worktree?.is_open));
     const location = equalLocation(record.targetLocation, current) ? ' · 현재 작업' : '';
     const status = available
-      ? '대상 열림 · AI 상태는 workmux에서 확인'
+      ? 'tmux 창 확인됨 · Pi 활동/개발 진행 미확인'
       : record.targetLocation ? '대상 종료 또는 확인 불가' : '연결 정보 없음 · 이전 작업 탐색';
     const displayName = titleCount.get(record.title)! > 1 ? record.title + ' [' + record.id.slice(0, 8) + ']' : record.title;
     return { kind: 'task' as const, record, available, label: displayName
