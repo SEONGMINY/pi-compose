@@ -16,7 +16,7 @@ const baseExtension = fileURLToPath(import.meta.url);
 function failureKind(error: unknown, stage: string): string {
   const message = error instanceof Error ? error.message : String(error);
   if (/Source cwd \(|source repository root|source was created in a different cwd/i.test(message)) return 'source_cwd_mismatch';
-  if (/source Pi session|source session|no saved session file/i.test(message)) return 'source_missing';
+  if (/source Pi session|source session|no saved session file|explicit source|selected Pi session/i.test(message)) return 'source_missing';
   if (/Branch already exists/i.test(message)) return 'branch_exists';
   if (stage === 'dispatch' && /workmux/i.test(message)) return 'workmux_dispatch';
   if (stage === 'dispatch' && /tmux/i.test(message)) return 'tmux_dispatch';
@@ -110,6 +110,9 @@ export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, 
   try {
     sourceSessionFile = context === 'fork' ? await chooseForkSource(ctx) : undefined;
   } catch (error) {
+    outcome='failure';
+    diagnosticEvent('launch.stage',{source:'slash',flowId:flow.flowId,outcome:'failure',
+      data:{stage:'input',failureKind:'source_missing'}});
     ctx.ui.notify(`Cannot list Pi sessions: ${error instanceof Error ? error.message : String(error)}`, 'error');
     return;
   }
