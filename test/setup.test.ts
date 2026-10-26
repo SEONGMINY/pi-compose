@@ -62,15 +62,15 @@ test('project-only configuration is not mistaken for a missing global package', 
   const agentDir = join(dir, 'agent');
   await mkdir(join(project, '.pi'), { recursive: true });
   await mkdir(agentDir, { recursive: true });
-  t.after(() => rm(dir, { recursive: true, force: true }));
   const previousDir = process.env.PI_CODING_AGENT_DIR;
   const previousCwd = process.cwd();
   process.env.PI_CODING_AGENT_DIR = agentDir;
   process.chdir(project);
-  t.after(() => {
+  t.after(async () => {
     process.chdir(previousCwd);
     if (previousDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = previousDir;
+    await rm(dir, { recursive: true, force: true });
   });
   const before = JSON.stringify({
     theme: 'custom',
