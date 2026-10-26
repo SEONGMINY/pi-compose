@@ -283,7 +283,7 @@ sequenceDiagram
 - 원본 Pi Session ID와 Context(Fork/Independent), Workspace(Shared/Worktree)는 사용자가 지정한 실행 선택입니다.
 - 연결된 기존 tmux session+window가 사라지면 다른 이름·경로로 추측하지 않고 이동을 거절합니다.
 - Worktree 경로·workmux handle·브랜치는 실제 조회 결과와 정확히 일치해야만 이동 가능하다고 표시합니다.
-- Handoff/Verify를 Worktree 작업 기록에 연결하려면 프로젝트 루트+Worktree 경로+브랜치에 유일한 후보 하나가 있어야 합니다. 인계와 검토는 기록 당시 Git HEAD 기준이며 개발 완료·통합 승인이 아닙니다.
+- Handoff/Verify 결과를 연결하려면 프로젝트 루트+Worktree 경로+브랜치가 유일하게 일치하거나, Child Pi의 실제 저장 Session ID/파일과 기존 tmux 창이 검증된 기록 하나와 일치해야 합니다. 인계와 검토는 기록 당시 Git HEAD 기준이며 개발 완료·통합 승인이 아닙니다.
 - Shared Directory의 Git 변경을 어떤 Agent가 작성했는지는 자동으로 알아낼 수 없습니다. 그 결과를 특정 작업의 변경으로 추측 연결하지 않습니다.
 - 특정 Pi Child Session ID의 실제 기동 완료는 Launch 명령 성공만으로 증명할 수 없습니다.
 
