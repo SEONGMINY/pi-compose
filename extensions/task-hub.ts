@@ -270,7 +270,7 @@ export async function showTaskHub(
   diagnosticEvent('navigation.selected',{source:'menu',flowId:flow.flowId,outcome:'success',data:{kind:row?.kind||'unknown'}});
   if (!row || row.kind === 'current') {finishFlow(flow,'navigation.finished',{source:'menu',outcome:'cancelled',data:{reason:'current'}});return;}
   if (row.kind === 'new') { if (onLaunch) await onLaunch(); finishFlow(flow,'navigation.finished',{source:'menu',outcome:'success',data:{kind:'new'}}); return; }
-  if (row.kind === 'monitor') { await openWorkmuxMonitor(pi, ctx); finishFlow(flow,'navigation.finished',{source:'menu',outcome:'success',data:{kind:'monitor'}});return; }
+  if (row.kind === 'monitor') { const opened=await openWorkmuxMonitor(pi, ctx); finishFlow(flow,'navigation.finished',{source:'menu',outcome:opened?'success':'failure',data:{kind:'monitor'}});return; }
   if (row.kind === 'history') {
     // /compose sessions is an exact Pi-native switch, not another Agent list.
     if ('switchSession' in ctx && typeof ctx.switchSession === 'function') {

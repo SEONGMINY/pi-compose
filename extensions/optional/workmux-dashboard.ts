@@ -7,17 +7,19 @@ import { dashboardArgs, type DashboardOptions } from '../../src/dashboard.ts';
  */
 export async function openWorkmuxMonitor(
   pi: ExtensionAPI, ctx: ExtensionContext, tab?: DashboardOptions['tab'],
-): Promise<void> {
+): Promise<boolean> {
   if (!ctx.hasUI || !process.env.TMUX) {
     ctx.ui.notify('The workmux View requires Pi running in tmux. In a terminal run: workmux dashboard. Run workmux setup to configure Pi status hooks.', 'warning');
-    return;
+    return false;
   }
   const command = ['workmux', ...dashboardArgs({tab})].map(value => "'" + value.replaceAll("'", "'\\''") + "'").join(' ');
   try {
     const result = await pi.exec('tmux', ['display-popup', '-E', '-w', '90%', '-h', '90%', command], { cwd: ctx.cwd });
     if (result.code !== 0) throw new Error(result.stderr || 'tmux popup exit ' + result.code);
+    return true;
   } catch (error) {
     ctx.ui.notify('Could not open workmux dashboard: ' + (error instanceof Error ? error.message : String(error)) + '. Run workmux setup for Pi status hooks.', 'error');
+    return false;
   }
 }
 
