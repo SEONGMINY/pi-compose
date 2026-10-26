@@ -111,7 +111,7 @@ export default function verificationExtension(pi: ExtensionAPI): void {
             'Starts a separate model call using read/grep/find/ls ONLY. No automatic merge or cleanup.',
           ].join('\n'),
         );
-        if (approved !== true) return;
+        if (approved !== true) {outcome='cancelled'; return;}
 
         const instructions = [
           'You are an independent verifier, not the implementation agent. Do NOT modify files, start agents, or approve changes.',
