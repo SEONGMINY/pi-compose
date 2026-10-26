@@ -28,6 +28,9 @@
 | [ADR 0004](adr/0004-pi-native-optional-views.md) | 사용자 확정: Pi 기본 Package 중심 조합, 선택형 View와 비필수 Dashboard |
 | [ADR 0005](adr/0005-pic-entry-and-pi-settings.md) | 단일 전역 `pic` 진입점과 Pi 설정 공유, 선택형 Package 구성 |
 | [ADR 0006](adr/0006-github-installer.md) | macOS 한 줄 설치·업데이트, 기존 Pi 환경 보존 |
+| [설치·진단](SETUP.md) | 최초 1회 승인, 버전별 설치, 중복 방지, 장애 복구 |
+| [다섯 가지 실전 시나리오](SCENARIOS.md) | Fork 개발, 독립 조사, 기능/프로젝트 전환, Handoff·Verify |
+| [ADR 0008](adr/0008-first-run-setup.md) | 최초 실행 권장 구성·설정 승인·Pi/workmux 정본 활용 |
 | [ADR 0007](adr/0007-reference-led-navigation.md) | **PR #3 B안:** Pi Native 선택, workmux Dashboard, Pi 세션 탐색, Handoff 결과 회수와 책임 경계 |
 
 ## 문서 간 우선순위와 변경 원칙
