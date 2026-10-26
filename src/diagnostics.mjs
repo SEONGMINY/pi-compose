@@ -50,10 +50,28 @@ function settings() {
 }
 export function diagnosticStatus() { return { enabled:process.env.PIC_DIAGNOSTICS!=='0'&&settings().enabled!==false,dir:diagnosticsDir(),retentionDays,maxBytes}; }
 export function diagnosticEnabled() {return diagnosticStatus().enabled;}
-export function configureDiagnostics(enabled) {
+function writePreferences(value) {
   const dir=secureDir(); const temp=join(dir,'.prefs-'+randomUUID());
-  writeFileSync(temp,JSON.stringify({enabled:!!enabled})+'\n',{mode:0o600,flag:'wx'});
-  renameSync(temp,preferencesFile()); chmodSync(preferencesFile(),0o600);
+  try {
+    writeFileSync(temp,JSON.stringify(value)+'\n',{mode:0o600,flag:'wx'});
+    renameSync(temp,preferencesFile());
+    chmodSync(preferencesFile(),0o600);
+  } catch(error) {
+    try {unlinkSync(temp);} catch {}
+    throw error;
+  }
+}
+export function configureDiagnostics(enabled) {
+  writePreferences({...settings(),enabled:!!enabled});
+}
+/** Disclose local collection once per Pi profile, including existing users. */
+export function discloseDiagnostics() {
+  const current=settings();
+  if(current.noticeShown===true)return false;
+  console.log('pic: Local UX diagnostics record command/flow metadata by default, not prompts, code, diffs or raw paths.');
+  console.log('pic: Control: pic diagnostics off | status | export | clear --yes. No automatic uploads.');
+  writePreferences({...current,noticeShown:true});
+  return true;
 }
 function safeData(data) {
   const result={};
