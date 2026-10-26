@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
+import { diagnosticEvent, startFlow, finishFlow } from '../src/diagnostics.mjs';
 
 const agentDir = () => {
   const custom = process.env.PI_CODING_AGENT_DIR;
@@ -95,72 +96,77 @@ export function printDoctor(root) {
   if (s.packages.navigation === 'project-only' || s.packages.features === 'project-only')
     console.log('Some Packages are PROJECT-ONLY; new Worktrees may not load them. Use pi config --local or explicitly opt in globally.');
   if (s.hook === 'not-detected') console.log('workmux status Hook was not detected; dashboard agent state may be empty. Run pic setup.');
-  if (s.choice === 'skip') console.log('Initial setup was declined. Run pic setup whenever you want to opt in.');
+  if (s.choice === 'skip') console.log('Earlier configuration declined; preserving your choice. Use pic setup to enable core defaults.');
   console.log('If settings changed while Pi was running, use /reload in that session.');
   const [major, minor] = process.versions.node.split('.').map(Number);
   const nodeOk = major > 22 || (major === 22 && minor >= 19);
   return s.settingsOk && nodeOk && s.pi && s.tmux && s.workmux ? 0 : 1;
 }
-export async function setupRecommended(root,{runPi,runWorkmux,firstRun=false} = {}) {
-  if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    console.error('pic: Interactive terminal required to approve setup. Run pic setup from a terminal.');
-    return 2;
+
+/**
+ * All first-party Compose capabilities are the product default, not an opt-in
+ * bundle. Pi owns settings and resource exclusions. A previous explicit
+ * decline/removal is respected; "pic setup" is the deliberate repair command.
+ */
+export async function setupRecommended(root,{runPi,runWorkmux,firstRun=false,manual=false} = {}) {
+  const state=inspectSetup(root);
+  if(!state.settingsOk){
+    console.error('pic: Pi settings are malformed. Nothing was modified. Inspect pic doctor.');
+    diagnosticEvent('setup.finished',{source:'cli',outcome:'failure',data:{reason:'settings_invalid'}});
+    return 1;
   }
-  const s=inspectSetup(root);
-  if (!s.settingsOk) { printDoctor(root); return 1; }
-  const nav=s.packages.navigation==='missing';
-  const features=s.packages.features==='missing';
-  const hook=s.hook==='not-detected';
-  if (!nav && !features && !hook) { if (!firstRun) printDoctor(root); remember('existing'); return 0; }
-  console.log('\nPi Compose recommended setup (one-time):');
-  console.log('Child Pi navigation: '+(nav?'new Pi package':'preserve your existing choice'));
-  console.log('Handoff + Verify: '+(features?'new Pi package':'preserve your existing choice'));
-  console.log('workmux Pi Hook: '+(hook?'optional workmux setup':'already detected'));
-  console.log('Pi packages affect normal pi too. Existing skills, extensions, models and sessions are preserved.');
-  console.log('workmux setup may offer changes to OTHER coding agents and active tmux status formats.');
-  if (!await yes('Prepare the missing recommended features?',true)) {
-    remember('skip');
-    console.log('pic: Skipped; launch remains available. Later: pic setup');
-    return 0;
+  const flow=startFlow('setup.started',{source:manual?'cli':'automatic'});
+  const missing=[
+    ['navigation',state.packages.navigation==='missing',join(root,'packages/navigation')],
+    ['handoff-verify',state.packages.features==='missing',join(root,'packages/optional')]
+  ];
+  for(const [component,needed,path] of missing){
+    if(!needed)continue;
+    diagnosticEvent('setup.component',{source:'automatic',flowId:flow.flowId,outcome:'unavailable',data:{component}});
+    console.log('pic: Setting up default Pi Compose '+component+' Extension via official pi install...');
+    let code;
+    try {code=await runPi(['install',path]);}catch{code=1;}
+    if(code!==0){
+      console.error('pic: '+component+' install failed. Earlier successful steps remain. Retry with pic setup.');
+      diagnosticEvent('setup.component',{source:'automatic',flowId:flow.flowId,outcome:'failure',data:{component}});
+      finishFlow(flow,'setup.finished',{source:'automatic',outcome:'failure',data:{reason:'pi_package_error'}});
+      return code||1;
+    }
+    diagnosticEvent('setup.component',{source:'automatic',flowId:flow.flowId,outcome:'success',data:{component}});
   }
-  for (const [name,needed,path] of [
-    ['Navigation',nav,join(root,'packages/navigation')],
-    ['Handoff/Verify',features,join(root,'packages/optional')],
-  ]) {
-    if (!needed) continue;
-    console.log('pic: Installing '+name+' via pi install...');
-    const code=await runPi(['install',path]);
-    if (code!==0) {
-      console.error('pic: '+name+' failed. Successful steps were not undone; retry: pic setup');
-      return code;
+  // This is an acknowledgement, not a feature registry. Never re-enable a
+  // package later intentionally removed by the user.
+  remember('core-default-v2');
+  if(state.hook==='not-detected' && process.stdin.isTTY && process.stdout.isTTY
+    && (manual||!state.prompted)) {
+    console.log('pic: workmux Dashboard requires a Pi status Hook to show active agents.');
+    console.log('workmux setup may also offer changes for other installed coding agents.');
+    diagnosticEvent('setup.hook_prompted',{source:'automatic',flowId:flow.flowId});
+    if(await yes('Open workmux official Hook-only setup? Review each agent before accepting.',false)){
+      const code=await runWorkmux(['setup','--hooks']);
+      if(code!==0){
+        finishFlow(flow,'setup.finished',{source:'automatic',outcome:'failure',data:{reason:'workmux_hook_error'}});
+        console.error('pic: workmux Hook setup did not complete. Core features are ready; retry: pic setup.');
+        return code||1;
+      }
+      if(inspectSetup(root).hook==='not-detected')
+        console.log('pic: Pi status Hook not detected. workmux setup may have skipped Pi; use pic setup to retry.');
+    }else{
+      console.log('pic: Hook unchanged. workmux Dashboard opens, but its Agents view may be empty.');
     }
   }
-  if (hook) {
-    if (await yes('Open the official workmux setup and review Pi status Hook installation?',false)) {
-      const code=await runWorkmux(['setup']);
-      if (code!==0) {
-        console.error('pic: workmux setup failed. Pi extensions remain installed; retry: pic setup');
-        return code;
-      }
-      if (inspectSetup(root).hook==='not-detected') {
-        console.log('pic: Pi Hook not detected after workmux setup. You may have skipped it there; retry via pic setup.');
-      }
-    } else console.log('pic: workmux Hook skipped. Dashboard UI remains accessible, Agent status may be empty.');
-  }
-  remember('recommended');
-  console.log('pic: Setup recorded. Existing Pi processes may require /reload; new sessions use the Pi configuration.');
+  finishFlow(flow,'setup.finished',{source:manual?'cli':'automatic',outcome:'success'});
+  if(!firstRun)console.log('pic: Core Compose features prepared. New Pi sessions load extensions automatically; existing ones may need /reload.');
   return 0;
 }
-export async function maybeOnboard(root, handlers) {
-  if (!process.stdin.isTTY || !process.stdout.isTTY || process.env.PIC_SETUP_SKIP==='1') return;
+export async function maybeOnboard(root,handlers) {
+  if(!process.stdin.isTTY||!process.stdout.isTTY||process.env.PIC_SETUP_SKIP==='1')return;
   const s=inspectSetup(root);
-  if (!s.settingsOk || s.prompted) return;
-  if (s.packages.navigation!=='missing' && s.packages.features!=='missing' && s.hook!=='not-detected') {
-    // Mark an already-configured environment as onboarded; if the user disables
-    // something later, do not reinterpret that decision as a fresh install.
-    remember('existing');
-    return;
-  }
-  const result=await setupRecommended(root,{...handlers,firstRun:true});
-  if (result!==0) console.error('pic: Optional setup incomplete. Core Pi Compose can still start; fix with pic setup.');
+  if(!s.settingsOk)return;
+  // A previous explicit skip or completed default installation is not
+  // permission to re-enable resources the user later removed.
+  if(s.choice==='skip'||s.choice==='existing'||s.choice==='core-default-v2')return;
+  await setupRecommended(root,{...handlers,firstRun:true}).then(code=>{
+    if(code!==0)console.error('pic: Core setup incomplete. Retry with pic setup; unrelated Pi settings were preserved.');
+  });
 }
