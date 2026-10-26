@@ -4,8 +4,8 @@ export type SetupState = {
   prompted: boolean;
   choice?: string;
   packages: {
-    navigation: 'missing' | 'configured' | 'custom' | 'unknown';
-    features: 'missing' | 'configured' | 'custom' | 'unknown';
+    navigation: 'missing' | 'configured' | 'custom' | 'project-only' | 'unknown';
+    features: 'missing' | 'configured' | 'custom' | 'project-only' | 'unknown';
   };
   hook: 'detected' | 'not-detected';
   node: string;
