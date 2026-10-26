@@ -159,6 +159,17 @@ export function analyzeDiagnostics(events) {
   const navSelected=count(events,'navigation.selected'),switchReq=count(events,'switch.started'),switchOk=count(events,'switch.finished','success');
   const sessionsOpen=count(events,'sessions.opened'),sessionsOk=count(events,'sessions.finished','success');
   const handoff=count(events,'handoff.finished','success'),verify=count(events,'verify.finished','success');
+  const navStarts=events.filter(e=>e.event==='navigation.opened').sort((a,b)=>a.timestamp.localeCompare(b.timestamp));
+  const reopens=navStarts.filter((e,i)=>i>0&&e.projectKey&&e.projectKey===navStarts[i-1]?.projectKey
+    &&e.runId===navStarts[i-1]?.runId
+    &&Date.parse(e.timestamp)-Date.parse(navStarts[i-1].timestamp)<=30_000).length;
+  const moves=events.filter(e=>e.event==='switch.finished'&&e.outcome==='success'&&e.taskKey)
+    .sort((a,b)=>a.timestamp.localeCompare(b.timestamp));
+  // A→B→A within 60 seconds is merely a *candidate* navigation reversal.
+  // It may be intended comparison rather than a UX failure.
+  const fastReturnCandidates=moves.filter((e,i)=>i>=2
+    &&e.taskKey===moves[i-2]?.taskKey&&e.taskKey!==moves[i-1]?.taskKey
+    &&Date.parse(e.timestamp)-Date.parse(moves[i-2].timestamp)<=60_000).length;
   const observed=events.length>0;
   return {
     schemaVersion:1,observedEvents:events.length,byEvent,
@@ -169,9 +180,9 @@ export function analyzeDiagnostics(events) {
         failures:count(events,'launch.finished','failure'),
         durationMsP50:percentile(durations('launch.finished'),.5),
         durationMsP90:percentile(durations('launch.finished'),.9)},
-      navigation:{opened:navOpen,selected:navSelected,noSelectionExitPercent:rate(navCancel,navOpen),
+      navigation:{opened:navOpen,selected:navSelected,reopenedWithin30Seconds:reopens,noSelectionExitPercent:rate(navCancel,navOpen),
         selectedToOpenPercent:rate(navSelected,navOpen),durationMsP50:percentile(durations('navigation.finished'),.5)},
-      switching:{started:switchReq,completed:switchOk,failurePercent:rate(count(events,'switch.finished','failure'),switchReq)},
+      switching:{started:switchReq,completed:switchOk,fastReturnCandidates,failurePercent:rate(count(events,'switch.finished','failure'),switchReq)},
       sessions:{opened:sessionsOpen,completed:sessionsOk,successPercent:rate(sessionsOk,sessionsOpen)},
       result:{handoffCreated:handoff,verifyExecuted:verify,reportOpened:count(events,'result.opened')},
       commands:{routes:Object.fromEntries([...new Set(events.filter(e=>e.event==='command.entered').map(e=>e.data?.route))].filter(Boolean).map(r=>[r,events.filter(e=>e.event==='command.entered'&&e.data?.route===r).length])),invalid:count(events,'command.invalid')},
@@ -186,7 +197,7 @@ export function analyzeDiagnostics(events) {
     hypotheses:observed?[
       'Frequent cancelled navigation might indicate poor discoverability OR harmless inspection; correlate with follow-up actions.',
       'Repeated launch cancellations might indicate confusing choices OR intentional safety checks.',
-      'A fast reverse switch could indicate misnavigation OR deliberate comparison; requires actual paired switch events.',
+      'A fast reverse switch could indicate misnavigation OR deliberate comparison; fastReturnCandidates is not a confirmed error.',
     ]:[],
     limitations:[
       'Commands unknown to Pi Compose cannot be counted. Command non-use is not command unawareness.',
