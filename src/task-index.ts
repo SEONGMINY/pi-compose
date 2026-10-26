@@ -2,7 +2,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { mkdir, readdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import type { LaunchPlan } from './launch.ts';
+import { loadSourceSession, type LaunchPlan } from './launch.ts';
 
 /** Only user-approved launch identity. Pi, tmux and workmux remain the source of truth for runtime state. */
 export type TmuxLocation = {
@@ -46,6 +46,11 @@ export type TaskRecord = {
   /** Exact original instruction, not a summary of the Forked session. */
   instruction?: string;
   projectRoot: string;
+  /** Shared launch cwd (Worktree launch runs from the main checkout). */
+  launchCwd?: string;
+  /** Actual spawned Pi session, linked only after an exact live tmux match. */
+  agentSessionId?: string;
+  agentSessionFile?: string;
   workspace: 'shared' | 'worktree';
   context: 'fork' | 'independent';
   branch?: string;
@@ -76,6 +81,7 @@ export async function recordTask(plan: LaunchPlan, link: TaskLink = {}): Promise
       .replace(/\s+/g, ' ').trim().slice(0, 96),
     instruction: plan.task,
     projectRoot: resolve(link.projectRoot || plan.cwd),
+    launchCwd: resolve(plan.cwd),
     workspace: plan.workspace,
     context: plan.context,
     ...(plan.branch ? { branch: plan.branch } : {}),
@@ -124,6 +130,9 @@ function isRecord(value: unknown): value is TaskRecord {
       && typeof x.handoff.summary === 'string' && typeof x.handoff.gitHead === 'string'))
     && (x.review === undefined || (x.review.kind === 'independent_review_executed'
       && typeof x.review.reportExcerpt === 'string' && typeof x.review.gitHead === 'string'))
+    && (x.launchCwd === undefined || (typeof x.launchCwd === 'string' && x.launchCwd.startsWith('/')))
+    && (x.agentSessionId === undefined || typeof x.agentSessionId === 'string')
+    && (x.agentSessionFile === undefined || (typeof x.agentSessionFile === 'string' && x.agentSessionFile.startsWith('/')))
     && typeof x.createdAt === 'string'
     && (x.mainLocation === undefined || validLocation(x.mainLocation))
     && (x.targetLocation === undefined || validLocation(x.targetLocation))
@@ -175,6 +184,79 @@ export async function attachTaskEvidence(
   const temp = file + '.' + randomUUID() + '.tmp';
   try {
     await writeFile(temp, JSON.stringify(next), { mode: 0o600, flag: 'wx' });
+    await rename(temp, file);
+  } catch (error) {
+    await unlink(temp).catch(() => undefined);
+    throw error;
+  }
+  return 'saved';
+}
+
+
+/**
+ * Observe only this Pi process, whose Pi session file and tmux window match.
+ * No polling or inferred links from the title, branch or last-used session.
+ */
+export async function bindAgentSession(
+  projectRoot: string, location: TmuxLocation, cwd: string, piSessionId: string,
+  piSessionFile: string,
+): Promise<'saved' | 'already' | 'unmatched'> {
+  if (!piSessionId || !piSessionFile || !piSessionFile.startsWith('/')) return 'unmatched';
+  const root = resolve(projectRoot);
+  const candidates = (await listTasks(root)).filter(record =>
+    record.targetLocation?.session === location.session
+    && record.targetLocation.windowId === location.windowId);
+  if (candidates.length !== 1) return 'unmatched';
+  const task = candidates[0]!;
+  const expected = task.workspace === 'worktree' ? task.worktreePath
+    : task.launchCwd || task.projectRoot;
+  if (!expected || resolve(expected) !== resolve(cwd)) return 'unmatched';
+  if (task.agentSessionId || task.agentSessionFile) {
+    return task.agentSessionId === piSessionId
+      && task.agentSessionFile === resolve(piSessionFile) ? 'already' : 'unmatched';
+  }
+
+  // Check the actual Pi JSONL header, not a model statement about identity.
+  const source = await loadSourceSession(piSessionFile).catch(() => null);
+  if (!source || source.id !== piSessionId || resolve(source.cwd) !== resolve(cwd)) return 'unmatched';
+
+  const file = join(directory(root), task.id + '.json');
+  const prior: unknown = JSON.parse(await readFile(file, 'utf8'));
+  if (!isRecord(prior) || prior.id !== task.id
+    || prior.targetLocation?.session !== location.session
+    || prior.targetLocation.windowId !== location.windowId
+    || prior.agentSessionId || prior.agentSessionFile) return 'unmatched';
+
+  const temp = file + '.' + randomUUID() + '.tmp';
+  try {
+    await writeFile(temp, JSON.stringify({
+      ...prior, agentSessionId: piSessionId, agentSessionFile: resolve(piSessionFile),
+    }), { mode: 0o600, flag: 'wx' });
+    await rename(temp, file);
+  } catch (error) {
+    await unlink(temp).catch(() => undefined);
+    throw error;
+  }
+  return 'saved';
+}
+
+/** Shared checkout: link the developer's report to a verified Pi session ID,
+ * never claim that shared Git changes belong exclusively to that agent.
+ */
+export async function attachSessionEvidence(
+  projectRoot: string, piSessionId: string, evidence: TaskEvidence,
+): Promise<'saved' | 'unmatched'> {
+  const root = resolve(projectRoot);
+  const candidates = (await listTasks(root)).filter(task => task.agentSessionId === piSessionId);
+  if (candidates.length !== 1 || !candidates[0]!.agentSessionFile) return 'unmatched';
+  const task = candidates[0]!;
+  const file = join(directory(root), task.id + '.json');
+  const prior: unknown = JSON.parse(await readFile(file, 'utf8'));
+  if (!isRecord(prior) || prior.id !== task.id
+    || prior.agentSessionId !== piSessionId || !prior.agentSessionFile) return 'unmatched';
+  const temp = file + '.' + randomUUID() + '.tmp';
+  try {
+    await writeFile(temp, JSON.stringify({ ...prior, ...evidence }), { mode: 0o600, flag: 'wx' });
     await rename(temp, file);
   } catch (error) {
     await unlink(temp).catch(() => undefined);
