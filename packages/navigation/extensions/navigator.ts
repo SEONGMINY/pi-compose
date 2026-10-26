@@ -4,7 +4,7 @@ import { showLaunchWizard, registerComposeLaunchTool } from '../../../extensions
 import { registerWorkReturn } from '../../../extensions/work-return.ts';
 import { showWorkPicker, showSavedSessions } from '../../../extensions/work-return.ts';
 import { openWorkmuxMonitor } from '../../../extensions/optional/workmux-dashboard.ts';
-import { diagnosticEvent } from '../../../src/diagnostics.mjs';
+import { diagnosticEvent, startFlow, finishFlow } from '../../../src/diagnostics.mjs';
 
 /**
  * Optional Pi package for workmux-started child Pi sessions.
@@ -23,7 +23,8 @@ export default function navigationOnly(pi: ExtensionAPI): void {
     handler: async (args, ctx) => {
       const [subcommand, ...rest] = args.trim().split(/\s+/);
       const route = ['launch','preview','monitor','dashboard','sessions','back','work'].includes(subcommand||'') ? subcommand : !subcommand?'home':'invalid';
-      diagnosticEvent('command.entered',{source:'slash',data:{route}});
+      const commandFlow=startFlow('command.entered',{source:'slash',data:{route}});
+      try {
       if(route==='invalid') diagnosticEvent('command.invalid',{source:'slash',outcome:'failure',data:{route:'invalid'}});
       if (!subcommand || subcommand === 'work') return openHub(ctx);
       if (subcommand === 'monitor' || subcommand === 'dashboard') return openWorkmuxMonitor(pi, ctx);
@@ -33,6 +34,7 @@ export default function navigationOnly(pi: ExtensionAPI): void {
       }
       if (subcommand === 'back') return showWorkPicker(pi, ctx, rest.join(' '));
       ctx.ui.notify('관련 Agent: /compose · 전체 작업: /compose monitor · 이전 대화: /compose sessions', 'info');
+      } finally {finishFlow(commandFlow,'command.finished',{source:'slash',outcome:route==='invalid'?'failure':'unknown',data:{route}});}
     },
   });
 }

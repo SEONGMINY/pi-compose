@@ -133,7 +133,8 @@ export default function composeExtension(pi: ExtensionAPI): void {
     handler: async (args, ctx) => {
       const [subcommand, ...rest] = args.trim().split(/\s+/);
       const route = ['launch','preview','monitor','dashboard','sessions','back','resume','work'].includes(subcommand||'') ? subcommand : !subcommand?'home':'invalid';
-      diagnosticEvent('command.entered',{source:'slash',data:{route}});
+      const commandFlow=startFlow('command.entered',{source:'slash',data:{route}});
+      try {
       if(route==='invalid') diagnosticEvent('command.invalid',{source:'slash',outcome:'failure',data:{route:'invalid'}});
       if (!subcommand || subcommand === 'work') {
         await openHub(ctx);
@@ -192,6 +193,7 @@ export default function composeExtension(pi: ExtensionAPI): void {
         return;
       }
       await showLaunchWizard(pi, ctx, subcommand, rest.join(' '));
+      } finally {finishFlow(commandFlow,'command.finished',{source:'slash',outcome:route==='invalid'?'failure':'unknown',data:{route}});}
     },
   });
 
