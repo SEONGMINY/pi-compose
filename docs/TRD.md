@@ -226,3 +226,16 @@ git ls-files --others --exclude-standard
 - 실제 요구사항에서 드러난 부족한 기능에 대한 Extension·Script 작성 범위.
 
 이들 결정은 [Implementation Plan](IMPLEMENTATION_PLAN.md)의 실증 결과로 좁힌다. **미확정 기술을 확정 의존성으로 표기하지 않는다.**
+
+
+## PR #3 B안 채택 기록 — 실제 구현 (2026-10-26)
+
+- Pi Compose의 직접 렌더링 Task Hub, 자체 Agent 상태 JSON 파서, Ghostty AppleScript 자동 탭 이동은 제거했습니다.
+- 기본 /compose는 Pi의 Native select로 Main과 연결된 Agent를 보여주며, /compose sessions는 Pi SessionManager의 기존 저장소를 사용합니다.
+- /compose monitor는 workmux dashboard를 tmux popup으로 엽니다. **workmux setup으로 상태 Hook을 구성해야 Agents 화면이 채워질 수 있습니다.** 이 설치는 사용자의 Pi 설정에 영향을 주므로 자동으로 수행하지 않습니다.
+- 기본 Shared Directory Pi Agent가 workmux에 등록되지 않았다면 Dashboard는 해당 Agent의 상태와 출력이 있다고 주장하지 않습니다. 정확한 기존 tmux 창 기반 탐색은 계속 Pi Compose가 담당합니다.
+- Handoff/Verify는 Worktree의 실제 경로+브랜치가 유일하게 연결될 때만 TaskRecord에 기록 당시 증거를 저장합니다. 기본 Session 저장소·Git 정본을 복제하는 새 DB가 아닙니다.
+- Child Pi의 동일 Command/Tool을 활성화하려면 사용자가 pic navigation enable을 명시적으로 실행해야 합니다.
+- 구현 코드는 GitHub Branch에 반영됐지만, npm 의존성 설치·전체 TypeScript 검사·실제 macOS Pi/Ghostty/모델 실행과 end-to-end 동작은 이번 변경에서 수행하지 않았습니다. GitHub Actions 및 E2E는 사용자의 요청에 따라 실행하지 않습니다.
+
+이 결정은 [ADR 0007](adr/0007-reference-led-navigation.md)에 기록했습니다. 이 문서의 앞부분은 첫 설계 당시 후보 비교이며 최신 구현 상태를 의미하지 않습니다.

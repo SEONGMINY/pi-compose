@@ -144,3 +144,10 @@ Shared Directory에서 병렬 수정을 선택하면 물리적으로 변경이 �
 - **완료 문서:** [TRD](TRD.md), [Architecture](ARCHITECTURE.md), [Implementation Plan](IMPLEMENTATION_PLAN.md)에서 이 사항들을 별도 관리한다.
 
 > **계약 변경 원칙:** 사용자 승인 없이 이 PRD의 금지·우선순위·실행 권한을 “효율화”라는 이유로 약화하지 않는다.
+
+
+## B안 실행 경험으로의 구현 매핑 (2026-10-26)
+
+기존 FR의 제품 계약은 변경하지 않습니다. **FR-02/03/05/06/18**은 원본 Pi Session 기반 Fork/Independent와 Shared/Worktree 실행, 사용자 승인으로 유지합니다. **FR-07/16**의 정확한 Main·Agent 탐색은 Pi Native 선택과 tmux window ID를 사용하고, 여러 프로젝트의 상태·터미널 출력은 workmux Dashboard(사용자가 설정하는 Hook)에 위임합니다. **FR-10/13/14**의 인계 및 검토는 인계·검토 기록 시점과 Git HEAD를 표시하며, 완료·사용자 통합 승인으로 격상하지 않습니다. **기능별 이전 대화**는 Pi 기존 SessionManager를 이용합니다. 상태 표시·진입 여부가 불확실한 Shared Directory 또는 외부 Pi 세션은 실행 중으로 추측하지 않습니다.
+
+현재 수용 여부는 코드 수준의 연결과 사용자 환경의 실제 조작을 구분합니다. [수동 검증표](validation/task-hub-ux.md)를 통과하기 전에는 전체 UX 완료로 기록하지 않습니다.

@@ -28,6 +28,7 @@
 | [ADR 0004](adr/0004-pi-native-optional-views.md) | 사용자 확정: Pi 기본 Package 중심 조합, 선택형 View와 비필수 Dashboard |
 | [ADR 0005](adr/0005-pic-entry-and-pi-settings.md) | 단일 전역 `pic` 진입점과 Pi 설정 공유, 선택형 Package 구성 |
 | [ADR 0006](adr/0006-github-installer.md) | macOS 한 줄 설치·업데이트, 기존 Pi 환경 보존 |
+| [ADR 0007](adr/0007-reference-led-navigation.md) | **PR #3 B안:** Pi Native 선택, workmux Dashboard, Pi 세션 탐색, Handoff 결과 회수와 책임 경계 |
 
 ## 문서 간 우선순위와 변경 원칙
 
@@ -58,3 +59,8 @@
 - **현재 진행:** Phase 0은 부분 검증으로 종료. Launch, 선택형 View, 정확한 Resume, **선택형 Handoff와 선택형 독립 검증**을 구현했으며 일부 Pi/workmux Launch·Resume 연동은 격리 환경에서 검증했으며, 모델이 참여하는 실사용 통합은 해당 시점에 검증한다. 자동 테스트는 **Pi Extension 핵심 동작**에 집중하고, CLI·Git·tmux 조합 테스트는 정리했다. 구체적인 현재 상태는 [Implementation Plan](IMPLEMENTATION_PLAN.md)을 참조한다.
 
 이 문서가 프로젝트별 `AGENTS.md`의 대체물이라는 뜻은 아니다. 구현 단계에서는 레포의 실제 구조와 규칙을 확인한 뒤 필요한 최소 진입점만 추가한다.
+
+
+## PR #3 기준 구현 참고 (2026-10-26)
+
+초기 설계 기록과 현재 코드는 구분해서 읽어야 합니다. PR #3은 경량 Agent 선택기로 `/compose`를 사용하고, `/compose monitor`를 workmux Dashboard에 연결합니다. 과거 기능 대화 복귀는 `/compose sessions`(Pi의 기존 세션 저장소), Worktree 결과 확인은 정확히 연결된 Handoff/Verify 증거를 활용합니다. Ghostty 탭 자동화와 별도 상태 파서는 제거했습니다. 자세한 근거는 [ADR 0007](adr/0007-reference-led-navigation.md), 수동 실사용 조건은 [검증표](validation/task-hub-ux.md)를 참고하세요.

@@ -28,7 +28,7 @@ export async function approveLaunch(
     '\n위임 지시 원문 (원본 Fork 대화 전체는 아님):',
     plan.task,
     ...(origin.conversationPreview?.length
-      ? ['\n최근 사용자 발화 일부 (전체 맥락 아님):', ...origin.conversationPreview] : []),
+      ? ['\n최근 사용자 발화 (대화 전체 아님):', ...origin.conversationPreview] : []),
     '\n승인하면 실제 Agent 및 필요한 Worktree를 생성합니다.',
   ].join('\n'))) === true;
 }
