@@ -381,7 +381,7 @@ workmux JSON 조회를 재사용한다. Main 컨텍스트에는 전체 세션 �
 
 - **1 실행·식별:** 원본 Session, 승인된 작업 지시, 정확한 tmux session+window 및 Worktree 경로/브랜치를 연결. 대상 없는 경우 안전하게 거절.
 - **2 Launch·탐색:** 자연어/명령어 동일 승인. Custom Hub 렌더링 대신 Pi Native select. Main·관련 Agent 탐색 및 /compose monitor workmux Dashboard.
-- **3 기능·결과:** /compose sessions에서 Pi 저장 세션 선택·전환; Handoff/Verify 결과를 명시적 Worktree 기록에만 연결, Main에서 읽기 전용 조회.
+- **3 기능·결과:** /compose sessions에서 Pi 저장 세션 선택·전환; Handoff/Verify 결과를 명시적 Worktree 또는 검증된 Child Pi 세션 기록에만 연결, Main에서 읽기 전용 조회.
 - **4 정리:** 자체 Ghostty 탭 자동화와 Agent 상태 파서 제거, 사용 가이드 및 검증표 업데이트.
 
 검증 수준은 **구현 반영과 실행 확인이 다릅니다.** GitHub Actions 및 E2E는 사용자 요청으로 실행하지 않았습니다. 현재 모델 인증·Ghostty·workmux Hook이 있는 macOS에서 전체 시나리오를 실제로 수행한 검증도 없습니다. 남은 실사용 검증 조건은 [수동 검증표](validation/task-hub-ux.md)에 따릅니다.
