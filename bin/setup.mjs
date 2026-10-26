@@ -165,7 +165,11 @@ export async function maybeOnboard(root,handlers) {
   if(!s.settingsOk)return;
   // A previous explicit skip or completed default installation is not
   // permission to re-enable resources the user later removed.
-  if(s.choice==='skip'||s.choice==='existing'||s.choice==='core-default-v2')return;
+  // Any earlier explicit onboarding choice is treated as a preference. We
+  // cannot distinguish a later deliberate Pi package removal from a missing
+  // install; never silently re-enable it on upgrade. pic setup is the override.
+  if(s.prompted)return;
+  console.log('pic: UX diagnostics are stored locally without prompts/code/paths. Disable: pic diagnostics off; export: pic diagnostics export.');
   await setupRecommended(root,{...handlers,firstRun:true}).then(code=>{
     if(code!==0)console.error('pic: Core setup incomplete. Retry with pic setup; unrelated Pi settings were preserved.');
   });
