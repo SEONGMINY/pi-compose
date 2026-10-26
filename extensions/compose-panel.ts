@@ -57,6 +57,12 @@ export function launchReviewLines(
     ...(plan.branch ? [part('브랜치', 'dim'), part(plan.branch)] : []),
     ...plan.warnings.flatMap(w => [part('주의', 'warning'), part(w, 'warning')]),
   ];
+  if (!detailed && (plan.task.includes('\n') || plan.task !== (origin.title?.trim() || plan.task.split('\n')[0]))) {
+    // The user-approved instruction itself is the only source of explicit
+    // constraints here. Show it rather than inventing an AI-generated summary.
+    result.push(part(''), part('실제 위임 지시·제약 (원문)', 'accent'),
+      ...plan.task.split('\n').map(line => part(line)));
+  }
   if (detailed) {
     result.push(part(''), separator(width), part('실제 위임 지시 원문', 'accent'),
       ...plan.task.split('\n').map(line => part(line)));
