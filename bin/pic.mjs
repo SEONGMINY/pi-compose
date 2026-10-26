@@ -55,7 +55,7 @@ function quoteShell(value) {
 function runInProjectTmux() {
   const cwd = realpathSync(process.cwd());
   const name = 'pic-' + createHash('sha256').update(cwd).digest('hex').slice(0, 12);
-  const commandLine = 'exec ' + [process.execPath, fileURLToPath(import.meta.url)].map(quoteShell).join(' ');
+  const commandLine = 'PIC_SETUP_SKIP=1 exec ' + [process.execPath, fileURLToPath(import.meta.url)].map(quoteShell).join(' ');
   return new Promise((done) => {
     const child = spawn('tmux', ['new-session', '-A', '-s', name, '-c', cwd,
       '-e', 'PATH=' + (process.env.PATH || '/usr/local/bin:/usr/bin:/bin'), commandLine],
