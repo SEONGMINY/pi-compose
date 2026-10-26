@@ -68,4 +68,4 @@
 
 ## PR #3 기준 구현 참고 (2026-10-26)
 
-초기 설계 기록과 현재 코드는 구분해서 읽어야 합니다. PR #3은 경량 Agent 선택기로 `/compose`를 사용하고, `/compose monitor`를 workmux Dashboard에 연결합니다. 과거 기능 대화 복귀는 `/compose sessions`(Pi의 기존 세션 저장소), Worktree 결과 확인은 정확히 연결된 Handoff/Verify 증거를 활용합니다. Ghostty 탭 자동화와 별도 상태 파서는 제거했습니다. 자세한 근거는 [ADR 0007](adr/0007-reference-led-navigation.md), 수동 실사용 조건은 [검증표](validation/task-hub-ux.md)를 참고하세요.
+초기 설계 기록과 현재 코드는 구분해서 읽어야 합니다. 이후 PR #3의 자동 기본 설치·행동 진단 정책은 ADR 0009가 우선합니다. PR #3은 경량 Agent 선택기로 `/compose`를 사용하고, `/compose monitor`를 workmux Dashboard에 연결합니다. 과거 기능 대화 복귀는 `/compose sessions`(Pi의 기존 세션 저장소), Worktree 결과 확인은 정확히 연결된 Handoff/Verify 증거를 활용합니다. Ghostty 탭 자동화와 별도 상태 파서는 제거했습니다. 자세한 근거는 [ADR 0007](adr/0007-reference-led-navigation.md), 수동 실사용 조건은 [검증표](validation/task-hub-ux.md)를 참고하세요.
