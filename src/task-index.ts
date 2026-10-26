@@ -20,6 +20,26 @@ export type TaskLink = {
   title?: string;
 };
 
+/** Work result snapshots are claims, not approvals, agent completion, or live state. */
+export type HandoffEvidence = {
+  kind: 'developer_claim';
+  recordedAt: string;
+  gitHead: string;
+  summary: string;
+  why: string;
+  checks: string;
+  outstanding: string;
+  changedFileCount: number;
+};
+export type ReviewEvidence = {
+  kind: 'independent_review_executed';
+  recordedAt: string;
+  gitHead: string;
+  reportExcerpt: string;
+  incomplete: boolean;
+};
+export type TaskEvidence = { handoff: HandoffEvidence } | { review: ReviewEvidence };
+
 export type TaskRecord = {
   id: string;
   title: string;
@@ -38,6 +58,9 @@ export type TaskRecord = {
   workmuxHandle?: string;
   workmuxTargetName?: string;
   sourceSessionId?: string;
+  /** Explicitly captured user-requested result snapshots (no autonomous status tracking). */
+  handoff?: HandoffEvidence;
+  review?: ReviewEvidence;
   createdAt: string;
 };
 
@@ -97,6 +120,10 @@ function isRecord(value: unknown): value is TaskRecord {
     && (x.context === 'fork' || x.context === 'independent')
     && (typeof x.branch === 'string' || typeof x.tmuxTarget === 'string')
     && (x.instruction === undefined || (typeof x.instruction === 'string' && x.instruction.length <= 20000))
+    && (x.handoff === undefined || (x.handoff.kind === 'developer_claim'
+      && typeof x.handoff.summary === 'string' && typeof x.handoff.gitHead === 'string'))
+    && (x.review === undefined || (x.review.kind === 'independent_review_executed'
+      && typeof x.review.reportExcerpt === 'string' && typeof x.review.gitHead === 'string'))
     && typeof x.createdAt === 'string'
     && (x.mainLocation === undefined || validLocation(x.mainLocation))
     && (x.targetLocation === undefined || validLocation(x.targetLocation))
@@ -117,4 +144,41 @@ export async function listTasks(projectRoot: string): Promise<TaskRecord[]> {
     } catch { /* Unreadable or stale record: ignore rather than infer an association. */ }
   }
   return tasks.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+
+/**
+ * Link manually requested Handoff/Verify to the ONE exact Worktree launch.
+ * Shared workspaces and ambiguous/reused paths are not attached speculatively.
+ * This is an explicit result snapshot, not a separate task-state machine.
+ */
+export async function attachTaskEvidence(
+  projectRoot: string,
+  worktreePath: string,
+  branch: string,
+  evidence: TaskEvidence,
+): Promise<'saved' | 'unmatched'> {
+  const root = resolve(projectRoot);
+  const path = resolve(worktreePath);
+  const matches = (await listTasks(root)).filter(task =>
+    task.workspace === 'worktree' && task.branch === branch
+    && task.worktreePath && resolve(task.worktreePath) === path);
+  if (matches.length !== 1) return 'unmatched';
+
+  const target = matches[0]!;
+  const file = join(directory(root), target.id + '.json');
+  // Recheck identity immediately before the atomic replacement.
+  const prior: unknown = JSON.parse(await readFile(file, 'utf8'));
+  if (!isRecord(prior) || prior.id !== target.id || prior.branch !== branch
+    || !prior.worktreePath || resolve(prior.worktreePath) !== path) return 'unmatched';
+  const next = { ...prior, ...evidence };
+  const temp = file + '.' + randomUUID() + '.tmp';
+  try {
+    await writeFile(temp, JSON.stringify(next), { mode: 0o600, flag: 'wx' });
+    await rename(temp, file);
+  } catch (error) {
+    await unlink(temp).catch(() => undefined);
+    throw error;
+  }
+  return 'saved';
 }
