@@ -32,7 +32,7 @@ Branch: `feat/task-hub-ghostty`, PR #3. Date: 2026-10-26 (KST).
 | Existing Child Pi after feature install | `/reload` or restart loads globally enabled Navigation/Handoff | NOT_RUN |
 | Update after manual opt-out | No automatic re-enable or repeated initial prompt | NOT_RUN |
 | Setup interrupted after Navigation install | Retry installs only missing Handoff/Verify and/or Hook | NOT_RUN |
-| Simultaneous first run in two terminals | Pi package manager prevents duplicate declaration race | NOT_RUN |
+| Simultaneous first run in two terminals | Concurrent setup is not yet guaranteed serialized; do not run setup in parallel | NOT_RUN |
 | Another `pic` binary exists | Guarded installer aborts without overwriting unrelated command | NOT_RUN |
 
 ## How to manually verify
