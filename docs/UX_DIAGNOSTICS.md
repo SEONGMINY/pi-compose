@@ -127,3 +127,10 @@ pic diagnostics clear --yes   # 저장된 JSONL 및 기본 export 파일 삭제
 이 방식은 로컬에서 수집·집계하고, **사용자가 명시적으로 내보내 업로드한 경우에만** 분석이 가능하도록 구성했습니다.
 
 [설치](SETUP.md) · [실전 사용 시나리오](SCENARIOS.md) · [검증 매트릭스](validation/diagnostics.md)
+
+## 실사용 분석을 위한 보완 (2026-10-26)
+
+- `summary.metrics.delegation`에서 Preview는 제외하며 `summary.metrics.preview`로 별도 집계합니다. 경로가 없는 기존 자연어 이벤트는 실제 위임으로 간주합니다.
+- `launch.stage`는 입력/계획/승인/디스패치/대상 확인 단계와 고정된 실패 분류만 기록합니다. stderr, 프로젝트 경로, 원본 지시문은 저장하지 않습니다.
+- `launch.finished=success`는 실행 명령 전달만, `launch.stage=target success`는 정확한 tmux/workmux 대상 확인만 의미합니다. 둘 다 모델의 작업 처리나 개발 완료는 증명하지 않습니다.
+- `sessions.opened=0`은 계측된 경로에서 관찰이 없었다는 뜻입니다. 사용자가 다른 방법으로 이전 세션을 찾지 않았다는 증거는 아닙니다.

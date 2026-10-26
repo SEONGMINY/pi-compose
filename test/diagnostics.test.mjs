@@ -45,6 +45,27 @@ test('private local events use an allowlist and stable flow IDs', async t=>{
  assert.equal(clearDiagnostics(),1);
  assert.equal(readDiagnosticEvents({days:1}).length,0);
 });
+test('preview is separate and stage categories are privacy safe', async t => {
+ const dir=mkdtempSync(join(tmpdir(),'pic-ux-preview-')),prev=process.env.PI_CODING_AGENT_DIR;
+ process.env.PI_CODING_AGENT_DIR=dir;
+ t.after(async()=>{if(prev===undefined)delete process.env.PI_CODING_AGENT_DIR;else process.env.PI_CODING_AGENT_DIR=prev;await rm(dir,{recursive:true,force:true});});
+ configureDiagnostics(true);
+ const preview=startFlow('launch.started',{source:'slash',data:{route:'preview'}});
+ finishFlow(preview,'launch.finished',{source:'slash',outcome:'success',data:{route:'preview'}});
+ const real=startFlow('launch.started',{source:'slash',data:{route:'launch'}});
+ diagnosticEvent('launch.stage',{source:'slash',flowId:real.flowId,outcome:'failure',data:{stage:'dispatch',failureKind:'workmux_dispatch',stderr:'SECRET',path:'/Users/private'}});
+ finishFlow(real,'launch.finished',{source:'slash',outcome:'failure',data:{route:'launch'}});
+ const events=readDiagnosticEvents({days:1}),m=analyzeDiagnostics(events).metrics;
+ assert.equal(m.preview.started,1);
+ assert.equal(m.preview.completed,1);
+ assert.equal(m.delegation.started,1);
+ assert.equal(m.delegation.dispatchSucceeded,0);
+ assert.equal(m.delegation.failures,1);
+ assert.equal(m.launchFailureStages.dispatch,1);
+ assert.equal(events.find(e=>e.event==='launch.stage')?.data?.failureKind,'workmux_dispatch');
+ assert.ok(!JSON.stringify(events).includes('SECRET'));
+ assert.ok(!JSON.stringify(events).includes('/Users/private'));
+});
 test('disabled collection does not append events',async t=>{
  const dir=mkdtempSync(join(tmpdir(),'pic-ux-off-'));const prev=process.env.PI_CODING_AGENT_DIR;
  process.env.PI_CODING_AGENT_DIR=dir;

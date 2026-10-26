@@ -7,7 +7,7 @@ export const SCHEMA_VERSION = 1;
 const VALID = new Set([
   'setup.started','setup.component','setup.finished','setup.hook_prompted',
   'command.entered','command.invalid','command.finished',
-  'launch.started','launch.approval','launch.finished','launch.agent_linked',
+  'launch.started','launch.approval','launch.finished','launch.agent_linked','launch.stage',
   'navigation.opened','navigation.selected','navigation.finished','navigation.detail',
   'switch.started','switch.finished','sessions.opened','sessions.finished',
   'handoff.started','handoff.finished','verify.started','verify.finished',
@@ -18,7 +18,7 @@ const OUTCOMES = new Set(['success','failure','cancelled','unavailable','unknown
 const SAFE_KEYS = new Set([
   'action','route','reason','screen','context','workspace','from','to','kind',
   'availableTargets','choiceCount','selectionCount','elapsedMs','stepCount',
-  'attempt','linked','hasResult','configured','component','status'
+  'attempt','linked','hasResult','configured','component','status','stage','failureKind'
 ]);
 const CATEGORIES = {
   action: ['select','open','cancel','back','confirm','switch','view'],
@@ -31,7 +31,9 @@ const CATEGORIES = {
   to: ['main','agent','session','project','unknown'],
   kind: ['task','history','monitor','new','current','main','tmux','saved_session','result','instruction','agent','unknown'],
   component: ['navigation','handoff-verify','workmux_hook','diagnostics','other'],
-  status: ['ready','missing','custom','disabled','partial','unknown']
+  status: ['ready','missing','custom','disabled','partial','unknown'],
+  stage: ['input','plan','approval','dispatch','target','agent','unknown'],
+  failureKind: ['source_missing','source_cwd_mismatch','branch_exists','git_preflight','workmux_dispatch','tmux_dispatch','record_unlinked','unknown']
 };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const runId = randomUUID();
@@ -172,7 +174,13 @@ const percentile=(xs,q)=>xs.length?xs.sort((a,b)=>a-b)[Math.min(xs.length-1,Math
 export function analyzeDiagnostics(events) {
   const byEvent=Object.fromEntries([...new Set(events.map(e=>e.event))].sort().map(k=>[k,events.filter(e=>e.event===k).length]));
   const durations=(event)=>events.filter(e=>e.event===event&&e.data?.elapsedMs!==undefined).map(e=>e.data.elapsedMs);
-  const launchStarted=count(events,'launch.started'),launchSuccess=count(events,'launch.finished','success');
+  // Preview does not launch an agent. Older natural-language events have no route.
+  const real = e => e.data?.route !== 'preview';
+  const realStarted = events.filter(e=>e.event==='launch.started'&&real(e));
+  const realFinished = events.filter(e=>e.event==='launch.finished'&&real(e));
+  const previewStarted = events.filter(e=>e.event==='launch.started'&&!real(e));
+  const previewFinished = events.filter(e=>e.event==='launch.finished'&&!real(e));
+  const launchStarted=realStarted.length,launchSuccess=realFinished.filter(e=>e.outcome==='success').length;
   const navOpen=count(events,'navigation.opened'),navCancel=events.filter(e=>e.event==='navigation.finished'&&e.outcome==='cancelled'&&e.data?.reason==='no_selection').length;
   const navSelected=count(events,'navigation.selected'),switchReq=count(events,'switch.started'),switchOk=count(events,'switch.finished','success');
   const sessionsOpen=count(events,'sessions.opened'),sessionsOk=count(events,'sessions.finished','success');
@@ -194,10 +202,16 @@ export function analyzeDiagnostics(events) {
     metrics:{
       delegation:{started:launchStarted,dispatchSucceeded:launchSuccess,dispatchSuccessPercent:rate(launchSuccess,launchStarted),
         childPiLinked:count(events,'launch.agent_linked','success'),
-        cancellationPercent:rate(count(events,'launch.finished','cancelled'),launchStarted),
-        failures:count(events,'launch.finished','failure'),
-        durationMsP50:percentile(durations('launch.finished'),.5),
-        durationMsP90:percentile(durations('launch.finished'),.9)},
+        cancellationPercent:rate(realFinished.filter(e=>e.outcome==='cancelled').length,launchStarted),
+        failures:realFinished.filter(e=>e.outcome==='failure').length,
+        unavailable:realFinished.filter(e=>e.outcome==='unavailable').length,
+        durationMsP50:percentile(realFinished.map(e=>e.data?.elapsedMs).filter(x=>typeof x==='number'),.5),
+        durationMsP90:percentile(realFinished.map(e=>e.data?.elapsedMs).filter(x=>typeof x==='number'),.9)},
+      preview:{started:previewStarted.length,completed:previewFinished.filter(e=>e.outcome==='success').length,
+        failures:previewFinished.filter(e=>e.outcome==='failure').length,
+        cancellations:previewFinished.filter(e=>e.outcome==='cancelled').length},
+      launchFailureStages:Object.fromEntries([...new Set(events.filter(e=>e.event==='launch.stage'&&e.outcome==='failure').map(e=>e.data?.stage))]
+        .filter(Boolean).map(stage=>[stage,events.filter(e=>e.event==='launch.stage'&&e.outcome==='failure'&&e.data?.stage===stage).length])),
       navigation:{opened:navOpen,selected:navSelected,reopenedWithin30Seconds:reopens,noSelectionExitPercent:rate(navCancel,navOpen),
         selectedToOpenPercent:rate(navSelected,navOpen),selectionTimeMsP50:percentile(durations('navigation.selected'),.5),totalFlowDurationMsP50:percentile(durations('navigation.finished'),.5)},
       switching:{started:switchReq,completed:switchOk,fastReturnCandidates,failurePercent:rate(count(events,'switch.finished','failure'),switchReq)},
@@ -210,6 +224,7 @@ export function analyzeDiagnostics(events) {
     facts:observed?[
       'Counts and durations include only instrumented Compose commands/tools in the selected time range.',
       'Missing events do not prove the user did not notice or need a feature.',
+      'Preview commands are excluded from actual delegation metrics.',
       'Successful launch dispatch is not evidence of a running Pi session; childPiLinked is a distinct observation.',
     ]:['No recorded events in the selected period. Metrics are not interpretable.'],
     hypotheses:observed?[
