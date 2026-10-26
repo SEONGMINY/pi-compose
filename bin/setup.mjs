@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
-import { diagnosticEvent, startFlow, finishFlow } from '../src/diagnostics.mjs';
+import { diagnosticEvent, discloseDiagnostics, startFlow, finishFlow } from '../src/diagnostics.mjs';
 
 const agentDir = () => {
   const custom = process.env.PI_CODING_AGENT_DIR;
@@ -170,6 +170,7 @@ export async function setupRecommended(root,{runPi,runWorkmux,firstRun=false,man
 }
 export async function maybeOnboard(root,handlers) {
   if(!process.stdin.isTTY||!process.stdout.isTTY||process.env.PIC_SETUP_SKIP==='1')return;
+  try {discloseDiagnostics();} catch {console.error('pic: Could not save UX diagnostics disclosure. See pic diagnostics status.');}
   const s=inspectSetup(root);
   if(!s.settingsOk)return;
   // A previous explicit skip or completed default installation is not
@@ -178,7 +179,6 @@ export async function maybeOnboard(root,handlers) {
   // cannot distinguish a later deliberate Pi package removal from a missing
   // install; never silently re-enable it on upgrade. pic setup is the override.
   if(s.prompted)return;
-  console.log('pic: UX diagnostics are stored locally without prompts/code/paths. Disable: pic diagnostics off; export: pic diagnostics export.');
   await setupRecommended(root,{...handlers,firstRun:true}).then(code=>{
     if(code!==0)console.error('pic: Core setup incomplete. Retry with pic setup; unrelated Pi settings were preserved.');
   });
