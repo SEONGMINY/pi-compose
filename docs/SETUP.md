@@ -66,6 +66,7 @@ No Agent, Git branch, Worktree or model login is created by initial setup.
 - **Existing Pi:** existing settings and registered Extension/Skill/Theme stay in place. Only an expressly approved missing Package is installed.
 - **Existing Pi Compose:** the first run of the new wrapper offers the recommended setup once if components are missing. If packages were installed earlier, they are not reinstalled. Existing `pi config` resource exclusions are left unchanged.
 - **Partial setup:** `pic setup` inspects missing steps and can install only those after consent. A failed step does not roll back successfully completed earlier steps.
+- **Project-scoped Pi packages:** previously configured `.pi/settings.json` sources are detected as `project-only` and not silently duplicated into global Pi settings. Another Git Worktree might not inherit that project's package declaration; choose an explicit global Navigation install if you need cross-worktree access.
 - **Repeat installs:** the official installer reinstalls Pi Compose at the resolved commit only; it doesn't reset onboarding or the Pi resource filters. Direct PR #3 updates use `npm install -g` with the newer SHA/branch, again without postinstall.
 - **Previously declined:** no repeated prompt on future launches; run `pic setup` explicitly when ready.
 - **Existing running Pi sessions:** enter `/reload` to load newly configured Extensions; starting a new agent/session loads them without user intervention.
