@@ -109,7 +109,9 @@ export function taskHubRows(
       : record.targetLocation ? '대상 종료 또는 확인 불가' : '연결 정보 없음 · 이전 작업 탐색';
     const displayName = titleCount.get(record.title)! > 1 ? record.title + ' [' + record.id.slice(0, 8) + ']' : record.title;
     return { kind: 'task' as const, record, available, label: displayName
-      + location + ' · ' + (record.workspace === 'shared' ? '같은 폴더' : '별도 작업 공간') + ' · ' + status };
+      + location + ' · ' + (record.workspace === 'shared' ? '같은 폴더' : '별도 작업 공간')
+      + ' · ' + status
+      + (record.handoff ? ' · 인계 기록' : '') + (record.review ? ' · 검토 기록' : '') };
   }).sort((a, b) => Number(b.available) - Number(a.available));
   rows.push(...entries.slice(0, 15));
   rows.push({ kind: 'history', label: '다른 대화·이전 작업 찾기 (고급)' });

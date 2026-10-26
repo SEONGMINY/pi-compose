@@ -103,7 +103,9 @@ export function hubListLines(
     if (i === selected && item.record) results.push(part(
       '  ' + (item.record.context === 'fork' ? 'Fork' : 'Independent') + ' · '
       + (item.record.workspace === 'worktree' ? 'Worktree' : 'Shared') + ' · '
-      + (item.available ? '실행 대상 열림' : '이동 대상 확인 불가'), 'dim'));
+      + (item.available ? '실행 대상 열림' : '이동 대상 확인 불가')
+      + (item.record.handoff ? ' · 인계 보고 있음' : '')
+      + (item.record.review ? ' · 독립 검토 기록 있음' : ''), 'dim'));
   }
   if (items.length > pageSize) results.push(part('작업 ' + (first + 1) + '–'
     + Math.min(items.length, first + pageSize) + '/' + items.length, 'dim'));
@@ -126,11 +128,27 @@ export function hubDetailLines(item: HubPreviewItem, width: number): Segment[] {
   if (record.sourceSessionId) results.push(part(''), part('Fork 원본 세션 ID', 'dim'), part(record.sourceSessionId));
   if (record.branch) results.push(part(''), part('브랜치', 'dim'), part(record.branch));
   if (record.worktreePath) results.push(part(''), part('Worktree 경로', 'dim'), part(record.worktreePath));
-  results.push(part(''), separator(width),
-    part('결과 확인', 'accent'),
-    part('Agent에서 /compose-handoff로 작업 결과 작성 (선택 기능)'),
-    part('/compose-verify로 독립 검토 (선택 기능·명시적 실행 승인 필요)'),
-    part('Handoff는 개발자의 주장입니다. 작업 완료나 검증 통과로 자동 판단하지 않습니다.', 'dim'));
+  results.push(part(''), separator(width), part('결과 인계와 검토', 'accent'));
+  if (record.handoff) {
+    results.push(part('개발자의 인계 보고 · 독립 검증 전', 'warning'),
+      part('작성 시점: ' + record.handoff.recordedAt, 'dim'),
+      part('구현한 내용', 'dim'), part(record.handoff.summary),
+      part('원래 이유·제약 (개발자 보고)', 'dim'), part(record.handoff.why),
+      part('실행했다고 보고한 검사', 'dim'), part(record.handoff.checks),
+      part('미해결 사항', 'dim'), part(record.handoff.outstanding),
+      part('기록 당시 Git HEAD: ' + record.handoff.gitHead, 'dim'));
+  } else {
+    results.push(part('등록된 인계 보고 없음 · Agent에서 /compose-handoff 작성 (선택 기능)', 'dim'));
+  }
+  if (record.review) {
+    results.push(part('독립 검토 실행 기록 · 자동 승인 아님', 'accent'),
+      part('검토 시점: ' + record.review.recordedAt + (record.review.incomplete ? ' · 일부 확인 불가' : ''), 'dim'),
+      part('검토 결과 (원문 일부)', 'dim'), part(record.review.reportExcerpt),
+      part('검토 기준 Git HEAD: ' + record.review.gitHead, 'dim'));
+  } else {
+    results.push(part('독립 검토 기록 없음 · Agent에서 /compose-verify 실행 (선택 기능)', 'dim'));
+  }
+  results.push(part(''), part('작업 완료·결과 승인·Git 병합·Worktree 삭제는 서로 다른 결정입니다.', 'warning'));
   return results;
 }
 
