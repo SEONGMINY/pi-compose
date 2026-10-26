@@ -175,9 +175,9 @@ export async function refreshTaskIndicator(ctx: ExtensionContext, root = ctx.cwd
   if (!ctx.hasUI) return;
   // A count without refreshing other processes can be misleading. Keep the
   // stable navigation affordance and compute real availability only in the Hub.
-  ctx.ui.setStatus('compose-tasks', '작업 보기 · Alt+W');
+  ctx.ui.setStatus('compose-tasks', '작업 보기: /compose');
   ctx.ui.setWidget('compose-hint', [
-    'Pi Compose · Alt+W 작업 보기 · 새 Agent는 자연어로도 요청할 수 있습니다',
+    'Pi Compose · /compose 작업 보기 · Alt+W (지원 터미널) · 자연어로 Agent 실행',
   ], { placement: 'belowEditor' });
 }
 

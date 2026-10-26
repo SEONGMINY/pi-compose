@@ -71,6 +71,21 @@ export function validateRequest(input: unknown): LaunchInput {
 }
 
 // tmux runs a shell command; quote each token rather than interpreting the user task as shell syntax.
+/** A short, explicit task remains the task identity; Fork owns the inherited discussion. */
+export function delegationPrompt(task: string, context: LaunchInput['context']): string {
+  const instruction = task.trim();
+  if (context === 'independent') return instruction;
+  return [
+    instruction,
+    '',
+    'You were started as a fork of the selected Pi conversation.',
+    'Review the inherited discussion for requirements, decisions, reasons, and explicit constraints before editing.',
+    'Keep prohibitions and their reasons intact; do not weaken them into optional advice.',
+    'If the inherited discussion or actionable requirements are not present, do not guess or change files. Explain what is missing and ask for clarification.',
+    'Only implement the task requested above; never merge, delete worktrees, or discard changes unless explicitly asked.',
+  ].join('\n');
+}
+
 export function quoteShell(arg: string): string {
   return "'" + arg.replaceAll("'", "'\\''") + "'";
 }
@@ -140,7 +155,7 @@ export async function planLaunch(
       : null;
     const piArgs = [
       ...(composeExtensionFile ? ['--extension', composeExtensionFile] : []),
-      ...(source ? ['--fork', source.path] : []), task,
+      ...(source ? ['--fork', source.path] : []), delegationPrompt(task, request.context),
     ];
     const command = 'PIC_COMPOSE_CORE=1 PIC_COMPOSE_MAIN=0 ' + ['pi', ...piArgs].map(quoteShell).join(' ');
     return {
@@ -179,7 +194,7 @@ export async function planLaunch(
   const args = ['add', branch, '--background', '--target-name', workmuxTargetName,
     ...(ghosttySessionMode ? ['--mode', 'session'] : []),
     '--agent', 'pi', '--base', sha.data,
-    ...(source ? [`--fork=${source.id}`] : []), '--prompt', task];
+    ...(source ? [`--fork=${source.id}`] : []), '--prompt', delegationPrompt(task, request.context)];
   return {
     context: request.context, workspace: request.workspace, cwd: repoRoot, task,
     source: source ?? null, branch, baseSha: sha.data, tmuxTarget: null, workmuxTargetName,

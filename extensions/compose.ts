@@ -9,6 +9,45 @@ import { fileURLToPath } from 'node:url';
 const baseExtension = fileURLToPath(import.meta.url);
 
 // Session selection always uses an explicit source. 'Current' is not inferred to mean 'Main'.
+/** A selected Pi conversation and the launch instruction are two separate sources of context. */
+function currentConversationPreview(ctx: ExtensionContext): { messages: number; preview: string[] } | undefined {
+  try {
+    const entries = ctx.sessionManager.getBranch();
+    const prompts = entries
+      .filter(e => e.type === 'message' && e.message.role === 'user')
+      .map(e => e.type === 'message' && e.message.role === 'user'
+        ? e.message.content.filter(c => c.type === 'text').map(c => c.text).join(' ')
+        : '')
+      .filter(Boolean);
+    return {
+      messages: prompts.length,
+      preview: prompts.slice(-2).map(p => p.replace(/\s+/g, ' ').trim().slice(0, 180)),
+    };
+  } catch { return undefined; }
+}
+
+function launchConfirmation(plan: Awaited<ReturnType<typeof planLaunch>>, isCurrent: boolean,
+  conversation: ReturnType<typeof currentConversationPreview>): string {
+  return [
+    '개발 Agent에게 맡길 작업:',
+    plan.task,
+    '',
+    '컨텍스트: ' + (plan.context === 'fork'
+      ? '선택한 Pi 대화 Fork (원본 세션 ' + plan.source?.id + ')' : '독립적인 새 대화'),
+    ...(plan.context === 'fork' && isCurrent && conversation
+      ? ['현재 대화의 사용자 메시지: ' + conversation.messages + '개',
+        ...conversation.preview.map((p, i) => '최근 메시지 ' + (i + 1) + ': ' + p)] : []),
+    ...(plan.context === 'fork'
+      ? ['위 미리보기는 대화 전체가 아닙니다. 실제 컨텍스트는 Pi Fork가 전달합니다.']
+      : ['기존 Main 대화는 전달되지 않습니다. 작업 지시만 전달됩니다.']),
+    '작업 공간: ' + (plan.workspace === 'worktree' ? '별도 Git Worktree' : '현재 디렉터리'),
+    ...(plan.branch ? ['브랜치: ' + plan.branch] : []),
+    ...plan.warnings,
+    '',
+    '이 조건으로 실제 Agent를 실행할까요?',
+  ].join('\n');
+}
+
 async function chooseForkSource(ctx: ExtensionContext, { includeCurrent = true }: { includeCurrent?: boolean } = {}): Promise<string | undefined> {
   const current = ctx.sessionManager.getSessionFile();
   const choices = [
@@ -71,6 +110,11 @@ export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, 
       ctx.ui.notify(`Preview only: ${plan.program} ${plan.args.join(' ')}${plan.warnings.length ? `\n${plan.warnings.join('\n')}` : ''}`, 'info');
       return;
     }
+    const approval = await ctx.ui.confirm('개발 Agent 실행 확인', launchConfirmation(
+      plan, plan.source?.path === ctx.sessionManager.getSessionFile(),
+      currentConversationPreview(ctx),
+    ));
+    if (approval !== true) return;
     const result = await executeLaunch(plan);
     const indexWarning = await trackLaunchedTask(pi, plan);
     if (indexWarning) ctx.ui.notify(indexWarning, 'warning');
@@ -145,7 +189,7 @@ export default function composeExtension(pi: ExtensionAPI): void {
   pi.registerTool({
     name: 'compose_launch',
     label: 'Launch coding agent',
-    description: 'Launch a NEW development agent only when the USER explicitly requests starting/spawning an agent. Never call for mere planning, analysis, or recommendations. Requires user confirmation before any execution. Source "current" means THIS Pi session, not an inferred Main session.',
+    description: 'Launch a NEW coding agent only on an explicit user instruction to start/delegate work, including natural language. Never call for mere discussion or recommendations. The task must describe the actionable implementation goal using requirements already established in this conversation; do not substitute a vague phrase such as "implement what we discussed". If no concrete task was discussed, ask what to implement instead of calling the tool. Fork the current Pi session only when it is explicitly the source; independent means no inherited conversation. Show the exact task and source for approval before executing.',
     parameters: Type.Object({
       task: Type.String({ description: 'The task the NEW development agent should perform' }),
       context: Type.Union([Type.Literal('fork'), Type.Literal('independent')]),
@@ -182,13 +226,10 @@ export default function composeExtension(pi: ExtensionAPI): void {
         cwd: params.cwd || ctx.cwd, sourceSessionFile, branch: params.branch,
         composeExtensionFile: baseExtension,
       });
-      const approved = await ctx.ui.confirm('Launch development agent?', [
-        `Task: ${plan.task}`,
-        `Context: ${plan.context}${plan.source ? ` (source: ${plan.source.id})` : ''}`,
-        `Workspace: ${plan.workspace}${plan.branch ? ` (branch: ${plan.branch})` : ''}`,
-        `Directory: ${plan.cwd}`,
-        ...plan.warnings,
-      ].join('\n'));
+      const approved = await ctx.ui.confirm('개발 Agent 실행 확인', launchConfirmation(
+        plan, params.source?.kind === 'current',
+        params.source?.kind === 'current' ? currentConversationPreview(ctx) : undefined,
+      ));
       if (approved !== true) {
         return { content: [{ type: 'text' as const, text: 'Launch cancelled by user. No agent was started.' }], details: { status: 'cancelled' } };
       }
