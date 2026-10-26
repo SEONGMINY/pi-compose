@@ -12,7 +12,7 @@ Pi's package manager supports local packages and per-resource filters. `pi insta
 
 ## Decision: single Recommended configuration, no template picker
 
-1. Both the official `scripts/install.sh` and direct Git SHA npm installs supply the same `pic` executable. npm `postinstall` is **not used** (direct install uses `--ignore-scripts`).
+1. The official `scripts/install.sh` resolves **main** by default and can explicitly resolve a development branch with `PIC_COMPOSE_REF`. The guarded branch installer and direct Git SHA npm installs supply the same `pic` executable. npm `postinstall` is **not used** (direct install uses `--ignore-scripts`).
 2. The first **bare interactive** `pic` call checks existing Pi package declarations and workmux Pi status Hook read-only. If setup is missing, explain the scope and offer **one consent prompt**. Noninteractive Pi flags/CLI invocations never prompt.
 3. After user consent, install only missing Navigation and Handoff/Verify packages using Pi's official `pi install`. Existing installed packages and their customized resource filters are left untouched. No scripts modify Pi's JSON config directly.
 4. `workmux setup` is offered with **its own opt-in** and is run interactively only after user confirmation. The user still chooses actions inside workmux. It may configure other detected agents; never run it silently.
