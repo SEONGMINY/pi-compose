@@ -14,7 +14,14 @@ macOS에서는 [공식 설치 스크립트](scripts/install.sh)를 사용합니�
 curl -fsSL https://raw.githubusercontent.com/SEONGMINY/pi-compose/main/scripts/install.sh | bash
 ```
 
-아직 Draft인 **PR #3**을 사용하려면 다음을 실행합니다. Node.js 22.19 이상·Pi·tmux·workmux가 필요하며, 이미 설치된 Pi 환경을 유지합니다.
+아직 Draft인 **PR #3**을 사용하려면 다음 **같은 설치 스크립트의 개발 브랜치 버전**을 사용합니다. 이 경로는 공식 설치와 동일하게 Node.js·Pi·tmux·workmux 누락 및 `pic` 실행 파일 충돌을 확인합니다.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SEONGMINY/pi-compose/feat/task-hub-ghostty/scripts/install.sh \
+  | PIC_COMPOSE_REF=feat/task-hub-ghostty bash
+```
+
+이미 의존성이 준비됐다면 이전의 직접 npm 설치도 지원합니다. `--ignore-scripts`로 설치해도 최초 설정은 npm Hook이 아니라 `pic`에서 실행됩니다.
 
 ```bash
 npm install -g --ignore-scripts --no-audit --no-fund \
