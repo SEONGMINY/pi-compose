@@ -19,14 +19,21 @@ This script resolves and installs the current **main HEAD**, not the draft PR #3
 
 ## Path B — current draft PR #3
 
-Install the development branch directly:
+**Preferred:** run the guarded installer from the PR #3 branch, with an explicit branch override. This offers the same missing dependency preparation and executable conflict checks as the official main installer, but resolves **PR #3**, not main.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SEONGMINY/pi-compose/feat/task-hub-ghostty/scripts/install.sh \
+  | PIC_COMPOSE_REF=feat/task-hub-ghostty bash
+```
+
+**Alternative:** install the development branch directly with npm if Pi, Git, tmux and workmux are already installed:
 
 ```bash
 npm install -g --ignore-scripts --no-audit --no-fund \
   "git+https://github.com/SEONGMINY/pi-compose.git#feat/task-hub-ghostty"
 ```
 
-This requires compatible Node, Pi, tmux and workmux to already be installed. To pin an exact release candidate, replace `feat/task-hub-ghostty` with the final 40-character PR #3 commit SHA. The direct command intentionally uses `--ignore-scripts`; setup lives in **`pic`, not npm postinstall**, so both install paths behave the same.
+The **direct npm command** requires compatible Node, Pi, tmux and workmux to already be installed, and it does not offer the install script's collision checks. To pin an exact release candidate, replace `feat/task-hub-ghostty` with the final 40-character PR #3 commit SHA. Both routes support first-run setup. The direct command intentionally uses `--ignore-scripts`; setup lives in **`pic`, not npm postinstall**, so both install paths behave the same.
 
 ## First interactive launch
 
