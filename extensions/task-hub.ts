@@ -236,7 +236,7 @@ export async function showTaskHub(
   const record = selectedRow.record;
   if (record && selectedRow.available && ghosttyEnabled()
     && (record.workspace === 'shared' || exactWorktree(record, mux.rows)?.mode === 'session')) {
-    const opened = await focusSharedTaskTab(pi, record.title, record.id, location.session, root);
+    const opened = await focusSharedTaskTab(pi, record.title, record.id, location.session, root, location.windowId);
     if (opened.ok) return;
     ctx.ui.notify('Ghostty 탐색 실패. 기존 tmux 이동으로 전환: ' + opened.message, 'warning');
   }

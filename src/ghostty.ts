@@ -20,11 +20,26 @@ function shQuote(value: string): string {
  * Requires Ghostty >= 1.3 with AppleScript permission.
  */
 export async function focusSharedTaskTab(
-  pi: ExtensionAPI, title: string, id: string, target: string, cwd: string,
+  pi: ExtensionAPI, title: string, id: string, target: string, cwd: string, windowId?: string,
 ): Promise<{ ok: boolean; message: string }> {
   if (!ghosttyEnabled()) return { ok: false, message: 'Ghostty native tabs not enabled' };
   if (!/^[a-zA-Z0-9_.-]{1,120}$/.test(target) || !/^[a-f0-9-]{36}$/.test(id)) {
     return { ok: false, message: 'Invalid tmux target or task ID' };
+  }
+
+  // Ghostty's tmux attach command chooses a session, not an exact tmux
+  // window. Never focus/open a native tab when that would enter the wrong
+  // agent's window. The caller falls back to exact tmux window navigation.
+  if (windowId) {
+    if (!/^@[0-9]+$/.test(windowId)) return { ok: false, message: 'Invalid tmux window ID' };
+    try {
+      const windows = await pi.exec('tmux', ['list-windows', '-t', '=' + target,
+        '-F', '#{window_id}'], { cwd });
+      const ids = windows.code === 0 ? windows.stdout.trim().split('\n').filter(Boolean) : [];
+      if (ids.length !== 1 || ids[0] !== windowId) {
+        return { ok: false, message: 'Ambiguous tmux windows; exact fallback required' };
+      }
+    } catch { return { ok: false, message: 'Unable to verify exact tmux window' }; }
   }
 
   const tag = 'pic:' + id;
