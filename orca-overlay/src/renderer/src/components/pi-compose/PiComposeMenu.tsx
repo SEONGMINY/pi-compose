@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react'
-import { Layers3 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { useActiveWorktree } from '@/store/selectors'
 import { createNewTerminalTab } from '@/components/terminal/terminal-tab-create'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { openWorkspaceCreationComposerWithTourHandoff } from '../contextual-tours/workspace-creation-tour-handoff'
 import type { PiComposeListRecord, PiComposeResult } from '../../../../preload/api/pi-compose-bridge'
 
 type Role = 'main' | 'work' | 'support'
@@ -39,6 +38,12 @@ export function PiComposeMenu(): React.JSX.Element {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const cwd = activeWorktree?.path ?? ''
+  // The native Orca + button and project tree both open this same creation flow.
+  useEffect(() => {
+    const openMenu = () => { setOpen(true); setError('') };
+    window.addEventListener('pi-compose:new',openMenu);
+    return () => window.removeEventListener('pi-compose:new',openMenu);
+  }, [])
 
   const refresh = async () => {
     if (!cwd) return
@@ -105,8 +110,27 @@ export function PiComposeMenu(): React.JSX.Element {
         })
       })
       if (!started) {
-        throw new Error('Pi 세션은 안전하게 준비됐지만 Orca 터미널 생성에 실패했습니다. 새 작업을 중복 실행하지 마세요.')
+        throw new Error('Pi 세션은 준비됐지만 Orca 탭을 열지 못했습니다. 생성 화면에서 다시 생성하지 말고 기존 Agent를 열어주세요.')
       }
+      // The terminal tab is owned by Orca, not by a second Pi Compose renderer.
+      // Persist both identities so selecting this Agent reuses the live tab.
+      const active = useAppStore.getState().getActiveTab(activeWorktreeId)
+      if (active?.contentType === 'terminal') {
+        useAppStore.getState().setTabCustomLabel(active.id,
+          (role === 'main' ? 'Main · ' : role === 'work' ? 'Work · ' : 'Support · ') +
+          result.record.title.slice(0, 60))
+        try {
+          await window.api.piCompose.attach(cwd,result.record.id,active.id,activeWorktreeId)
+        } catch (cause) {
+          setError('터미널은 열렸지만 Agent와 탭의 연결을 저장하지 못했습니다: ' +
+            (cause instanceof Error ? cause.message : String(cause)))
+          return
+        }
+      } else {
+        setError('Pi 터미널은 생성됐지만 탭 식별을 확인하지 못했습니다. 기존 Agent에서 다시 열 수 있습니다.')
+        return
+      }
+      window.dispatchEvent(new Event('pi-compose:changed'))
       setOpen(false)
       setTitle('')
       setTask('')
@@ -118,16 +142,6 @@ export function PiComposeMenu(): React.JSX.Element {
   }
 
   return <>
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button type="button" variant="ghost" size="icon-xs"
-          className="text-muted-foreground" aria-label="Pi Compose Agent 만들기"
-          onClick={() => { setOpen(true); setError('') }}>
-          <Layers3 className="size-3.5" />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent side="bottom" sideOffset={6}>Pi Compose · 새 Agent</TooltipContent>
-    </Tooltip>
     <Dialog open={open} onOpenChange={(value) => { if (!busy) setOpen(value) }}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
@@ -137,6 +151,10 @@ export function PiComposeMenu(): React.JSX.Element {
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
+          <button type="button" className="w-full rounded-md border border-border px-3 py-2 text-left text-xs hover:bg-muted"
+            onClick={() => { setOpen(false); openWorkspaceCreationComposerWithTourHandoff() }} disabled={busy}>
+            Orca 일반 작업 만들기 <span className="ml-1 text-muted-foreground">· Git 작업 공간 및 일반 Agent</span>
+          </button>
           <div className="text-xs text-muted-foreground">
             프로젝트: {cwd || '선택되지 않음'}
           </div>
