@@ -14,6 +14,9 @@ import { activeExtensionReport, versionReport } from '../../../src/provenance.mj
  * collisions when the user installs this package globally.
  */
 const navigationModuleLoadedAt=Date.now();
+const navigationLoadedProvenance=activeExtensionReport(fileURLToPath(import.meta.url),{
+  root:fileURLToPath(new URL('../../../',import.meta.url)),startedAt:navigationModuleLoadedAt,
+});
 export default function navigationOnly(pi: ExtensionAPI): void {
   if (process.env.PIC_COMPOSE_CORE === '1') return;
   registerWorkReturn(pi);
@@ -31,8 +34,10 @@ export default function navigationOnly(pi: ExtensionAPI): void {
       if(route==='invalid') diagnosticEvent('command.invalid',{source:'slash',outcome:'failure',data:{route:'invalid'}});
       if (!subcommand || subcommand === 'work') return openHub(ctx);
       if (subcommand === 'version') {
-        const details=versionReport(activeExtensionReport(fileURLToPath(import.meta.url),
-          {root:fileURLToPath(new URL('../../../',import.meta.url)),startedAt:navigationModuleLoadedAt}));
+        const latest=activeExtensionReport(fileURLToPath(import.meta.url),
+          {root:fileURLToPath(new URL('../../../',import.meta.url)),startedAt:navigationModuleLoadedAt});
+        const details=versionReport({...navigationLoadedProvenance,
+          modifiedAfterLoad:latest.modifiedAfterLoad,modifiedAt:latest.modifiedAt});
         if (ctx.hasUI) await ctx.ui.confirm('현재 Child Pi · 실제 로드된 Extension', details);
         else ctx.ui.notify(details,'info');
         return;
