@@ -6,9 +6,10 @@ import { diagnosticEvent, startFlow, finishFlow } from '../src/diagnostics.mjs';
 import { openWorkmuxMonitor } from './optional/workmux-dashboard.ts';
 import { workmuxRows, returnToTmux, type OpenWorktree } from './work-return.ts';
 import { showSavedSessions } from './work-return.ts';
+import { inspectReview } from '../src/review.ts';
 
 type HubRow = {
-  kind: 'current' | 'main' | 'task' | 'history' | 'new' | 'monitor';
+  kind: 'current' | 'main' | 'task' | 'history' | 'new' | 'advanced' | 'monitor';
   label: string;
   record?: TaskRecord;
   target?: TmuxLocation;
@@ -203,11 +204,13 @@ const evidenceText = (record: TaskRecord): string => [
   '\nMain에서 병합 또는 Worktree 정리를 자동으로 실행하지 않습니다.',
 ].join('\n');
 
-async function taskActions(ctx: ExtensionContext, row: HubRow, flowId?: string): Promise<'open' | 'back'> {
+async function taskActions(pi: ExtensionAPI, ctx: ExtensionContext, row: HubRow, worktrees: OpenWorktree[], flowId?: string): Promise<'open' | 'back'> {
   const record = row.record;
   if (!record) return 'back';
+  const reviewedWorktree = record.workspace === 'worktree' ? exactWorktree(record, worktrees) : undefined;
   const actions = [
     ...(row.available ? ['기존 Agent 화면으로 이동'] : []),
+    ...(reviewedWorktree ? ['Git 변경 검토'] : []),
     '원본 위임 지시 확인',
     ...(record.handoff || record.review ? ['인계·검토 결과 확인'] : []),
     '← 작업 목록으로',
@@ -217,6 +220,24 @@ async function taskActions(ctx: ExtensionContext, row: HubRow, flowId?: string):
     if (!choice || choice.startsWith('←')) return 'back';
     diagnosticEvent('navigation.detail',{source:'menu',flowId,data:{kind:choice==='기존 Agent 화면으로 이동'?'agent':choice==='원본 위임 지시 확인'?'instruction':'result'},taskId:record.id});
     if (choice === '기존 Agent 화면으로 이동') return 'open';
+    if (choice === 'Git 변경 검토' && reviewedWorktree) {
+      try {
+        // Git/workmux own the truth. No Handoff is required to review actual changes.
+        const review = await inspectReview(reviewedWorktree.path, record.branch!, record.baseSha);
+        await ctx.ui.confirm('Git 변경 · ' + brief(record.title), [
+          '브랜치: ' + review.branch, '비교 기준: ' + review.base,
+          ...(review.warning ? ['주의: ' + review.warning] : []),
+          '\n변경·새 파일 목록:\n' + review.changes,
+          '\n변경 규모:\n' + review.stat,
+          '\nGit Patch (미추적 새 파일 내용은 포함되지 않음):\n' + review.patch,
+          ...(review.truncated ? ['\nDiff 출력 일부만 표시했습니다. 작업 폴더에서 git diff로 전체를 확인하세요.'] : []),
+          '\n코드를 변경하거나 자동 병합하지 않았습니다.',
+        ].join('\n'));
+      } catch (error) {
+        ctx.ui.notify('Git 변경을 확인하지 못했습니다: ' + String(error) + '. Worktree/브랜치가 바뀌었는지 Git에서 확인하세요.', 'warning');
+      }
+      continue;
+    }
     if (choice === '원본 위임 지시 확인') {
       // An exact recorded instruction is not a summary of the entire Pi Fork.
       await ctx.ui.confirm('위임 원문 · 읽기 전용', [
@@ -236,7 +257,7 @@ async function taskActions(ctx: ExtensionContext, row: HubRow, flowId?: string):
 }
 
 export async function showTaskHub(
-  pi: ExtensionAPI, ctx: ExtensionContext, onLaunch?: () => Promise<void>,
+  pi: ExtensionAPI, ctx: ExtensionContext, onLaunch?: (advanced?: boolean) => Promise<void>,
 ): Promise<void> {
   if (!ctx.hasUI) return;
   const [mux, snapshot] = await Promise.all([workmuxRows(pi, ctx.cwd), tmuxSnapshot(pi, ctx.cwd)]);
@@ -249,8 +270,9 @@ export async function showTaskHub(
   // The current location stays the first row; cursor selection is a separate notion.
   const rows: HubRow[] = [
     ...taskRows.filter(row => row.kind === 'current' || row.kind === 'main'),
-    ...(onLaunch ? [{ kind: 'new' as const, label: '+ 새 Agent에게 작업 위임' }] : []),
+    ...(onLaunch ? [{ kind: 'new' as const, label: '+ 현재 대화 Fork → 새 Worktree에서 개발' }] : []),
     ...taskRows.filter(row => row.kind === 'task'),
+    ...(onLaunch ? [{ kind: 'advanced' as const, label: '다른 실행 방식 (Independent / Shared / 다른 원본 대화)' }] : []),
     { kind: 'monitor', label: '전체 작업 관찰 · workmux Dashboard' },
     { kind: 'history', label: '이전 Pi 대화·기능 찾기' },
   ];
@@ -269,7 +291,7 @@ export async function showTaskHub(
   const row = rows[choices.indexOf(selected)];
   diagnosticEvent('navigation.selected',{source:'menu',flowId:flow.flowId,outcome:'success',data:{kind:row?.kind||'unknown',elapsedMs:Date.now()-flow.started}});
   if (!row || row.kind === 'current') {finishFlow(flow,'navigation.finished',{source:'menu',outcome:'cancelled',data:{reason:'current'}});return;}
-  if (row.kind === 'new') { if (onLaunch) await onLaunch(); finishFlow(flow,'navigation.finished',{source:'menu',outcome:'success',data:{kind:'new'}}); return; }
+  if (row.kind === 'new' || row.kind === 'advanced') { if (onLaunch) await onLaunch(row.kind === 'advanced'); finishFlow(flow,'navigation.finished',{source:'menu',outcome:'success',data:{kind:'new'}}); return; }
   if (row.kind === 'monitor') { const opened=await openWorkmuxMonitor(pi, ctx); finishFlow(flow,'navigation.finished',{source:'menu',outcome:opened?'success':'failure',data:{kind:'monitor'}});return; }
   if (row.kind === 'history') {
     // /compose sessions is an exact Pi-native switch, not another Agent list.
@@ -281,7 +303,7 @@ export async function showTaskHub(
     finishFlow(flow,'navigation.finished',{source:'menu',outcome:'success',data:{kind:'history'}});
     return;
   }
-  if (row.kind === 'task' && await taskActions(ctx, row, flow.flowId) !== 'open') {
+  if (row.kind === 'task' && await taskActions(pi, ctx, row, mux.rows, flow.flowId) !== 'open') {
     finishFlow(flow,'navigation.finished',{source:'menu',outcome:'cancelled',data:{kind:'task'}});
     return;
   }
