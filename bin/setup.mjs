@@ -61,7 +61,7 @@ export function inspectSetup(root, { versions = false } = {}) {
   ];
   const composeSources=packageCandidates
     .filter(p=>typeof p.source==='string'
-      && /(?:pi-compose|packages\\/(?:navigation|optional))/i.test(p.source))
+      && /(?:pi-compose|packages\/(?:navigation|optional))/i.test(p.source))
     .map(p=>({scope:p.scope,source:p.source,location:/^(npm:|git:|https?:)/.test(p.source)
       ?p.source:resolve(p.base,p.source)}));
   const hookFile = join(agentDir(), 'extensions/workmux-status.ts');
