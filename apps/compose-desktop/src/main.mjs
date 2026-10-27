@@ -1,57 +1,30 @@
-import { app, BrowserWindow, dialog, ipcMain, Notification } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ComposeCore } from '@pi-compose/core';
+import { AgentRegistry } from '@pi-compose/core/agent-registry';
+import { TerminalProcesses } from './terminal-processes.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const core = new ComposeCore({ dataDir: join(app.getPath('userData'), 'compose') });
 let window = null;
-let quitting = false;
-let previous = new Map();
+let registry;
+let terminals;
+let quitAuthorized = false;
+let stopping = false;
 
 const send = (channel, payload) => {
-  if (window && !window.isDestroyed()) window.webContents.send(channel, payload);
-};
-const notify = (title, body, id) => {
-  if (!Notification.isSupported()) return;
-  const item = new Notification({ title, body, silent: true });
-  item.on('click', () => {
-    if (!window || window.isDestroyed()) createWindow();
-    window.show();
-    window.focus();
-    if (id) send('compose:focus', id);
-  });
-  item.show();
-};
-
-core.on('change', (state) => {
-  for (const item of state.sessions) {
-    const before = previous.get(item.id);
-    if (item.role === 'child' && before === 'running' && item.status === 'reviewable') {
-      notify('검토 가능한 Child', item.title, item.id);
-    }
+  if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) {
+    window.webContents.send(channel, payload);
   }
-  previous = new Map(state.sessions.map((s) => [s.id, s.status]));
-  send('compose:state', state);
-});
-core.on('notice', (item) => {
-  send('compose:notice', item);
-  if (item.type === 'agent-error') notify('Agent 실행 실패', item.message, item.id);
-});
+};
+const change = () => send('compose:state', terminals.snapshot());
 
 function createWindow() {
   window = new BrowserWindow({
-    width: 1480,
-    height: 920,
-    minWidth: 860,
-    minHeight: 580,
-    title: 'Pi Compose',
-    backgroundColor: '#101317',
+    width: 1460, height: 900, minWidth: 800, minHeight: 550,
+    title: 'Pi Compose ADE', backgroundColor: '#0f1218',
     webPreferences: {
       preload: join(here, 'preload.cjs'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
+      contextIsolation: true, nodeIntegration: false, sandbox: false,
     },
   });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -64,34 +37,67 @@ function createWindow() {
   window.on('closed', () => { window = null; });
 }
 
-app.whenReady().then(async () => {
-  await core.restore();
-  ipcMain.handle('compose:state', () => core.snapshot());
+app.whenReady().then(() => {
+  registry = new AgentRegistry(join(app.getPath('userData'), 'compose'));
+  terminals = new TerminalProcesses(registry, change, (event) => send('compose:terminal-event', event));
+  ipcMain.handle('compose:state', () => terminals.snapshot());
   ipcMain.handle('compose:choose-project', async () => {
     const options = { properties: ['openDirectory'], title: 'Git 프로젝트 선택' };
-    const result = window && !window.isDestroyed()
+    const picked = window && !window.isDestroyed()
       ? await dialog.showOpenDialog(window, options)
       : await dialog.showOpenDialog(options);
-    if (result.canceled || !result.filePaths[0]) return null;
-    return core.openProject(result.filePaths[0]);
+    if (picked.canceled || !picked.filePaths[0]) return null;
+    const state = registry.selectProject(picked.filePaths[0]);
+    change();
+    return state;
   });
-  ipcMain.handle('compose:create-main', (_event, title) => core.createMain(title));
-  ipcMain.handle('compose:create-child', (_event, id, task) => core.createChild(id, task));
-  ipcMain.handle('compose:send', (_event, id, prompt) => core.send(id, prompt));
-  ipcMain.handle('compose:stop', (_event, id) => core.stop(id));
-  ipcMain.handle('compose:review', (_event, id) => core.review(id));
+  ipcMain.handle('compose:create-main', (_event, title) => {
+    const result = registry.createMain(title);
+    change();
+    return result.id;
+  });
+  ipcMain.handle('compose:create-work', (_event, mainId, task, workspace) => {
+    const result = registry.createWork(mainId, task, workspace);
+    change();
+    return result.id;
+  });
+  ipcMain.handle('compose:create-support', (_event, mainId, task, workspace) => {
+    const result = registry.createSupport(mainId, task, workspace);
+    change();
+    return result.id;
+  });
+  ipcMain.handle('compose:agent-start', (_event, id) => terminals.start(id));
+  ipcMain.handle('compose:agent-attach', (_event, id) => terminals.attach(id));
+  ipcMain.handle('compose:agent-stop', (_event, id) => { terminals.stop(id); change(); });
+  ipcMain.handle('compose:agent-review', (_event, id) => registry.review(id));
+  ipcMain.on('compose:terminal-write', (_event, id, data) => terminals.write(id, data));
+  ipcMain.on('compose:terminal-resize', (_event, id, cols, rows) =>
+    terminals.resize(id, cols, rows));
   createWindow();
 });
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  if (registry && BrowserWindow.getAllWindows().length === 0) createWindow();
 });
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 app.on('before-quit', (event) => {
-  if (quitting) return;
+  if (quitAuthorized || !terminals) return;
   event.preventDefault();
-  quitting = true;
-  // Cmd+Q halts active Pi sessions but preserves all session/worktree files.
-  void core.shutdown().finally(() => app.quit());
+  if (stopping) return;
+  stopping = true;
+  terminals.stopAll();
+  setTimeout(() => {
+    if (terminals.runningCount() > 0) {
+      const response = dialog.showMessageBoxSync({
+        type: 'warning', title: 'Agent 종료 확인',
+        message: '종료되지 않은 Pi 프로세스가 남아 있습니다.',
+        detail: '세션 파일과 Git 작업 폴더는 보존됩니다. 앱을 종료할까요?',
+        buttons: ['취소', '앱 종료'], defaultId: 0, cancelId: 0,
+      });
+      if (response === 0) { stopping = false; return; }
+    }
+    quitAuthorized = true;
+    app.quit();
+  }, 1200);
 });

@@ -5,12 +5,15 @@
   "type": "module",
   "main": "src/main.mjs",
   "scripts": {
-    "dev": "electron ."
+    "dev": "electron .",
+    "postinstall": "electron-rebuild -w node-pty"
   },
   "dependencies": {
-    "@pi-compose/core": "file:../../packages/compose-core"
+    "@pi-compose/core": "file:../../packages/compose-core",
+    "node-pty": "^1.1.0"
   },
   "devDependencies": {
-    "electron": "^45.0.0"
+    "electron": "^45.0.0",
+    "@electron/rebuild": "^4.0.2"
   }
 }
