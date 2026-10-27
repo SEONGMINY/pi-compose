@@ -1,156 +1,95 @@
-# Five end-to-end development scenarios
+# Pi Compose — 실사용 검증 시나리오
 
-[← README](../README.md) · [Installation](SETUP.md)
+[← README](../README.md) · [상세 사용법](USAGE.md) · [레퍼런스 기반 설계 근거](REFERENCE_LED_DESIGN.md)
 
-**Prerequisite:** install the PR #3 build, run `pic`, allow the automatic Pi Compose core setup to complete (or use `pic setup` to retry missing packages), authenticate Pi with `/login`, and select `/model`. Handoff/Verify must be enabled in `pi config` for the corresponding slash commands. Workmux's Pi Hook must be configured for Dashboard agent statuses.
+이 문서는 기능 목록이 아닌 **사용자의 목표를 끝까지 수행하는 수용 기준**입니다. 시나리오를 실제 실행했다고 주장하지 않습니다. PR #3을 보존한 `feat/reference-led-core` 브랜치를 실제 macOS에서 확인해야 합니다.
 
-## 1. Fork a Main API design into a separate Worktree
-
-**Situation:** Main has already discussed a user profile API. The current `name` field must not be removed because old clients depend on it.
-
-In the project directory:
+## 준비
 
 ```bash
-cd ~/projects/member-api
+pic doctor
+# Node >= 22.19.0, Pi / tmux / workmux 정상 설치와 Pi 설정 확인
+cd ~/projects/my-app
 pic
 ```
 
-In **Main Pi**:
+Pi 안에서 `/login`·`/model`을 확인합니다. 새 기능이 보이지 않는 기존 Pi에서는 `/reload`를 사용합니다. 별도의 테스트 Git 저장소와 변경해도 되는 작업 파일을 권장합니다.
 
-```text
-Add displayName while keeping the existing name field backward-compatible.
-Old clients use name; never delete or repurpose it.
-Discuss migration and response shape before implementation.
-```
+## A — Main 대화에서 첫 개발 위임
 
-When the actual design is agreed:
+1. Main에서 기존 `name` 필드와 호환성 이유, 제외한 대안을 논의합니다. 구체적으로 “기존 name은 절대 제거하면 안 된다”를 명시합니다.
+2. Main에서 `/compose` → **현재 대화 Fork → 새 Worktree에서 개발**을 선택하거나 “지금 논의한 내용을 별도 Agent에게 구현 맡겨줘”라고 명시합니다.
+3. 별도 Context·Workspace 선택 없이 실제 작업 지시를 입력하고, 정확한 Pi 세션 ID, Fork 여부, 새 브랜치, 실행 경고를 읽고 **승인**합니다.
+4. 실제 Child tmux 창과 Pi session id가 연결되는지 확인합니다. Child JSONL의 `parentSession`이 승인한 Main 파일과 일치해야 Fork 출처가 확인된 것입니다.
+5. Child에서 이전 제약을 볼 수 있는지, 해당 지시로 개발을 진행하는지 **직접 확인**합니다. 모델이 모든 제약을 이해했는지는 세션 헤더로 증명할 수 없습니다.
+6. Main 세션과 대화는 보존돼야 하며, 사용자는 메인에서 다른 설계를 계속할 수 있어야 합니다.
 
-```text
-Delegate the profile API implementation to a new developer Agent.
-Fork this Pi conversation and use a new Git Worktree.
-Keep the agreed reasons and prohibitions intact.
-```
+**완료 기준:** Main을 잃지 않고, 정확한 Fork된 Child가 개발 지시를 받고 코드를 변경할 수 있음. 외부 `workmux`나 `tmux` 명령 성공만으로 PASS 처리하지 않음.
 
-Or start without memorizing a command: type **`/compose`** and choose **`+ 새 Agent에게 작업 위임`**. Alternatively:
+## B — Agent / Main 전환
 
-```text
-/compose launch Implement profile displayName and preserve name compatibility
-```
+1. Main에서 `/compose`를 열어 기존 Agent를 선택하고 **기존 Agent 화면으로 이동**합니다.
+2. Child에서 `/compose`의 **← Main으로 돌아가기**로 복귀합니다.
+3. 메인의 기존 대화가 유지되는지 확인하고, Agent 화면으로 반복 이동합니다.
+4. 실행 중인 Agent 수와 tmux 창 수가 전환 때문에 증가하지 않아야 합니다.
 
-**Before launch:** the existing Main Pi session should have been created in the Git repository root if you choose **Fork + Worktree**. The current workmux integration cannot discover arbitrary nested-cwd Pi sessions by ID. If the preview fails with a source cwd mismatch, use **Fork + Shared** or choose a saved Pi session whose cwd matches the repository root; do not delete the original conversation.
+**완료 기준:** 정확한 기존 창을 사용하며, 다른 프로젝트나 이름이 같은 Agent로 임의 이동하지 않음.
 
-Choose **Fork existing Pi session → Git Worktree → Current Pi session → new branch** (the actual wizard order). Review the full instruction and exact Fork source in Pi's confirmation. **Approve** to create the Agent and Worktree; **cancel** leaves them uncreated.
+## C — 다른 기능 대화와 저장 세션 복귀
 
-Stay in Main and discuss another feature. Use `/compose` → choose the profile Agent → **actual delegated instruction** to check what you asked for, or **open existing Agent** to discuss implementation. Verify the Child Pi actually received the original discussion; a successful process launch alone does not prove Fork context fidelity. Return by selecting the **exact Main** entry in `/compose`.
+1. 같은 프로젝트의 다른 기능을 논의한 Pi 대화를 미리 저장합니다.
+2. `/compose sessions` 또는 `/compose sessions <검색어>`를 실행합니다.
+3. Pi의 SessionManager에서 검색된 **정확한 세션 ID**를 확인해 선택합니다.
+4. 대화가 같은 Pi 프로세스에서 전환되고, 새 Child/tmux 프로세스가 생기지 않아야 합니다.
+5. 현재 디렉터리 범위에서 목록에 없는 대화는 Pi의 `/resume`을 확인합니다.
 
-## 2. Delegate independent code exploration or tests
+**완료 기준:** 저장 대화 재개와 살아 있는 Agent 터미널 전환을 구분하며, 이전 대화를 잃지 않음.
 
-**Situation:** You need an architecture overview or a test pass, but the work does not depend on a long Main conversation.
+## D — Worktree 생성 및 Pi Fork 실패
 
-In Main:
+1. 이미 있는 브랜치나 유효하지 않은 Git 경로로 계획 단계 실패를 유도합니다.
+2. Git에 새 작업이 생성되지 않았는지 확인합니다.
+3. 실행 명령 뒤 tmux 단계가 실패하면 Git Worktree가 남아 있을 수 있습니다. 이를 **실패**로 표현하고 삭제하지 않은 채 `git worktree list`를 안내해야 합니다.
+4. 확인 없이 새로운 Agent를 중복 실행하거나 기존 Worktree를 삭제하지 않아야 합니다.
+5. 실패 후 Main 원본 대화가 여전히 사용 가능해야 합니다.
 
-```text
-Start an Independent Agent to inspect the repository's OAuth callback implementation.
-Do not change source code. Use the shared directory and report findings only.
-```
+**완료 기준:** plan / dispatch / target 실패를 구분하고, 기존 세션·Git 변경을 보존합니다.
 
-Or:
+## E — 원본 Pi 세션이 저장소 하위 디렉터리에서 시작한 경우
 
-```text
-/compose launch Inspect OAuth callback paths and summarize findings without edits
-```
+1. Git 저장소 `src/` 같은 하위 디렉터리에서 `pic`으로 Main 대화를 시작합니다.
+2. 그 대화를 Fork + Worktree로 위임합니다.
+3. 계획이 source cwd ≠ repo root를 확인하면 workmux 세션 탐색 대신 `git worktree add`와 정확한 `pi --fork <Main JSONL 파일>` 실행 경로를 승인창에서 안내합니다.
+4. Child의 원본 계보·실제 실행 창·새 Worktree와 브랜치가 연결돼야 합니다.
+5. 기존 `src/`의 미커밋 변경은 자동 이동하지 않아야 합니다.
 
-Choose **Independent new session**: no Main history is needed, so it avoids inheriting unrelated reasoning. Choose **Shared directory** for a read-only exploration or a low-risk test job. This still launches a separate Pi process, so avoid concurrent file edits in Shared. For file-changing or potentially destructive work, choose **Git Worktree** to isolate the checkout.
+**완료 기준:** 하위 디렉터리에서 논의한 Main의 원본을 버리지 않으면서 새 Worktree로 개발 가능.
 
-Confirm and execute. Later, use `/compose` for the exact Agent or `/compose monitor` for the workmux-managed subset. **Independent does not mean auto-merge or automatic report insertion into Main.** Request a concise result or explicitly send a handoff where appropriate.
+## F — Git 변경과 후속 수정
 
-## 3. Switch between profile and payment discussions
+1. Agent에서 파일을 수정합니다. 추적 파일 하나와 새 파일 하나를 만듭니다.
+2. Main에서 `/compose` → 정확한 작업 → **Git 변경 검토**로 진입합니다.
+3. 승인한 Git 기준 SHA부터의 변경과 미추적 파일 경로가 표시되고, 변경이 없으면 없다고 표시합니다.
+4. Handoff 없이도 검토 화면이 열려야 합니다. 기록이 없는 과거 작업은 HEAD 기준의 한계를 고지합니다.
+5. 변경을 다시 요청하고, 원하면 Child에서 `/compose-handoff`, `/compose-verify`를 사용합니다.
+6. Main에 요약을 전달하되, 큰 로그·전체 Diff를 Main의 활성 컨텍스트로 강제 주입하지 않습니다.
 
-**Situation:** The profile implementation is running; you want to discuss payments and later review the profile work.
+**완료 기준:** 실제 변경과 Agent의 완료 주장을 구분하며 자동 병합이나 Worktree 제거가 없음.
 
-In the profile Main, delegate work as in scenario 1. Continue the active Pi conversation with payment questions, or start a separate **saved payment conversation** through Pi's normal session commands. Name sessions descriptively where supported by Pi.
-
-To return to an earlier feature discussion in the **same Pi working directory**:
-
-```text
-/compose sessions
-/compose sessions 프로필
-```
-
-This searches Pi's saved project conversations and **switches conversation inside the current Pi process**. It does not start an Agent, reopen tmux or claim an old conversation is live elsewhere. To visit a running implementation Agent, use **`/compose`**, not sessions.
-
-Example of the difference:
-- `/compose` → '프로필 표시명 구현' → **existing Agent window**, or **read Handoff**.
-- `/compose sessions 결제` → select the existing Pi **payment discussion**, not a workmux running pane.
-
-Existing `/compose back` and Pi's `/resume` are available as alternatives. Pi stores sessions by working directory; use the Pi `/resume` picker and its available session-scope options for conversations recorded from other directories. A saved conversation is not the same thing as a still-running tmux window. Never choose a matching title alone when the exact session ID is ambiguous.
-
-## 4. See different products' work without creating a new project manager
-
-**Situation:** The front-end application and the payment SDK are separate Git repositories.
-
-From separate terminal windows:
+## G — 다음 UX 진단
 
 ```bash
-cd ~/projects/frontend && pic
-# different terminal
-cd ~/projects/payment-sdk && pic
+pic diagnostics status
+pic diagnostics export --days 1
 ```
 
-Each bare `pic` manages its own project-scoped tmux session. Within Pi, **`/compose monitor`** opens workmux's Dashboard, which can show Hook-registered agents across projects. You can inspect recent terminal output and Git changes or jump to a registered Agent there.
+- Preview는 개발 Launch에서 제외합니다.
+- `launch.agent_linked`는 Pi 연결, `launch.context_linked`는 `parentSession` 출처 확인, `launch.agent_started`는 관찰된 Pi 실행입니다.
+- 모델의 제약 이해, 사용자의 화면 인지, 실제 제품 품질은 로그만으로 측정할 수 없습니다.
+- 같은 작업을 여러 Pi 프로세스에서 실행하므로 `--run` 단일 실행 필터로 전체 연결 성공률을 추정하지 않습니다.
 
-For a workmux state Hook, approve the separate external workmux Hook prompt during first `pic` setup, or run `pic setup`. Without Hook registration, the Agents view may be empty. Shared Directory Pi processes not managed by workmux can still be reached via each project's `/compose` and ordinary tmux sessions.
+## 이번 브랜치의 검증 한계
 
-**Responsibility:** Pi Compose knows the exact Main↔Agent relationship *inside a project*; workmux/tmux owns cross-project switching and observations. Do not interpret workmux's recently finished response as a completed product feature.
-
-## 5. Handoff → Verify → Main decision (not automatic merge)
-
-**Situation:** The delegated profile Agent reports that the code is ready.
-
-In the **implementation Agent**:
-
-```text
-/compose-handoff
-```
-
-The Agent prepares a report describing what it actually implemented, preserved constraints and WHY, Git HEAD, changed paths, checks actually performed, and remaining risks. A developer report is a **claim**, not an independent acceptance check.
-
-For a meaningful diff scope, perform an **explicit** independent verification if desired:
-
-```text
-/compose-verify main
-```
-
-The verifier is a new read-only Pi call (user approval required). It inspects Git changes and relevant contracts, reports incomplete evidence if changes were truncated, and does not edit code. A branch named `main` must exist to use that example base ref; otherwise supply the actual base ref or omit it and acknowledge the narrower scope.
-
-Back in **Main**:
-
-```text
-/compose
-```
-
-Choose the exact Agent → **인계·검토 결과 확인**. When the Worktree+branch or actual Child Pi session identity was verified, you can read the recorded results **without switching to the Agent terminal**. Shared Directory reports can be tied to an exact Pi conversation but not assigned exclusive ownership of concurrent Git edits.
-
-You now decide whether requirements were met, which tests should still run, and when to integrate code. **Handoff, Verify and Git merge are three separate actions**. Pi Compose neither merges branches nor deletes Worktrees automatically.
-
----
-
-## Important boundaries
-
-- A tmux window existing ≠ Pi model currently working.
-- A workmux Hook marking a turn done ≠ implementation finished.
-- A successful Fork command ≠ verified inheritance of every instruction.
-- A Handoff report ≠ independent review; a review ≠ user-approved integration.
-- An already-running Pi process is not automatically duplicated when selecting it.
-- macOS/Ghostty rendering, Pi authentication and the entire model-mediated flow still require actual user-environment verification. See [manual verification](validation/task-hub-ux.md).
-## 실사용 수정본 재확인 — 필수 수동 흐름
-
-**모든 항목은 사용자의 macOS에서 미검증 상태입니다.** 코드 반영과 실제 작동을 구분합니다.
-
-1. `pic doctor`로 Pi, tmux, workmux 및 Extensions를 점검하고 `pic`으로 로그인/모델을 확인합니다.
-2. Main에서 요구사항과 이유를 논의한 뒤 `/compose` 첫 작업으로 **+ 새 Agent에게 작업 위임**을 선택합니다.
-3. **Fork existing Pi session → Git Worktree → Current Pi session → 새 브랜치**와 실제 작업 지시를 확인하고 승인합니다.
-4. `실행 요청 전달`은 Child Pi 실행 준비 완료가 아닙니다. `/compose` → 작업 → **기존 Agent 화면으로 이동**해 Fork된 대화와 개발 지시를 실제로 확인합니다.
-5. Agent에서 구현을 계속하고 `/compose`의 **Main으로 돌아가기**로 복귀합니다. 원본 Main의 실제 창과 연결이 확인되지 않으면 임의로 새 Pi를 생성하지 않습니다.
-6. `/compose sessions`로 현재 폴더의 이전 대화를 고르고, 기존 Pi 프로세스에서 전환되는지 확인합니다. 해당 폴더에서 검색되지 않으면 Pi `/resume`을 확인합니다.
-7. Worktree/세션 오류를 재현했다면 실패 메시지의 **plan / dispatch / target** 단계, `git worktree list`, `pic doctor`를 확인하고 `pic diagnostics export --days 1`을 내보냅니다. 성공 기록만으로 개발 작업 완료라고 판단하지 않습니다.
+- GitHub에 변경된 코드와 Unit Test 소스가 반영된 것과 해당 테스트가 실행·통과한 것은 별개의 사실입니다.
+- GitHub Actions나 E2E는 사용자 이전 요청에 따라 실행하지 않습니다.
+- macOS/Ghostty에서 로그인한 Pi 모델과 실제 workmux/tmux를 통한 전체 A~G 실사용 검증은 별도로 완료해야 합니다.

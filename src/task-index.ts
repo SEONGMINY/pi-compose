@@ -56,6 +56,8 @@ export type TaskRecord = {
   workspace: 'shared' | 'worktree';
   context: 'fork' | 'independent';
   branch?: string;
+  /** Exact committed base at approved Worktree creation (for later review). */
+  baseSha?: string;
   tmuxTarget?: string;
   /** PR #3 legacy field. Never use it to infer an originating Main. */
   mainTmux?: string;
@@ -65,6 +67,10 @@ export type TaskRecord = {
   workmuxHandle?: string;
   workmuxTargetName?: string;
   sourceSessionId?: string;
+  /** Private local link for native Pi parentSession validation; never included in diagnostics. */
+  sourceSessionFile?: string;
+  /** False is an observed missing/mismatched Pi parent; not proof that model lacks context. */
+  forkParentVerified?: boolean;
   /** Explicitly captured user-requested result snapshots (no autonomous status tracking). */
   handoff?: HandoffEvidence;
   review?: ReviewEvidence;
@@ -88,13 +94,14 @@ export async function recordTask(plan: LaunchPlan, link: TaskLink = {}): Promise
     workspace: plan.workspace,
     context: plan.context,
     ...(plan.branch ? { branch: plan.branch } : {}),
+    ...(plan.baseSha ? { baseSha: plan.baseSha } : {}),
     ...(plan.tmuxTarget ? { tmuxTarget: plan.tmuxTarget } : {}),
     ...(link.mainLocation ? { mainLocation: link.mainLocation } : {}),
     ...(link.targetLocation ? { targetLocation: link.targetLocation } : {}),
     ...(link.worktreePath ? { worktreePath: resolve(link.worktreePath) } : {}),
     ...(link.workmuxHandle ? { workmuxHandle: link.workmuxHandle } : {}),
     ...(plan.workmuxTargetName ? { workmuxTargetName: plan.workmuxTargetName } : {}),
-    ...(plan.source?.id ? { sourceSessionId: plan.source.id } : {}),
+    ...(plan.source?.id ? { sourceSessionId: plan.source.id, sourceSessionFile: plan.source.path } : {}),
     createdAt: new Date().toISOString(),
   };
   const dir = directory(task.projectRoot);
@@ -129,12 +136,15 @@ function isRecord(value: unknown): value is TaskRecord {
     && (x.workspace === 'shared' || x.workspace === 'worktree')
     && (x.context === 'fork' || x.context === 'independent')
     && (typeof x.branch === 'string' || typeof x.tmuxTarget === 'string')
+    && (x.baseSha === undefined || (typeof x.baseSha === 'string' && /^[a-f0-9]{40,64}$/i.test(x.baseSha)))
     && (x.instruction === undefined || (typeof x.instruction === 'string' && x.instruction.length <= 20000))
     && (x.handoff === undefined || (x.handoff.kind === 'developer_claim'
       && typeof x.handoff.summary === 'string' && typeof x.handoff.gitHead === 'string'))
     && (x.review === undefined || (x.review.kind === 'independent_review_executed'
       && typeof x.review.reportExcerpt === 'string' && typeof x.review.gitHead === 'string'))
     && (x.launchCwd === undefined || (typeof x.launchCwd === 'string' && x.launchCwd.startsWith('/')))
+    && (x.sourceSessionFile === undefined || (typeof x.sourceSessionFile === 'string' && x.sourceSessionFile.startsWith('/')))
+    && (x.forkParentVerified === undefined || typeof x.forkParentVerified === 'boolean')
     && (x.agentSessionId === undefined || typeof x.agentSessionId === 'string')
     && (x.agentSessionFile === undefined || (typeof x.agentSessionFile === 'string' && x.agentSessionFile.startsWith('/')))
     && typeof x.createdAt === 'string'
@@ -233,8 +243,15 @@ export async function bindAgentSession(
 
   const temp = file + '.' + randomUUID() + '.tmp';
   try {
+    // Exact original source path is recorded on the approved launch. A Child Pi
+    // created from any other conversation must not be described as a verified Fork.
+    const forkParentVerified = task.context === 'fork'
+      ? Boolean(task.sourceSessionFile && source.parentSession
+        && resolve(task.sourceSessionFile) === resolve(source.parentSession))
+      : undefined;
     await writeFile(temp, JSON.stringify({
       ...prior, agentSessionId: piSessionId, agentSessionFile: resolve(piSessionFile),
+      ...(forkParentVerified !== undefined ? {forkParentVerified} : {}),
     }), { mode: 0o600, flag: 'wx' });
     await rename(temp, file);
   } catch (error) {

@@ -2,16 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import composeExtension from '../extensions/compose.ts';
-import { delegationPrompt } from '../src/launch.ts';
+import { delegationPrompt, planLaunch, executeLaunch } from '../src/launch.ts';
 import { taskName } from '../extensions/compose-panel.ts';
 import type { ExtensionAPI, ExtensionContext, ExtensionToolContext } from '@earendil-works/pi-coding-agent';
 
 type LaunchParams = {
   task: string;
-  context: 'fork' | 'independent';
-  workspace: 'shared' | 'worktree';
+  context?: 'fork' | 'independent';
+  workspace?: 'shared' | 'worktree';
   branch?: string;
   cwd?: string;
   source?: { kind: 'current' } | { kind: 'file'; path: string };
@@ -117,22 +118,22 @@ test('model tool asks for explicit approval and cancel never launches', async t 
   assert.deepEqual(result.details, { status: 'cancelled' });
 });
 
-test('model tool requires an explicitly identified Fork source', async t => {
+test('model tool never invents a Main session if the current Pi conversation is not saved', async t => {
   const { cwd } = await fixture(t);
   const { tool } = register();
   await assert.rejects(() => tool.execute('call3',
     { task: 'Implement members', context: 'fork', workspace: 'shared' },
-    undefined, undefined, { cwd, hasUI: true } as ExtensionToolContext), /explicit source/);
+    undefined, undefined, { cwd, hasUI: true } as ExtensionToolContext), /not saved/);
 });
 
-test('model tool never interprets a saved Pi session as Main by default', async t => {
+test('explicit current Pi session must actually exist before forking', async t => {
   const { cwd } = await fixture(t);
   const { tool } = register();
   await assert.rejects(() => tool.execute('call4',
     { task: 'Implement members', context: 'fork', workspace: 'shared', source: { kind: 'current' } },
     undefined, undefined, {
       cwd, hasUI: true, sessionManager: { getSessionFile: () => undefined },
-    } as unknown as ExtensionToolContext), /no saved session file/);
+    } as unknown as ExtensionToolContext), /not saved/);
 });
 
 test('model tool refuses Fork source for independent mode', async t => {
@@ -238,4 +239,59 @@ test('a short display name never replaces the actionable handoff instruction', (
   assert.ok(name.startsWith('Add displayName to the API.'));
   assert.ok(name.length <= 64);
   assert.equal(taskName('Long task instruction', 'Profile API compatibility'), 'Profile API compatibility');
+});
+
+test('one quick slash delegation goes straight to approval with a current Fork and proposed branch', async t => {
+  const {cwd,file}=await fixture(t);
+  const git=(...args:string[])=>execFileSync('git',args,{cwd,encoding:'utf8'}).trim();
+  git('init','-q');
+  git('config','user.name','Compose Test');
+  git('config','user.email','test@example.invalid');
+  await writeFile(join(cwd,'README.md'),'fixture');
+  git('add','README.md');
+  git('commit','-qm','init');
+  const {command}=register();
+  let shown='';
+  await command.handler('launch Implement profile', {
+    cwd,hasUI:true,
+    sessionManager:{getSessionFile:()=>file,getBranch:()=>[]},
+    ui:{
+      input:async()=>{throw new Error('default flow should not ask for another input');},
+      select:async()=>{throw new Error('default flow should not ask Context/Workspace/source selections');},
+      confirm:async(_title:string,content:string)=>{shown=content;return false;},
+      notify:()=>{},
+    },
+  } as unknown as ExtensionContext);
+  assert.match(shown,/현재 Pi 대화 Fork/);
+  assert.match(shown,/별도 Git Worktree/);
+  assert.match(shown,/feat\/implement-profile-[a-f0-9]{8}/);
+});
+
+test('nested source checkout uses Git worktree then exact Pi --fork instead of losing Main history', async t => {
+  const {cwd,file}=await fixture(t);
+  const git=(...args:string[])=>execFileSync('git',args,{cwd,encoding:'utf8'}).trim();
+  git('init','-q');
+  git('config','user.name','Compose Test');
+  git('config','user.email','test@example.invalid');
+  await writeFile(join(cwd,'file.txt'),'content');
+  git('add','file.txt');
+  git('commit','-qm','base');
+  const nested=join(cwd,'src');
+  await mkdir(nested);
+  await writeFile(file,JSON.stringify({type:'session',id:'main-nested',cwd:nested})+'\n');
+  const plan=await planLaunch({
+    task:'Implement feature',context:'fork',workspace:'worktree',cwd:nested,
+    sourceSessionFile:file,branch:'feat/nested-fork',
+  });
+  assert.equal(plan.program,'tmux');
+  assert.equal(plan.preparation?.program,'git');
+  assert.deepEqual(plan.preparation?.args.slice(0,3),['worktree','add','-b']);
+  assert.ok(plan.args.join(' ').includes('--fork'));
+  assert.ok(plan.args.join(' ').includes(file));
+  const calls:string[]=[];
+  const result=await executeLaunch(plan,{run:async(bin,args)=>{
+    calls.push(bin+' '+args[0]);return {code:0,stdout:'',stderr:''};
+  }});
+  assert.equal(result.status,'launch_command_succeeded_agent_unverified');
+  assert.deepEqual(calls,['git worktree','tmux new-session']);
 });

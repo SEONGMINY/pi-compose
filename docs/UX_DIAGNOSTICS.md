@@ -55,7 +55,7 @@ pic diagnostics clear --yes   # 저장된 JSONL 및 기본 export 파일 삭제
 | --- | --- | --- | --- |
 | 첫 실행·설정 | \`setup.started\` | \`setup.component\`, \`setup.hook_prompted\` | \`setup.finished\` |
 | 명령 진입 | \`command.entered\` | \`command.invalid\` | \`command.finished\` *(예약 이벤트: 일부 명령은 종료 불가)* |
-| 위임 | \`launch.started\` | \`launch.approval\` | \`launch.finished\`, \`launch.agent_linked\` |
+| 위임 | `launch.started` | `launch.approval`, `launch.stage` | `launch.finished` (명령 전달), `launch.agent_linked` (실제 Child 연결), `launch.context_linked` (원본 확인), `launch.agent_started` (Pi 실행 관측) |
 | Agent 탐색 | \`navigation.opened\` | \`navigation.selected\`, \`navigation.detail\` | \`navigation.finished\` |
 | 실행 대상 전환 | \`switch.started\` | — | \`switch.finished\` |
 | 저장 대화 | \`sessions.opened\` | \`switch.started\`, \`switch.finished\` | \`sessions.finished\` |
@@ -63,7 +63,7 @@ pic diagnostics clear --yes   # 저장된 JSONL 및 기본 export 파일 삭제
 | Handoff | \`handoff.started\` | — | \`handoff.finished\` |
 | Verify | \`verify.started\` | 사용자 승인·실제 모델 실행 | \`verify.finished\` |
 
-\`launch.finished=success\`는 **Agent 실행 명령을 전달했다는 관측**입니다. Pi 모델이 실제로 실행됐는지 확인되려면 \`launch.agent_linked\`가 필요합니다. 연결이 되지 않았다는 것만으로 실행 실패라고 단정할 수는 없습니다.
+`launch.finished=success`는 **실행 명령 전달 성공**만 뜻합니다. `launch.agent_linked`는 Child Pi의 Session ID/실행 창 연결이며 `launch.context_linked`는 Child `parentSession`과 원본 JSONL의 일치 관측, `launch.agent_started`는 실제 Pi 모델 실행의 관측입니다. 이는 모델의 지시 이해나 개발 완료의 증거가 아닙니다.
 
 \`result.opened\`는 사용자가 읽기 전용 결과 화면을 **열었다는 사실**이고 내용을 읽거나 이해했다는 증거가 아닙니다.
 
@@ -75,8 +75,8 @@ pic diagnostics clear --yes   # 저장된 JSONL 및 기본 export 파일 삭제
 
 | 지표 | 계산 및 해석의 한계 |
 | --- | --- |
-| 위임 명령 실행 성공률 | \`launch.finished success / launch.started\`. 실제 Child Agent 모델 준비 완료율과 다름 |
-| Child Pi 연결 횟수 | 실제 Pi Session ID와 창이 일치한 \`launch.agent_linked\` |
+| 위임 명령 실행 성공률 | Preview를 제외한 실제 Launch의 `launch.finished success / launch.started`. 실제 Child 모델 준비·개발 완료와 다름 |
+| Child Pi 연결 횟수 | 정확한 Pi Session ID와 실행 대상이 연결된 `launch.agent_linked` |
 | 위임 취소율 | \`launch.finished cancelled / launch.started\`. 의도적인 취소일 수 있음 |
 | 위임 시간 | 시작→종료 \`elapsedMs\`. 사용자의 선택·승인 시간이 포함됨 |
 | 탐색 선택 없는 종료율 | \`navigation.finished cancelled & reason=no_selection / navigation.opened\`. 화면을 잠깐 확인하고 정상 종료했을 수도 있음 |
@@ -134,3 +134,11 @@ pic diagnostics clear --yes   # 저장된 JSONL 및 기본 export 파일 삭제
 - `launch.stage`는 입력/계획/승인/디스패치/대상 확인 단계와 고정된 실패 분류만 기록합니다. stderr, 프로젝트 경로, 원본 지시문은 저장하지 않습니다.
 - `launch.finished=success`는 실행 명령 전달만, `launch.stage=target success`는 정확한 tmux/workmux 대상 확인만 의미합니다. 둘 다 모델의 작업 처리나 개발 완료는 증명하지 않습니다.
 - `sessions.opened=0`은 계측된 경로에서 관찰이 없었다는 뜻입니다. 사용자가 다른 방법으로 이전 세션을 찾지 않았다는 증거는 아닙니다.
+
+## 2026-10-27 재설계 계측
+
+- Preview는 실제 개발 Launch 집계에서 제외됩니다.
+- `launch.context_linked`: 승인한 Main 원본 파일이 Child JSONL `parentSession`과 일치했는지 나타냅니다.
+- `launch.agent_started`: 정확히 연결된 Child Pi에서 모델 실행이 관측된 사실입니다. 초기 지시의 내용·모델 이해·개발 완료는 증명하지 못합니다.
+- Fork+Worktree의 하위 디렉터리 원본 세션은 Native Pi `--fork`를 사용하고, 원본 계보가 관찰되지 않은 경우 성공처럼 취급하지 않습니다.
+- 실제 Git Diff, 작업 지시, 프로젝트 경로는 여전히 진단에 기록되지 않습니다.

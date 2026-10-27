@@ -1,5 +1,7 @@
 # Architecture — Pi Compose
 
+> **2026-10-27 재설계 기준:** 본 문서는 PR #2/#3까지의 원래 설계·의사결정을 보존한 역사적 기록입니다. 새 UX·기본 실행 방식을 구현하거나 평가할 때에는 [레퍼런스 기반 제품 계약](REFERENCE_LED_DESIGN.md), [현재 사용법](USAGE.md), [실사용 수용 시나리오](SCENARIOS.md)를 우선합니다. 기존 내용 중 '매번 Context/Workspace 선택', 'Handoff 후에만 결과 확인' 및 '모든 Fork+Worktree를 workmux로 실행' 부분은 이 브랜치의 현재 동작을 설명하지 않습니다.
+
 - 상태: **논의된 책임·경계 확정 / 구현 상세와 패키지 연결 방식 미확정**
 - 작성일: 2026-10-25
 - 제품 계약: [PRD](PRD.md), 기술 후보 및 검증: [TRD](TRD.md)

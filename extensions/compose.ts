@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { Text } from '@earendil-works/pi-tui';
 import { approveLaunch, taskName } from './compose-panel.ts';
 import { diagnosticEvent, startFlow, finishFlow } from '../src/diagnostics.mjs';
+import { DEFAULT_DELEGATION, proposedBranch } from '../src/delegation-defaults.ts';
 
 const baseExtension = fileURLToPath(import.meta.url);
 
@@ -86,9 +87,9 @@ async function chooseForkSource(ctx: ExtensionContext, { includeCurrent = true }
   return index < 0 ? undefined : other[index]?.path;
 }
 
-export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, mode: 'launch' | 'preview', suppliedTask = ''): Promise<void> {
+export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, mode: 'launch' | 'preview', suppliedTask = '', advanced = false): Promise<void> {
   const flow = startFlow('launch.started',{source:'slash',data:{route:mode}});
-  let outcome: 'success'|'failure'|'cancelled' = 'cancelled';
+  let outcome: 'success'|'failure'|'cancelled'|'unavailable' = 'cancelled';
   let chosenContext: 'fork'|'independent'|undefined;
   let chosenWorkspace: 'shared'|'worktree'|undefined;
   let stage='input';
@@ -99,26 +100,41 @@ export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, 
   }
   const task = suppliedTask || await ctx.ui.input('Development task', 'What should the new agent do?');
   if (!task?.trim()) return;
-  const contextChoice = await ctx.ui.select('Context source', ['Fork existing Pi session', 'Independent new session']);
-  if (!contextChoice) return;
-  const workspaceChoice = await ctx.ui.select('Workspace', ['Shared directory', 'Git Worktree']);
-  if (!workspaceChoice) return;
-  const context = contextChoice.startsWith('Fork') ? 'fork' : 'independent';
-  const workspace = workspaceChoice === 'Git Worktree' ? 'worktree' : 'shared';
+  // Kiro's prompt-first entry, Orca's default worktree: one confirmation for the normal case.
+  // Explicit advanced mode preserves all four independent Context/Workspace combinations.
+  let context: 'fork' | 'independent' = DEFAULT_DELEGATION.context;
+  let workspace: 'worktree' | 'shared' = DEFAULT_DELEGATION.workspace;
+  if (advanced || mode === 'preview') {
+    const contextChoice = await ctx.ui.select('대화 맥락', ['Fork existing Pi session', 'Independent new session']);
+    if (!contextChoice) return;
+    const workspaceChoice = await ctx.ui.select('작업 공간', ['Shared directory', 'Git Worktree']);
+    if (!workspaceChoice) return;
+    context = contextChoice.startsWith('Fork') ? 'fork' : 'independent';
+    workspace = workspaceChoice === 'Git Worktree' ? 'worktree' : 'shared';
+  }
   chosenContext=context; chosenWorkspace=workspace;
   let sourceSessionFile: string | undefined;
   try {
-    sourceSessionFile = context === 'fork' ? await chooseForkSource(ctx) : undefined;
+    sourceSessionFile = context === 'fork'
+      ? (advanced || mode === 'preview' ? await chooseForkSource(ctx) : ctx.sessionManager.getSessionFile())
+      : undefined;
   } catch (error) {
     outcome='failure';
     diagnosticEvent('launch.stage',{source:'slash',flowId:flow.flowId,outcome:'failure',
       data:{stage:'input',failureKind:'source_missing'}});
-    ctx.ui.notify(`Cannot list Pi sessions: ${error instanceof Error ? error.message : String(error)}`, 'error');
+    ctx.ui.notify(`저장된 Pi 대화를 찾을 수 없습니다: ${error instanceof Error ? error.message : String(error)}`, 'error');
     return;
   }
-  if (context === 'fork' && !sourceSessionFile?.trim()) return;
+  if (context === 'fork' && !sourceSessionFile?.trim()) {
+    outcome='unavailable';
+    ctx.ui.notify('현재 Pi 세션이 저장되지 않아 Fork할 수 없습니다. Main에서 한 번 대화를 저장한 다음 다시 실행하세요. 자동으로 Independent로 바꾸지는 않습니다.', 'warning');
+    return;
+  }
   const branch = workspace === 'worktree'
-    ? await ctx.ui.input('New branch name', 'feat/example') : undefined;
+    ? (advanced || mode === 'preview'
+        ? await ctx.ui.input('New branch name', proposedBranch(task))
+        : proposedBranch(task))
+    : undefined;
   if (workspace === 'worktree' && !branch?.trim()) return;
   stage='plan';
   try {
@@ -126,7 +142,7 @@ export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, 
     if (mode === 'preview') {
       diagnosticEvent('launch.stage',{source:'slash',flowId:flow.flowId,outcome:'success',data:{stage:'plan'}});
       outcome='success';
-      ctx.ui.notify(`Preview only: ${plan.program} ${plan.args.join(' ')}${plan.warnings.length ? `\n${plan.warnings.join('\n')}` : ''}`, 'info');
+      ctx.ui.notify(`Preview only (no changes): ${plan.preparation ? `${plan.preparation.program} ${plan.preparation.args.join(' ')}\nthen ` : ''}${plan.program} ${plan.args.join(' ')}${plan.warnings.length ? `\n${plan.warnings.join('\n')}` : ''}`, 'info');
       return;
     }
     stage='approval';
@@ -158,13 +174,13 @@ export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, 
 
 export default function composeExtension(pi: ExtensionAPI): void {
   registerWorkReturn(pi);
-  const openHub = (ctx: ExtensionContext) => showTaskHub(pi, ctx, () => showLaunchWizard(pi, ctx, 'launch'));
+  const openHub = (ctx: ExtensionContext) => showTaskHub(pi, ctx, (advanced = false) => showLaunchWizard(pi, ctx, 'launch', '', advanced));
   registerTaskHub(pi, openHub);
   pi.registerCommand('compose', {
     description: 'Pi Compose: /compose related agents; /compose launch, /compose monitor, /compose sessions',
     handler: async (args, ctx) => {
       const [subcommand, ...rest] = args.trim().split(/\s+/);
-      const route = ['launch','preview','monitor','dashboard','sessions','back','resume','work'].includes(subcommand||'') ? subcommand : !subcommand?'home':'invalid';
+      const route = ['launch','advanced','preview','monitor','dashboard','sessions','back','resume','work'].includes(subcommand||'') ? subcommand : !subcommand?'home':'invalid';
       const commandFlow=startFlow('command.entered',{source:'slash',data:{route}});
       try {
       if(route==='invalid') diagnosticEvent('command.invalid',{source:'slash',outcome:'failure',data:{route:'invalid'}});
@@ -220,11 +236,12 @@ export default function composeExtension(pi: ExtensionAPI): void {
         }
         return;
       }
-      if (subcommand !== 'launch' && subcommand !== 'preview') {
-        ctx.ui.notify('Usage: /compose, /compose launch [task], /compose monitor, /compose sessions [query], /compose back [query], /compose resume', 'info');
+      if (subcommand !== 'launch' && subcommand !== 'preview' && subcommand !== 'advanced') {
+        ctx.ui.notify('Usage: /compose (작업 열기), /compose launch [task], /compose advanced [task], /compose sessions [query]', 'info');
         return;
       }
-      await showLaunchWizard(pi, ctx, subcommand, rest.join(' '));
+      await showLaunchWizard(pi, ctx, subcommand === 'preview' ? 'preview' : 'launch',
+        rest.join(' '), subcommand === 'advanced' || subcommand === 'preview');
       } finally {finishFlow(commandFlow,'command.finished',{source:'slash',outcome:route==='invalid'?'failure':'unknown',data:{route}});}
     },
   });
@@ -237,12 +254,12 @@ export function registerComposeLaunchTool(pi: ExtensionAPI): void {
   pi.registerTool({
     name: 'compose_launch',
     label: 'Launch coding agent',
-    description: 'On an explicit user instruction to start/delegate implementation, call this tool directly without asking for additional conversational permission: the extension shows ONE execution approval. For planning or discussing whether to delegate, never call. Preserve established requirements, prohibitions and WHY in the task; do not invent constraints. Fork inherits the specifically selected Pi session. Do not ask for an already specified context, workspace or branch. If a required detail is missing, ask only for that detail. Never assert Fork context arrived solely from successful launch.',
+    description: 'On an explicit user instruction to start/delegate implementation, call this tool directly without asking for additional conversational permission: the extension shows ONE execution approval. For planning or discussing whether to delegate, never call. Preserve established requirements, prohibitions and WHY in the task; do not invent constraints. Fork inherits the specifically selected Pi session. Do not ask for an already specified context, workspace or branch. Default to the current Pi conversation Fork plus a new Worktree and generate a unique branch if unspecified. Ask only for an unusable source or missing task. Explicit Context/Workspace choices override defaults. Never assert Fork context arrived solely from successful launch.',
     parameters: Type.Object({
       task: Type.String({ description: 'Exact actionable implementation instruction, preserving established constraints and reasons.' }),
       title: Type.Optional(Type.String({ description: 'Short human-readable task name for the Hub. Does not replace the full instruction.' })),
-      context: Type.Union([Type.Literal('fork'), Type.Literal('independent')]),
-      workspace: Type.Union([Type.Literal('shared'), Type.Literal('worktree')]),
+      context: Type.Optional(Type.Union([Type.Literal('fork'), Type.Literal('independent')])),
+      workspace: Type.Optional(Type.Union([Type.Literal('shared'), Type.Literal('worktree')])),
       source: Type.Optional(Type.Union([
         Type.Object({ kind: Type.Literal('current') }),
         Type.Object({ kind: Type.Literal('file'), path: Type.String() }),
@@ -251,21 +268,21 @@ export function registerComposeLaunchTool(pi: ExtensionAPI): void {
       cwd: Type.Optional(Type.String({ description: 'Target directory. Defaults to this Pi session cwd' })),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const flow = startFlow('launch.started',{source:'natural-language',data:{context:params.context,workspace:params.workspace}});
+      const context = params.context ?? DEFAULT_DELEGATION.context;
+      const workspace = params.workspace ?? DEFAULT_DELEGATION.workspace;
+      const source = context === 'fork' ? (params.source ?? { kind: 'current' as const }) : params.source;
+      const flow = startFlow('launch.started',{source:'natural-language',data:{context,workspace}});
       let outcome: 'success'|'failure'|'cancelled'|'unavailable' = 'failure';
       let stage='plan';
       try {
-      if (params.context === 'fork' && !params.source) {
-        throw new Error('Fork requires an explicit source: current Pi session or an exact session file.');
-      }
-      if (params.context === 'independent' && params.source) {
+      if (context === 'independent' && source) {
         throw new Error('An independent session must not specify a Fork source.');
       }
-      const sourceSessionFile = params.source?.kind === 'current'
-        ? ctx.sessionManager.getSessionFile()
-        : params.source?.kind === 'file' ? params.source.path : undefined;
-      if (params.context === 'fork' && !sourceSessionFile) {
-        throw new Error('The selected Pi session has no saved session file. Save a conversation before forking.');
+      const sourceSessionFile = source?.kind === 'current'
+        ? ctx.sessionManager?.getSessionFile()
+        : source?.kind === 'file' ? source.path : undefined;
+      if (context === 'fork' && !sourceSessionFile) {
+        throw new Error('The selected Pi conversation is not saved. Discuss it in Main first or choose a saved source.');
       }
       // Model tool calls alone never authorize process creation. A real user's confirmation is required.
       if (!ctx.hasUI) {
@@ -276,18 +293,19 @@ export function registerComposeLaunchTool(pi: ExtensionAPI): void {
         };
       }
       const plan = await planLaunch({
-        task: params.task, context: params.context, workspace: params.workspace,
-        cwd: params.cwd || ctx.cwd, sourceSessionFile, branch: params.branch,
+        task: params.task, context, workspace,
+        cwd: params.cwd || ctx.cwd, sourceSessionFile,
+        branch: workspace === 'worktree' ? (params.branch ?? proposedBranch(params.task)) : params.branch,
         composeExtensionFile: baseExtension,
       });
       stage='approval';
       const approved = await approveLaunch(ctx, plan, {
-        current: params.source?.kind === 'current',
+        current: source?.kind === 'current',
         title: params.title,
-        conversationPreview: params.source?.kind === 'current'
+        conversationPreview: source?.kind === 'current'
           ? currentConversationPreview(ctx)?.preview : undefined,
       });
-      diagnosticEvent('launch.approval',{source:'natural-language',flowId:flow.flowId,outcome:approved?'success':'cancelled',data:{context:params.context,workspace:params.workspace}});
+      diagnosticEvent('launch.approval',{source:'natural-language',flowId:flow.flowId,outcome:approved?'success':'cancelled',data:{context,workspace}});
       if (approved !== true) {
         outcome='cancelled';
         return { content: [{ type: 'text' as const, text: 'Launch cancelled by user. No agent was started.' }], details: { status: 'cancelled' } };
@@ -308,10 +326,11 @@ export function registerComposeLaunchTool(pi: ExtensionAPI): void {
         details: result,
       };
       } catch(error) {
+        outcome='failure';
         diagnosticEvent('launch.stage',{source:'natural-language',flowId:flow.flowId,outcome:'failure',
           data:{stage,failureKind:failureKind(error,stage)}});
         throw error;
-      } finally { finishFlow(flow,'launch.finished',{source:'natural-language',outcome,data:{context:params.context,workspace:params.workspace}}); }
+      } finally { finishFlow(flow,'launch.finished',{source:'natural-language',outcome,data:{context,workspace}}); }
     },
     renderCall(args, theme) {
       return new Text(theme.fg('accent', '↗ 개발 위임 · ' + taskName(args.task, args.title)), 0, 0);

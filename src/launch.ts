@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
-import { resolve } from 'node:path';
+import { resolve, basename, dirname, join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { z } from 'zod';
 
@@ -27,6 +27,7 @@ const piSessionHeaderSchema = z.object({
   type: z.literal('session'),
   id: z.string().min(1),
   cwd: z.string().min(1),
+  parentSession: z.string().optional(),
 });
 const gitCommitShaSchema = z.string().regex(/^[0-9a-fA-F]{40,64}$/, 'Git returned an invalid commit SHA');
 const gitRootSchema = z.string().min(1, 'Git returned an empty repository root');
@@ -35,7 +36,7 @@ export type LaunchInput = z.infer<typeof launchInputSchema>;
 export type PiSessionHeader = z.infer<typeof piSessionHeaderSchema>;
 export type ProcessResult = { code: number | null; stdout: string; stderr: string };
 export type ProcessRunner = (bin: string, args: string[], options: { cwd: string }) => Promise<ProcessResult>;
-export type SessionSource = { path: string; id: string; cwd: string };
+export type SessionSource = { path: string; id: string; cwd: string; parentSession?: string };
 export type LaunchPlan = {
   context: LaunchInput['context'];
   workspace: LaunchInput['workspace'];
@@ -46,6 +47,9 @@ export type LaunchPlan = {
   baseSha: string | null;
   tmuxTarget: string | null;
   workmuxTargetName?: string;
+  /** Fallback for a valid Pi session saved in a nested repo directory. */
+  worktreePath?: string;
+  preparation?: { program: 'git'; args: string[]; cwd: string };
   program: 'tmux' | 'workmux';
   args: string[];
   warnings: string[];
@@ -131,7 +135,11 @@ export async function loadSourceSession(file: string): Promise<SessionSource> {
     `Source Pi session header requires type=session, id and cwd: ${validationError(result.error).message}`,
     result.error.issues,
   );
-  return { path, id: result.data.id, cwd: await realpath(resolve(result.data.cwd)).catch(() => resolve(result.data.cwd)) };
+  return { path, id: result.data.id,
+    cwd: await realpath(resolve(result.data.cwd)).catch(() => resolve(result.data.cwd)),
+    ...(result.data.parentSession ? {parentSession: await realpath(resolve(result.data.parentSession))
+      .catch(() => resolve(result.data.parentSession!))} : {}),
+  };
 }
 
 export async function planLaunch(
@@ -168,9 +176,7 @@ export async function planLaunch(
   const repo = gitRootSchema.safeParse(await checkedRun(run, 'git', ['rev-parse', '--show-toplevel'], cwd));
   if (!repo.success) throw validationError(repo.error);
   const repoRoot = await realpath(repo.data);
-  if (source && source.cwd !== repoRoot) {
-    throw new LaunchError(`workmux Pi Fork discovers sessions by source repository root. Source cwd (${source.cwd}) != repo root (${repoRoot}). Choose a source session based at the root, or use --workspace shared.`);
-  }
+  const requiresNativePiFork = Boolean(source && source.cwd !== repoRoot);
   const branch = request.branch ?? '';
   if (!/^[^\s-][^\s]*$/.test(branch) || branch.startsWith('-')) throw new LaunchError('Invalid branch name');
   await checkedRun(run, 'git', ['check-ref-format', '--branch', branch], repoRoot);
@@ -183,6 +189,26 @@ export async function planLaunch(
   if (!sha.success) throw validationError(sha.error);
   const dirty = await checkedRun(run, 'git', ['status', '--porcelain', '--untracked-files=normal'], repoRoot);
   if (dirty) warnings.push('Source checkout has uncommitted changes; new Worktree is based on a commit and does not copy them.');
+  if (requiresNativePiFork && source) {
+    // workmux --fork discovers source sessions relative to the repo root.
+    // Pi --fork accepts an exact JSONL path, so use Git + tmux directly only
+    // for this unsupported source location. Existing runtime APIs are reused.
+    const worktreePath = join(dirname(repoRoot), basename(repoRoot) + '-' + sessionName);
+    const extension = request.composeExtensionFile
+      ? await realpath(request.composeExtensionFile).catch(() => {
+        throw new LaunchError('Pi Compose Extension is missing; nothing has been created.');
+      }) : null;
+    const piArgs = [...(extension ? ['--extension', extension] : []),
+      '--fork', source.path, delegationPrompt(task, request.context)];
+    const command = 'PIC_COMPOSE_CORE=1 PIC_COMPOSE_MAIN=0 ' + ['pi', ...piArgs].map(quoteShell).join(' ');
+    warnings.push('Source Pi session cwd is not the repository root. Git + tmux will prepare the Worktree and Pi will fork the exact original JSONL path; workmux is not used for this launch.');
+    return {
+      context: request.context, workspace: 'worktree', cwd: repoRoot, task, source,
+      branch, baseSha: sha.data, tmuxTarget: sessionName, worktreePath,
+      preparation: { program: 'git', args: ['worktree','add','-b',branch,worktreePath,sha.data], cwd:repoRoot },
+      program: 'tmux', args:['new-session','-d','-s',sessionName,'-c',worktreePath,command], warnings,
+    };
+  }
   // workmux owns the terminal layout. Ghostty-specific tab creation is not
   // part of the default Compose launch or navigation experience.
   // An exact per-launch target name lets the Hub validate the real tmux target.
@@ -200,7 +226,15 @@ export async function planLaunch(
 
 export async function executeLaunch(plan: LaunchPlan, { run = runProcess }: { run?: ProcessRunner } = {}) {
   // No mutation until explicitly executing; resource cleanup on failure requires inspection.
-  const output = await checkedRun(run, plan.program, plan.args, plan.cwd).catch(error => {
+  // If Git succeeds but tmux fails, leave the Worktree intact for inspection.
+  // Replaying the same branch must not start another agent or destroy anything.
+  if (plan.preparation) {
+    await checkedRun(run, plan.preparation.program, plan.preparation.args, plan.preparation.cwd)
+      .catch(error => {
+        throw new LaunchError('Worktree preparation failed; inspect Git before retrying. ' + String(error));
+      });
+  }
+  const output = await checkedRun(run, plan.program, plan.args, plan.worktreePath || plan.cwd).catch(error => {
     throw new LaunchError(`Launch failed; worktree or tmux resources may exist. Inspect before retrying. ${error instanceof Error ? error.message : String(error)}`);
   });
   return {
