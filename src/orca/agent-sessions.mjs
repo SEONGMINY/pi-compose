@@ -9,6 +9,13 @@ const q = value => "'" + String(value).replaceAll("'", "'\\''") + "'";
 const runGit = (cwd, ...args) => execFileSync('git', args, {
   cwd, encoding: 'utf8', timeout: 20_000,
 }).trim();
+// A linked Git Worktree has its own --show-toplevel, but shares Git's
+// common dir with the primary checkout. Context is grouped by repository.
+function projectRootOf(cwd) {
+  const common = resolve(cwd, runGit(cwd, 'rev-parse', '--git-common-dir'));
+  return basename(common) === '.git' ? dirname(common)
+    : runGit(cwd, 'rev-parse', '--show-toplevel');
+}
 
 function readEntries(path) {
   return readFileSync(path, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line));
@@ -60,7 +67,7 @@ export class OrcaAgentStore {
    * The UUID is pinned BEFORE launch so an arbitrary recent session is never used.
    */
   createMain({ cwd, title, launcherPath }) {
-    const projectRoot = runGit(cwd, 'rev-parse', '--show-toplevel');
+    const projectRoot = projectRootOf(cwd);
     const sessionId = randomUUID();
     const id = 'main-' + sessionId;
     const scriptPath = join(this.launchersDir, sessionId + '.sh');
@@ -123,7 +130,7 @@ export class OrcaAgentStore {
     const sourceFile = resolve(sessionFile);
     const header = headerOf(sourceFile);
     if (header.id !== sessionId) throw new Error('현재 Main Pi 세션의 ID와 파일이 일치하지 않습니다.');
-    const root = runGit(cwd, 'rev-parse', '--show-toplevel');
+    const root = projectRootOf(cwd);
     const id = 'main-' + sessionId;
     const existing = this.get(id);
     if (existing) {
@@ -162,7 +169,7 @@ export class OrcaAgentStore {
     if (!main || main.role !== 'main' || !this.get(main.id)) {
       throw new Error('등록된 Main에서만 작업을 시작할 수 있습니다.');
     }
-    const root = runGit(main.projectRoot, 'rev-parse', '--show-toplevel');
+    const root = projectRootOf(main.projectRoot);
     if (root !== main.projectRoot) throw new Error('Git 프로젝트 정체성이 변경됐습니다.');
     const id = randomUUID();
     const branch = workspace === 'worktree'
