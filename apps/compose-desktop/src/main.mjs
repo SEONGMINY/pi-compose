@@ -1,4 +1,5 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { ModelRuntime, readStoredCredential } from '@earendil-works/pi-coding-agent';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AgentRegistry } from '@pi-compose/core/agent-registry';
@@ -10,6 +11,9 @@ let registry;
 let terminals;
 let quitAuthorized = false;
 let stopping = false;
+let authRuntime;
+let authLoginPending = false;
+let codeResolve = null;
 
 const send = (channel, payload) => {
   if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) {
@@ -40,6 +44,11 @@ function createWindow() {
 app.whenReady().then(() => {
   registry = new AgentRegistry(join(app.getPath('userData'), 'compose'));
   terminals = new TerminalProcesses(registry, change, (event) => send('compose:terminal-event', event));
+  // Only real Pi Extension lifecycle facts are shown, never inferred from terminal output.
+  const activityTimer = setInterval(() => {
+    if (terminals.runningCount() > 0 && window && !window.isDestroyed()) change();
+  }, 1500);
+  app.once('will-quit', () => clearInterval(activityTimer));
   ipcMain.handle('compose:state', () => terminals.snapshot());
   ipcMain.handle('compose:choose-project', async () => {
     const options = { properties: ['openDirectory'], title: 'Git 프로젝트 선택' };
@@ -50,6 +59,54 @@ app.whenReady().then(() => {
     const state = registry.selectProject(picked.filePaths[0]);
     change();
     return state;
+  });
+  ipcMain.handle('compose:switch-project', (_event, path) => {
+    const state = registry.switchProject(path);
+    change();
+    return state;
+  });
+  ipcMain.handle('compose:context', (_event, id) => registry.context(id));
+  ipcMain.handle('compose:auth-status', () => ({
+    connected: Boolean(readStoredCredential('openai-codex')),
+    provider: 'openai-codex',
+  }));
+  ipcMain.handle('compose:auth-login', async () => {
+    if (authLoginPending) throw new Error('이미 로그인이 진행 중입니다.');
+    authLoginPending = true;
+    try {
+      authRuntime ??= await ModelRuntime.create({ refreshOnCreate: false });
+      await authRuntime.login('openai-codex', 'oauth', {
+        prompt: prompt => {
+          if (prompt.type === 'select') return Promise.resolve('browser');
+          // For callbacks blocked by local port ownership, request the redirect URL in our own UI.
+          return new Promise((resolve, reject) => {
+            codeResolve = { resolve, reject };
+            send('compose:auth-event', { type: 'prompt', message: prompt.message });
+            if (prompt.signal) {
+              prompt.signal.addEventListener('abort', () => {
+                if (codeResolve?.resolve === resolve) codeResolve = null;
+                reject(new Error('인증 입력이 취소됐습니다.'));
+              }, { once: true });
+            }
+          });
+        },
+        notify: event => {
+          if (event.type === 'auth_url') void shell.openExternal(event.url);
+          send('compose:auth-event', event);
+        },
+      }, { agentName: 'Pi Compose' });
+      send('compose:auth-event', { type: 'success', message: 'OpenAI 로그인이 완료됐습니다.' });
+      return { connected: true };
+    } catch (error) {
+      send('compose:auth-event', { type: 'error', message: error instanceof Error ? error.message : String(error) });
+      throw error;
+    } finally { authLoginPending = false; codeResolve = null; }
+  });
+  ipcMain.handle('compose:auth-code', (_event, code) => {
+    if (!codeResolve) throw new Error('인증 코드를 요청하지 않았습니다.');
+    const pending = codeResolve;
+    codeResolve = null;
+    pending.resolve(code);
   });
   ipcMain.handle('compose:create-main', (_event, title) => {
     const result = registry.createMain(title);

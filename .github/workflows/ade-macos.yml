@@ -1,0 +1,27 @@
+name: ADE macOS build
+
+on:
+  pull_request:
+    paths:
+      - 'packages/compose-core/**'
+      - 'packages/compose-workbench/**'
+      - 'apps/compose-desktop/**'
+      - 'package.json'
+      - '.github/workflows/ade-macos.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies and rebuild native PTY
+        run: npm install --no-audit --no-fund
+      - name: Type-check UI and verify runtime JS syntax
+        run: npm run ade:check
+      - name: Build Electron renderer with Ghostty WebAssembly
+        run: npm run ade:build
