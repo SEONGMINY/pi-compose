@@ -16,6 +16,8 @@ export function TerminalPane({ id, running, bridge }: {
 }) {
   const node = useRef<HTMLDivElement>(null);
   const [loadError, setLoadError] = useState('');
+  const runningRef = useRef(running);
+  useEffect(() => { runningRef.current = running; }, [running]);
   useEffect(() => {
     const host = node.current;
     if (!host) return;
@@ -27,6 +29,8 @@ export function TerminalPane({ id, running, bridge }: {
     let fit: FitAddon | null = null;
     let inputDispose: { dispose(): void } | null = null;
     let resizeDispose: { dispose(): void } | null = null;
+    let imeObserver: MutationObserver | null = null;
+    let removeIme: (() => void) | null = null;
 
     const deliver = (event: { seq?: number; data?: string }) => {
       if (!terminal || !event.data) return;
@@ -51,6 +55,36 @@ export function TerminalPane({ id, running, bridge }: {
         fit = new FitAddon();
         terminal.loadAddon(fit);
         terminal.open(host);
+        // Chromium may insert a second visible Hangul glyph into Ghostty's
+        // contenteditable parent after compositionend; only the PTY echo belongs
+        // in the canvas. Preserve Ghostty's canvas and hidden textarea.
+        const inputHost = terminal.element;
+        if (inputHost) {
+          const cleanup = () => {
+            for (const child of [...inputHost.childNodes]) {
+              if (child.nodeType === Node.TEXT_NODE ||
+                  (child instanceof HTMLElement && !['CANVAS','TEXTAREA'].includes(child.tagName))) {
+                child.parentNode?.removeChild(child);
+              }
+            }
+          };
+          let composing = false;
+          const onStart = () => { composing = true; };
+          const onEnd = () => {
+            composing = false;
+            queueMicrotask(cleanup);
+            requestAnimationFrame(cleanup);
+            if (terminal?.textarea) terminal.textarea.value = '';
+          };
+          inputHost.addEventListener('compositionstart', onStart);
+          inputHost.addEventListener('compositionend', onEnd);
+          imeObserver = new MutationObserver(() => { if (!composing) cleanup(); });
+          imeObserver.observe(inputHost, { childList: true, characterData: true });
+          removeIme = () => {
+            inputHost.removeEventListener('compositionstart', onStart);
+            inputHost.removeEventListener('compositionend', onEnd);
+          };
+        }
         inputDispose = terminal.onData(data => bridge.write(id, data));
         resizeDispose = terminal.onResize(({ cols, rows }) => bridge.resize(id, cols, rows));
         const snapshot = await bridge.attach(id);
@@ -63,7 +97,7 @@ export function TerminalPane({ id, running, bridge }: {
         fit.fit();
         fit.observeResize();
         bridge.resize(id, terminal.cols, terminal.rows);
-        if (running) terminal.focus();
+        if (runningRef.current) terminal.focus();
       } catch (error) {
         if (!disposed) setLoadError(error instanceof Error ? error.message : String(error));
       }
@@ -74,11 +108,13 @@ export function TerminalPane({ id, running, bridge }: {
       off();
       inputDispose?.dispose();
       resizeDispose?.dispose();
+      removeIme?.();
+      imeObserver?.disconnect();
       fit?.dispose();
       terminal?.dispose();
       host.replaceChildren();
     };
-  }, [bridge, id, running]);
+  }, [bridge, id]);
 
   return <div className="terminal-wrapper">
     <div className="terminal-host" ref={node}/>
