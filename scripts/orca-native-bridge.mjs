@@ -68,7 +68,7 @@ async function run(command,args) {
     return store.list().filter(item=>item.projectRoot===projectRoot)
       .map(item=>({id:item.id,title:item.title,role:item.role,
         parentMainId:item.parentMainId||null,cwd:item.cwd,workspace:item.workspace||'shared',
-        sessionId:item.sessionId,launcher:item.launcher||null,
+        sessionId:item.sessionId,cwd:item.cwd,launcher:item.launcher||null,
         orcaTabId:item.orcaTabId||null,orcaWorktreeId:item.orcaWorktreeId||null,
         ...(item.role==='work'?{proof:store.inspect(item.id).fork}:{}),
         state:item.state||'prepared'}));
