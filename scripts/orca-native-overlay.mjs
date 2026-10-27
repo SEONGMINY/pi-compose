@@ -35,6 +35,14 @@ const patches = [
     secondBefore: '      <NewWorkspaceButton preserveWorkspaceBoardOpen />',
     secondAfter: '      <PiComposeMenu />\n      <NewWorkspaceButton preserveWorkspaceBoardOpen />'
   }
+  ,{
+    path: 'src/renderer/src/components/sidebar/sidebar-header-actions.tsx',
+    before: "    openWorkspaceCreationComposerWithTourHandoff()",
+    after: "    window.dispatchEvent(new Event('pi-compose:new'))",
+    secondBefore: "const label = translate('auto.components.sidebar.SidebarHeader.92154beb7e', 'New workspace')",
+    secondAfter: "const label = '새 작업 또는 Agent 만들기'"
+  }
+
 ]
 
 const additions = [
