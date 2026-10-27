@@ -1,7 +1,7 @@
 export type DiagnosticEvent = 
  | 'setup.started' | 'setup.component' | 'setup.finished' | 'setup.hook_prompted'
  | 'command.entered' | 'command.invalid' | 'command.finished'
- | 'launch.started' | 'launch.approval' | 'launch.finished' | 'launch.agent_linked' | 'launch.context_linked' | 'launch.agent_started' | 'launch.stage'
+ | 'launch.started' | 'launch.approval' | 'launch.finished' | 'launch.agent_linked' | 'launch.context_linked' | 'launch.agent_started' | 'launch.prompt_observed' | 'launch.response_observed' | 'launch.stage'
  | 'navigation.opened' | 'navigation.selected' | 'navigation.finished' | 'navigation.detail'
  | 'switch.started' | 'switch.finished' | 'sessions.opened' | 'sessions.listed' | 'sessions.finished'
  | 'handoff.started' | 'handoff.finished' | 'verify.started' | 'verify.finished'
