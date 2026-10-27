@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { diagnosticEvent, diagnosticStatus, discloseDiagnostics, startFlow, finishFlow } from '../src/diagnostics.mjs';
+import { installedProvenance, installedExecutables } from '../src/provenance.mjs';
 
 const agentDir = () => {
   const custom = process.env.PI_CODING_AGENT_DIR;
@@ -84,7 +85,16 @@ export function printDoctor(root) {
   const s = inspectSetup(root,{versions:true});
   let pkgVersion = 'unknown';
   try { pkgVersion = JSON.parse(readFileSync(join(root,'package.json'),'utf8')).version; } catch {}
-  console.log('Pi Compose version: ' + pkgVersion + ' (Git SHA: see npm install source)');
+  const build=installedProvenance(root);
+  console.log('Pi Compose version: ' + pkgVersion + ' | installed commit: ' + (build.revision || 'UNKNOWN') + ' | provenance: ' + build.origin);
+  console.log('Installed package root: ' + build.packageRoot + (build.ref ? ' | source ref: ' + build.ref : ''));
+  const executables=installedExecutables();
+  for(const entry of executables) console.log('PATH pic: '+entry.command+' -> '+entry.path);
+  if (executables.length > 1) console.log('WARNING: Multiple different pic executables exist on PATH; inspect the one actually invoked.');
+  if (!build.revision) console.log('WARNING: Commit cannot be verified. Use the pinned installer or run inside a Git checkout. An npm git URL alone is NOT proof of the installed revision.');
+  console.log('Main Extension path: ' + join(build.packageRoot,'extensions/compose.ts'));
+  console.log('Child navigation path: ' + join(build.packageRoot,'packages/navigation/extensions/navigator.ts'));
+  console.log('Run /compose version inside EACH currently running Pi to check its loaded Extension path and process age.');
   console.log('Node: '+s.node+' | Pi: '+(s.pi||'missing')+' | tmux: '+(s.tmux||'missing')+' | workmux: '+(s.workmux||'missing'));
   const [nodeMajor, nodeMinor] = process.versions.node.split('.').map(Number);
   if (nodeMajor < 22 || (nodeMajor === 22 && nodeMinor < 19))
