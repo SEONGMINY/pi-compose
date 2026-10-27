@@ -14,7 +14,7 @@ import { DEFAULT_DELEGATION, proposedBranch } from '../src/delegation-defaults.t
 
 const baseExtension = fileURLToPath(import.meta.url);
 const composeModuleLoadedAt = Date.now();
-const loadedComposeProvenance = activeExtensionReport(baseExtension, {core:true,startedAt:composeModuleLoadedAt});
+const loadedComposeProvenance = activeExtensionReport(baseExtension, {mode:process.env.PIC_COMPOSE_MAIN==='1'?'main-core':'child-core',startedAt:composeModuleLoadedAt});
 
 // Fixed diagnostic categories. Never export stderr, session paths or the task prompt.
 function failureKind(error: unknown, stage: string): string {
@@ -198,7 +198,7 @@ export default function composeExtension(pi: ExtensionAPI): void {
         return;
       }
       if (subcommand === 'version') {
-        const currentFile = activeExtensionReport(baseExtension, {core:true,startedAt:composeModuleLoadedAt});
+        const currentFile = activeExtensionReport(baseExtension, {mode:process.env.PIC_COMPOSE_MAIN==='1'?'main-core':'child-core',startedAt:composeModuleLoadedAt});
         const details = versionReport({...loadedComposeProvenance,modifiedAfterLoad:currentFile.modifiedAfterLoad,
           modifiedAt:currentFile.modifiedAt});
         if (ctx.hasUI) await ctx.ui.confirm('현재 Pi 프로세스 · 실제 로드된 Extension',details);
