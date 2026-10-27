@@ -13,7 +13,12 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --test test/*.test.ts test/*.test.mjs",
-    "check": "npm run typecheck && npm test"
+    "check": "npm run typecheck && npm test",
+    "ade:dev": "concurrently -k \"npm run ade:ui\" \"wait-on http://127.0.0.1:5173 && npm run ade:desktop\"",
+    "ade:ui": "npm run dev --workspace=@pi-compose/workbench",
+    "ade:desktop": "npm run dev --workspace=@pi-compose/desktop",
+    "ade:build": "npm run build --workspace=@pi-compose/workbench",
+    "ade:smoke": "node scripts/ade-fork-smoke.mjs"
   },
   "pi": {
     "extensions": [
@@ -32,7 +37,9 @@
     "@earendil-works/pi-coding-agent": "1.4.0",
     "@types/node": "^22.18.0",
     "typescript": "~5.8.3",
-    "@earendil-works/pi-ai": "1.4.0"
+    "@earendil-works/pi-ai": "1.4.0",
+    "concurrently": "^9.0.0",
+    "wait-on": "^8.0.0"
   },
   "peerDependenciesMeta": {
     "@earendil-works/pi-coding-agent": {
@@ -41,5 +48,10 @@
     "@earendil-works/pi-ai": {
       "optional": true
     }
-  }
+  },
+  "workspaces": [
+    "packages/compose-core",
+    "packages/compose-workbench",
+    "apps/compose-desktop"
+  ]
 }
