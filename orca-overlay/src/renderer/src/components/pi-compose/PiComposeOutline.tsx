@@ -32,6 +32,8 @@ function existingTab(agent: PiComposeListRecord) {
 export function PiComposeOutline(): React.JSX.Element | null {
   const active = useActiveWorktree()
   const worktreeId = useAppStore(s => s.activeWorktreeId)
+  // React to Orca tab moves/closes without restarting the underlying Pi process.
+  useAppStore(s => s.unifiedTabsByWorktree)
   const [agents, setAgents] = useState<PiComposeListRecord[]>([])
   const [busyId, setBusyId] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -69,26 +71,43 @@ export function PiComposeOutline(): React.JSX.Element | null {
         if (!agent.launcher || !agent.cwd) {
           throw new Error('이 Agent의 실행 정보가 없습니다. 기존 세션을 삭제하지 않았습니다.')
         }
+        let targetId = worktreeId
+        if (agent.workspace === 'worktree') {
+          await useAppStore.getState().fetchAllWorktrees({ hydrationPurge: 'defer' })
+          const target = useAppStore.getState().allWorktrees().find(item => item.path === agent.cwd)
+          if (!target) {
+            throw new Error('이 Agent의 실제 Git Worktree가 Orca 목록에 없습니다. 프로젝트에서 해당 폴더를 가져온 뒤 다시 열어주세요. 세션은 그대로 보존됩니다.')
+          }
+          targetId = target.id
+        }
+        if (activateAndRevealWorkspace(targetId) === false) {
+          throw new Error('Orca 작업 공간을 열 수 없습니다. Pi 세션은 보존됩니다.')
+        }
         // Launch the SAME Pi session (with the prepared script's one-shot guard),
         // never fork a second time when opening a row from the sidebar.
         const started = await new Promise<boolean>(resolve => {
-          createNewTerminalTab(worktreeId,undefined,{
+          createNewTerminalTab(targetId,undefined,{
             startupCwd:agent.cwd,
             command:'sh ' + quote(agent.launcher!),
             onSettled:resolve
           })
         })
         if (!started) throw new Error('Orca 탭을 열지 못했습니다. Pi 세션은 보존됩니다.')
-        owningWorktree=worktreeId
-        tab=useAppStore.getState().getActiveTab(worktreeId)
+        owningWorktree=targetId
+        tab=useAppStore.getState().getActiveTab(targetId)
         if (!tab || tab.contentType !== 'terminal') {
           throw new Error('열린 터미널의 식별자를 확인할 수 없습니다.')
         }
         useAppStore.getState().setTabCustomLabel(tab.id,label(agent))
-        await window.api.piCompose.attach(cwd,agent.id,tab.id,worktreeId)
+        await window.api.piCompose.attach(cwd,agent.id,tab.id,targetId)
         await refresh()
       }
       if (!owningWorktree || !tab) throw new Error('기존 터미널 연결을 확인할 수 없습니다.')
+      if (agent.workspace === 'worktree' &&
+          !useAppStore.getState().allWorktrees().some(item =>
+            item.id === owningWorktree && item.path === agent.cwd)) {
+        throw new Error('이전 버전에서 Agent 탭이 다른 작업 공간에 연결됐습니다. 기존 탭은 유지하되 새 Pi 프로세스를 중복 시작하지 않습니다.')
+      }
       if (split && owningWorktree !== worktreeId) {
         throw new Error('다른 Orca Worktree의 탭은 현재 화면으로 직접 옮길 수 없습니다. 먼저 해당 작업 공간으로 이동하세요.')
       }
@@ -155,9 +174,15 @@ export function PiComposeOutline(): React.JSX.Element | null {
                 onClick={()=>void showAgent(child,false)}>
                 {child.title}
               </button>
-              <button type="button" className="shrink-0 rounded border border-worktree-sidebar-border px-1.5 py-0.5 text-[10px] opacity-80 hover:opacity-100"
-                title="기존 Agent 터미널을 오른쪽으로 분할" onClick={()=>void showAgent(child,true)}
-                disabled={busyId===child.id}>분할</button>
+              <button type="button" className="shrink-0 rounded border border-worktree-sidebar-border px-1.5 py-0.5 text-[10px] opacity-80 hover:opacity-100 disabled:opacity-30"
+                title={child.orcaWorktreeId===worktreeId && existingTab(child) &&
+                  canMoveTabToNewPaneColumn(child.orcaTabId!, existingTab(child)!.groupId)
+                  ? '실행 중인 기존 탭을 오른쪽으로 분할'
+                  : '이 작업 공간의 탭을 둘 이상 연 뒤, Orca 탭을 드래그하거나 분할 메뉴를 사용하세요'}
+                onClick={()=>void showAgent(child,true)}
+                disabled={busyId===child.id || child.orcaWorktreeId!==worktreeId ||
+                  !existingTab(child) ||
+                  !canMoveTabToNewPaneColumn(child.orcaTabId!,existingTab(child)!.groupId)}>분할</button>
             </div>)}
             {children.length===0 && <p className="p-1 text-[10px] text-muted-foreground">Work/Support 없음 · +에서 만들기</p>}
           </div>}
