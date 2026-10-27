@@ -59,7 +59,7 @@ function Composer({ session, send, disabled }: {
     <textarea aria-label={session.role === 'main' ? 'Main에게 메시지' : 'Child에게 메시지'}
       placeholder={session.role === 'main' ? '요구사항과 설계를 논의하세요…' : '이 Child에게만 수정 지시하기…'}
       value={value} rows={3} onChange={(event) => setValue(event.target.value)}
-      onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); submit(); } }} />
+      onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); } }} />
     <div className="composer-bottom">
       <span>Enter 전송 · Shift+Enter 줄바꿈</span>
       <button className="primary" disabled={disabled || !value.trim()} onClick={submit}>
