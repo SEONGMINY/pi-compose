@@ -17,6 +17,8 @@ export class AgentRegistry {
   constructor(dataDir) {
     mkdirSync(dataDir, { recursive: true });
     this.path = join(dataDir, 'agents.json');
+    this.observationDir = join(dataDir, 'observations');
+    mkdirSync(this.observationDir, { recursive: true });
     this.project = null;
     this.agents = [];
     if (existsSync(this.path)) {
@@ -69,12 +71,24 @@ export class AgentRegistry {
     }
     return file || null;
   }
+  observationFile(id) { return join(this.observationDir, id + '.json'); }
+  assertCurrentMain(main) {
+    const observation = this.observationFile(main.id);
+    if (!existsSync(observation)) return;
+    let active;
+    try { active = JSON.parse(readFileSync(observation, 'utf8')); }
+    catch { throw new Error('현재 Main의 Pi 세션 출처를 확인할 수 없습니다.'); }
+    if (active.sessionId !== main.sessionId || resolve(active.cwd) !== resolve(main.cwd)) {
+      throw new Error('Main 터미널에서 다른 Pi 대화로 전환됐습니다. 잘못된 컨텍스트를 Fork하지 않도록 위임을 중단했습니다. 원래 대화로 돌아오거나 ADE에서 별도 Main을 생성하세요.');
+    }
+  }
   createWork(mainId, task, workspace = 'worktree') {
     const main = this.get(mainId);
     if (main.role !== 'main') throw new Error('Main Agent의 세션만 이어받을 수 있습니다.');
     if (!task?.trim()) throw new Error('작업 지시를 입력하세요.');
     if (!['worktree', 'shared'].includes(workspace)) throw new Error('잘못된 작업 공간입니다.');
     // Never infer a latest session; the exact selected Main must be saved first.
+    this.assertCurrentMain(main);
     const source = this.locateSession(main);
     if (!source || !existsSync(source)) {
       throw new Error('Main Agent에서 먼저 Pi 대화를 저장한 뒤 작업을 위임하세요.');
