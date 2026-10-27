@@ -96,6 +96,26 @@ export class OrcaAgentStore {
     }
     return main;
   }
+  registerExistingMain({cwd, sessionFile, sessionId, title, launcherPath}) {
+    const main = this.registerMain({cwd,sessionFile,sessionId,title});
+    if (main.launcher && existsSync(main.launcher)) return main;
+    const scriptPath = join(this.launchersDir, sessionId + '.sh');
+    const command = [q(launcherPath.piBinary || 'pi'),
+      '--extension', q(resolve(launcherPath.extension)),
+      '--session', q(resolve(sessionFile))].join(' ');
+    if (!existsSync(scriptPath)) {
+      writeFileSync(scriptPath, '#!/bin/sh\ncd ' + q(resolve(cwd)) +
+        '\nexec ' + command + '\n', { mode: 0o700, flag: 'wx' });
+    } else {
+      const actual=readFileSync(scriptPath,'utf8');
+      if (!actual.includes(q(resolve(sessionFile)))) {
+        throw new Error('기존 Main 실행 파일이 다른 Pi 세션을 가리킵니다. 덮어쓰지 않습니다.');
+      }
+    }
+    main.launcher=scriptPath;
+    atomicJSON(this.path(main.id),main);
+    return main;
+  }
   registerMain({ cwd, sessionFile, sessionId, title }) {
     if (!sessionFile || !existsSync(sessionFile)) {
       throw new Error('Main 대화를 Pi에 먼저 저장하세요. 빈 대화는 Fork 출처가 될 수 없습니다.');
@@ -107,8 +127,12 @@ export class OrcaAgentStore {
     const id = 'main-' + sessionId;
     const existing = this.get(id);
     if (existing) {
-      if (existing.role !== 'main' || existing.sessionFile !== sourceFile ||
+      if (existing.role !== 'main' || (existing.sessionFile && existing.sessionFile !== sourceFile) ||
           existing.projectRoot !== root) throw new Error('Main 세션 식별자 충돌입니다.');
+      if (!existing.sessionFile) {
+        existing.sessionFile=sourceFile;
+        atomicJSON(this.path(existing.id),existing);
+      }
       return existing;
     }
     return this.put({
