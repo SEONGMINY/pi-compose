@@ -66,6 +66,8 @@ app.whenReady().then(() => {
     return state;
   });
   ipcMain.handle('compose:context', (_event, id) => registry.context(id));
+  ipcMain.handle('compose:mark-context', (_event, id, entry, kind) => registry.markContext(id, entry, kind));
+  ipcMain.handle('compose:unmark-context', (_event, id, entry) => registry.unmarkContext(id, entry));
   ipcMain.handle('compose:auth-status', () => ({
     connected: Boolean(readStoredCredential('openai-codex')),
     provider: 'openai-codex',
