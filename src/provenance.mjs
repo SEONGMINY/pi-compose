@@ -35,7 +35,7 @@ export function installedProvenance(root) {
   return {packageRoot, version, revision, ref, origin};
 }
 
-export function activeExtensionReport(extensionFile, {root, core = false, startedAt} = {}) {
+export function activeExtensionReport(extensionFile, {root, mode = 'unknown', startedAt} = {}) {
   const path = rooted(extensionFile);
   const source = installedProvenance(root || dirname(dirname(path)));
   let modifiedAfterLoad = false;
@@ -45,7 +45,7 @@ export function activeExtensionReport(extensionFile, {root, core = false, starte
     modifiedAfterLoad = Boolean(startedAt && statSync(path).mtimeMs > startedAt);
   } catch {}
   return {
-    ...source, extensionFile:path, processId:process.pid, mode:core?'core':'navigation',
+    ...source, extensionFile:path, processId:process.pid, mode,
     loadedAt:new Date(startedAt || Date.now()).toISOString(), modifiedAt, modifiedAfterLoad,
   };
 }
