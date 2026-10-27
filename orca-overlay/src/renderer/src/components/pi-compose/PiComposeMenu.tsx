@@ -6,7 +6,7 @@ import { createNewTerminalTab } from '@/components/terminal/terminal-tab-create'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import type { PiComposeRecord, PiComposeResult } from '../../../../preload/api/pi-compose-bridge'
+import type { PiComposeListRecord, PiComposeResult } from '../../../../preload/api/pi-compose-bridge'
 
 type Role = 'main' | 'work' | 'support'
 const ROLES: ReadonlyArray<{ id: Role; title: string; description: string }> = [
@@ -27,7 +27,8 @@ export function PiComposeMenu(): React.JSX.Element {
   const activeWorktree = useActiveWorktree()
   const [open, setOpen] = useState(false)
   const [role, setRole] = useState<Role>('main')
-  const [mains, setMains] = useState<PiComposeRecord[]>([])
+  const [agents, setAgents] = useState<PiComposeListRecord[]>([])
+  const mains = agents.filter((record) => record.role === 'main')
   const [mainId, setMainId] = useState('')
   const [title, setTitle] = useState('')
   const [task, setTask] = useState('')
@@ -40,8 +41,8 @@ export function PiComposeMenu(): React.JSX.Element {
     if (!cwd) return
     try {
       const list = await window.api.piCompose.list(cwd)
-      const mainRecords = list.filter((record) => record.role === 'main') as PiComposeRecord[]
-      setMains(mainRecords)
+      const mainRecords = list.filter((record) => record.role === 'main')
+      setAgents(list)
       setMainId((previous) =>
         mainRecords.some((record) => record.id === previous) ? previous : mainRecords[0]?.id ?? '')
     } catch (cause) {
@@ -172,6 +173,27 @@ export function PiComposeMenu(): React.JSX.Element {
               Main의 이후 대화나 Work의 실행 로그는 자동 전달되지 않습니다.
             </p>}
           </>}
+          {agents.length > 0 && <details className="rounded-lg border border-border bg-muted/20 p-3 text-xs">
+            <summary className="cursor-pointer font-medium">이 프로젝트의 Agent · Context 출처</summary>
+            <div className="mt-3 space-y-3">
+              {mains.map((main) => <div key={main.id} className="space-y-1 rounded-md border border-border/60 p-2">
+                <div className="font-semibold">Main Agent · {main.title}</div>
+                <p className="text-muted-foreground">독립 Pi 설계 세션 · {main.sessionId}</p>
+                {agents.filter((agent) => agent.parentMainId === main.id).map((agent) =>
+                  <div key={agent.id} className="ml-2 border-l border-border pl-3 py-1">
+                    <div>{agent.role === 'work' ? 'Work Agent' : 'Support Agent'} · {agent.title}</div>
+                    <div className="text-muted-foreground">
+                      {agent.role === 'work'
+                        ? agent.proof?.allMatch
+                          ? '원본 Pi 기록 일치 ' + agent.proof.copied + '/' + agent.proof.expected
+                          : 'Fork 기록을 다시 확인해야 합니다'
+                        : '독립 세션 · Main 대화 상속 없음'}
+                    </div>
+                  </div>)}
+              </div>)}
+            </div>
+            <p className="mt-2 text-muted-foreground">기록의 일치는 모델의 의미 이해나 구현 완료를 뜻하지 않습니다.</p>
+          </details>}
           {error && <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
             {error}
           </div>}
