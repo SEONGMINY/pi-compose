@@ -18,11 +18,10 @@ export function ProjectSidebar({
   onProject, onAddProject, onMain, onAgent, onContext, onNewMain,
 }: SidebarProps) {
   const [query, setQuery] = useState('');
-  const [expanded, setExpanded] = useState<string[]>([]);
-  const [scope, setScope] = useState<'workspace'|'all'>('workspace');
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [searchOpen, setSearchOpen] = useState(false);
-  const toggle = (id: string) => setExpanded(current =>
-    current.includes(id) ? current.filter(x=>x!==id) : [...current,id]);
+  const toggle = (id: string, defaultOpen: boolean) => setExpanded(current =>
+    ({ ...current, [id]: !(current[id] ?? defaultOpen) }));
   const matching = useMemo(() => {
     const q=query.trim().toLowerCase();
     if (!q) return agents;
@@ -37,7 +36,7 @@ export function ProjectSidebar({
       </button>
       {searchOpen && <input autoFocus aria-label="Agent 검색" placeholder="프로젝트, 대화, 작업 검색"
         value={query} onChange={e=>setQuery(e.target.value)}/>}
-      <button className="current" onClick={()=>{setScope('workspace');setSearchOpen(false);}}>
+      <button className="current" onClick={()=>{setSearchOpen(false);setQuery('');}}>
         <span aria-hidden="true">☷</span> 작업
       </button>
     </div>
@@ -61,10 +60,6 @@ export function ProjectSidebar({
               <small>{projectAgents.length}</small></button>
           </div>
           {isCurrent && <>
-            <div className="sidebar-workspace-switch">
-              <button className={scope==='workspace'?'active':''} onClick={()=>setScope('workspace')}>대화별</button>
-              <button className={scope==='all'?'active':''} onClick={()=>setScope('all')}>전체</button>
-            </div>
             {!mains.length && <div className="sidebar-guide">
               <p>새 Main Agent에서 설계를 시작하세요.</p>
               <button onClick={onNewMain}>Main Agent 만들기</button>
@@ -72,7 +67,7 @@ export function ProjectSidebar({
             {mains.map(main=>{
               const children=projectAgents.filter(a=>a.relatedMainId===main.id);
               const isSelected=main.id===selectedMain;
-              const open=isSelected||expanded.includes(main.id)||Boolean(query)||scope==='all';
+              const open=Boolean(query)||(expanded[main.id] ?? isSelected);
               const running=children.filter(a=>a.processStatus==='running').length;
               const pinned=(main.pins||[]).length;
               return <div className={'main-workspace '+(isSelected?'selected':'')} key={main.id}>
@@ -84,7 +79,7 @@ export function ProjectSidebar({
                   <button className="main-workspace-context" onClick={()=>onContext(main.id)}
                     title="실제 원본 대화와 핵심 결정 보기">맥락</button>
                 </div>
-                <button className="main-workspace-toggle" onClick={()=>toggle(main.id)}
+                <button className="main-workspace-toggle" onClick={()=>toggle(main.id,isSelected)}
                   aria-expanded={open}><span>{children.length}개 Agent · 실행 중 {running}개</span>
                   {pinned>0 && <em>표시한 결정 {pinned}</em>}
                   <span>{open?'⌄':'›'}</span></button>
