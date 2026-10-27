@@ -56,7 +56,15 @@ const patches = [
     before: "import { openWorkspaceCreationComposerWithTourHandoff } from '../contextual-tours/workspace-creation-tour-handoff'",
     after: "// Pi Compose integrates the original +; the native Orca workspace flow remains in its dialog.",
     secondBefore: "const shortcutLabel = formatOptionalPrimaryShortcutLabel('workspace.create', keybindings)",
-    secondAfter: "const shortcutLabel = undefined // the + action now opens the unified Compose/Orca chooser"
+    secondAfter: "const shortcutLabel = '' // the + action now opens the unified Compose/Orca chooser"
+  }
+
+  ,{
+    path: 'src/renderer/src/components/sidebar/sidebar-header-actions.tsx',
+    before: "import { formatOptionalPrimaryShortcutLabel } from '@/hooks/useShortcutLabel'",
+    after: "// Pi Compose '+' opens the combined Agent and Orca workspace chooser.",
+    secondBefore: "  const keybindings = useAppStore((s) => s.keybindings)",
+    secondAfter: "  // Workspace creation shortcut remains Orca-owned; button now opens Pi Compose."
   }
 
 ]
