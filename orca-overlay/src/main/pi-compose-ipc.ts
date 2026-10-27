@@ -3,16 +3,19 @@ import { spawn } from 'node:child_process'
 import { resolve } from 'node:path'
 
 type NativeRole = 'main' | 'work' | 'support'
-type NativeCommand = 'list' | 'sessions' | 'import' | NativeRole
+type NativeCommand = 'list' | 'sessions' | 'import' | 'attach' | NativeRole
 export type NativeComposeRequest = {
   cwd: string
   title?: string
   sessionId?: string
+  id?: string
+  tabId?: string
+  worktreeId?: string
   mainId?: string
   task?: string
   workspace?: 'shared' | 'worktree'
 }
-const VALID_COMMANDS = new Set<NativeCommand>(['list', 'sessions', 'import', 'main', 'work', 'support'])
+const VALID_COMMANDS = new Set<NativeCommand>(['list', 'sessions', 'import', 'attach', 'main', 'work', 'support'])
 const TIMEOUT_MS = 90_000
 
 /**
