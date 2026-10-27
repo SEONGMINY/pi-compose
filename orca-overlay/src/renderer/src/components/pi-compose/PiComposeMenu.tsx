@@ -45,6 +45,21 @@ export function PiComposeMenu(): React.JSX.Element {
     return () => window.removeEventListener('pi-compose:new',openMenu);
   }, [])
 
+  useEffect(() => {
+    if (!cwd) return
+    const key = 'pi-compose.first-open.' + cwd
+    try { if (window.localStorage.getItem(key) === 'shown') return }
+    catch { return }
+    let cancelled = false
+    void window.api.piCompose.list(cwd).then(items => {
+      if (cancelled || items.some(item => item.role === 'main')) return
+      try { window.localStorage.setItem(key, 'shown') } catch { return }
+      setRole('main')
+      setOpen(true)
+    }).catch(() => { /* the visible sidebar supplies a retry path */ })
+    return () => { cancelled = true }
+  }, [cwd])
+
   const refresh = async () => {
     if (!cwd) return
     try {
