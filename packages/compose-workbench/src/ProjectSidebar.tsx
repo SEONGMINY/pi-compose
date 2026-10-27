@@ -50,7 +50,8 @@ export function ProjectSidebar({
       </div>}
       {projects.filter(path => !query || projectName(path).toLowerCase().includes(query.toLowerCase()) ||
         matching.some(a => (a.project || a.cwd) === path)).map(path=>{
-        const projectAgents=matching.filter(a => (a.project || a.cwd)===path);
+        const projectMatch=Boolean(query.trim()) && projectName(path).toLowerCase().includes(query.trim().toLowerCase());
+        const projectAgents=(projectMatch ? agents : matching).filter(a => (a.project || a.cwd)===path);
         const mains=projectAgents.filter(a=>a.role==='main');
         const isCurrent=path===currentProject;
         return <div className="project-tree" key={path}>
