@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('compose', Object.freeze({
   chooseProject: () => ipcRenderer.invoke('compose:choose-project'),
   switchProject: path => ipcRenderer.invoke('compose:switch-project', path),
   context: id => ipcRenderer.invoke('compose:context', id),
+  markContext: (id, entry, kind) => ipcRenderer.invoke('compose:mark-context', id, entry, kind),
+  unmarkContext: (id, entry) => ipcRenderer.invoke('compose:unmark-context', id, entry),
   authStatus: () => ipcRenderer.invoke('compose:auth-status'),
   authLogin: () => ipcRenderer.invoke('compose:auth-login'),
   authCode: code => ipcRenderer.invoke('compose:auth-code', code),
