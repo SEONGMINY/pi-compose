@@ -27,6 +27,7 @@ const piSessionHeaderSchema = z.object({
   type: z.literal('session'),
   id: z.string().min(1),
   cwd: z.string().min(1),
+  parentSession: z.string().optional(),
 });
 const gitCommitShaSchema = z.string().regex(/^[0-9a-fA-F]{40,64}$/, 'Git returned an invalid commit SHA');
 const gitRootSchema = z.string().min(1, 'Git returned an empty repository root');
@@ -35,7 +36,7 @@ export type LaunchInput = z.infer<typeof launchInputSchema>;
 export type PiSessionHeader = z.infer<typeof piSessionHeaderSchema>;
 export type ProcessResult = { code: number | null; stdout: string; stderr: string };
 export type ProcessRunner = (bin: string, args: string[], options: { cwd: string }) => Promise<ProcessResult>;
-export type SessionSource = { path: string; id: string; cwd: string };
+export type SessionSource = { path: string; id: string; cwd: string; parentSession?: string };
 export type LaunchPlan = {
   context: LaunchInput['context'];
   workspace: LaunchInput['workspace'];
@@ -131,7 +132,11 @@ export async function loadSourceSession(file: string): Promise<SessionSource> {
     `Source Pi session header requires type=session, id and cwd: ${validationError(result.error).message}`,
     result.error.issues,
   );
-  return { path, id: result.data.id, cwd: await realpath(resolve(result.data.cwd)).catch(() => resolve(result.data.cwd)) };
+  return { path, id: result.data.id,
+    cwd: await realpath(resolve(result.data.cwd)).catch(() => resolve(result.data.cwd)),
+    ...(result.data.parentSession ? {parentSession: await realpath(resolve(result.data.parentSession))
+      .catch(() => resolve(result.data.parentSession!))} : {}),
+  };
 }
 
 export async function planLaunch(
