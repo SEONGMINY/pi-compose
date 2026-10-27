@@ -1,0 +1,32 @@
+name: Orca-based Pi Compose context checks
+
+on:
+  push:
+    branches: [feat/orca-upstream-foundation]
+  pull_request:
+    paths:
+      - 'src/orca/**'
+      - 'extensions/orca-compose.ts'
+      - 'scripts/orca-upstream.mjs'
+      - 'bin/pic-orca.mjs'
+      - 'test/orca-foundation.test.mjs'
+      - 'package.json'
+      - '.github/workflows/orca-foundation.yml'
+  workflow_dispatch:
+
+jobs:
+  contract-check:
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Check JavaScript source syntax
+        run: |
+          node --check src/orca/agent-sessions.mjs
+          node --check scripts/orca-upstream.mjs
+          node --check bin/pic-orca.mjs
+      - name: Test exact Fork and Support context isolation
+        run: npm run test:orca
