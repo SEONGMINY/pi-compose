@@ -52,12 +52,24 @@ async function run(command,args) {
         messageCount:session.messageCount, path:session.path,
       }));
   }
+  if (command==='attach') {
+    const id = requiredText(args.id,'Agent ID',48);
+    const existing = store.get(id);
+    if (!existing || gitRoot(args.cwd)!==existing.projectRoot) {
+      throw new Error('다른 프로젝트의 Agent를 연결할 수 없습니다.');
+    }
+    return store.attachTerminal({
+      id,tabId:requiredText(args.tabId,'터미널 ID',100),
+      worktreeId:requiredText(args.worktreeId,'작업 공간 ID',512),
+    });
+  }
   if (command==='list') {
     const projectRoot=gitRoot(requiredText(args.cwd,'프로젝트 경로',2000));
     return store.list().filter(item=>item.projectRoot===projectRoot)
       .map(item=>({id:item.id,title:item.title,role:item.role,
         parentMainId:item.parentMainId||null,cwd:item.cwd,workspace:item.workspace||'shared',
-        sessionId:item.sessionId,
+        sessionId:item.sessionId,launcher:item.launcher||null,
+        orcaTabId:item.orcaTabId||null,orcaWorktreeId:item.orcaWorktreeId||null,
         ...(item.role==='work'?{proof:store.inspect(item.id).fork}:{}),
         state:item.state||'prepared'}));
   }
