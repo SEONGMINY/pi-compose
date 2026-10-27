@@ -347,3 +347,26 @@ export async function reconcileTaskSession(projectRoot:string, taskId:string, ca
   }finally{await unlink(tmp).catch(()=>undefined);}
   return next;
 }
+
+/** Rebind a resumed exact saved Child to a newly observed tmux window.
+ * Old Main locations, source history, and Git worktree identity stay unchanged.
+ */
+export async function relinkResumedTask(root:string,id:string,sessionId:string,
+  sessionFile:string,location:TmuxLocation):Promise<boolean>{
+  const record=(await listTasks(root)).find(x=>x.id===id);
+  if(!record||record.agentSessionId!==sessionId||!record.agentSessionFile
+    ||resolve(record.agentSessionFile)!==resolve(sessionFile)||!validLocation(location))return false;
+  const header=await loadSourceSession(sessionFile).catch(()=>null);
+  if(!header||header.id!==sessionId)return false;
+  const cwd=record.workspace==='worktree'?record.worktreePath:record.launchCwd||record.projectRoot;
+  if(!cwd||resolve(cwd)!==resolve(header.cwd))return false;
+  const file=join(directory(root),id+'.json');
+  const value:unknown=JSON.parse(await readFile(file,'utf8'));
+  if(!isRecord(value)||value.id!==id||value.agentSessionId!==sessionId)return false;
+  const tmp=file+'.'+randomUUID()+'.tmp';
+  try{
+    await writeFile(tmp,JSON.stringify({...value,targetLocation:location}),{mode:0o600,flag:'wx'});
+    await rename(tmp,file);
+  }finally{await unlink(tmp).catch(()=>undefined);}
+  return true;
+}
