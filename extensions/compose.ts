@@ -9,9 +9,11 @@ import { fileURLToPath } from 'node:url';
 import { Text } from '@earendil-works/pi-tui';
 import { approveLaunch, taskName } from './compose-panel.ts';
 import { diagnosticEvent, startFlow, finishFlow } from '../src/diagnostics.mjs';
+import { activeExtensionReport, versionReport } from '../src/provenance.mjs';
 import { DEFAULT_DELEGATION, proposedBranch } from '../src/delegation-defaults.ts';
 
 const baseExtension = fileURLToPath(import.meta.url);
+const composeModuleLoadedAt = Date.now();
 
 // Fixed diagnostic categories. Never export stderr, session paths or the task prompt.
 function failureKind(error: unknown, stage: string): string {
@@ -180,12 +182,18 @@ export default function composeExtension(pi: ExtensionAPI): void {
     description: 'Pi Compose: /compose related agents; /compose launch, /compose monitor, /compose sessions',
     handler: async (args, ctx) => {
       const [subcommand, ...rest] = args.trim().split(/\s+/);
-      const route = ['launch','advanced','preview','monitor','dashboard','sessions','back','resume','work'].includes(subcommand||'') ? subcommand : !subcommand?'home':'invalid';
+      const route = ['launch','advanced','preview','monitor','dashboard','sessions','back','resume','version','work'].includes(subcommand||'') ? subcommand : !subcommand?'home':'invalid';
       const commandFlow=startFlow('command.entered',{source:'slash',data:{route}});
       try {
       if(route==='invalid') diagnosticEvent('command.invalid',{source:'slash',outcome:'failure',data:{route:'invalid'}});
       if (!subcommand || subcommand === 'work') {
         await openHub(ctx);
+        return;
+      }
+      if (subcommand === 'version') {
+        const details = versionReport(activeExtensionReport(baseExtension, {core:true,startedAt:composeModuleLoadedAt}));
+        if (ctx.hasUI) await ctx.ui.confirm('현재 Pi 프로세스 · 실제 로드된 Extension',details);
+        else ctx.ui.notify(details,'info');
         return;
       }
       if (subcommand === 'monitor' || subcommand === 'dashboard') {
