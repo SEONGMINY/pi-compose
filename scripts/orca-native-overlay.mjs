@@ -46,9 +46,9 @@ const patches = [
   ,{
     path: 'src/renderer/src/components/sidebar/index.tsx',
     before: "import WorktreeList from './WorktreeList'",
-    after: "import WorktreeList from './WorktreeList'\\nimport { PiComposeOutline } from '../pi-compose/PiComposeOutline'",
+    after: "import WorktreeList from './WorktreeList'\nimport { PiComposeOutline } from '../pi-compose/PiComposeOutline'",
     secondBefore: '                <StartupWorktreeRefreshStatus />',
-    secondAfter: '                <StartupWorktreeRefreshStatus />\\n                <PiComposeOutline />'
+    secondAfter: '                <StartupWorktreeRefreshStatus />\n                <PiComposeOutline />'
   }
 
 ]
