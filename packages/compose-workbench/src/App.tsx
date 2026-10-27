@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { SplitWorkspace } from './SplitWorkspace';
+import { ProjectSidebar } from './ProjectSidebar';
+import { GitReview, type Review } from './GitReview';
+import { ContextInspector } from './ContextInspector';
 
 export type Role = 'main' | 'work' | 'support';
 type Workspace = 'shared' | 'worktree';
@@ -9,14 +12,20 @@ export type Agent = {
   sourceSession: string | null; sourceEntryId?: string | null; task?: string;
   context?: 'fork' | 'independent'; workspace: Workspace; branch?: string | null;
   processStatus: 'running' | 'stopped';
+  pins?: { entryId: string; category: 'decision'|'constraint' }[];
   activity?: { phase: 'idle' | 'responding' | 'tool' | 'unknown'; tool: string | null; observedAt: number | null } | null;
 };
 type State = { project: string | null; projects: string[]; agents: Agent[] };
 type TerminalEvent = { id: string; seq?: number; data?: string; exit?: boolean };
-type ContextDetail = {
-  title: string; role: Role; task: string | null; sourceSession: string | null;
+export type ContextDetail = {
+  agentId: string; title: string; role: Role; task: string | null; sourceSession: string | null;
   sourceEntryId: string | null; sessionFile: string | null; totalMessages: number;
-  messages: { role: string; text: string }[]; relatedMainTitle: string | null; note: string;
+  messages: { id: string; role: string; text: string }[];
+  pinned: { entryId: string; category: 'decision'|'constraint'; role: string;
+    text: string; includedInAgent: boolean }[];
+  fork: { verified: boolean; parentMatches: boolean; inheritedEntryPresent: boolean;
+    snapshotFound: boolean; explanation: string } | null;
+  relatedMainTitle: string | null; note: string;
 };
 type AuthEvent = { type: string; url?: string; instructions?: string; message?: string };
 export type Bridge = {
@@ -29,7 +38,9 @@ export type Bridge = {
   start(id: string): Promise<{ seq: number; buffer: string; running: boolean }>;
   attach(id: string): Promise<{ seq: number; buffer: string; running: boolean }>;
   stop(id: string): Promise<void>;
-  review(id: string): Promise<{ diff: string; status: string; untracked: string; baseSha: string }>;
+  review(id: string): Promise<Review>;
+  markContext(agentId: string, entryId: string, category: 'decision'|'constraint'): Promise<ContextDetail>;
+  unmarkContext(agentId: string, entryId: string): Promise<ContextDetail>;
   context(id: string): Promise<ContextDetail>;
   write(id: string, data: string): void;
   resize(id: string, cols: number, rows: number): void;
@@ -47,35 +58,6 @@ const roleDesc = {
   support: 'Main을 상속하지 않는 별도 대화로 조사, 테스트, 검증',
 };
 const basename = (path: string) => path.split('/').filter(Boolean).at(-1) || path;
-
-function ContextDrawer({ detail, onClose }: { detail: ContextDetail; onClose(): void }) {
-  return <div className="inspector-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
-    <aside className="context-inspector" aria-label="Agent 컨텍스트 확인">
-      <header><div><small>실제 Pi 세션</small><h2>{detail.title}</h2></div>
-        <button onClick={onClose} aria-label="컨텍스트 창 닫기">×</button></header>
-      <section>
-        <div className="info-heading">{roles[detail.role]}</div>
-        <p>{detail.role === 'main' ? '설계와 의사결정의 원본 대화입니다.' :
-          detail.role === 'work' ? '아래 Main 대화의 저장 기록을 이어받았습니다.' :
-            '기존 Main 대화를 이어받지 않는 독립 컨텍스트입니다.'}</p>
-        {detail.task && <><h3>실제 작업 지시</h3><p className="context-task">{detail.task}</p></>}
-        {detail.relatedMainTitle && <p>관련 Main: <strong>{detail.relatedMainTitle}</strong></p>}
-        {detail.sourceSession && <><h3>Fork 원본</h3><code>{detail.sourceSession}</code>
-          <p>분기 시점 마지막 기록: {detail.sourceEntryId || '미확인'}</p></>}
-        <details><summary>Pi 대화 파일</summary><code>{detail.sessionFile || '아직 저장된 대화가 없습니다.'}</code></details>
-      </section>
-      <section className="history">
-        <div className="info-heading">대화 기록 · {detail.totalMessages}건</div>
-        <p className="fine-print">{detail.note}</p>
-        {detail.messages.length === 0 && <p>아직 저장된 Pi 대화 메시지가 없습니다.</p>}
-        {detail.messages.map((m, i) => <div className="history-entry" key={i}>
-          <span>{m.role === 'user' ? '사용자 입력' : 'Pi 응답'}</span>
-          <p>{m.text}</p>
-        </div>)}
-      </section>
-    </aside>
-  </div>;
-}
 
 function LoginModal({ bridge, onClose }: { bridge: Bridge; onClose(): void }) {
   const [status, setStatus] = useState('인증 상태 확인 중…');
@@ -135,7 +117,7 @@ export function App({ bridge }: { bridge: Bridge }) {
   const [error, setError] = useState('');
   const [inspected, setInspected] = useState<ContextDetail | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
-  const [projectMenu, setProjectMenu] = useState(false);
+  const [reviewId, setReviewId] = useState<string | null>(null);
 
   useEffect(() => {
     const off = bridge.onState(setState);
@@ -175,10 +157,10 @@ export function App({ bridge }: { bridge: Bridge }) {
   };
   const chooseProject = () => void action(async () => {
     const next = await bridge.chooseProject(); if (next) setState(next);
-    setProjectMenu(false);
+    setReviewId(null);
   });
   const switchProject = (path: string) => void action(async () => {
-    setState(await bridge.switchProject(path)); setProjectMenu(false);
+    setState(await bridge.switchProject(path)); setReviewId(null);
   });
   const launch = () => void action(async () => {
     if (!createMode) return;
@@ -199,26 +181,14 @@ export function App({ bridge }: { bridge: Bridge }) {
   const createFor = (role: Role) => {
     setCreateMode(role); setWorkspace(role === 'work' ? 'worktree' : 'shared'); setTitle('');
   };
-  const inspect = (id: string) => void action(async () => setInspected(await bridge.context(id)));
+  const inspect = (id: string) => void action(async () => setInspected({ ...await bridge.context(id), agentId: id }));
 
   return <div className="ade-app">
-    <header className="ade-topbar new-topbar">
+    <header className="ade-topbar new-topbar orca-app-header">
       <span className="app-mark">π</span><strong>Pi Compose</strong><span className="app-sub">ADE</span>
-      <div className="project-switcher">
-        <button onClick={() => setProjectMenu(!projectMenu)}>
-          {state.project ? basename(state.project) : '프로젝트 선택'} <span>⌄</span>
-        </button>
-        {projectMenu && <div className="project-dropdown">
-          <h4>프로젝트</h4>
-          {state.projects.map(path => <button key={path} onClick={() => switchProject(path)}
-            className={path === state.project ? 'chosen' : ''}>
-            <strong>{basename(path)}</strong><small>{path}</small>
-          </button>)}
-          <button className="add-project" onClick={chooseProject}>＋ 다른 프로젝트 열기</button>
-        </div>}
-      </div>
+      <span className="project-title">{state.project ? basename(state.project) : '프로젝트 선택'}</span>
       <span className="topbar-spacer"/>
-      <button onClick={() => setLoginOpen(true)}>계정 · 로그인</button>
+      <button className="account-button" onClick={() => setLoginOpen(true)}>계정 연결</button>
     </header>
     {error && <div role="alert" className="error-global"><span>{error}</span><button onClick={() => setError('')}>닫기</button></div>}
     {!state.project
@@ -226,30 +196,24 @@ export function App({ bridge }: { bridge: Bridge }) {
           <p>프로젝트를 열고 Main Agent에서 시작하세요.</p>
           <button className="primary" onClick={chooseProject}>프로젝트 열기</button></div>
       : <div className="main-layout">
-        <aside className="agent-sidebar">
-          <div className="sidebar-top"><strong>대화와 작업</strong>
-            <button title="새 Main Agent" onClick={() => createFor('main')}>＋</button></div>
-          {mains.length === 0 && <p className="sidebar-empty">＋ 버튼으로 첫 Main Agent를 만들어 주세요.</p>}
-          {mains.map(m => <div className="tree-group" key={m.id}>
-            <div className={'main-row ' + (main?.id === m.id ? 'chosen' : '')}>
-              <button onClick={() => setSelectedMain(m.id)} title="메인 대화 보기">
-                <span className="tree-icon">◉</span><strong>{m.title}</strong></button>
-              <button className="row-context" title="실제 메인 대화 맥락 확인" onClick={() => inspect(m.id)}>맥락</button>
+        <ProjectSidebar
+          projects={state.projects} currentProject={state.project} agents={state.agents}
+          selectedMain={main?.id || null} opened={visible}
+          onProject={path => { void switchProject(path); }} onAddProject={chooseProject}
+          onMain={id => { setSelectedMain(id); setReviewId(null); }}
+          onAgent={id => {
+            const agent = state.agents.find(a => a.id === id);
+            if (agent?.relatedMainId) setSelectedMain(agent.relatedMainId);
+            show(id);
+          }}
+          onContext={inspect} onNewMain={() => createFor('main')}
+        />
+        <main className="work-area orca-work-area">
+          <div className="work-toolbar updated-toolbar orca-work-toolbar">
+            <div className="workspace-breadcrumb">
+              <small>{basename(state.project)}</small>
+              <strong>{main?.title || 'Main Agent가 없습니다'}</strong>
             </div>
-            {state.agents.filter(a => a.relatedMainId === m.id).map(a =>
-              <div key={a.id} className={'child-row ' + (visible.includes(a.id) ? 'is-open' : '')}>
-                <button onClick={() => { setSelectedMain(m.id); show(a.id); }}
-                  title={a.role === 'work' ? '설계 이어받은 작업' : '독립 조사 작업'}>
-                  <span className={'mini-kind ' + a.role}>{a.role === 'work' ? 'W' : 'S'}</span>
-                  <span className="child-name">{a.title}</span></button>
-                <span className={'status-light '+a.processStatus} title={a.activity?.phase === 'tool' ? '도구 실행: ' + a.activity.tool : a.activity?.phase === 'responding' ? '모델 응답 중' : 'Pi 터미널 상태'}/>
-              </div>)}
-          </div>)}
-          <div className="sidebar-foot">대화는 Pi에 보존됩니다. 다른 Agent의 실행 기록은 Main에 자동 추가하지 않습니다.</div>
-        </aside>
-        <main className="work-area">
-          <div className="work-toolbar updated-toolbar">
-            <strong>작업 공간</strong>
             <span className="workspace-count">{visible.length}개 터미널</span>
             <span className="topbar-spacer"/>
             {main && <>
@@ -257,11 +221,16 @@ export function App({ bridge }: { bridge: Bridge }) {
               <button disabled={busy} onClick={() => createFor('support')}>＋ Support Agent</button>
             </>}
           </div>
-          <SplitWorkspace agents={state.agents} visibleIds={visible} bridge={bridge}
-            onRemove={id => {
-              if (id === main?.id) return;
-              setPinned(prev => prev.filter(x => x !== id));
-            }} onContext={inspect}/>
+          <div className="workbench-body">
+            <SplitWorkspace agents={state.agents} visibleIds={visible} bridge={bridge}
+              onRemove={id => {
+                if (id === main?.id) return;
+                setPinned(prev => prev.filter(x => x !== id));
+              }} onContext={inspect} onReview={id => setReviewId(id)}/>
+            {reviewId && state.agents.some(a=>a.id===reviewId && (a.project||a.cwd)===state.project) &&
+              <GitReview key={reviewId} agent={state.agents.find(a=>a.id===reviewId)!}
+                bridge={bridge} onClose={()=>setReviewId(null)} />}
+          </div>
         </main>
       </div>}
     <footer className="ade-statusbar">Main: 설계·결정 · Work: 정확한 Fork · Support: 독립 컨텍스트 · 각 터미널은 실제 Pi 프로세스</footer>
@@ -286,7 +255,8 @@ export function App({ bridge }: { bridge: Bridge }) {
         <div className="modal-actions"><button type="button" onClick={() => setCreateMode(null)}>취소</button>
           <button className="primary" type="submit" disabled={busy || (createMode !== 'main' && !title.trim())}>생성하고 실행</button></div>
       </form></div>}
-    {inspected && <ContextDrawer detail={inspected} onClose={() => setInspected(null)}/>}
+    {inspected && <ContextInspector detail={inspected} bridge={bridge}
+      onChange={setInspected} onClose={() => setInspected(null)}/>}
     {loginOpen && <LoginModal bridge={bridge} onClose={() => setLoginOpen(false)}/>}
   </div>;
 }
