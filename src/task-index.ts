@@ -3,6 +3,7 @@ import { mkdir, readdir, readFile, rename, unlink, writeFile } from 'node:fs/pro
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { loadSourceSession, type LaunchPlan } from './launch.ts';
+import { inspectChildSession, expectedDelivery } from './session-observation.ts';
 
 /** Only user-approved launch identity. Pi, tmux and workmux remain the source of truth for runtime state. */
 export type TmuxLocation = {
@@ -19,6 +20,7 @@ export type TaskLink = {
   workmuxHandle?: string;
   title?: string;
   diagnosticFlowId?: string;
+  dispatchFailed?: boolean;
 };
 
 /** Work result snapshots are claims, not approvals, agent completion, or live state. */
@@ -71,6 +73,11 @@ export type TaskRecord = {
   sourceSessionFile?: string;
   /** False is an observed missing/mismatched Pi parent; not proof that model lacks context. */
   forkParentVerified?: boolean;
+  /** Direct observations of Pi JSONL; not completion or comprehension. */
+  promptObserved?: boolean;
+  assistantObserved?: boolean;
+  /** External launch failed but retained resources may exist; no automatic retry. */
+  dispatchFailed?: boolean;
   /** Explicitly captured user-requested result snapshots (no autonomous status tracking). */
   handoff?: HandoffEvidence;
   review?: ReviewEvidence;
@@ -102,6 +109,7 @@ export async function recordTask(plan: LaunchPlan, link: TaskLink = {}): Promise
     ...(link.workmuxHandle ? { workmuxHandle: link.workmuxHandle } : {}),
     ...(plan.workmuxTargetName ? { workmuxTargetName: plan.workmuxTargetName } : {}),
     ...(plan.source?.id ? { sourceSessionId: plan.source.id, sourceSessionFile: plan.source.path } : {}),
+    ...(link.dispatchFailed ? { dispatchFailed:true } : {}),
     createdAt: new Date().toISOString(),
   };
   const dir = directory(task.projectRoot);
@@ -145,6 +153,9 @@ function isRecord(value: unknown): value is TaskRecord {
     && (x.launchCwd === undefined || (typeof x.launchCwd === 'string' && x.launchCwd.startsWith('/')))
     && (x.sourceSessionFile === undefined || (typeof x.sourceSessionFile === 'string' && x.sourceSessionFile.startsWith('/')))
     && (x.forkParentVerified === undefined || typeof x.forkParentVerified === 'boolean')
+    && (x.promptObserved === undefined || typeof x.promptObserved === 'boolean')
+    && (x.assistantObserved === undefined || typeof x.assistantObserved === 'boolean')
+    && (x.dispatchFailed === undefined || typeof x.dispatchFailed === 'boolean')
     && (x.agentSessionId === undefined || typeof x.agentSessionId === 'string')
     && (x.agentSessionFile === undefined || (typeof x.agentSessionFile === 'string' && x.agentSessionFile.startsWith('/')))
     && typeof x.createdAt === 'string'
@@ -284,4 +295,55 @@ export async function attachSessionEvidence(
     throw error;
   }
   return 'saved';
+}
+
+/**
+ * Reconcile against Pi's on-disk evidence. This is safe to call whenever the
+ * user opens a task. It repairs launch/session event races without a polling
+ * daemon. Source, workspace, exact prompt and Pi session ID must all match.
+ */
+export async function reconcileTaskSession(projectRoot:string, taskId:string, candidates:string[] = []):
+  Promise<TaskRecord|null> {
+  const record=(await listTasks(projectRoot)).find(t=>t.id===taskId);
+  if(!record)return null;
+  const expectedCwd=resolve(record.workspace==='worktree'
+    ? record.worktreePath || '' : record.launchCwd || record.projectRoot);
+  if(record.workspace==='worktree'&&!record.worktreePath)return record;
+  const files=record.agentSessionFile ? [record.agentSessionFile] : candidates;
+  const match:Array<{path:string;id:string;parentVerified:boolean;prompt:boolean;assistant:boolean}>=[];
+  for(const file of [...new Set(files)]) {
+    try {
+      const header=await loadSourceSession(file);
+      if(resolve(header.cwd)!==expectedCwd)continue;
+      // A session is never attached merely because it shares the task title.
+      const parentVerified=record.context==='fork'
+        && !!record.sourceSessionFile && !!header.parentSession
+        && resolve(header.parentSession)===resolve(record.sourceSessionFile);
+      if(record.context==='fork'&&!parentVerified)continue;
+      const evidence=await inspectChildSession(file,expectedDelivery(record.instruction || record.title,record.context));
+      if(!evidence.promptObserved)continue;
+      if(record.agentSessionId&&record.agentSessionId!==header.id)continue;
+      match.push({path:header.path,id:header.id,parentVerified,prompt:true,assistant:evidence.assistantObserved});
+    } catch { /* Not-yet-written or inaccessible sessions stay unverified. */ }
+  }
+  if(match.length!==1)return record;
+  const found=match[0]!;
+  const file=join(directory(projectRoot),record.id+'.json');
+  const prior:unknown=JSON.parse(await readFile(file,'utf8'));
+  if(!isRecord(prior)||prior.id!==record.id
+    || (prior.agentSessionId&&prior.agentSessionId!==found.id)
+    || (prior.agentSessionFile&&resolve(prior.agentSessionFile)!==resolve(found.path)))return record;
+  const next:TaskRecord={...prior,agentSessionId:found.id,agentSessionFile:found.path,
+    ...(record.context==='fork'?{forkParentVerified:true}:{}),
+    promptObserved:true,assistantObserved:found.assistant};
+  if(JSON.stringify(next)===JSON.stringify(prior))return next;
+  const tmp=file+'.'+randomUUID()+'.tmp';
+  try{
+    await writeFile(tmp,JSON.stringify(next),{mode:0o600,flag:'wx'});
+    // Avoid clobbering changes from a different agent after the initial read.
+    const latest:unknown=JSON.parse(await readFile(file,'utf8'));
+    if(!isRecord(latest)||JSON.stringify(latest)!==JSON.stringify(prior))return record;
+    await rename(tmp,file);
+  }finally{await unlink(tmp).catch(()=>undefined);}
+  return next;
 }
