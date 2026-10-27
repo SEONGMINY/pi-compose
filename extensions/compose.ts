@@ -142,7 +142,7 @@ export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, 
     if (mode === 'preview') {
       diagnosticEvent('launch.stage',{source:'slash',flowId:flow.flowId,outcome:'success',data:{stage:'plan'}});
       outcome='success';
-      ctx.ui.notify(`Preview only: ${plan.program} ${plan.args.join(' ')}${plan.warnings.length ? `\n${plan.warnings.join('\n')}` : ''}`, 'info');
+      ctx.ui.notify(`Preview only (no changes): ${plan.preparation ? `${plan.preparation.program} ${plan.preparation.args.join(' ')}\nthen ` : ''}${plan.program} ${plan.args.join(' ')}${plan.warnings.length ? `\n${plan.warnings.join('\n')}` : ''}`, 'info');
       return;
     }
     stage='approval';
