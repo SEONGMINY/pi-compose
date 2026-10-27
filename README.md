@@ -2,6 +2,17 @@
 
 **설계를 논의하던 대화는 남겨두고, 구현은 다른 [Pi](https://github.com/earendil-works/pi) 에이전트에게 맡길 수 있어요.**
 
+> **새 방향: 실제 Orca 기반 ADE.** 기존 독립 TUI/Electron UI를 더 만드는 대신,
+> Orca 원본에서 Pi Compose의 컨텍스트 중심 작업을 실행합니다.
+> [Orca 기반 실행·Main/Work/Support 사용법](docs/ORCA_UPSTREAM_INTEGRATION.md)
+>
+> `npm install && npm run orca:dev` (macOS, Node 24 / pnpm 필요).
+> Orca 터미널에서 `pic-orca`로 Pi를 시작한 뒤 `/compose-main`,
+> `/compose-work`, `/compose-support`를 사용합니다.
+>
+> **현재는 Orca 원본 체크아웃 + Pi Extension 통합 단계**이며,
+> Orca 사이드바의 Main/Work/Support 네이티브 표시와 Agent 자동 탭 실행은 아직 구현하지 않았습니다.
+
 AI와 요구사항을 논의할 때는 구현할 기능뿐 아니라 **왜 그렇게 결정했는지, 어떤 대안을 제외했고 무엇을 바꾸면 안 되는지**도 함께 정합니다. 새 에이전트에게 결과만 짧게 전달하면 이런 배경이나 강한 제약이 빠질 수 있어요.
 
 한 대화에서 구현과 테스트까지 진행하면 코드 탐색 결과와 오류, 긴 실행 로그까지 쌓입니다. Pi Compose에서는 **원래 대화를 유지하면서, 그 대화를 이어받은 새 에이전트에게 개발을 맡길 수 있어요.**
