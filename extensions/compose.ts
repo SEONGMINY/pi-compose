@@ -1,6 +1,6 @@
 import { Type } from '@earendil-works/pi-ai';
 import { SessionManager, type ExtensionAPI, type ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { planLaunch, executeLaunch } from '../src/launch.ts';
+import { planLaunch, executeLaunch, type LaunchPlan } from '../src/launch.ts';
 import { planResume, executeResume } from '../src/resume.ts';
 import { registerWorkReturn, showWorkPicker, showSavedSessions } from './work-return.ts';
 import { openWorkmuxMonitor } from './optional/workmux-dashboard.ts';
@@ -95,6 +95,7 @@ export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, 
   let chosenContext: 'fork'|'independent'|undefined;
   let chosenWorkspace: 'shared'|'worktree'|undefined;
   let stage='input';
+  let approvedPlan:LaunchPlan|undefined;
   try {
   if (!ctx.hasUI) {
     ctx.ui.notify('Interactive options are required. Use the pi-compose CLI in non-UI environments.', 'warning');
@@ -154,6 +155,7 @@ export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, 
     });
     diagnosticEvent('launch.approval',{source:'slash',flowId:flow.flowId,outcome:approval?'success':'cancelled',data:{context,workspace}});
     if (approval !== true) return;
+    approvedPlan=plan;
     stage='dispatch';
     const result = await executeLaunch(plan);
     outcome='success'; // Dispatch succeeded; Pi/model readiness is distinct.
@@ -163,9 +165,13 @@ export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, 
     diagnosticEvent('launch.stage',{source:'slash',flowId:flow.flowId,outcome:indexWarning?'unavailable':'success',data:{stage,failureKind:indexWarning?'record_unlinked':undefined}});
     if (indexWarning) ctx.ui.notify(indexWarning, 'warning');
     await refreshTaskIndicator(ctx, plan.cwd);
-    ctx.ui.notify(`실행 요청 전달: ${taskName(plan.task)}. 실제 Child Pi의 모델 실행과 개발 지시 처리는 확인되지 않았습니다.\n다음: /compose → 해당 작업 → 기존 Agent 화면으로 이동해 확인하세요. 결과 보고서는 Agent가 /compose-handoff를 실행한 뒤에만 나타납니다.`, 'info');
+    ctx.ui.notify(`실행 명령 전달: ${taskName(plan.task)}. Child Pi의 Fork·개발 지시·실제 모델 응답은 아직 확인되지 않았습니다.\n/compose에서 작업을 열어 '실행 상태·복구 확인', '기존 Agent 화면으로 이동', 'Git 변경 검토'를 이용할 수 있습니다.`, 'info');
     for (const warning of result.warnings) ctx.ui.notify(warning, 'warning');
   } catch (error: unknown) {
+    if (stage === 'dispatch' && approvedPlan) {
+      const note=await trackLaunchedTask(pi,approvedPlan,undefined,flow.flowId,true);
+      if(note) ctx.ui.notify(note,'warning');
+    }
     if (stage !== 'target') outcome='failure';
     const kind=failureKind(error,stage);
     diagnosticEvent('launch.stage',{source:'slash',flowId:flow.flowId,outcome:'failure',data:{stage,failureKind:kind}});
@@ -282,6 +288,7 @@ export function registerComposeLaunchTool(pi: ExtensionAPI): void {
       const flow = startFlow('launch.started',{source:'natural-language',data:{context,workspace}});
       let outcome: 'success'|'failure'|'cancelled'|'unavailable' = 'failure';
       let stage='plan';
+      let approvedPlan:LaunchPlan|undefined;
       try {
       if (context === 'independent' && source) {
         throw new Error('An independent session must not specify a Fork source.');
@@ -318,6 +325,7 @@ export function registerComposeLaunchTool(pi: ExtensionAPI): void {
         outcome='cancelled';
         return { content: [{ type: 'text' as const, text: 'Launch cancelled by user. No agent was started.' }], details: { status: 'cancelled' } };
       }
+      approvedPlan=plan;
       stage='dispatch';
       const result = await executeLaunch(plan);
       outcome='success'; // Dispatch only.
@@ -330,11 +338,15 @@ export function registerComposeLaunchTool(pi: ExtensionAPI): void {
       return {
         content: [{ type: 'text' as const,
           text: '위임 요청 전송: ' + taskName(plan.task, params.title)
-            + '. Child Pi에서 모델 작업은 아직 확인되지 않았습니다. /compose → 해당 작업 → 기존 Agent 화면으로 이동해 확인하세요. /compose-handoff 이후 보고서가 표시됩니다.' }],
+            + '. 실행 명령만 전달됐습니다. /compose에서 실제 Child·Fork·개발 지시·Git 변경을 확인할 수 있으며 Handoff는 선택 사항입니다.' }],
         details: result,
       };
       } catch(error) {
         outcome='failure';
+        if(stage==='dispatch' && approvedPlan){
+          const note=await trackLaunchedTask(pi,approvedPlan,params.title,flow.flowId,true);
+          if(note) ctx.ui.notify(note,'warning');
+        }
         diagnosticEvent('launch.stage',{source:'natural-language',flowId:flow.flowId,outcome:'failure',
           data:{stage,failureKind:failureKind(error,stage)}});
         throw error;
