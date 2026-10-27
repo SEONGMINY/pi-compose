@@ -6,7 +6,7 @@ import { createNewTerminalTab } from '@/components/terminal/terminal-tab-create'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import type { PiComposeRecord, PiComposeResult } from '../../../preload/api/pi-compose-bridge'
+import type { PiComposeRecord, PiComposeResult } from '../../../../preload/api/pi-compose-bridge'
 
 type Role = 'main' | 'work' | 'support'
 const ROLES: ReadonlyArray<{ id: Role; title: string; description: string }> = [
