@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, realpathSync } from 'node:path';
+import { join } from 'node:path';
 import { installedProvenance, versionReport, activeExtensionReport } from '../src/provenance.mjs';
 
 test('direct install without attestation must not manufacture a Git SHA',t=>{
