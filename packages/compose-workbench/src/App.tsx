@@ -27,7 +27,8 @@ export type ContextDetail = {
     snapshotFound: boolean; explanation: string } | null;
   relatedMainTitle: string | null; note: string;
 };
-type AuthEvent = { type: string; url?: string; instructions?: string; message?: string };
+type AuthEvent = { type: string; url?: string; instructions?: string; message?: string;
+  userCode?: string; verificationUri?: string; links?: { url: string; label?: string }[] };
 export type Bridge = {
   state(): Promise<State>;
   chooseProject(): Promise<State | null>;
@@ -45,7 +46,8 @@ export type Bridge = {
   write(id: string, data: string): void;
   resize(id: string, cols: number, rows: number): void;
   authStatus(): Promise<{ connected: boolean; provider: string }>;
-  authLogin(): Promise<{ connected: boolean }>;
+  authLogin(method: 'browser'|'device_code'): Promise<{ connected: boolean }>;
+  authCancel(): Promise<void>;
   authCode(code: string): Promise<void>;
   onAuth(fn: (event: AuthEvent) => void): () => void;
   onTerminal(fn: (event: TerminalEvent) => void): () => void;
@@ -60,46 +62,82 @@ const roleDesc = {
 const basename = (path: string) => path.split('/').filter(Boolean).at(-1) || path;
 
 function LoginModal({ bridge, onClose }: { bridge: Bridge; onClose(): void }) {
-  const [status, setStatus] = useState('인증 상태 확인 중…');
+  const [status, setStatus] = useState('Pi 인증 상태 확인 중…');
   const [connected, setConnected] = useState(false);
   const [working, setWorking] = useState(false);
+  const [method, setMethod] = useState<'browser'|'device_code'>('browser');
+  const [deviceCode, setDeviceCode] = useState('');
+  const [deviceUrl, setDeviceUrl] = useState('');
   const [code, setCode] = useState('');
   const [codeNeeded, setCodeNeeded] = useState(false);
   useEffect(() => {
     const off = bridge.onAuth(event => {
-      if (event.type === 'auth_url') setStatus('브라우저에서 OpenAI 로그인을 완료해 주세요.');
-      else if (event.type === 'prompt') { setStatus(event.message || '브라우저에서 받은 코드를 입력해 주세요.'); setCodeNeeded(true); }
-      else if (event.type === 'success') { setConnected(true); setWorking(false); setCodeNeeded(false); setStatus('로그인이 완료됐습니다.'); }
-      else if (event.type === 'error') { setWorking(false); setStatus(event.message || '로그인 실패'); }
-      else if (event.message) setStatus(event.message);
+      if (event.type === 'auth_url') setStatus('시스템 브라우저에서 OpenAI 인증을 완료하세요.');
+      else if (event.type === 'device_code') {
+        setDeviceCode(event.userCode || '');
+        setDeviceUrl(event.verificationUri || '');
+        setStatus('브라우저에서 표시된 기기 코드를 입력해 주세요.');
+      } else if (event.type === 'prompt') {
+        setCodeNeeded(true);
+        setStatus(event.message || '인증 결과를 입력해 주세요.');
+      } else if (event.type === 'success') {
+        setConnected(true); setWorking(false); setCodeNeeded(false); setStatus('OpenAI 연결 완료');
+      } else if (event.type === 'error') {
+        setWorking(false); setStatus(event.message || '인증에 실패했습니다. 다시 시도할 수 있습니다.');
+      } else if (event.message) setStatus(event.message);
     });
-    void bridge.authStatus().then(s => {
-      setConnected(s.connected);
-      setStatus(s.connected ? 'OpenAI 계정 연결됨' : 'OpenAI 계정 연결 필요');
+    void bridge.authStatus().then(state => {
+      setConnected(state.connected);
+      setStatus(state.connected ? 'OpenAI 연결됨' : 'OpenAI 계정 연결 필요');
     }).catch(e => setStatus(String(e)));
     return off;
   }, [bridge]);
-  const login = async () => {
-    setWorking(true); setCodeNeeded(false);
-    setStatus('OpenAI 인증을 시작합니다…');
-    try { await bridge.authLogin(); }
-    catch(e) { setWorking(false); setStatus(String(e)); }
+  const signIn = () => {
+    setWorking(true);setCodeNeeded(false);setDeviceCode('');setDeviceUrl('');
+    setStatus('Pi의 인증 절차를 시작합니다…');
+    void bridge.authLogin(method).catch(e => {setWorking(false);setStatus(String(e));});
   };
-  return <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
-    <div className="login-modal" role="dialog" aria-label="OpenAI 로그인">
-      <header><div><small>계정 연결</small><h2>OpenAI · ChatGPT</h2></div><button onClick={onClose}>×</button></header>
-      <p>Pi의 공식 인증 흐름으로 로그인합니다. 비밀번호나 토큰을 Pi Compose 화면에 저장하지 않습니다.</p>
-      <div className="auth-state">{connected ? '● 연결됨' : working ? '◌ 인증 중' : '○ 연결되지 않음'}</div>
-      <p role="status">{status}</p>
-      {codeNeeded && <form onSubmit={e => {
-        e.preventDefault();
-        void bridge.authCode(code).then(() => { setCodeNeeded(false); setStatus('인증 확인 중…'); }).catch(e => setStatus(String(e)));
-      }}><label>인증 결과 URL 또는 코드<input value={code} onChange={e => setCode(e.target.value)}
-          placeholder="브라우저에 표시된 인증 결과" autoFocus/></label>
-        <button type="submit" disabled={!code.trim()}>인증 제출</button></form>}
+  const close = () => {
+    if (working) void bridge.authCancel().catch(()=>{});
+    onClose();
+  };
+  return <div className="modal-backdrop" onMouseDown={e => {
+    if (e.target===e.currentTarget) close();
+  }}>
+    <div className="login-modal login-v2" role="dialog" aria-label="Pi 로그인" aria-modal="true">
+      <header><div><small>Pi Compose · 계정 연결</small><h2>Pi 모델 공급자 로그인</h2></div>
+        <button title="로그인 닫기" onClick={close}>×</button></header>
+      <div className="login-content">
+        <p>Pi의 <code>/login</code>과 같은 인증 저장소를 사용합니다. 로그인 후 Pi 터미널도 같은 계정을 사용합니다.</p>
+        <div className="provider-choice"><span className="provider-logo">◎</span>
+          <div><strong>OpenAI (ChatGPT)</strong><small>{connected ? '● 연결됨' : '○ 연결되지 않음'}</small></div>
+          <span>선택됨</span></div>
+        <p className="fine-print">현재 ADE 계정 화면에는 OpenAI 인증을 연결했습니다. Pi 터미널의 다른 공급자 인증은 아직 이 화면에서 제공하지 않습니다.</p>
+        {!connected && <><h3>로그인 방법</h3>
+          <label className={'login-method ' + (method==='browser'?'chosen':'')}>
+            <input type="radio" checked={method==='browser'} onChange={()=>setMethod('browser')} disabled={working}/>
+            <span><strong>브라우저에서 로그인</strong><small>Pi /login의 기본 방법 · 인증 페이지 열기</small></span></label>
+          <label className={'login-method ' + (method==='device_code'?'chosen':'')}>
+            <input type="radio" checked={method==='device_code'} onChange={()=>setMethod('device_code')} disabled={working}/>
+            <span><strong>기기 코드로 로그인</strong><small>브라우저에서 발급된 코드를 입력</small></span></label></>}
+        {deviceCode && <div className="device-code" aria-label="기기 인증 코드">
+          <strong>기기 코드</strong><code>{deviceCode}</code>
+          <p>{deviceUrl} 주소가 브라우저에 열립니다. 코드를 입력하면 연결됩니다.</p>
+        </div>}
+        {codeNeeded && <form className="manual-auth" onSubmit={e=>{
+          e.preventDefault();void bridge.authCode(code).then(()=>{setCodeNeeded(false);setStatus('인증 확인 중…');})
+            .catch(e=>setStatus(String(e)));
+        }}>
+          <label>인증 결과 URL 또는 코드<input autoFocus value={code} onChange={e=>setCode(e.target.value)}
+            placeholder="Pi가 요청한 인증 결과 입력"/></label>
+          <button type="submit" disabled={!code.trim()}>제출</button>
+        </form>}
+        <p className="login-progress" role="status">{status}</p>
+      </div>
       <div className="modal-actions">
-        <button onClick={onClose}>닫기</button>
-        {!connected && <button className="primary" disabled={working} onClick={() => void login()}>브라우저에서 로그인</button>}
+        <button onClick={close}>{working ? '로그인 취소' : '닫기'}</button>
+        {!connected && <button className="primary" disabled={working} onClick={signIn}>
+          {working ? '인증 진행 중…' : '선택한 방법으로 로그인'}</button>}
       </div>
     </div>
   </div>;
