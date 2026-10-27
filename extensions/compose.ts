@@ -254,12 +254,12 @@ export function registerComposeLaunchTool(pi: ExtensionAPI): void {
   pi.registerTool({
     name: 'compose_launch',
     label: 'Launch coding agent',
-    description: 'On an explicit user instruction to start/delegate implementation, call this tool directly without asking for additional conversational permission: the extension shows ONE execution approval. For planning or discussing whether to delegate, never call. Preserve established requirements, prohibitions and WHY in the task; do not invent constraints. Fork inherits the specifically selected Pi session. Do not ask for an already specified context, workspace or branch. If a required detail is missing, ask only for that detail. Never assert Fork context arrived solely from successful launch.',
+    description: 'On an explicit user instruction to start/delegate implementation, call this tool directly without asking for additional conversational permission: the extension shows ONE execution approval. For planning or discussing whether to delegate, never call. Preserve established requirements, prohibitions and WHY in the task; do not invent constraints. Fork inherits the specifically selected Pi session. Do not ask for an already specified context, workspace or branch. Default to the current Pi conversation Fork plus a new Worktree and generate a unique branch if unspecified. Ask only for an unusable source or missing task. Explicit Context/Workspace choices override defaults. Never assert Fork context arrived solely from successful launch.',
     parameters: Type.Object({
       task: Type.String({ description: 'Exact actionable implementation instruction, preserving established constraints and reasons.' }),
       title: Type.Optional(Type.String({ description: 'Short human-readable task name for the Hub. Does not replace the full instruction.' })),
-      context: Type.Union([Type.Literal('fork'), Type.Literal('independent')]),
-      workspace: Type.Union([Type.Literal('shared'), Type.Literal('worktree')]),
+      context: Type.Optional(Type.Union([Type.Literal('fork'), Type.Literal('independent')])),
+      workspace: Type.Optional(Type.Union([Type.Literal('shared'), Type.Literal('worktree')])),
       source: Type.Optional(Type.Union([
         Type.Object({ kind: Type.Literal('current') }),
         Type.Object({ kind: Type.Literal('file'), path: Type.String() }),
@@ -268,21 +268,21 @@ export function registerComposeLaunchTool(pi: ExtensionAPI): void {
       cwd: Type.Optional(Type.String({ description: 'Target directory. Defaults to this Pi session cwd' })),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const flow = startFlow('launch.started',{source:'natural-language',data:{context:params.context,workspace:params.workspace}});
+      const context = params.context ?? DEFAULT_DELEGATION.context;
+      const workspace = params.workspace ?? DEFAULT_DELEGATION.workspace;
+      const source = context === 'fork' ? (params.source ?? { kind: 'current' as const }) : params.source;
+      const flow = startFlow('launch.started',{source:'natural-language',data:{context,workspace}});
       let outcome: 'success'|'failure'|'cancelled'|'unavailable' = 'failure';
       let stage='plan';
       try {
-      if (params.context === 'fork' && !params.source) {
-        throw new Error('Fork requires an explicit source: current Pi session or an exact session file.');
-      }
-      if (params.context === 'independent' && params.source) {
+      if (context === 'independent' && source) {
         throw new Error('An independent session must not specify a Fork source.');
       }
-      const sourceSessionFile = params.source?.kind === 'current'
-        ? ctx.sessionManager.getSessionFile()
-        : params.source?.kind === 'file' ? params.source.path : undefined;
-      if (params.context === 'fork' && !sourceSessionFile) {
-        throw new Error('The selected Pi session has no saved session file. Save a conversation before forking.');
+      const sourceSessionFile = source?.kind === 'current'
+        ? ctx.sessionManager?.getSessionFile()
+        : source?.kind === 'file' ? source.path : undefined;
+      if (context === 'fork' && !sourceSessionFile) {
+        throw new Error('The selected Pi conversation is not saved. Discuss it in Main first or choose a saved source.');
       }
       // Model tool calls alone never authorize process creation. A real user's confirmation is required.
       if (!ctx.hasUI) {
@@ -293,18 +293,19 @@ export function registerComposeLaunchTool(pi: ExtensionAPI): void {
         };
       }
       const plan = await planLaunch({
-        task: params.task, context: params.context, workspace: params.workspace,
-        cwd: params.cwd || ctx.cwd, sourceSessionFile, branch: params.branch,
+        task: params.task, context, workspace,
+        cwd: params.cwd || ctx.cwd, sourceSessionFile,
+        branch: workspace === 'worktree' ? (params.branch ?? proposedBranch(params.task)) : params.branch,
         composeExtensionFile: baseExtension,
       });
       stage='approval';
       const approved = await approveLaunch(ctx, plan, {
-        current: params.source?.kind === 'current',
+        current: source?.kind === 'current',
         title: params.title,
-        conversationPreview: params.source?.kind === 'current'
+        conversationPreview: source?.kind === 'current'
           ? currentConversationPreview(ctx)?.preview : undefined,
       });
-      diagnosticEvent('launch.approval',{source:'natural-language',flowId:flow.flowId,outcome:approved?'success':'cancelled',data:{context:params.context,workspace:params.workspace}});
+      diagnosticEvent('launch.approval',{source:'natural-language',flowId:flow.flowId,outcome:approved?'success':'cancelled',data:{context,workspace}});
       if (approved !== true) {
         outcome='cancelled';
         return { content: [{ type: 'text' as const, text: 'Launch cancelled by user. No agent was started.' }], details: { status: 'cancelled' } };
@@ -325,10 +326,11 @@ export function registerComposeLaunchTool(pi: ExtensionAPI): void {
         details: result,
       };
       } catch(error) {
+        outcome='failure';
         diagnosticEvent('launch.stage',{source:'natural-language',flowId:flow.flowId,outcome:'failure',
           data:{stage,failureKind:failureKind(error,stage)}});
         throw error;
-      } finally { finishFlow(flow,'launch.finished',{source:'natural-language',outcome,data:{context:params.context,workspace:params.workspace}}); }
+      } finally { finishFlow(flow,'launch.finished',{source:'natural-language',outcome,data:{context,workspace}}); }
     },
     renderCall(args, theme) {
       return new Text(theme.fg('accent', '↗ 개발 위임 · ' + taskName(args.task, args.title)), 0, 0);
