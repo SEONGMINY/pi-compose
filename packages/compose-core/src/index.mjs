@@ -41,9 +41,10 @@ export class ComposeCore extends EventEmitter {
       sessions: [...this.agents.values()].map((item) => ({
         id: item.id, role: item.role, title: item.title,
         parentId: item.parentId || null, cwd: item.cwd, branch: item.branch || null,
+        baseSha: item.baseSha || null,
         status: item.status, error: item.error || null,
         sessionFile: item.session.sessionFile || null,
-        messages: messagesOf(item.session),
+        messages: messagesOf(item.session).slice(item.inheritedMessageCount || 0),
         stream: item.stream, activity: item.activity.slice(-60),
         task: item.task || null,
       })),
@@ -55,7 +56,8 @@ export class ComposeCore extends EventEmitter {
       project: this.project,
       sessions: [...this.agents.values()].map((item) => ({
         id: item.id, role: item.role, title: item.title, parentId: item.parentId || null,
-        cwd: item.cwd, branch: item.branch || null, task: item.task || null,
+        cwd: item.cwd, branch: item.branch || null, baseSha: item.baseSha || null,
+        inheritedMessageCount: item.inheritedMessageCount || 0, task: item.task || null,
         sessionFile: item.session.sessionFile || null,
       })),
     };
@@ -84,20 +86,25 @@ export class ComposeCore extends EventEmitter {
     }
     this.notify();
   }
-  async attach({ id = randomUUID(), role, title, parentId, cwd, branch, task, manager, status = 'idle' }) {
+  async attach({ id = randomUUID(), role, title, parentId, cwd, branch, baseSha, task,
+    manager, inheritedMessageCount, status = 'idle' }) {
     const { session } = await createAgentSession({ cwd, sessionManager: manager });
-    const item = { id, role, title, parentId, cwd, branch, task, session,
-      status, error: null, stream: '', activity: [], busy: false };
+    const item = { id, role, title, parentId, cwd, branch, baseSha, task, session,
+      inheritedMessageCount: inheritedMessageCount ?? (role === 'child' ? messagesOf(session).length : 0),
+      status, error: null, stream: '', activity: [], busy: false, stopping: false };
     this.agents.set(id, item);
     item.unsubscribe = session.subscribe((event) => {
       if (event.type === 'message_update' && event.assistantMessageEvent?.type === 'text_delta') {
         item.stream += event.assistantMessageEvent.delta || '';
         this.notify();
       } else if (event.type === 'tool_execution_start') {
-        item.activity.push('▶ ' + (event.toolName || 'tool'));
+        item.activity.push('▶ ' + (event.toolName || 'tool') +
+          (event.args ? ' ' + JSON.stringify(event.args).slice(0, 360) : ''));
         this.notify();
       } else if (event.type === 'tool_execution_end') {
         item.activity.push((event.isError ? '✕ ' : '✓ ') + (event.toolName || 'tool'));
+        const output = textOf(event.result);
+        if (output) item.activity.push(output.slice(0, 5000));
         this.notify();
       } else if (event.type === 'message_end') {
         item.stream = '';
@@ -126,13 +133,14 @@ export class ComposeCore extends EventEmitter {
     }
     const root = git(main.cwd, 'rev-parse', '--show-toplevel');
     const id = randomUUID();
+    const baseSha = git(root, 'rev-parse', 'HEAD');
     const branch = 'compose/' + shortTask(task) + '-' + id.slice(0, 8);
     const cwd = join(dirname(root), basename(root) + '-compose-' + id.slice(0, 8));
     // Git owns the checkout. On later Pi errors retain the worktree: never destroy user changes.
-    git(root, 'worktree', 'add', '-b', branch, cwd, 'HEAD');
+    git(root, 'worktree', 'add', '-b', branch, cwd, baseSha);
     const manager = SessionManager.forkFrom(parentFile, cwd);
     const item = await this.attach({ id, role: 'child', title: task.trim().slice(0, 72),
-      parentId: mainId, cwd, branch, task: task.trim(), manager });
+      parentId: mainId, cwd, branch, baseSha, task: task.trim(), manager });
     // First development instruction is sent to the fork, not inserted into Main.
     this.send(item.id, task.trim());
     return item.id;
@@ -143,16 +151,17 @@ export class ComposeCore extends EventEmitter {
     if (!prompt?.trim()) throw new Error('Message is empty.');
     if (item.busy) throw new Error('Agent is already responding.');
     item.busy = true;
+    item.stopping = false;
     item.status = 'running';
     item.error = null;
     item.stream = '';
     this.notify();
     // Deliberately return immediately so the renderer can observe the run as it streams.
     void item.session.prompt(prompt.trim()).then(() => {
-      item.status = item.role === 'child' ? 'reviewable' : 'idle';
+      if (!item.stopping) item.status = item.role === 'child' ? 'reviewable' : 'idle';
     }).catch((error) => {
       item.error = safeError(error);
-      item.status = 'error';
+      if (!item.stopping) item.status = 'error';
       this.emit('notice', { type: 'agent-error', id: item.id, title: item.title, message: item.error });
     }).finally(() => {
       item.busy = false;
@@ -165,6 +174,7 @@ export class ComposeCore extends EventEmitter {
   async stop(id) {
     const item = this.agents.get(id);
     if (!item) return;
+    item.stopping = true;
     if (item.busy) await item.session.abort();
     item.busy = false;
     item.status = 'stopped';
@@ -174,7 +184,8 @@ export class ComposeCore extends EventEmitter {
     const item = this.agents.get(id);
     if (!item || item.role !== 'child') throw new Error('Choose a Child worktree.');
     if (!existsSync(item.cwd)) throw new Error('Worktree directory is missing.');
-    const base = git(item.cwd, 'merge-base', 'HEAD', item.branch ? 'HEAD' : 'HEAD');
+    const base = item.baseSha;
+    if (!base) throw new Error('Original Git base SHA is missing; the complete change range cannot be verified.');
     const tracked = execFileSync('git', ['diff', '--no-ext-diff', '--no-color', base], {
       cwd: item.cwd, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024,
     });
@@ -182,7 +193,7 @@ export class ComposeCore extends EventEmitter {
     const committed = git(item.cwd, 'log', '--oneline', 'HEAD', '-10');
     const dirty = git(item.cwd, 'status', '--short');
     return { diff: tracked.slice(0, 160000), untracked, committed, dirty,
-      note: 'Diff is relative to the original worktree HEAD; untracked files are listed separately. No merge performed.' };
+      note: 'Diff is relative to the recorded launch commit ' + base.slice(0, 12) + '; untracked files are listed separately. No merge performed.' };
   }
   async shutdown() {
     for (const item of this.agents.values()) {
