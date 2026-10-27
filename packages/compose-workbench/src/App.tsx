@@ -9,6 +9,7 @@ export type Agent = {
   sourceSession: string | null; sourceEntryId?: string | null; task?: string;
   context?: 'fork' | 'independent'; workspace: Workspace; branch?: string | null;
   processStatus: 'running' | 'stopped';
+  activity?: { phase: 'idle' | 'responding' | 'tool' | 'unknown'; tool: string | null; observedAt: number | null } | null;
 };
 type State = { project: string | null; projects: string[]; agents: Agent[] };
 type TerminalEvent = { id: string; seq?: number; data?: string; exit?: boolean };
@@ -241,7 +242,7 @@ export function App({ bridge }: { bridge: Bridge }) {
                   title={a.role === 'work' ? '설계 이어받은 작업' : '독립 조사 작업'}>
                   <span className={'mini-kind ' + a.role}>{a.role === 'work' ? 'W' : 'S'}</span>
                   <span className="child-name">{a.title}</span></button>
-                <span className={'status-light '+a.processStatus}/>
+                <span className={'status-light '+a.processStatus} title={a.activity?.phase === 'tool' ? '도구 실행: ' + a.activity.tool : a.activity?.phase === 'responding' ? '모델 응답 중' : 'Pi 터미널 상태'}/>
               </div>)}
           </div>)}
           <div className="sidebar-foot">대화는 Pi에 보존됩니다. 다른 Agent의 실행 기록은 Main에 자동 추가하지 않습니다.</div>
