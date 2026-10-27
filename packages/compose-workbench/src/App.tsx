@@ -89,7 +89,7 @@ function LoginModal({ bridge, onClose }: { bridge: Bridge; onClose(): void }) {
     });
     void bridge.authStatus().then(state => {
       setConnected(state.connected);
-      setStatus(state.connected ? 'OpenAI 연결됨' : 'OpenAI 계정 연결 필요');
+      setStatus(state.connected ? '저장된 OpenAI 인증 정보가 있습니다. 실제 유효성은 모델 요청 시 확인됩니다.' : 'OpenAI 계정 연결 필요');
     }).catch(e => setStatus(String(e)));
     return off;
   }, [bridge]);
@@ -111,10 +111,10 @@ function LoginModal({ bridge, onClose }: { bridge: Bridge; onClose(): void }) {
       <div className="login-content">
         <p>Pi의 <code>/login</code>과 같은 인증 저장소를 사용합니다. 로그인 후 Pi 터미널도 같은 계정을 사용합니다.</p>
         <div className="provider-choice"><span className="provider-logo">◎</span>
-          <div><strong>OpenAI (ChatGPT)</strong><small>{connected ? '● 연결됨' : '○ 연결되지 않음'}</small></div>
+          <div><strong>OpenAI (ChatGPT)</strong><small>{connected ? '● 로그인 정보 저장됨' : '○ 연결되지 않음'}</small></div>
           <span>선택됨</span></div>
         <p className="fine-print">현재 ADE 계정 화면에는 OpenAI 인증을 연결했습니다. Pi 터미널의 다른 공급자 인증은 아직 이 화면에서 제공하지 않습니다.</p>
-        {!connected && <><h3>로그인 방법</h3>
+        {<><h3>로그인 방법</h3>
           <label className={'login-method ' + (method==='browser'?'chosen':'')}>
             <input type="radio" checked={method==='browser'} onChange={()=>setMethod('browser')} disabled={working}/>
             <span><strong>브라우저에서 로그인</strong><small>Pi /login의 기본 방법 · 인증 페이지 열기</small></span></label>
@@ -137,8 +137,8 @@ function LoginModal({ bridge, onClose }: { bridge: Bridge; onClose(): void }) {
       </div>
       <div className="modal-actions">
         <button onClick={close}>{working ? '로그인 취소' : '닫기'}</button>
-        {!connected && <button className="primary" disabled={working} onClick={signIn}>
-          {working ? '인증 진행 중…' : '선택한 방법으로 로그인'}</button>}
+        <button className="primary" disabled={working} onClick={signIn}>
+          {working ? '인증 진행 중…' : connected ? '다시 로그인' : '선택한 방법으로 로그인'}</button>
       </div>
     </div>
   </div>;
