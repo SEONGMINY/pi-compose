@@ -125,7 +125,7 @@ PIC_COMPOSE_INSTALLED_SHA="$revision" PIC_COMPOSE_INSTALLED_REF="$install_ref" \
       ref:process.env.PIC_COMPOSE_INSTALLED_REF};
     const target=join(root,".compose-install.json");
     const temp=target+"."+process.pid+".tmp";
-    writeFileSync(temp,JSON.stringify(stamp)+"\\n",{mode:0o600,flag:"wx"});
+    writeFileSync(temp,JSON.stringify(stamp)+"\n",{mode:0o600,flag:"wx"});
     renameSync(temp,target);
   ' || fail "Installed package could not record its pinned commit. Check npm permissions before trusting the version."
 
@@ -134,6 +134,9 @@ hash -r
 has pic || fail "Pi Compose was installed but 'pic' is not on PATH. Check 'npm config get prefix' and its bin directory. Shell settings were not changed."
 
 # The wrapper forwards this to existing Pi; no model login or agent creation.
+version_result="$(pic version)" || fail "'pic version' failed after installation."
+printf '%s' "$version_result" | grep -F "Installed Git commit: $revision" >/dev/null \
+  || fail "The installed Pi Compose commit could not be confirmed; refusing a false success."
 pic --version >/dev/null || fail "'pic' is installed but could not launch Pi."
 
 info "Pi Compose installed successfully at $short_revision."
