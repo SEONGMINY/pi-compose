@@ -339,6 +339,11 @@ async function linkCurrentPi(pi: ExtensionAPI, ctx: ExtensionContext): Promise<v
   if(linked==='saved') {
     const task=(await listTasks(root)).find(t=>t.agentSessionId===ctx.sessionManager.getSessionId());
     diagnosticEvent('launch.agent_linked',{source:'automatic',flowId:task?.diagnosticFlowId,outcome:'success',sessionId:ctx.sessionManager.getSessionId(),taskId:task?.id,projectId:root,data:{linked:true}});
+    // session_start is not proof of work. This link happens at agent_start or
+    // agent_settled; a Pi run was observed, not its prompt contents or correct output.
+    diagnosticEvent('launch.agent_started',{source:'automatic',flowId:task?.diagnosticFlowId,
+      outcome:'success',sessionId:ctx.sessionManager.getSessionId(),taskId:task?.id,
+      projectId:root,data:{stage:'agent'}});
     if (task?.context === 'fork') {
       diagnosticEvent('launch.context_linked',{source:'automatic',flowId:task.diagnosticFlowId,
         outcome:task.forkParentVerified===true?'success':'unavailable',
