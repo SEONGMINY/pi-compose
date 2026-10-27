@@ -39,7 +39,19 @@ function belonging(mainId, cwd) {
   }
   return main;
 }
+const gitRootSafe = cwd => {try{return gitRoot(cwd)}catch{return null}};
 async function run(command,args) {
+  if (command==='sessions') {
+    const cwd=resolve(requiredText(args.cwd,'프로젝트 경로',2000));
+    const root=gitRoot(cwd);
+    const sessions=await SessionManager.list(cwd);
+    return sessions.filter(session=>session.path && session.cwd &&
+        gitRootSafe(session.cwd)===root && session.messageCount>0)
+      .slice(0,100).map(session=>({
+        id:session.id, title:session.name || session.firstMessage?.slice(0,90) || 'Pi 대화',
+        messageCount:session.messageCount, path:session.path,
+      }));
+  }
   if (command==='list') {
     const projectRoot=gitRoot(requiredText(args.cwd,'프로젝트 경로',2000));
     return store.list().filter(item=>item.projectRoot===projectRoot)
@@ -50,6 +62,17 @@ async function run(command,args) {
         state:item.state||'prepared'}));
   }
   const cwd=resolve(requiredText(args.cwd,'프로젝트 경로',2000));
+  if (command==='import') {
+    const id=requiredText(args.sessionId,'세션 ID',120);
+    const file=SessionManager.findById(cwd,id);
+    if (!file) throw new Error('선택한 Pi 세션이 없거나 다른 프로젝트에 속합니다.');
+    const result=store.registerExistingMain({
+      cwd,sessionFile:file,sessionId:id,
+      title:requiredText(args.title,'Main 이름',200),
+      launcherPath:{extension,piBinary:process.env.PI_COMPOSE_PI_BINARY||'pi'},
+    });
+    return {record:result,launcher:result.launcher};
+  }
   if (command==='main') {
     const result=store.createMain({
       cwd,title:requiredText(args.title,'Main 이름',200),
