@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, lstatSync, renameSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { SessionManager } from '@earendil-works/pi-coding-agent';
 
@@ -308,13 +308,46 @@ export class AgentRegistry {
   review(id) {
     const item = this.get(id);
     if (!item.baseSha) throw new Error('코드 검토 기준 커밋이 없습니다.');
-    const diff = execFileSync('git', ['diff', '--no-ext-diff', '--no-color', item.baseSha], {
-      cwd: item.cwd, encoding: 'utf8', maxBuffer: 3 * 1024 * 1024,
+    const raw = args => execFileSync('git', args, {
+      cwd: item.cwd, encoding: 'utf8', maxBuffer: 6 * 1024 * 1024,
     });
+    const baseline = item.baseSha;
+    const status = raw(['status', '--short']);
+    const untracked = raw(['ls-files', '-z', '--others', '--exclude-standard']).split('\0').filter(Boolean);
+    const changed = raw(['diff', '--name-status', '-z', baseline]).split('\0').filter(Boolean);
+    const files = [];
+    for (let i = 0; i < changed.length; ) {
+      const kind = changed[i++];
+      if (!kind) break;
+      const from = changed[i++];
+      const path = kind.startsWith('R') || kind.startsWith('C') ? changed[i++] : from;
+      if (!path) continue;
+      const diff = raw(['diff', '--no-ext-diff', '--no-color', baseline, '--', path]);
+      files.push({ path, kind: kind[0], from: from !== path ? from : null,
+        diff: diff.slice(0, 190000), untracked: false, preview: null });
+      if (files.length >= 300) break;
+    }
+    for (const path of untracked) {
+      if (files.length >= 300) break;
+      const full = resolve(item.cwd, path);
+      let preview = null;
+      try {
+        if (full.startsWith(resolve(item.cwd) + '/')) {
+          const stat = lstatSync(full);
+          if (stat.isFile() && stat.size <= 150000) {
+            const data = readFileSync(full);
+            if (!data.includes(0)) preview = data.toString('utf8').slice(0, 25000);
+          }
+        }
+      } catch { /* not a safe text preview */ }
+      files.push({ path, kind: '?', from: null, diff: '', untracked: true, preview });
+    }
     return {
-      baseSha: item.baseSha, diff: diff.slice(0, 180_000),
-      status: runGit(item.cwd, 'status', '--short'),
-      untracked: runGit(item.cwd, 'ls-files', '--others', '--exclude-standard'),
+      baseSha: baseline, status, untracked: untracked.join('\n'),
+      files, count: files.length, hasMore: files.length >= 300,
+      attribution: item.workspace === 'shared'
+        ? '공유 폴더의 Git 변경은 해당 Agent만 작성했다고 판단할 수 없습니다.'
+        : '이 Worktree의 변경입니다. 완료 및 계약 준수 여부는 별도 검토가 필요합니다.',
     };
   }
 }
