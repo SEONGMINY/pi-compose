@@ -18,21 +18,21 @@ Pi의 **실제 TUI**를 Electron 안에서 실행하는 ADE입니다. React로 P
 
 터미널은 [ghostty-web](https://github.com/coder/ghostty-web)의 Ghostty WASM 에뮬레이터와 node-pty를 사용하며, **별도 웹 서버를 운영하지 않습니다**. 개발용 Vite 서버는 Electron 렌더러 확인에만 사용합니다.
 
-\`\`\`bash
+```bash
 git fetch origin
 git switch feat/ade-pi-tui-agents
 npm install
 npm run ade:dev
-\`\`\`
+```
 
-macOS, Node.js 22.19+, Git, Pi 1.4.0과 기존 \`pi\` 인증 설정이 필요합니다. Finder에서 실행할 때 Pi 명령이 PATH에 없다면 \`PIC_PI_BIN=/absolute/path/to/pi\`로 지정할 수 있습니다. 네이티브 node-pty가 빌드되지 않으면 Xcode Command Line Tools가 필요할 수 있습니다.
+macOS, Node.js 22.19+, Git, Pi 1.4.0과 기존 `pi` 인증 설정이 필요합니다. Finder에서 실행할 때 Pi 명령이 PATH에 없다면 `PIC_PI_BIN=/absolute/path/to/pi`로 지정할 수 있습니다. 네이티브 node-pty가 빌드되지 않으면 Xcode Command Line Tools가 필요할 수 있습니다.
 
 **[사용·구현 범위·미검증 사항](docs/ADE_MVP.md)**
 
 
 ---
 
-## 설치 — 현재 재설계 브랜치
+## 기존 TUI 개발 브랜치 설치
 
 > 이 브랜치는 **PR #4를 Base로 쌓은 실사용 복구용 개발 버전**입니다. 기존 PR #2·#3·#4와 `main`은 그대로 유지됩니다. macOS 전체 사용 흐름은 아직 실사용 검증 전입니다.
 
