@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { AgentPanel } from './AgentPanel';
 import type { Agent, Bridge } from './App';
 
@@ -18,7 +18,7 @@ export function SplitWorkspace({ agents, visibleIds, bridge, onRemove, onContext
   const gutter = 7;
   const columns = opened.flatMap((id, i) =>
     i < opened.length - 1 ? [current[i] + 'fr', gutter + 'px'] : [current[i] + 'fr']).join(' ');
-  const onDragStart = (index: number, event: React.PointerEvent<HTMLDivElement>) => {
+  const onDragStart = (index: number, event: ReactPointerEvent<HTMLDivElement>) => {
     if (!parent.current) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -71,7 +71,10 @@ export function SplitWorkspace({ agents, visibleIds, bridge, onRemove, onContext
         className="split-gutter" role="separator" aria-label="터미널 사이 경계 드래그"
         aria-orientation="vertical" tabIndex={0} style={{ gridColumn: i * 2 + 2 }}
         onPointerDown={e => onDragStart(i, e)}
-        onDoubleClick={() => nudge(i, 0)}
+        onDoubleClick={() => setWeights(w => {
+          const a = w[opened[i]] ?? 1, b = w[opened[i + 1]] ?? 1;
+          return { ...w, [opened[i]]: (a + b) / 2, [opened[i + 1]]: (a + b) / 2 };
+        })}
         onKeyDown={e => { if (e.key === 'ArrowLeft') nudge(i, -.05); if (e.key === 'ArrowRight') nudge(i, .05); }}>
         <div className="gutter-handle"/>
       </div>)}
