@@ -2,9 +2,9 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { AgentPanel } from './AgentPanel';
 import type { Agent, Bridge } from './App';
 
-export function SplitWorkspace({ agents, visibleIds, bridge, onRemove, onContext }: {
+export function SplitWorkspace({ agents, visibleIds, bridge, onRemove, onContext, onReview }: {
   agents: Agent[]; visibleIds: string[]; bridge: Bridge;
-  onRemove(id: string): void; onContext(id: string): void;
+  onRemove(id: string): void; onContext(id: string): void; onReview(id: string): void;
 }) {
   const [visited, setVisited] = useState<string[]>([]);
   const [weights, setWeights] = useState<Record<string, number>>({});
@@ -64,7 +64,7 @@ export function SplitWorkspace({ agents, visibleIds, bridge, onRemove, onContext
         return <div key={id} className={'retained-pane ' + (visible ? 'on-screen' : 'off-screen')}
           style={visible ? { gridColumn: index * 2 + 1 } : undefined}>
           <AgentPanel agent={agent} visible={visible} bridge={bridge}
-            onClose={() => onRemove(id)} onContext={() => onContext(id)}/>
+            onClose={() => onRemove(id)} onContext={() => onContext(id)} onReview={() => onReview(id)}/>
         </div>;
       })}
       {opened.slice(0, -1).map((id, i) => <div key={'divider:'+id}
