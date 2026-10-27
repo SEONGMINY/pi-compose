@@ -110,6 +110,21 @@ export class AgentRegistry {
     return file || null;
   }
   observationFile(id) { return join(this.observationDir, id + '.json'); }
+  activity(id) {
+    const item = this.get(id);
+    const file = this.observationFile(id);
+    if (!existsSync(file)) return null;
+    try {
+      const state = JSON.parse(readFileSync(file, 'utf8'));
+      // Never attribute another Pi conversation's activity to this Agent.
+      if (state.sessionId !== item.sessionId || resolve(state.cwd) !== resolve(item.cwd)) return null;
+      return {
+        phase: ['idle', 'responding', 'tool'].includes(state.phase) ? state.phase : 'unknown',
+        tool: typeof state.tool === 'string' ? state.tool.slice(0, 40) : null,
+        observedAt: state.observedAt || null,
+      };
+    } catch { return null; }
+  }
   assertCurrentMain(main) {
     const observation = this.observationFile(main.id);
     if (!existsSync(observation)) return;
