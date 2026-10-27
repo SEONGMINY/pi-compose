@@ -126,6 +126,7 @@ export function App({ bridge }: { bridge: Bridge }) {
   const [state, setState] = useState<State>({ project: null, projects: [], agents: [] });
   const [selectedMain, setSelectedMain] = useState<string | null>(null);
   const [pinned, setPinned] = useState<string[]>([]);
+  const [pinsLoadedFor, setPinsLoadedFor] = useState<string | null>(null);
   const [createMode, setCreateMode] = useState<Role | null>(null);
   const [title, setTitle] = useState('');
   const [workspace, setWorkspace] = useState<Workspace>('worktree');
@@ -144,14 +145,15 @@ export function App({ bridge }: { bridge: Bridge }) {
     if (state.project) {
       try {
         const saved = JSON.parse(localStorage.getItem('compose.panes.' + state.project) || '[]');
-        setPinned(Array.isArray(saved) ? saved.filter(x => typeof x === 'string') : []);
+        setPinned(Array.isArray(saved) ? saved.filter((x: unknown) => typeof x === 'string') : []);
         setSelectedMain(localStorage.getItem('compose.main.' + state.project));
-      } catch { setPinned([]); }
+        setPinsLoadedFor(state.project);
+      } catch { setPinned([]); setPinsLoadedFor(state.project); }
     }
   }, [state.project]);
   useEffect(() => {
-    if (state.project) localStorage.setItem('compose.panes.' + state.project, JSON.stringify(pinned));
-  }, [state.project, pinned]);
+    if (state.project && pinsLoadedFor === state.project) localStorage.setItem('compose.panes.' + state.project, JSON.stringify(pinned));
+  }, [state.project, pinsLoadedFor, pinned]);
   useEffect(() => {
     if (state.project && selectedMain) localStorage.setItem('compose.main.' + state.project, selectedMain);
   }, [state.project, selectedMain]);
@@ -162,7 +164,7 @@ export function App({ bridge }: { bridge: Bridge }) {
   const projectAgents = state.agents.filter(a => (a.project || a.cwd) === state.project);
   const visible = [
     ...(main ? [main.id] : []),
-    ...pinned.filter(id => id !== main?.id && projectAgents.some(a => a.id === id)),
+    ...(pinsLoadedFor === state.project ? pinned : []).filter(id => id !== main?.id && projectAgents.some(a => a.id === id)),
   ];
   const show = (id: string) => setPinned(prev => prev.includes(id) ? prev : [...prev, id]);
   const action = async (fn: () => Promise<void>) => {
