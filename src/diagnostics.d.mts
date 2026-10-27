@@ -3,7 +3,7 @@ export type DiagnosticEvent =
  | 'command.entered' | 'command.invalid' | 'command.finished'
  | 'launch.started' | 'launch.approval' | 'launch.finished' | 'launch.agent_linked' | 'launch.context_linked' | 'launch.agent_started' | 'launch.stage'
  | 'navigation.opened' | 'navigation.selected' | 'navigation.finished' | 'navigation.detail'
- | 'switch.started' | 'switch.finished' | 'sessions.opened' | 'sessions.finished'
+ | 'switch.started' | 'switch.finished' | 'sessions.opened' | 'sessions.listed' | 'sessions.finished'
  | 'handoff.started' | 'handoff.finished' | 'verify.started' | 'verify.finished'
  | 'result.opened' | 'result.unavailable';
 export type DiagnosticSource='slash'|'natural-language'|'menu'|'automatic'|'cli'|'unknown';
