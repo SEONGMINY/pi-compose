@@ -28,5 +28,7 @@ jobs:
           node --check src/orca/agent-sessions.mjs
           node --check scripts/orca-upstream.mjs
           node --check bin/pic-orca.mjs
-      - name: Test exact Fork and Support context isolation
+      - name: Install Pi SDK dependencies
+        run: npm install --no-audit --no-fund
+      - name: Test exact Fork and Support context isolation (including real Pi SDK)
         run: npm run test:orca
