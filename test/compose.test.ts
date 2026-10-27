@@ -10,8 +10,8 @@ import type { ExtensionAPI, ExtensionContext, ExtensionToolContext } from '@eare
 
 type LaunchParams = {
   task: string;
-  context: 'fork' | 'independent';
-  workspace: 'shared' | 'worktree';
+  context?: 'fork' | 'independent';
+  workspace?: 'shared' | 'worktree';
   branch?: string;
   cwd?: string;
   source?: { kind: 'current' } | { kind: 'file'; path: string };
@@ -117,22 +117,22 @@ test('model tool asks for explicit approval and cancel never launches', async t 
   assert.deepEqual(result.details, { status: 'cancelled' });
 });
 
-test('model tool requires an explicitly identified Fork source', async t => {
+test('model tool never invents a Main session if the current Pi conversation is not saved', async t => {
   const { cwd } = await fixture(t);
   const { tool } = register();
   await assert.rejects(() => tool.execute('call3',
     { task: 'Implement members', context: 'fork', workspace: 'shared' },
-    undefined, undefined, { cwd, hasUI: true } as ExtensionToolContext), /explicit source/);
+    undefined, undefined, { cwd, hasUI: true } as ExtensionToolContext), /not saved/);
 });
 
-test('model tool never interprets a saved Pi session as Main by default', async t => {
+test('explicit current Pi session must actually exist before forking', async t => {
   const { cwd } = await fixture(t);
   const { tool } = register();
   await assert.rejects(() => tool.execute('call4',
     { task: 'Implement members', context: 'fork', workspace: 'shared', source: { kind: 'current' } },
     undefined, undefined, {
       cwd, hasUI: true, sessionManager: { getSessionFile: () => undefined },
-    } as unknown as ExtensionToolContext), /no saved session file/);
+    } as unknown as ExtensionToolContext), /not saved/);
 });
 
 test('model tool refuses Fork source for independent mode', async t => {
