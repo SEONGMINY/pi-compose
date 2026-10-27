@@ -6,6 +6,26 @@ Pi Compose는 [Pi](https://github.com/earendil-works/pi)를 기반으로, Main�
 
 Main은 그대로 둡니다. 실제 구현은 새 Pi Agent와 별도 Git Worktree에서 진행합니다. 구현 중 Main에서는 다른 설계를 계속할 수 있습니다. 여러 Agent를 관리하기 위한 별도 AI Runtime이나 Git 관리 시스템을 만들지 않습니다.
 
+## macOS ADE — 첫 번째 동작하는 Core 구현 (개발 브랜치)
+
+기존 TUI와 별개로, 실제 Pi SDK를 사용한 **Main / Child 분할 개발 환경**을 구현하고 있습니다.
+
+- `@pi-compose/core`: 정확한 Main 세션 Fork, Pi 실행 및 Git Worktree
+- `@pi-compose/workbench`: React 기반 Main/Child 분할 대화와 실시간 이벤트·코드 검토
+- `@pi-compose/desktop`: Electron macOS 창, 파일 선택, 알림, 종료 시 Agent 중단
+
+```bash
+git checkout feat/ade-minimal-workbench
+npm install
+npm run ade:dev
+```
+
+기존 Pi에서 먼저 `/login`과 `/model`을 설정해야 합니다. 데스크톱 MVP는 실제 macOS에서 실행해 검증할 단계이며, 아직 설치 가능한 배포용 .dmg는 아닙니다.
+
+**[ADE 구현 범위·사용법·검증 한계](docs/ADE_MVP.md)**
+
+---
+
 ## 설치 — 현재 재설계 브랜치
 
 > 이 브랜치는 **PR #4를 Base로 쌓은 실사용 복구용 개발 버전**입니다. 기존 PR #2·#3·#4와 `main`은 그대로 유지됩니다. macOS 전체 사용 흐름은 아직 실사용 검증 전입니다.

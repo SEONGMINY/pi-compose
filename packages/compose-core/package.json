@@ -1,0 +1,10 @@
+{
+  "name": "@pi-compose/core",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "src/index.mjs",
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "1.4.0"
+  }
+}
