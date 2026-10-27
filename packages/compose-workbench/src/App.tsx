@@ -156,6 +156,7 @@ export function App({ bridge }: { bridge: Bridge }) {
   const [inspected, setInspected] = useState<ContextDetail | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
   const [reviewId, setReviewId] = useState<string | null>(null);
+  const [focusId, setFocusId] = useState<string | null>(null);
 
   useEffect(() => {
     const off = bridge.onState(setState);
@@ -185,7 +186,7 @@ export function App({ bridge }: { bridge: Bridge }) {
   const projectAgents = state.agents.filter(a => (a.project || a.cwd) === state.project);
   const visible = [
     ...(main ? [main.id] : []),
-    ...(pinsLoadedFor === state.project ? pinned : []).filter(id => id !== main?.id && projectAgents.some(a => a.id === id)),
+    ...(pinsLoadedFor === state.project ? pinned : []).filter(id => id !== main?.id && projectAgents.some(a => a.id === id && a.relatedMainId === main?.id)),
   ];
   const show = (id: string) => setPinned(prev => prev.includes(id) ? prev : [...prev, id]);
   const action = async (fn: () => Promise<void>) => {
@@ -206,12 +207,13 @@ export function App({ bridge }: { bridge: Bridge }) {
     if (createMode === 'main') {
       id = await bridge.createMain(title);
       setSelectedMain(id);
+      setFocusId(id);
     } else {
       if (!main) throw new Error('Main Agent를 먼저 선택하세요.');
       id = createMode === 'work'
         ? await bridge.createWork(main.id, title, workspace)
         : await bridge.createSupport(main.id, title, workspace);
-      show(id);
+      show(id); setFocusId(id);
     }
     setCreateMode(null); setTitle('');
     await bridge.start(id);
@@ -238,11 +240,11 @@ export function App({ bridge }: { bridge: Bridge }) {
           projects={state.projects} currentProject={state.project} agents={state.agents}
           selectedMain={main?.id || null} opened={visible}
           onProject={path => { void switchProject(path); }} onAddProject={chooseProject}
-          onMain={id => { setSelectedMain(id); setReviewId(null); }}
+          onMain={id => { setSelectedMain(id); setReviewId(null); setFocusId(id); }}
           onAgent={id => {
             const agent = state.agents.find(a => a.id === id);
             if (agent?.relatedMainId) setSelectedMain(agent.relatedMainId);
-            show(id);
+            show(id); setFocusId(id);
           }}
           onContext={inspect} onNewMain={() => createFor('main')}
         />
@@ -259,11 +261,24 @@ export function App({ bridge }: { bridge: Bridge }) {
               <button disabled={busy} onClick={() => createFor('support')}>＋ Support Agent</button>
             </>}
           </div>
+          <nav className="agent-tabbar" aria-label="열려 있는 Agent 터미널">
+            {visible.map(id => {
+              const tab=state.agents.find(a=>a.id===id);
+              if (!tab) return null;
+              return <button className={focusId===id?'selected':''} key={id}
+                title={tab.title} onClick={()=>setFocusId(id)}>
+                <span className={'tab-role '+tab.role}>{tab.role==='main'?'M':tab.role==='work'?'W':'S'}</span>
+                <span className="tab-name">{tab.title}</span>
+                <span className={'status-light '+tab.processStatus}/>
+              </button>;
+            })}
+          </nav>
           <div className="workbench-body">
-            <SplitWorkspace agents={state.agents} visibleIds={visible} bridge={bridge}
+            <SplitWorkspace agents={state.agents} visibleIds={visible} bridge={bridge} focusId={focusId}
               onRemove={id => {
                 if (id === main?.id) return;
                 setPinned(prev => prev.filter(x => x !== id));
+                if (focusId===id) setFocusId(main?.id||null);
               }} onContext={inspect} onReview={id => setReviewId(id)}/>
             {reviewId && state.agents.some(a=>a.id===reviewId && (a.project||a.cwd)===state.project) &&
               <GitReview key={reviewId} agent={state.agents.find(a=>a.id===reviewId)!}
