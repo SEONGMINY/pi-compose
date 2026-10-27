@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test test/*.test.ts",
     "check": "npm run typecheck && npm test",
-    "test:orca": "node --test test/orca-foundation.test.mjs",
+    "test:orca": "node --test test/orca-foundation.test.mjs test/orca-real-pi.test.mjs",
     "orca:prepare": "node scripts/orca-upstream.mjs prepare",
     "orca:dev": "node scripts/orca-upstream.mjs dev",
     "orca:info": "node scripts/orca-upstream.mjs info"
