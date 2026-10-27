@@ -20,28 +20,40 @@ export class AgentRegistry {
     this.observationDir = join(dataDir, 'observations');
     mkdirSync(this.observationDir, { recursive: true });
     this.project = null;
+    this.projects = [];
     this.agents = [];
     if (existsSync(this.path)) {
       try {
         const saved = JSON.parse(readFileSync(this.path, 'utf8'));
         this.project = saved.project || null;
+        this.projects = Array.isArray(saved.projects) ? saved.projects : [];
+        if (this.project && !this.projects.includes(this.project)) this.projects.push(this.project);
         this.agents = Array.isArray(saved.agents) ? saved.agents : [];
       } catch { /* damaged display index must not delete Pi sessions */ }
     }
   }
   save() {
     const tmp = this.path + '.tmp';
-    writeFileSync(tmp, JSON.stringify({ project: this.project, agents: this.agents }, null, 2), { mode: 0o600 });
+    writeFileSync(tmp, JSON.stringify({ project: this.project, projects: this.projects, agents: this.agents }, null, 2), { mode: 0o600 });
     renameSync(tmp, this.path);
   }
   selectProject(path) {
     const root = resolve(runGit(path, 'rev-parse', '--show-toplevel'));
+    if (!this.projects.includes(root)) this.projects.push(root);
+    this.project = root;
+    this.save();
+    return this.list();
+  }
+  switchProject(path) {
+    const root = resolve(path);
+    if (!this.projects.includes(root)) throw new Error('등록되지 않은 프로젝트입니다.');
+    if (!existsSync(root)) throw new Error('프로젝트 디렉터리가 없습니다. 폴더를 다시 선택하세요.');
     this.project = root;
     this.save();
     return this.list();
   }
   list() {
-    return { project: this.project, agents: this.agents };
+    return { project: this.project, projects: this.projects, agents: this.agents };
   }
   get(id) {
     const agent = this.agents.find((item) => item.id === id);
@@ -58,7 +70,7 @@ export class AgentRegistry {
     const id = randomUUID();
     return this.add({
       id, role: 'main', title: title?.trim() || '새 메인 대화',
-      cwd: this.project, sessionId: randomUUID(), sessionFile: null,
+      project: this.project, cwd: this.project, sessionId: randomUUID(), sessionFile: null,
       relatedMainId: null, sourceSession: null, workspace: 'shared',
     });
   }
@@ -108,14 +120,15 @@ export class AgentRegistry {
       throw new Error('Main Agent에서 먼저 Pi 대화를 저장한 뒤 작업을 위임하세요.');
     }
     const id = randomUUID();
+    const root = main.project || main.cwd;
     const cwd = workspace === 'worktree'
-      ? join(dirname(this.project), basename(this.project) + '-compose-' + id.slice(0, 8))
+      ? join(dirname(root), basename(root) + '-compose-' + id.slice(0, 8))
       : main.cwd;
     const branch = workspace === 'worktree'
       ? 'compose/' + shortName(task) + '-' + id.slice(0, 8) : null;
-    const baseSha = runGit(this.project, 'rev-parse', 'HEAD');
+    const baseSha = runGit(root, 'rev-parse', 'HEAD');
     if (workspace === 'worktree') {
-      runGit(this.project, 'worktree', 'add', '-b', branch, cwd, baseSha);
+      runGit(root, 'worktree', 'add', '-b', branch, cwd, baseSha);
     }
     let manager;
     try {
@@ -128,7 +141,7 @@ export class AgentRegistry {
     const original = SessionManager.open(source);
     const originEntry = original.getLeafEntry();
     return this.add({
-      id, role: 'work', title: task.trim().slice(0, 70), task: task.trim(),
+      id, role: 'work', project: root, title: task.trim().slice(0, 70), task: task.trim(),
       relatedMainId: main.id, sessionId: manager.getSessionId(),
       sessionFile: manager.getSessionFile(), sourceSession: source,
       sourceEntryId: originEntry?.id || null, context: 'fork',
@@ -142,15 +155,16 @@ export class AgentRegistry {
     if (!task?.trim()) throw new Error('조사 또는 테스트 지시를 입력하세요.');
     if (!['worktree', 'shared'].includes(workspace)) throw new Error('잘못된 작업 공간입니다.');
     const id = randomUUID();
+    const root = main.project || main.cwd;
     const cwd = workspace === 'worktree'
-      ? join(dirname(this.project), basename(this.project) + '-compose-' + id.slice(0, 8))
+      ? join(dirname(root), basename(root) + '-compose-' + id.slice(0, 8))
       : main.cwd;
     const branch = workspace === 'worktree'
       ? 'compose/support-' + id.slice(0, 8) : null;
-    const baseSha = runGit(this.project, 'rev-parse', 'HEAD');
-    if (workspace === 'worktree') runGit(this.project, 'worktree', 'add', '-b', branch, cwd, baseSha);
+    const baseSha = runGit(root, 'rev-parse', 'HEAD');
+    if (workspace === 'worktree') runGit(root, 'worktree', 'add', '-b', branch, cwd, baseSha);
     return this.add({
-      id, role: 'support', title: task.trim().slice(0, 70),
+      id, role: 'support', project: root, title: task.trim().slice(0, 70),
       task: task.trim(), relatedMainId: main.id, sessionId: randomUUID(),
       sessionFile: null, sourceSession: null, sourceEntryId: null,
       context: 'independent', cwd, branch, baseSha, workspace,
@@ -163,6 +177,8 @@ export class AgentRegistry {
     // Pi --session-id can create the exact chosen ID without a forged message.
     // Work Agent uses --session on the already forked on-disk JSONL.
     const args = path ? ['--session', path] : ['--session-id', item.sessionId];
+    // New sessions default to Luna. Resumed/Forked sessions retain their own model selection.
+    if (!path) args.push('--model', 'gpt-5.6-luna');
     if (item.initialPromptPending && item.task) args.push('--', item.task);
     return { cwd: item.cwd, args };
   }
@@ -170,6 +186,32 @@ export class AgentRegistry {
     const item = this.get(id);
     item.initialPromptPending = false;
     this.save();
+  }
+  context(id) {
+    const agent = this.get(id);
+    const path = this.locateSession(agent);
+    const records = [];
+    if (path && existsSync(path)) {
+      // Pi's recorded active branch, not a generated or speculative summary.
+      const manager = SessionManager.open(path);
+      for (const entry of manager.getBranch()) {
+        if (entry.type !== 'message') continue;
+        const m = entry.message;
+        if (!m || !['user', 'assistant'].includes(m.role)) continue;
+        const text = typeof m.content === 'string'
+          ? m.content
+          : (m.content || []).filter(part => part.type === 'text')
+            .map(part => part.text || '').join('\n');
+        if (text.trim()) records.push({ role: m.role, text: text.slice(0, 3000) });
+      }
+    }
+    return {
+      title: agent.title, role: agent.role, task: agent.task || null,
+      sourceSession: agent.sourceSession, sourceEntryId: agent.sourceEntryId || null,
+      sessionFile: path, totalMessages: records.length, messages: records.slice(-30),
+      relatedMainTitle: agent.relatedMainId ? this.get(agent.relatedMainId).title : null,
+      note: 'Pi 세션의 실제 대화 발췌입니다. 자동으로 핵심 결정이라고 판단하거나 다른 Agent에 전달하지 않습니다.',
+    };
   }
   review(id) {
     const item = this.get(id);
