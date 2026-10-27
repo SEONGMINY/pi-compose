@@ -296,7 +296,7 @@ export class AgentRegistry {
       };
     }
     return {
-      title: agent.title, role: agent.role, task: agent.task || null,
+      agentId: agent.id, title: agent.title, role: agent.role, task: agent.task || null,
       sourceSession: agent.sourceSession, sourceEntryId: agent.sourceEntryId || null,
       sessionFile: path, totalMessages: records.length, messages: records.slice(-50),
       pinned: pins, fork,
