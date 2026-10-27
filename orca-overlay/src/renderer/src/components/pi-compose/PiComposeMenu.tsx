@@ -31,6 +31,9 @@ export function PiComposeMenu(): React.JSX.Element {
   const mains = agents.filter((record) => record.role === 'main')
   const [mainId, setMainId] = useState('')
   const [title, setTitle] = useState('')
+  const [mainMode, setMainMode] = useState<'new'|'existing'>('new')
+  const [saved, setSaved] = useState<{id:string;title:string;messageCount:number;path:string}[]>([])
+  const [savedId, setSavedId] = useState('')
   const [task, setTask] = useState('')
   const [workspace, setWorkspace] = useState<'shared'|'worktree'>('worktree')
   const [busy, setBusy] = useState(false)
@@ -55,6 +58,14 @@ export function PiComposeMenu(): React.JSX.Element {
     void refresh()
   }, [open, cwd])
 
+  useEffect(() => {
+    if (!open || role !== 'main' || mainMode !== 'existing' || !cwd) return;
+    void window.api.piCompose.sessions(cwd).then(items => {
+      setSaved(items);
+      setSavedId(previous=>items.some(item=>item.id===previous)?previous:items[0]?.id||'');
+      if(items.length) setTitle(previous=>previous||items[0].title);
+    }).catch(cause=>setError(String(cause)));
+  }, [open, cwd, role, mainMode]);
   const onLaunch = async () => {
     if (!cwd || !activeWorktreeId) {
       setError('먼저 로컬 Git 작업 공간을 선택하세요.')
@@ -63,6 +74,9 @@ export function PiComposeMenu(): React.JSX.Element {
     if (role !== 'main' && !mainId) {
       setError('이 프로젝트의 Main Agent를 먼저 만드세요.')
       return
+    }
+    if (role === 'main' && mainMode === 'existing' && !savedId) {
+      setError('가져올 Pi 대화를 선택하세요.'); return;
     }
     if (role === 'main' && !title.trim()) {
       setError('Main 이름을 입력하세요.')
@@ -75,9 +89,9 @@ export function PiComposeMenu(): React.JSX.Element {
     setBusy(true)
     setError('')
     try {
-      const result: PiComposeResult = await window.api.piCompose.create(role, {
+      const result: PiComposeResult = await window.api.piCompose.create(role === 'main' && mainMode === 'existing' ? 'import' : role, {
         cwd,
-        ...(role === 'main' ? { title: title.trim() }
+        ...(role === 'main' ? { title: title.trim(), ...(mainMode === 'existing' ? { sessionId: savedId } : {}) }
           : { mainId, task: task.trim(), workspace }),
       })
       if (role === 'work' && !result.proof?.allMatch) {
@@ -135,12 +149,33 @@ export function PiComposeMenu(): React.JSX.Element {
               <span className="mt-2 block leading-relaxed text-muted-foreground">{item.description}</span>
             </button>)}
           </div>
-          {role === 'main' ? <label className="block text-xs font-medium">
+          {role === 'main' ? <div className="space-y-3">
+            <div className="flex gap-2" role="group" aria-label="Main 대화 시작 방식">
+              <Button variant={mainMode==='new'?'default':'outline'} size="sm"
+                onClick={()=>{setMainMode('new');setError('')}} disabled={busy}>새 대화</Button>
+              <Button variant={mainMode==='existing'?'default':'outline'} size="sm"
+                onClick={()=>{setMainMode('existing');setError('')}} disabled={busy}>기존 Pi 대화 가져오기</Button>
+            </div>
+            {mainMode==='existing' && <label className="block text-xs font-medium">
+              기존 Pi 대화
+              <select className="mt-2 h-9 w-full rounded-md border border-input bg-background px-2"
+                value={savedId} onChange={event=>{
+                  const value=event.target.value;setSavedId(value);
+                  setTitle(saved.find(item=>item.id===value)?.title||'');
+                }} disabled={busy}>
+                {!saved.length && <option value="">이 프로젝트에 저장된 Pi 대화가 없습니다</option>}
+                {saved.map(item=><option value={item.id} key={item.id}>
+                  {item.title} · {item.messageCount}개 메시지
+                </option>)}
+              </select>
+            </label>}
+            <label className="block text-xs font-medium">
             Main 대화 이름
             <input className="mt-2 h-9 w-full rounded-md border border-input bg-background px-3"
               value={title} onChange={(event) => setTitle(event.target.value)}
               placeholder="예: 회원가입 설계" disabled={busy} maxLength={200}/>
-          </label> : <>
+            </label>
+          </div> : <>
             <label className="block text-xs font-medium">
               이어받을 Main (Support는 작업 관계만 연결)
               <select className="mt-2 h-9 w-full rounded-md border border-input bg-background px-2"
