@@ -186,10 +186,19 @@ export class OrcaAgentStore {
     if (role === 'work') args.push('--session', sessionFile);
     else args.push('--session-id', sessionId);
     args.push('--', task.trim());
-    const line = [q(launcherPath.piBinary || 'pi'), ...args.map(q)].join(' ');
-    // Shell script is owned by user and only runs after they explicitly open it
-    // in an Orca terminal. No implicit shell execution or Agent auto-spawning.
-    writeFileSync(scriptPath, '#!/bin/sh\ncd ' + q(cwd) + '\nexec ' + line + '\n', { mode: 0o700, flag: 'wx' });
+    const command = [q(launcherPath.piBinary || 'pi'), ...args.map(q)].join(' ');
+    const resumeArgs = ['--extension', resolve(launcherPath.extension),
+      ...(role === 'work' ? ['--session', sessionFile] : ['--session-id', sessionId])];
+    const resumeCommand = [q(launcherPath.piBinary || 'pi'), ...resumeArgs.map(q)].join(' ');
+    const firstLaunchMarker = join(this.launchersDir, id + '.started');
+    // Atomic one-shot claim: reopening a crashed tab NEVER resubmits the original
+    // development request. Session files / Git worktrees are always preserved.
+    const script = '#!/bin/sh\ncd ' + q(cwd) +
+      '\nif mkdir ' + q(firstLaunchMarker) + ' 2>/dev/null; then\n  exec ' +
+      command + '\nelif [ -d ' + q(firstLaunchMarker) + ' ]; then\n  exec ' +
+      resumeCommand + '\nelse\n  echo ' + q('Pi Compose: launch marker unavailable') +
+      ' >&2\n  exit 1\nfi\n';
+    writeFileSync(scriptPath, script, { mode: 0o700, flag: 'wx' });
     chmodSync(scriptPath, 0o700);
 
     return this.put({
