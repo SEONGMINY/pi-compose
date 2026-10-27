@@ -29,6 +29,18 @@ export class AgentRegistry {
         this.projects = Array.isArray(saved.projects) ? saved.projects : [];
         if (this.project && !this.projects.includes(this.project)) this.projects.push(this.project);
         this.agents = Array.isArray(saved.agents) ? saved.agents : [];
+        // Upgrade early ADE sessions without losing their Worktree relationship.
+        for (const agent of this.agents) {
+          if (!agent.project) {
+            const main = agent.relatedMainId
+              ? this.agents.find(item => item.id === agent.relatedMainId)
+              : null;
+            agent.project = main?.project || main?.cwd || agent.cwd;
+          }
+          if (agent.role === 'main' && !this.projects.includes(agent.project)) {
+            this.projects.push(agent.project);
+          }
+        }
       } catch { /* damaged display index must not delete Pi sessions */ }
     }
   }
