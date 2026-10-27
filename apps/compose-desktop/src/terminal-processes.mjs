@@ -1,4 +1,6 @@
 import pty from 'node-pty';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const MAX_SCROLLBACK_BYTES = 220_000;
 
@@ -24,12 +26,18 @@ export class TerminalProcesses {
     if (existing) return { seq: existing.seq, buffer: existing.buffer, running: true };
     if (this.exits.get(id) === 'stopping') throw new Error('이전 터미널이 종료 중입니다.');
     const { cwd, args } = this.registry.launchConfig(id);
+    const observationFile = this.registry.observationFile(id);
+    const observer = join(dirname(fileURLToPath(import.meta.url)), 'ade-session-observer.mjs');
+    const promptIndex = args.indexOf('--');
+    const fullArgs = [...args];
+    fullArgs.splice(promptIndex < 0 ? fullArgs.length : promptIndex, 0, '--extension', observer);
     // node-pty runs the real interactive Pi TUI. No shell command interpolation.
     let child;
     try {
-      child = pty.spawn('pi', args, {
+      child = pty.spawn(process.env.PIC_PI_BIN || 'pi', fullArgs, {
         name: 'xterm-256color', cols: 110, rows: 32, cwd,
-        env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
+        env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor',
+          PIC_ADE_OBSERVATION_FILE: observationFile },
       });
     } catch (error) {
       throw new Error('Pi 실행 실패. PATH에서 pi 명령을 확인하세요: ' +
