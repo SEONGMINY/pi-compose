@@ -63,7 +63,14 @@ export async function projectRoot(pi: ExtensionAPI, cwd: string, worktrees: Open
 }
 
 function exactWorktree(record: TaskRecord, worktrees: OpenWorktree[]): OpenWorktree | undefined {
-  if (!record.worktreePath || !record.workmuxHandle) return undefined;
+  if (!record.worktreePath || !record.branch) return undefined;
+  // Native Pi --fork fallback uses Git + tmux, not workmux. Actual Git path
+  // and branch identity are revalidated by inspectReview before showing diffs.
+  if (!record.workmuxHandle && record.tmuxTarget && !record.workmuxTargetName) {
+    return { handle:record.tmuxTarget, branch:record.branch,
+      path:record.worktreePath, project_path:record.projectRoot, is_open:true };
+  }
+  if (!record.workmuxHandle) return undefined;
   const matched = worktrees.filter(w => w.handle === record.workmuxHandle
     && w.branch === record.branch && same(w.path, record.worktreePath!)
     && w.project_path && same(w.project_path, record.projectRoot));
@@ -133,6 +140,10 @@ export async function trackLaunchedTask(pi: ExtensionAPI, plan: LaunchPlan, titl
 
     if (plan.workspace === 'shared' && plan.tmuxTarget) {
       const targets = snapshot.rows.filter(row => row.session === plan.tmuxTarget);
+      if (targets.length === 1) link.targetLocation = targets[0];
+    } else if (plan.workspace === 'worktree' && plan.worktreePath && plan.tmuxTarget) {
+      const targets = snapshot.rows.filter(row => row.session === plan.tmuxTarget);
+      link.worktreePath = plan.worktreePath;
       if (targets.length === 1) link.targetLocation = targets[0];
     } else if (plan.workspace === 'worktree' && plan.branch && plan.workmuxTargetName) {
       const worktrees = mux.rows.filter(w => w.branch === plan.branch && w.project_path
