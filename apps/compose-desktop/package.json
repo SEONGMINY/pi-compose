@@ -11,6 +11,6 @@
     "@pi-compose/core": "file:../../packages/compose-core"
   },
   "devDependencies": {
-    "electron": "^36.0.0"
+    "electron": "^45.0.0"
   }
 }
