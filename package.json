@@ -16,9 +16,10 @@
     "check": "npm run typecheck && npm test",
     "ade:dev": "concurrently -k \"npm run ade:ui\" \"wait-on http://127.0.0.1:5173 && npm run ade:desktop\"",
     "ade:ui": "npm run dev --workspace=@pi-compose/workbench",
-    "ade:desktop": "npm run dev --workspace=@pi-compose/desktop",
+    "ade:desktop": "COMPOSE_DEV_URL=http://127.0.0.1:5173 npm run dev --workspace=@pi-compose/desktop",
     "ade:build": "npm run build --workspace=@pi-compose/workbench",
-    "ade:smoke": "node scripts/ade-fork-smoke.mjs"
+    "ade:smoke": "node scripts/ade-fork-smoke.mjs",
+    "ade:start": "npm run ade:build && npm run dev --workspace=@pi-compose/desktop"
   },
   "pi": {
     "extensions": [
