@@ -107,13 +107,21 @@ export function TerminalPane({ id, running, visible, bridge }: {
         const snapshot = await bridge.attach(id);
         if (disposed) return;
         sequence = snapshot.seq;
-        if (snapshot.buffer) terminal.write(snapshot.buffer);
+        // A truncated byte tail is NOT a valid terminal-screen snapshot. Do not
+        // replay partial ANSI instructions after returning to a closed window.
+        // The real Pi TUI repaints on a terminal size change instead.
         attached = true;
         pending.filter(event => event.seq === undefined || event.seq > sequence)
           .sort((a, b) => (a.seq || 0) - (b.seq || 0)).forEach(deliver);
         fit.fit();
         fit.observeResize();
-        bridge.resize(id, terminal.cols, terminal.rows);
+        if (snapshot.running && snapshot.seq > 0) {
+          const cols = terminal.cols, rows = terminal.rows;
+          bridge.resize(id, Math.max(2, cols - 1), rows);
+          requestAnimationFrame(() => { if (!disposed) bridge.resize(id, cols, rows); });
+        } else {
+          bridge.resize(id, terminal.cols, terminal.rows);
+        }
         if (runningRef.current && visibleRef.current) terminal.focus();
       } catch (error) {
         if (!disposed) setLoadError(error instanceof Error ? error.message : String(error));
