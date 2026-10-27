@@ -8,6 +8,6 @@ export type ActiveExtensionProvenance = ComposeProvenance & {
 export function installedProvenance(root:string):ComposeProvenance;
 export function installedExecutables(searchPath?:string):Array<{command:string;path:string}>;
 export function activeExtensionReport(extensionFile:string, options?:{
-  root?:string;core?:boolean;startedAt?:number;
+  root?:string;mode?:string;startedAt?:number;
 }):ActiveExtensionProvenance;
 export function versionReport(info:ActiveExtensionProvenance):string;
