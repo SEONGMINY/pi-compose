@@ -57,6 +57,30 @@ Run `pic doctor` and use `pic setup` only to repair missing setup. The base Pi s
 
 **Release gate:** static checks, scoped Unit Tests and actual macOS acceptance A–G must be reported separately. GitHub code updates do not prove Child Pi prompt delivery, context reasoning, terminal switching or implementation completion.
 
+## Path D — Live delegation and recovery stack (Draft PR)
+
+**Review branch:** `fix/live-delegation-recovery`, based on `feat/reference-led-core` (PR #4). Original PRs and `main` are preserved.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SEONGMINY/pi-compose/fix/live-delegation-recovery/scripts/install.sh \
+  | PIC_COMPOSE_REF=fix/live-delegation-recovery bash
+```
+
+The guarded installer pins an exact Git commit, installs it through npm, writes a private local `.compose-install.json` in the installed package, then checks `pic version` returns that exact SHA. **Direct npm git installs do not produce this attestation and will show `UNKNOWN`.**
+
+```bash
+pic version           # installed pinned Git commit, or explicit UNKNOWN
+pic doctor            # actual package root, PATH pic executable collisions, registered Pi packages and versions
+```
+
+After upgrading, inspect the **running** Main and Child Pi processes separately with `/compose version`. The command reports the Extension file used by that process, the commit captured at module load, and a warning when its source file changed after it was loaded. A Pi already running an older Extension may not offer `/compose version`; restart or reload it instead of assuming the new code is active.
+
+Workmux support for Pi conversation Fork started with [v0.1.277 (2026-10-23)](https://workmux.dev/changelog/). Pi Compose checks `workmux --version` before Worktree Fork. If that capability is unverified, it creates the Git Worktree and uses Pi's official `--fork <exact-original-JSONL>` in tmux instead of letting an unsupported workmux binary fail silently.
+
+New task handling and Git review: [USAGE](USAGE.md). Previous partial-failure worktrees are never automatically cleaned up or recreated. The exact Child Pi saved session may be resumed after explicit approval, without a second Fork.
+
+**Release gate:** TypeScript and scoped unit tests, then actual macOS model/tmux/workmux usage. This environment does not have the user's local macOS session, and no GitHub Actions or E2E have been run.
+
 ## First interactive launch — Core features enabled by default
 
 ```bash
