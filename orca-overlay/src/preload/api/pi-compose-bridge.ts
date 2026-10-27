@@ -19,13 +19,16 @@ export type PiComposeRecord = {
   state: string
   sessionId: string
 }
+export type PiComposeListRecord = Pick<PiComposeRecord, 'id'|'role'|'title'|'parentMainId'|'state'|'sessionId'> & {
+  proof?: { allMatch: boolean; copied: number; expected: number }
+}
 export type PiComposeResult = {
   record: PiComposeRecord
   launcher: string
   proof?: { allMatch: boolean; copied: number; expected: number }
 }
 export type PiComposeApi = {
-  list: (cwd: string) => Promise<Array<Pick<PiComposeRecord, 'id'|'role'|'title'|'parentMainId'|'state'|'sessionId'>>>
+  list: (cwd: string) => Promise<PiComposeListRecord[]>
   create: (command: Exclude<PiComposeCommand, 'list'>, request: PiComposeRequest) => Promise<PiComposeResult>
 }
 export const piComposeApi: PiComposeApi = {
