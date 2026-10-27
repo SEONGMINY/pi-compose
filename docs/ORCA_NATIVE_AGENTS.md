@@ -15,7 +15,7 @@
 | `src/main/startup/main-process-ipc-bootstrap.ts` | 최소한의 Pi Compose IPC 등록 |
 | `src/main/pi-compose-ipc.ts` (신규) | Renderer 요청 검증, 별도 Node bridge 호출 |
 
-UI는 Orca의 React Dialog, Button, 터미널 관리 기능을 그대로 사용합니다. 새 Electron 앱·터미널 렌더러·계정 시스템을 만들지 않습니다. 스크립트는 **원본 Orion 소스**가 아니라 **원본 Orca 소스**의 특정 코드에 작은 변경만 적용합니다.
+UI는 Orca의 React Dialog, Button, 터미널 관리 기능을 그대로 사용합니다. 새 Electron 앱·터미널 렌더러·계정 시스템을 만들지 않습니다. 스크립트는 **원본 Orca 소스**가 아니라 **원본 Orca 소스**의 특정 코드에 작은 변경만 적용합니다.
 
 Orca 업스트림 원본은 `.cache/orca-upstream`에 있으며 MIT 라이선스와 저작권 고지를 보존합니다. 변경된 upstream은 이 Git 저장소에 대량 복사하지 않고 `orca-overlay/` 변경 파일 및 `scripts/orca-native-overlay.mjs`로 관리합니다. 핀된 버전이 바뀌거나 예상한 원본 코드가 다르면 **자동 덮어쓰기 대신 오류로 중단**합니다.
 
@@ -23,7 +23,7 @@ Orca 업스트림 원본은 `.cache/orca-upstream`에 있으며 MIT 라이선스
 
 1. Orca에서 로컬 Git 프로젝트를 선택합니다.
 2. 왼쪽 사이드바 상단의 **Pi Compose 아이콘(겹친 레이어 모양)**을 누릅니다.
-3. **Main Agent**를 선택하고 대화 이름을 입력해 생성합니다. 새 Pi 터미널이 Orca 탭으로 실행됩니다.
+3. **Main Agent**에서 **새 대화** 또는 **기존 Pi 대화 가져오기**를 선택합니다. 이미 설계를 논의한 Pi 세션을 가져오면 기록을 새로 요약하거나 재입력하지 않고 기존 대화를 그대로 엽니다. 새 Main도 Orca 탭에서 실제 Pi TUI로 실행됩니다.
 4. Main에서 요구사항·의사결정의 이유·강한 제약까지 실제 Pi와 논의합니다. Pi JSONL이 원본입니다.
 5. 같은 프로젝트에서 다시 Pi Compose 메뉴를 열어 **Work Agent**, 정확히 이어받을 Main, 개발 지시, Git 작업 공간을 선택합니다.
 6. Pi Compose가 먼저 **정확한 Main 세션 파일**을 확인하고 JSONL 전체를 Fork합니다. 복제 항목이 모두 일치하지 않으면 실행하지 않습니다. 성공하면 **Orca의 실제 새 터미널 탭**에서 해당 Work 세션이 지시와 함께 시작됩니다.
