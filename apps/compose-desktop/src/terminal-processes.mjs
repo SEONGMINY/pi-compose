@@ -19,12 +19,9 @@ export class TerminalProcesses {
     const state = this.registry.list();
     return { ...state, agents: state.agents.map(a => ({
       ...a,
-      sessionFile: this.safeSession(a), processStatus: this.status(a.id),
+      sessionFile: a.sessionFile || null, processStatus: this.status(a.id),
       activity: this.registry.activity(a.id),
     })) };
-  }
-  safeSession(agent) {
-    try { return this.registry.locateSession(agent); } catch { return agent.sessionFile || null; }
   }
   start(id) {
     this.registry.get(id);
