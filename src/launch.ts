@@ -146,7 +146,7 @@ export async function loadSourceSession(file: string): Promise<SessionSource> {
  * assumption about an older binary's capabilities.
  */
 export function workmuxPiForkSupported(output:string):boolean {
-  const m=output.match(/(?:workmux\\s+v?)(\\d+)\\.(\\d+)\\.(\\d+)/i);
+  const m=output.match(/(?:workmux\s+v?)(\d+)\.(\d+)\.(\d+)/i);
   if(!m)return false;
   const [major,minor,patch]=m.slice(1).map(Number);
   return major>0||(major===0&&(minor>1||(minor===1&&patch>=277)));
