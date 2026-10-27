@@ -6,23 +6,29 @@ Pi Compose는 [Pi](https://github.com/earendil-works/pi)를 기반으로, Main�
 
 Main은 그대로 둡니다. 실제 구현은 새 Pi Agent와 별도 Git Worktree에서 진행합니다. 구현 중 Main에서는 다른 설계를 계속할 수 있습니다. 여러 Agent를 관리하기 위한 별도 AI Runtime이나 Git 관리 시스템을 만들지 않습니다.
 
-## macOS ADE — 첫 번째 동작하는 Core 구현 (개발 브랜치)
+## macOS ADE — Main / Work / Support Agent (개발 버전)
 
-기존 TUI와 별개로, 실제 Pi SDK를 사용한 **Main / Child 분할 개발 환경**을 구현하고 있습니다.
+Pi의 **실제 TUI**를 Electron 안에서 실행하는 ADE입니다. React로 Pi 채팅 화면을 재구현하지 않습니다.
 
-- `@pi-compose/core`: 정확한 Main 세션 Fork, Pi 실행 및 Git Worktree
-- `@pi-compose/workbench`: React 기반 Main/Child 분할 대화와 실시간 이벤트·코드 검토
-- `@pi-compose/desktop`: Electron macOS 창, 파일 선택, 알림, 종료 시 Agent 중단
+| Agent | 역할 | 시작 컨텍스트 |
+| --- | --- | --- |
+| Main Agent | 요구사항·설계·의사결정. 여러 개 생성 가능 | 독립 Pi 대화 |
+| Work Agent | Main에서 합의한 설계를 구현 | **정확히 선택한 Main 세션의 Fork** |
+| Support Agent | 탐색·조사·테스트·검증 | **별도 Pi 세션**, Main 대화 상속 없음 |
 
-```bash
-git checkout feat/ade-minimal-workbench
+터미널은 [ghostty-web](https://github.com/coder/ghostty-web)의 Ghostty WASM 에뮬레이터와 node-pty를 사용하며, **별도 웹 서버를 운영하지 않습니다**. 개발용 Vite 서버는 Electron 렌더러 확인에만 사용합니다.
+
+\`\`\`bash
+git fetch origin
+git switch feat/ade-pi-tui-agents
 npm install
 npm run ade:dev
-```
+\`\`\`
 
-기존 Pi에서 먼저 `/login`과 `/model`을 설정해야 합니다. 데스크톱 MVP는 실제 macOS에서 실행해 검증할 단계이며, 아직 설치 가능한 배포용 .dmg는 아닙니다.
+macOS, Node.js 22.19+, Git, Pi 1.4.0과 기존 \`pi\` 인증 설정이 필요합니다. Finder에서 실행할 때 Pi 명령이 PATH에 없다면 \`PIC_PI_BIN=/absolute/path/to/pi\`로 지정할 수 있습니다. 네이티브 node-pty가 빌드되지 않으면 Xcode Command Line Tools가 필요할 수 있습니다.
 
-**[ADE 구현 범위·사용법·검증 한계](docs/ADE_MVP.md)**
+**[사용·구현 범위·미검증 사항](docs/ADE_MVP.md)**
+
 
 ---
 
