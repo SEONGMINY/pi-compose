@@ -50,19 +50,17 @@ export function registerPiComposeIpc(): void {
       child.on('error', (error) => { clearTimeout(timer); reject(error) })
       child.on('close', (code) => {
         clearTimeout(timer)
+        let response: { ok?: boolean; error?: string; data?: unknown }
         try {
-          const lines = output.trim().split('\n')
-          const response = JSON.parse(lines.at(-1) || '{}') as {
-            ok?: boolean; error?: string; data?: unknown
-          }
-          if (!response.ok || code !== 0) {
-            reject(new Error(response.error || failure || 'Pi Compose command failed'))
-          } else {
-            resolveResult(response.data)
-          }
-        } catch (error) {
-          reject(new Error('Pi Compose returned invalid JSON: ' +
-            (error instanceof Error ? error.message : String(error))))
+          response = JSON.parse(output.trim().split('\n').at(-1) || '{}')
+        } catch {
+          reject(new Error('Pi Compose returned invalid data: ' + (failure || 'check Node bridge')))
+          return
+        }
+        if (!response.ok || code !== 0) {
+          reject(new Error(response.error || failure || 'Pi Compose command failed'))
+        } else {
+          resolveResult(response.data)
         }
       })
       child.stdin.end(JSON.stringify(data))
