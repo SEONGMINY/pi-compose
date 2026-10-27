@@ -1,12 +1,14 @@
 import { basename, resolve } from 'node:path';
-import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from '@earendil-works/pi-coding-agent';
+import { SessionManager, type ExtensionAPI, type ExtensionCommandContext, type ExtensionContext } from '@earendil-works/pi-coding-agent';
 import type { LaunchPlan } from '../src/launch.ts';
-import { bindAgentSession, listTasks, recordTask, type TaskRecord, type TaskLink, type TmuxLocation } from '../src/task-index.ts';
+import { bindAgentSession, listTasks, recordTask, reconcileTaskSession, relinkResumedTask, type TaskRecord, type TaskLink, type TmuxLocation } from '../src/task-index.ts';
 import { diagnosticEvent, startFlow, finishFlow } from '../src/diagnostics.mjs';
 import { openWorkmuxMonitor } from './optional/workmux-dashboard.ts';
 import { workmuxRows, returnToTmux, type OpenWorktree } from './work-return.ts';
 import { showSavedSessions } from './work-return.ts';
 import { inspectReview } from '../src/review.ts';
+import { planResume, executeResume } from '../src/resume.ts';
+import { inspectWorktree } from '../src/resume.ts';
 
 type HubRow = {
   kind: 'current' | 'main' | 'task' | 'history' | 'new' | 'advanced' | 'monitor';
@@ -109,10 +111,16 @@ export function taskHubRows(
     const worktree = record.workspace === 'worktree' ? exactWorktree(record, worktrees) : undefined;
     const available = isLive(record.targetLocation) && (record.workspace === 'shared' || Boolean(worktree?.is_open));
     const location = equalLocation(record.targetLocation, current) ? ' · 현재 작업' : '';
-    const status = available
+    const status = record.dispatchFailed
+      ? '위임 실패 · 남은 리소스 확인 필요'
+      : available
       ? record.agentSessionId
         ? record.context === 'fork'
-          ? (record.forkParentVerified === true ? 'Child Pi 연결 · 원본 Main Fork 확인' : 'Child Pi 연결 · 원본 Fork 확인 불가')
+          ? (record.forkParentVerified === true
+            ? record.promptObserved && record.assistantObserved ? 'Fork·지시·모델 응답 관측'
+              : record.promptObserved ? 'Fork·개발 지시 관측 · 모델 응답 미확인'
+              : 'Fork 출처 확인 · 지시 처리 미확인'
+            : 'Child Pi 연결 · 원본 Fork 확인 불가')
           : 'Child Pi 연결 · Independent'
         : '실행 창만 확인됨 · Child Pi 미확인'
       : record.targetLocation ? '대상 종료 또는 확인 불가' : '연결 정보 없음 · 이전 작업 탐색';
@@ -123,7 +131,6 @@ export function taskHubRows(
       + (record.handoff ? ' · 인계 기록' : '') + (record.review ? ' · 검토 기록' : '') };
   });
   rows.push(...entries.slice(0, 15));
-  rows.push({ kind: 'history', label: '다른 대화·이전 작업 찾기 (고급)' });
   return rows;
 }
 
@@ -131,7 +138,7 @@ export function taskHubRows(
  * Record a link only after workmux/tmux reports the precise target created by
  * this launch. We never treat an agent name or matching branch as identity.
  */
-export async function trackLaunchedTask(pi: ExtensionAPI, plan: LaunchPlan, title?: string, diagnosticFlowId?: string): Promise<string | undefined> {
+export async function trackLaunchedTask(pi: ExtensionAPI, plan: LaunchPlan, title?: string, diagnosticFlowId?: string, failed = false): Promise<string | undefined> {
   try {
     const [snapshot, mux] = await Promise.all([tmuxSnapshot(pi, plan.cwd), workmuxRows(pi, plan.cwd)]);
     const root = await projectRoot(pi, plan.cwd, mux.rows);
@@ -139,7 +146,8 @@ export async function trackLaunchedTask(pi: ExtensionAPI, plan: LaunchPlan, titl
     const current = snapshot.current;
     const origin = current && known.find(t => equalLocation(t.targetLocation, current));
     const main = process.env.PIC_COMPOSE_MAIN === '1' ? current : origin?.mainLocation;
-    const link: TaskLink = { projectRoot: root, ...(title ? { title } : {}), ...(diagnosticFlowId ? {diagnosticFlowId} : {}) };
+    const link: TaskLink = { projectRoot: root, ...(title ? { title } : {}),
+      ...(diagnosticFlowId ? {diagnosticFlowId} : {}), ...(failed ? {dispatchFailed:true} : {}) };
     if (main) link.mainLocation = main;
 
     if (plan.workspace === 'shared' && plan.tmuxTarget) {
@@ -180,6 +188,7 @@ export async function trackLaunchedTask(pi: ExtensionAPI, plan: LaunchPlan, titl
     }
 
     await recordTask(plan, link);
+    if (failed) return 'Execution failed or is uncertain. Exact resource identity was retained; inspect the task before any retry.';
     if (!link.targetLocation) return 'Launch command was accepted, but the exact running target was not verified. '
       + 'The work is listed as unverified; use the advanced work picker to inspect it.';
     return undefined;
@@ -219,13 +228,17 @@ const evidenceText = (record: TaskRecord): string => [
   '\nMain에서 병합 또는 Worktree 정리를 자동으로 실행하지 않습니다.',
 ].join('\n');
 
-async function taskActions(pi: ExtensionAPI, ctx: ExtensionContext, row: HubRow, worktrees: OpenWorktree[], flowId?: string): Promise<'open' | 'back'> {
+async function taskActions(pi: ExtensionAPI, ctx: ExtensionContext, row: HubRow, worktrees: OpenWorktree[], root:string, flowId?: string): Promise<'open' | 'back'> {
   const record = row.record;
   if (!record) return 'back';
-  const reviewedWorktree = record.workspace === 'worktree' ? exactWorktree(record, worktrees) : undefined;
+  // Git is the authoritative review source. It can outlive a workmux process.
+  const reviewedPath=record.workspace==='worktree'?record.worktreePath:undefined;
   const actions = [
     ...(row.available ? ['기존 Agent 화면으로 이동'] : []),
-    ...(reviewedWorktree ? ['Git 변경 검토'] : []),
+    '실행 상태·복구 확인',
+    ...(record.agentSessionFile && !row.available ? ['저장된 Child Pi 재개'] : []),
+    ...(record.workspace==='worktree' && reviewedPath && record.branch ? ['Git 변경 검토'] : []),
+    ...(record.workspace==='shared' ? ['Shared Git 변경 확인 (작성 Agent 특정 불가)'] : []),
     '원본 위임 지시 확인',
     ...(record.handoff || record.review ? ['인계·검토 결과 확인'] : []),
     '← 작업 목록으로',
@@ -235,10 +248,10 @@ async function taskActions(pi: ExtensionAPI, ctx: ExtensionContext, row: HubRow,
     if (!choice || choice.startsWith('←')) return 'back';
     diagnosticEvent('navigation.detail',{source:'menu',flowId,data:{kind:choice==='기존 Agent 화면으로 이동'?'agent':choice==='원본 위임 지시 확인'?'instruction':'result'},taskId:record.id});
     if (choice === '기존 Agent 화면으로 이동') return 'open';
-    if (choice === 'Git 변경 검토' && reviewedWorktree) {
+    if (choice === 'Git 변경 검토' && reviewedPath && record.branch) {
       try {
         // Git/workmux own the truth. No Handoff is required to review actual changes.
-        const review = await inspectReview(reviewedWorktree.path, record.branch!, record.baseSha);
+        const review = await inspectReview(reviewedPath, record.branch, record.baseSha);
         await ctx.ui.confirm('Git 변경 · ' + brief(record.title), [
           '브랜치: ' + review.branch, '비교 기준: ' + review.base,
           ...(review.warning ? ['주의: ' + review.warning] : []),
@@ -251,6 +264,72 @@ async function taskActions(pi: ExtensionAPI, ctx: ExtensionContext, row: HubRow,
       } catch (error) {
         ctx.ui.notify('Git 변경을 확인하지 못했습니다: ' + String(error) + '. Worktree/브랜치가 바뀌었는지 Git에서 확인하세요.', 'warning');
       }
+      continue;
+    }
+    if(choice==='실행 상태·복구 확인') {
+      let gitState='해당 없음 (Shared)';
+      if(record.workspace==='worktree'&&record.branch){
+        try{
+          const w=await inspectWorktree({cwd:root,branch:record.branch});
+          gitState=w.status+(w.path?' / 작업 폴더: '+w.path:'')+(w.dirty?' / 미커밋 변경 있음':'');
+        }catch(e){gitState='확인 실패: '+String(e);}
+      }
+      await ctx.ui.confirm('실행·리소스 확인 · '+brief(record.title),[
+        '원본 대화: '+(record.sourceSessionId||'독립 실행 / 식별 불가'),
+        '실행 명령: '+(record.dispatchFailed?'실패 · 잔여 리소스 확인':'전달됨 (모델 상태 별도 확인)'),
+        '실행 대상: '+(row.available?'정확한 기존 창 있음':'창 종료 또는 확인 불가'),
+        'Child Pi 세션: '+(record.agentSessionId||'미확인'),
+        '원본 Fork: '+(record.context==='independent'?'해당 없음':record.forkParentVerified===true?'일치 확인':'확인 불가'),
+        '개발 지시: '+(record.promptObserved?'Child JSONL에서 원문 관측':'전달 여부 미확인'),
+        '모델 응답: '+(record.assistantObserved?'Child JSONL에서 기록 관측':'관측되지 않음 (실패 확정 아님)'),
+        'Git 작업 공간: '+gitState,
+        '\n다음 행동: '+(row.available?'기존 Agent 화면으로 이동해 직접 확인'
+          :record.agentSessionFile?'저장된 Child Pi 재개 (승인 필요)':'기존 Git·tmux 리소스를 확인하세요. 확인 없이 중복 실행하지 않습니다.'),
+        '\n프로세스·세션·모델 응답·개발 완료는 서로 다른 사실입니다.',
+      ].join('\n'));
+      continue;
+    }
+    if(choice==='저장된 Child Pi 재개' && record.agentSessionFile && !row.available){
+      try{
+        const plan=await planResume({workspace:record.workspace,cwd:root,
+          sessionFile:record.agentSessionFile,branch:record.branch});
+        const approved=await ctx.ui.confirm('기존 Child Pi 대화 재개',[
+          '작업: '+record.title,'저장 세션 ID: '+plan.sessionId,
+          '작업 폴더: '+plan.cwd,'새 tmux 세션: '+plan.tmuxTarget,
+          ...plan.warnings,'\n기존 저장 대화를 --session으로 재개합니다. 새 Fork를 만들지 않습니다.',
+          '다른 tmux 대상에서 이미 실행 중인 Pi가 있을 수 있으므로 먼저 확인하세요.',
+        ].join('\n'));
+        if(!approved)continue;
+        const outcome=await executeResume(plan);
+        if(outcome.status==='target_occupied_no_launch'){
+          ctx.ui.notify('정확한 tmux 대상이 이미 있습니다. 중복 실행하지 않았습니다. /compose에서 기존 실행 창을 확인하세요.','warning');
+          continue;
+        }
+        const latest=await tmuxSnapshot(pi,root);
+        const matches=latest.rows.filter(t=>t.session===plan.tmuxTarget);
+        if(matches.length===1){
+          const relinked=await relinkResumedTask(root,record.id,plan.sessionId,plan.sessionFile,matches[0]!);
+          ctx.ui.notify(relinked?'이전 Child 실행 창을 연결했습니다. /compose에서 선택하세요.':
+            '명령 전달됨. 정확한 세션 연결을 다시 확인해야 합니다.','info');
+        }else{
+          ctx.ui.notify('tmux 명령은 성공했지만 정확한 창 연결이 확인되지 않았습니다. 다시 시작하지 마세요.','warning');
+        }
+        return 'back';
+      }catch(e){ctx.ui.notify('재개 실패. 리소스를 삭제하거나 다른 Pi를 시작하지 않았습니다: '+String(e),'error');}
+      continue;
+    }
+    if(choice==='Shared Git 변경 확인 (작성 Agent 특정 불가)'){
+      try{
+        const status=await pi.exec('git',['status','--short','--untracked-files=normal'],{cwd:record.launchCwd||root});
+        const diff=await pi.exec('git',['diff','--no-ext-diff','HEAD','--'],{cwd:record.launchCwd||root});
+        if(status.code!==0||diff.code!==0)throw new Error(status.stderr||diff.stderr||'Git 조회 실패');
+        await ctx.ui.confirm('Shared Checkout 변경 · 작성자 추정 금지',[
+          '이 Git 변경은 특정 Child Agent에 귀속할 수 없습니다.',
+          '\n변경 목록:\n'+(status.stdout||'(없음)'),
+          '\nDiff 일부:\n'+(diff.stdout.slice(0,10000)||'(없음)'),
+          '\n결과 확인만 수행했습니다. 자동 병합하지 않습니다.',
+        ].join('\n'));
+      }catch(e){ctx.ui.notify('Shared Git 상태 확인 실패: '+String(e),'warning');}
       continue;
     }
     if (choice === '원본 위임 지시 확인') {
@@ -279,7 +358,42 @@ export async function showTaskHub(
   if (!ctx.hasUI) return;
   const [mux, snapshot] = await Promise.all([workmuxRows(pi, ctx.cwd), tmuxSnapshot(pi, ctx.cwd)]);
   const root = await projectRoot(pi, ctx.cwd, mux.rows);
-  const records = await listTasks(root);
+  const saved=await listTasks(root);
+  // Repair the record/Child session startup race from Pi's own saved JSONL.
+  // A matching title or branch is never enough; exact cwd, parent and prompt
+  // must be verified before adopting a saved child.
+  const records:TaskRecord[]=[];
+  const sessionsByCwd=new Map<string,string[]>();
+  for(const record of saved.slice(0,15)){
+    let candidates:string[]=[];
+    if(!record.agentSessionFile){
+      const cwd=record.workspace==='worktree'?record.worktreePath:record.launchCwd||record.projectRoot;
+      if(cwd){
+        if(!sessionsByCwd.has(cwd)){
+          try{sessionsByCwd.set(cwd,(await SessionManager.list(cwd,ctx.sessionManager.getSessionDir())).slice(0,40).map(x=>x.path));}
+          catch{sessionsByCwd.set(cwd,[]);}
+        }
+        candidates=sessionsByCwd.get(cwd)||[];
+      }
+    }
+    const updated=await reconcileTaskSession(root,record.id,candidates) || record;
+    if(!record.agentSessionId&&updated.agentSessionId)
+      diagnosticEvent('launch.agent_linked',{source:'automatic',outcome:'success',
+        flowId:record.diagnosticFlowId,taskId:record.id,sessionId:updated.agentSessionId,
+        projectId:root,data:{linked:true}});
+    if(record.forkParentVerified!==true&&updated.forkParentVerified===true)
+      diagnosticEvent('launch.context_linked',{source:'automatic',outcome:'success',
+        flowId:record.diagnosticFlowId,taskId:record.id,sessionId:updated.agentSessionId,
+        projectId:root,data:{linked:true}});
+    if(!record.promptObserved&&updated.promptObserved)
+      diagnosticEvent('launch.prompt_observed',{source:'automatic',outcome:'success',
+        flowId:record.diagnosticFlowId,taskId:record.id,sessionId:updated.agentSessionId,projectId:root});
+    if(!record.assistantObserved&&updated.assistantObserved)
+      diagnosticEvent('launch.response_observed',{source:'automatic',outcome:'success',
+        flowId:record.diagnosticFlowId,taskId:record.id,sessionId:updated.agentSessionId,projectId:root});
+    records.push(updated);
+  }
+  records.push(...saved.slice(15));
   const flow=startFlow('navigation.opened',{source:'slash',projectId:root,data:{availableTargets:records.length,screen:process.env.PIC_COMPOSE_MAIN==='1'?'main':'agent'}});
   const taskRows = taskHubRows(records, mux.rows, snapshot.rows, snapshot.current,
     process.env.PIC_COMPOSE_MAIN === '1'
@@ -303,7 +417,11 @@ export async function showTaskHub(
       + (row.available
         ? r.agentSessionId
           ? r.context === 'fork'
-            ? (r.forkParentVerified === true ? 'Pi + Fork 확인' : 'Pi 연결, Fork 미확인')
+            ? (r.forkParentVerified === true
+              ? r.promptObserved && r.assistantObserved ? 'Fork·지시·모델 응답 확인'
+                : r.promptObserved ? 'Fork·지시 확인, 응답 미확인'
+                : 'Fork 확인, 지시 미확인'
+              : 'Pi 연결, Fork 미확인')
             : 'Pi 연결'
           : '실행 창만 확인'
         : '기록만 있음');
@@ -326,7 +444,7 @@ export async function showTaskHub(
     finishFlow(flow,'navigation.finished',{source:'menu',outcome:'success',data:{kind:'history'}});
     return;
   }
-  if (row.kind === 'task' && await taskActions(pi, ctx, row, mux.rows, flow.flowId) !== 'open') {
+  if (row.kind === 'task' && await taskActions(pi, ctx, row, mux.rows, root, flow.flowId) !== 'open') {
     finishFlow(flow,'navigation.finished',{source:'menu',outcome:'cancelled',data:{kind:'task'}});
     return;
   }

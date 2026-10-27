@@ -7,9 +7,9 @@ export const SCHEMA_VERSION = 1;
 const VALID = new Set([
   'setup.started','setup.component','setup.finished','setup.hook_prompted',
   'command.entered','command.invalid','command.finished',
-  'launch.started','launch.approval','launch.finished','launch.agent_linked','launch.context_linked','launch.agent_started','launch.stage',
+  'launch.started','launch.approval','launch.finished','launch.agent_linked','launch.context_linked','launch.agent_started','launch.prompt_observed','launch.response_observed','launch.stage',
   'navigation.opened','navigation.selected','navigation.finished','navigation.detail',
-  'switch.started','switch.finished','sessions.opened','sessions.finished',
+  'switch.started','switch.finished','sessions.opened','sessions.listed','sessions.finished',
   'handoff.started','handoff.finished','verify.started','verify.finished',
   'result.opened','result.unavailable'
 ]);
@@ -22,7 +22,7 @@ const SAFE_KEYS = new Set([
 ]);
 const CATEGORIES = {
   action: ['select','open','cancel','back','confirm','switch','view'],
-  route: ['home','work','launch','preview','monitor','dashboard','sessions','back','resume','handoff','verify','invalid'],
+  route: ['home','work','launch','advanced','preview','monitor','dashboard','sessions','back','resume','version','handoff','verify','invalid'],
   reason: ['no_selection','current','target_unavailable','worktree_closed','settings_invalid','pi_package_error','workmux_hook_error','not_found','no_result','unsupported','unknown'],
   screen: ['main','agent','unknown'],
   context: ['fork','independent'],
@@ -204,6 +204,8 @@ export function analyzeDiagnostics(events) {
         childPiLinked:count(events,'launch.agent_linked','success'),
         forkParentVerified:count(events,'launch.context_linked','success'),
         agentRunsObserved:count(events,'launch.agent_started','success'),
+        promptsObserved:count(events,'launch.prompt_observed','success'),
+        assistantResponsesObserved:count(events,'launch.response_observed','success'),
         cancellationPercent:rate(realFinished.filter(e=>e.outcome==='cancelled').length,launchStarted),
         failures:realFinished.filter(e=>e.outcome==='failure').length,
         unavailable:realFinished.filter(e=>e.outcome==='unavailable').length,
@@ -217,7 +219,9 @@ export function analyzeDiagnostics(events) {
       navigation:{opened:navOpen,selected:navSelected,reopenedWithin30Seconds:reopens,noSelectionExitPercent:rate(navCancel,navOpen),
         selectedToOpenPercent:rate(navSelected,navOpen),selectionTimeMsP50:percentile(durations('navigation.selected'),.5),totalFlowDurationMsP50:percentile(durations('navigation.finished'),.5)},
       switching:{started:switchReq,completed:switchOk,fastReturnCandidates,failurePercent:rate(count(events,'switch.finished','failure'),switchReq)},
-      sessions:{opened:sessionsOpen,completed:sessionsOk,successPercent:rate(sessionsOk,sessionsOpen)},
+      sessions:{opened:sessionsOpen,completed:sessionsOk,successPercent:rate(sessionsOk,sessionsOpen),
+        listed:count(events,'sessions.listed'),empty:count(events,'sessions.listed','unavailable'),
+        cancelled:count(events,'sessions.finished','cancelled')},
       result:{handoffCreated:handoff,verifyExecuted:verify,reportOpened:count(events,'result.opened')},
       commands:{routes:Object.fromEntries([...new Set(events.filter(e=>e.event==='command.entered').map(e=>e.data?.route))].filter(Boolean).map(r=>[r,events.filter(e=>e.event==='command.entered'&&e.data?.route===r).length])),invalid:count(events,'command.invalid')},
       setup:{attempts:count(events,'setup.started'),failures:count(events,'setup.finished','failure'),

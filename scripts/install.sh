@@ -111,11 +111,32 @@ short_revision="$(printf '%.12s' "$revision")"
 info "Installing Pi Compose at $short_revision with npm."
 npm install -g --ignore-scripts --no-audit --no-fund "$PACKAGE_URL#$revision"
 
+# Store the exact resolved commit next to the package, not in the mutable Pi
+# settings. Direct npm installs intentionally report an unknown SHA.
+# Only the official pinned installer is permitted to assert installer-pinned.
+package_dir="$(npm root -g)/pi-compose"
+[ -f "$package_dir/package.json" ] || fail "Installed package directory missing; cannot attest its revision."
+PIC_COMPOSE_INSTALLED_SHA="$revision" PIC_COMPOSE_INSTALLED_REF="$install_ref" \
+  PIC_COMPOSE_INSTALLED_DIR="$package_dir" node --input-type=module -e '
+    import { writeFileSync, renameSync, realpathSync } from "node:fs";
+    import { join } from "node:path";
+    const root=realpathSync(process.env.PIC_COMPOSE_INSTALLED_DIR);
+    const stamp={schema:1,packageRoot:root,commit:process.env.PIC_COMPOSE_INSTALLED_SHA,
+      ref:process.env.PIC_COMPOSE_INSTALLED_REF};
+    const target=join(root,".compose-install.json");
+    const temp=target+"."+process.pid+".tmp";
+    writeFileSync(temp,JSON.stringify(stamp)+"\n",{mode:0o600,flag:"wx"});
+    renameSync(temp,target);
+  ' || fail "Installed package could not record its pinned commit. Check npm permissions before trusting the version."
+
 # npm owns the global executable symlink. Don't edit PATH or shell rc.
 hash -r
 has pic || fail "Pi Compose was installed but 'pic' is not on PATH. Check 'npm config get prefix' and its bin directory. Shell settings were not changed."
 
 # The wrapper forwards this to existing Pi; no model login or agent creation.
+version_result="$(pic version)" || fail "'pic version' failed after installation."
+printf '%s' "$version_result" | grep -F "Installed Git commit: $revision" >/dev/null \
+  || fail "The installed Pi Compose commit could not be confirmed; refusing a false success."
 pic --version >/dev/null || fail "'pic' is installed but could not launch Pi."
 
 info "Pi Compose installed successfully at $short_revision."

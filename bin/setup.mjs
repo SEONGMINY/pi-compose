@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { diagnosticEvent, diagnosticStatus, discloseDiagnostics, startFlow, finishFlow } from '../src/diagnostics.mjs';
+import { installedProvenance, installedExecutables } from '../src/provenance.mjs';
 
 const agentDir = () => {
   const custom = process.env.PI_CODING_AGENT_DIR;
@@ -52,6 +53,17 @@ export function inspectSetup(root, { versions = false } = {}) {
       : packageState(project.value, join(root, 'packages/optional'), join(process.cwd(), '.pi')) !== 'missing'
         ? 'project-only' : 'missing',
   } : {navigation: 'unknown', features: 'unknown'};
+  const packageCandidates=[
+    ...((Array.isArray(settings.value?.packages)?settings.value.packages:[])
+      .map(p=>({scope:'global',source:typeof p==='string'?p:p?.source,base:agentDir()}))),
+    ...((Array.isArray(project.value?.packages)?project.value.packages:[])
+      .map(p=>({scope:'project',source:typeof p==='string'?p:p?.source,base:join(process.cwd(),'.pi')}))),
+  ];
+  const composeSources=packageCandidates
+    .filter(p=>typeof p.source==='string'
+      && /(?:pi-compose|packages\/(?:navigation|optional))/i.test(p.source))
+    .map(p=>({scope:p.scope,source:p.source,location:/^(npm:|git:|https?:)/.test(p.source)
+      ?p.source:resolve(p.base,p.source)}));
   const hookFile = join(agentDir(), 'extensions/workmux-status.ts');
   const hasHook = existsSync(hookFile)
     || (Array.isArray(settings.value?.extensions)
@@ -61,7 +73,7 @@ export function inspectSetup(root, { versions = false } = {}) {
     settingsOk:settings.ok && project.ok, consentOk:consent.ok,
     prompted:consent.ok && consent.value?.prompted === true,
     choice:consent.value?.choice,
-    packages, hook:hasHook ? 'detected' : 'not-detected',
+    packages, composeSources, hook:hasHook ? 'detected' : 'not-detected',
     node:process.version,
     pi:versions ? commandVersion('pi') : undefined,
     tmux:versions ? commandVersion('tmux') : undefined,
@@ -84,12 +96,23 @@ export function printDoctor(root) {
   const s = inspectSetup(root,{versions:true});
   let pkgVersion = 'unknown';
   try { pkgVersion = JSON.parse(readFileSync(join(root,'package.json'),'utf8')).version; } catch {}
-  console.log('Pi Compose version: ' + pkgVersion + ' (Git SHA: see npm install source)');
+  const build=installedProvenance(root);
+  console.log('Pi Compose version: ' + pkgVersion + ' | installed commit: ' + (build.revision || 'UNKNOWN') + ' | provenance: ' + build.origin);
+  console.log('Installed package root: ' + build.packageRoot + (build.ref ? ' | source ref: ' + build.ref : ''));
+  const executables=installedExecutables();
+  for(const entry of executables) console.log('PATH pic: '+entry.command+' -> '+entry.path);
+  if (executables.length > 1) console.log('WARNING: Multiple different pic executables exist on PATH; inspect the one actually invoked.');
+  if (!build.revision) console.log('WARNING: Commit cannot be verified. Use the pinned installer or run inside a Git checkout. An npm git URL alone is NOT proof of the installed revision.');
+  console.log('Main Extension path: ' + join(build.packageRoot,'extensions/compose.ts'));
+  console.log('Child navigation path: ' + join(build.packageRoot,'packages/navigation/extensions/navigator.ts'));
+  console.log('Run /compose version inside EACH currently running Pi to check its loaded Extension path and process age.');
   console.log('Node: '+s.node+' | Pi: '+(s.pi||'missing')+' | tmux: '+(s.tmux||'missing')+' | workmux: '+(s.workmux||'missing'));
   const [nodeMajor, nodeMinor] = process.versions.node.split('.').map(Number);
   if (nodeMajor < 22 || (nodeMajor === 22 && nodeMinor < 19))
     console.log('WARNING: Node.js >= 22.19.0 is required. Select a compatible Node version.');
   console.log('Child navigation: '+s.packages.navigation+' | Handoff/Verify: '+s.packages.features+' | Pi status Hook: '+s.hook);
+  for(const source of s.composeSources)console.log('Registered Pi Compose package ('+source.scope+'): '+source.location);
+  if(new Set(s.composeSources.map(x=>x.location)).size>1)console.log('WARNING: More than one Pi Compose package source is registered. Old Extensions may still be loaded in a running Pi process. Inspect pi config and /compose version in each window.');
   const diag=diagnosticStatus();
   console.log('Local UX diagnostics: '+(diag.enabled?'enabled':'disabled')+' | Retention: '+diag.retentionDays+' days | Inspect: pic diagnostics status');
   if (!s.settingsOk) console.log('WARNING: Pi settings.json cannot be parsed. No configuration will be modified.');

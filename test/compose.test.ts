@@ -69,7 +69,7 @@ test('slash preview uses the exact current Pi session without asking for its JSO
       notify: (message: string) => messages.push(message),
     },
   } as unknown as ExtensionContext);
-  assert.ok(messages[0]?.includes('Preview only: tmux'));
+  assert.ok(messages[0]?.includes('Preview only (no changes): tmux'));
   assert.ok(messages[0]?.includes(file));
 });
 
@@ -87,7 +87,7 @@ test('slash preview preserves explicit alternate source file selection', async t
       notify: (message: string) => messages.push(message),
     },
   } as unknown as ExtensionContext);
-  assert.ok(messages[0]?.includes('Preview only: tmux'));
+  assert.ok(messages[0]?.includes('Preview only (no changes): tmux'));
   assert.ok(messages[0]?.includes(file));
 });
 

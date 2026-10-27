@@ -142,6 +142,16 @@ export async function loadSourceSession(file: string): Promise<SessionSource> {
   };
 }
 
+/** workmux added Pi native Fork on 2026-10-23 in v0.1.277. No optimistic
+ * assumption about an older binary's capabilities.
+ */
+export function workmuxPiForkSupported(output:string):boolean {
+  const m=output.match(/(?:workmux\s+v?)(\d+)\.(\d+)\.(\d+)/i);
+  if(!m)return false;
+  const [major,minor,patch]=m.slice(1).map(Number);
+  return major>0||(major===0&&(minor>1||(minor===1&&patch>=277)));
+}
+
 export async function planLaunch(
   input: unknown,
   { run = runProcess, id = () => randomUUID().slice(0, 8) }: { run?: ProcessRunner; id?: () => string } = {},
@@ -176,7 +186,16 @@ export async function planLaunch(
   const repo = gitRootSchema.safeParse(await checkedRun(run, 'git', ['rev-parse', '--show-toplevel'], cwd));
   if (!repo.success) throw validationError(repo.error);
   const repoRoot = await realpath(repo.data);
-  const requiresNativePiFork = Boolean(source && source.cwd !== repoRoot);
+  let nativeReason = source && source.cwd !== repoRoot
+    ? 'Source Pi conversation was saved below the repository root' : '';
+  if (source && !nativeReason) {
+    // Workmux Pi Fork support is new. Prefer its integration only when the
+    // installed runtime can demonstrably support Pi --fork.
+    const version = await run('workmux',['--version'],{cwd:repoRoot}).catch(()=>null);
+    if(!version||version.code!==0||!workmuxPiForkSupported(version.stdout+' '+version.stderr))
+      nativeReason='workmux Pi Fork support (>= 0.1.277) could not be verified';
+  }
+  const requiresNativePiFork = Boolean(source && nativeReason);
   const branch = request.branch ?? '';
   if (!/^[^\s-][^\s]*$/.test(branch) || branch.startsWith('-')) throw new LaunchError('Invalid branch name');
   await checkedRun(run, 'git', ['check-ref-format', '--branch', branch], repoRoot);
@@ -201,7 +220,7 @@ export async function planLaunch(
     const piArgs = [...(extension ? ['--extension', extension] : []),
       '--fork', source.path, delegationPrompt(task, request.context)];
     const command = 'PIC_COMPOSE_CORE=1 PIC_COMPOSE_MAIN=0 ' + ['pi', ...piArgs].map(quoteShell).join(' ');
-    warnings.push('Source Pi session cwd is not the repository root. Git + tmux will prepare the Worktree and Pi will fork the exact original JSONL path; workmux is not used for this launch.');
+    warnings.push(nativeReason + '. Git + tmux will prepare the Worktree and Pi will fork the exact original JSONL path; the installed workmux Pi Fork integration is not used.');
     return {
       context: request.context, workspace: 'worktree', cwd: repoRoot, task, source,
       branch, baseSha: sha.data, tmuxTarget: sessionName, worktreePath,

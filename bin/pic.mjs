@@ -7,6 +7,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { maybeOnboard, setupRecommended, printDoctor } from './setup.mjs';
 import { diagnosticsCli } from './diagnostics.mjs';
+import { installedProvenance, installedExecutables } from '../src/provenance.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const coreExtension = resolve(root, 'extensions/compose.ts');
@@ -83,6 +84,14 @@ const command = args[0];
 // including individually disabled resources. External Hook changes require consent.
 if (command === 'diagnostics') {
   process.exitCode = diagnosticsCli(args.slice(1));
+} else if (command === 'version') {
+  const p=installedProvenance(root);
+  console.log('Pi Compose: '+p.version);
+  console.log('Installed Git commit: '+(p.revision||'UNKNOWN — not attestable from this install'));
+  console.log('Source Ref: '+(p.ref||'unknown')+' / evidence: '+p.origin);
+  console.log('Package root: '+p.packageRoot);
+  const bins=installedExecutables();
+  if(bins.length>1)console.log('WARNING: More than one pic installation on PATH: '+bins.map(b=>b.command+' -> '+b.path).join(', '));
 } else if (command === 'doctor') {
   if (args.length !== 1) { console.error('Usage: pic doctor'); process.exitCode = 2; }
   else process.exitCode = printDoctor(root);

@@ -17,6 +17,17 @@ pic
 
 Pi의 `/login`·`/model`은 기존 Pi 설정 그대로 사용합니다. 이미 저장된 대화는 `/resume`으로 이어갈 수 있습니다.
 
+### 현재 실제 실행 버전 먼저 확인
+
+```bash
+pic version
+pic doctor
+```
+
+공식 설치 스크립트는 설치 시 Git 커밋 SHA를 패키지 내부에 기록합니다. 직접 npm으로 설치했다면 SHA를 확인할 근거가 없을 수 있으므로 `UNKNOWN`이라고 표시합니다. `pic doctor`는 PATH의 복수 `pic`, Pi Compose 패키지 등록 출처, 실제 바이너리 버전을 확인합니다.
+
+현재 열려 있는 **Main Pi**에서 `/compose version`, 각 **Child Pi**에서도 `/compose version`을 확인합니다. 설치된 새 커밋과 프로세스 시작 때 로드된 이전 Extension 커밋이 다를 수 있습니다. 파일이 프로세스 시작 뒤 바뀌면 `/reload` 또는 재시작이 필요하다고 안내합니다. 명령 자체가 없다면 해당 프로세스에 새 Extension이 아직 로드되지 않은 것입니다.
+
 ### 2. 위임 시작
 
 Main과 충분히 논의한 뒤 다음처럼 입력합니다.
@@ -62,6 +73,8 @@ Main과 충분히 논의한 뒤 다음처럼 입력합니다.
 - 정확한 tmux/workmux 실행 대상 확인
 - Child Pi의 실제 Session ID 연결
 - Child 세션 헤더의 `parentSession`과 승인한 Main 파일 일치
+- Child JSONL에 **새 위임 지시 원문**이 User 메시지로 남았는지 확인
+- 해당 메시지 이후 **Assistant 응답 기록**이 존재하는지 확인
 - Pi 모델 실행 이벤트 관찰 (모델이 제약을 이해했다는 뜻은 아님)
 
 위 단계 중 관찰하지 못한 사실을 성공으로 표시하지 않습니다. Pi의 턴 종료, Worktree 존재, Handoff, 개발 완료 및 통합도 각기 다른 사실입니다.
@@ -84,7 +97,7 @@ Pi 기본 선택 UI에서 다음을 찾습니다.
 
 기존 Agent를 선택하면 같은 tmux 창의 정확한 세션 ID 및 window ID로 이동합니다. **새 Pi를 시작하지 않습니다.** Child에서 `/compose`의 **← Main으로 돌아가기**는 승인한 Main의 정확한 tmux 창에 연결된 경우에만 나타납니다.
 
-실행 대상이 없어졌다면 새 Agent를 임의 생성하지 않습니다. 기존 세션은 `/compose resume` 또는 Pi `/resume`을 통해 명시적으로 재개할 수 있습니다.
+실행 대상이 없어졌다면 새 Agent를 임의 생성하지 않습니다. 저장된 정확한 Child Pi 세션 파일이 있을 때에는 작업 상세의 **저장된 Child Pi 재개**를 선택할 수 있습니다. 실행 대상 확인과 사용자 승인 후 동일한 Pi 대화에 `--session`으로 복귀하며, 새 Fork를 생성하지 않습니다. 다른 tmux에서 실행 중일 가능성은 별도 경고합니다.
 
 workmux Dashboard는 `/compose monitor`로 열며, Pi Hook이 설정돼 있지 않다면 일부 Agent 상태를 관찰할 수 없습니다. 기본 위임에 Dashboard 설치·진입은 필수가 아닙니다.
 
@@ -121,7 +134,7 @@ git worktree list
 pic diagnostics export --days 1
 ```
 
-원본 세션을 하위 디렉터리에서 시작했다면, workmux의 프로젝트 루트 기반 Fork 대신 Git의 Worktree 생성과 Pi `--fork <정확한 JSONL>`를 조합합니다. 준비된 Worktree를 무조건 삭제하지 않고 실패를 안내합니다. 같은 브랜치로 무작정 재실행하지 마세요.
+원본 세션을 하위 디렉터리에서 시작했거나 workmux Pi Fork가 지원되는 버전(v0.1.277 이상)인지 확인할 수 없다면, workmux Fork 대신 Git의 Worktree 생성과 Pi `--fork <정확한 JSONL>`를 조합합니다. 준비된 Worktree를 무조건 삭제하지 않고 실패를 안내합니다. 같은 브랜치로 무작정 재실행하지 마세요.
 
 ## 기술 및 UX 경계
 
@@ -147,3 +160,23 @@ pic diagnostics export --days 1
 | `pic doctor`, `pic setup` | 설치 상태 점검·복구 |
 
 [설계 기준](REFERENCE_LED_DESIGN.md) · [수동 검증 시나리오](SCENARIOS.md) · [UX 진단](UX_DIAGNOSTICS.md)
+
+## 실행 상태 및 실패 후 복구
+
+기존 개발 작업의 진행 여부는 `/compose` → 작업 → **실행 상태·복구 확인**에서 확인합니다. 파일 기준의 실제 관찰과 외부 프로세스 상태는 다를 수 있습니다.
+
+| 확인한 사실 | 표시 | 다음 행동 |
+|---|---|---|
+| 기록만 존재 | Child 연결 미확인 | 남아 있는 Worktree·tmux 확인, 무작정 재실행 금지 |
+| 실행 창만 관찰 | 실행 창 확인, Child Pi 미확인 | 정확한 창으로 이동해 Pi 사용 가능 여부 확인 |
+| Child JSONL 일치 | Pi 세션과 원본 Fork 확인 | 새 위임 지시 기록 확인 |
+| 지시 원문 관측 | 위임 지시 확인, 모델 응답 미확인 | Child에서 첫 턴 진행 상태 확인 |
+| Assistant 메시지 관측 | 모델 응답 기록 확인 | 실제 코드·Git Diff와 결과 검토 |
+| 실행 실패 / 부분 생성 | 남은 Git 리소스 표시 | 동일 브랜치 재사용 전 기존 리소스 확인 |
+| tmux 닫힘 / Pi 세션 저장 | 저장된 Child Pi 재개 | 사용자 승인 후 동일 Pi 세션 재개 |
+
+Git 변경 확인은 Worktree가 연결된 동안 언제든 가능합니다. Handoff는 결과 보조 증거이지 Git 검토에 필요한 절차가 아닙니다. Shared Directory에서 Git 상태를 표시할 때는 **작업자를 특정할 수 없다는 경고**를 함께 표시합니다.
+
+저장된 Pi 대화 목록 진입 시 `sessions.listed`에 결과 개수를 기록하고, 목록이 비었는지와 사용자가 취소했는지를 구별합니다. 동작하지 않는 명령을 계속 시도하기 전에 `pic doctor` 및 실행 중인 `/compose version`을 비교하세요.
+
+[참고된 Kiro Crew/Spawn](https://kiro.dev/docs/cli/terminal-ui/) · [Orca Worktree 준비·Retry](https://www.onorca.dev/docs/model/worktrees) · [Orca 전송 불확실성](https://www.onorca.dev/docs/agents/native-chat) · [workmux Pi Fork 호환성](https://workmux.dev/changelog/)

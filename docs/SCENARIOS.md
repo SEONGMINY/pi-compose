@@ -93,3 +93,20 @@ pic diagnostics export --days 1
 - GitHub에 변경된 코드와 Unit Test 소스가 반영된 것과 해당 테스트가 실행·통과한 것은 별개의 사실입니다.
 - GitHub Actions나 E2E는 사용자 이전 요청에 따라 실행하지 않습니다.
 - macOS/Ghostty에서 로그인한 Pi 모델과 실제 workmux/tmux를 통한 전체 A~G 실사용 검증은 별도로 완료해야 합니다.
+
+## H — 2026-10-27 실사용 재검증: 버전 → Fork → 구현 → 검토 → 복구
+
+이 시나리오는 앞의 A~G를 **순차적인 사용자 경험 하나로 연결**합니다. 독립 테스트로 나눠 기능 구현 완료를 주장하지 않습니다.
+
+1. 새 브랜치 설치 후 `pic version`으로 실제 Git SHA를 확인합니다. `pic doctor`로 복수 `pic` 경로, Pi Compose package registration, Pi/tmux/workmux 버전을 확인합니다.
+2. Main Pi에서 `/compose version`을 확인합니다. Child에서도 각각 실행해 **실제로 로드한 코드**가 일치하는지 확인합니다. 파일 수정 시각이 프로세스 시작보다 늦으면 재시작합니다.
+3. Main에서 “기존 `name`은 이전 클라이언트가 사용하므로 절대 제거하지 마라”를 이유와 함께 논의합니다. 개발 Agent에 구현을 명시적으로 위임하고, 원본 Pi 세션과 별도 Worktree 경로를 승인합니다.
+4. `/compose`에서 해당 작업을 열어 실제 Child Pi Session ID, `parentSession`, Child User 메시지의 정확한 지시, 이후 Assistant 응답 관찰을 구분해 확인합니다. 미관찰 상태는 개발 성공/실패가 아니라 **확인되지 않음**이어야 합니다.
+5. Child에서 실제 코드를 변경합니다. `name` 필드의 API/데이터 호환성을 깨뜨리지 않아야 하며, Main의 논의가 그대로 남아 다른 설계를 이어갈 수 있어야 합니다.
+6. Main에서 기존 Child 터미널로 이동하고, **Handoff 없이** Git 변경·새 파일·Diff를 확인합니다. 결과와 제약을 검토한 뒤 Child/Main을 반복 전환해도 새 Agent가 생성되지 않아야 합니다.
+7. Child 프로세스를 종료하고 `/compose` → 저장된 Child Pi 재개를 선택합니다. 정확한 Pi Session ID로 재개해야 하며 **두 번째 Fork를 만들지 않아야** 합니다.
+8. 별도 실패 테스트로 Worktree가 생성된 후 tmux 실패 시 잔여 경로를 확인합니다. Worktree나 기존 세션을 자동 삭제하거나 동일한 작업을 무작정 재실행해서는 안 됩니다.
+9. 이전 기능 대화 목록에서 저장된 Pi 대화를 검색해 이동합니다. 목록 없음과 취소는 서로 다른 이유로 기록해야 합니다.
+10. `pic diagnostics export --days 1`에서 명령 성공, Child 연결, 정확한 Fork, 지시, 모델 응답 관측을 구분합니다. 진단에는 비공개 사용자 프롬프트/실제 파일 경로가 없어야 합니다.
+
+**미검증:** 이 문서를 저장하는 것으로 성공한 것은 아닙니다. 인증된 macOS Pi/tmux/workmux에서 1~10을 실제 수행하고 오류가 없어야 최종 승인할 수 있습니다.
