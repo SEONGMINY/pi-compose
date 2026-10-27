@@ -398,7 +398,11 @@ export async function showTaskHub(
       + (row.available
         ? r.agentSessionId
           ? r.context === 'fork'
-            ? (r.forkParentVerified === true ? 'Pi + Fork 확인' : 'Pi 연결, Fork 미확인')
+            ? (r.forkParentVerified === true
+              ? r.promptObserved && r.assistantObserved ? 'Fork·지시·모델 응답 확인'
+                : r.promptObserved ? 'Fork·지시 확인, 응답 미확인'
+                : 'Fork 확인, 지시 미확인'
+              : 'Pi 연결, Fork 미확인')
             : 'Pi 연결'
           : '실행 창만 확인'
         : '기록만 있음');
