@@ -54,6 +54,48 @@ export class OrcaAgentStore {
         catch { return null; }
       }).filter(Boolean).sort((a,b) => a.createdAt.localeCompare(b.createdAt));
   }
+  /**
+   * Native Orca action can open a Main without requiring /compose-main.
+   * Pi creates the actual JSONL after the first conversation message.
+   * The UUID is pinned BEFORE launch so an arbitrary recent session is never used.
+   */
+  createMain({ cwd, title, launcherPath }) {
+    const projectRoot = runGit(cwd, 'rev-parse', '--show-toplevel');
+    const sessionId = randomUUID();
+    const id = 'main-' + sessionId;
+    const scriptPath = join(this.launchersDir, sessionId + '.sh');
+    const command = [
+      q(launcherPath.piBinary || 'pi'), '--extension', q(resolve(launcherPath.extension)),
+      '--session-id', q(sessionId),
+    ].join(' ');
+    writeFileSync(scriptPath, '#!/bin/sh\ncd ' + q(resolve(cwd)) + '\nexec ' + command + '\n',
+      { mode: 0o700, flag: 'wx' });
+    return this.put({
+      id, role: 'main', title: (title || '').trim() || basename(projectRoot),
+      projectRoot, cwd: resolve(cwd), sessionId, sessionFile: null,
+      launcher: scriptPath, state: 'prepared', createdAt: new Date().toISOString(),
+    });
+  }
+  mainWithSavedSession(id, SessionManager) {
+    const main = this.get(id);
+    if (!main || main.role !== 'main') throw new Error('등록된 Main Agent를 선택하세요.');
+    // Do not allow a stale Main file from another repo or another Pi session.
+    const file = main.sessionFile && existsSync(main.sessionFile) ? main.sessionFile
+      : SessionManager.findById(main.cwd, main.sessionId);
+    if (!file || !existsSync(file)) {
+      throw new Error('이 Main에서 먼저 Pi와 설계를 논의해 저장한 뒤 Work Agent를 만드세요.');
+    }
+    if (headerOf(file).id !== main.sessionId) throw new Error('Pi 세션 정본 식별자가 다릅니다.');
+    const source = SessionManager.open(file);
+    if (!source.getBranch().some(entry => entry.type === 'message')) {
+      throw new Error('Main에 아직 실제 대화가 없습니다. 설계를 먼저 논의하세요.');
+    }
+    if (main.sessionFile !== resolve(file)) {
+      main.sessionFile = resolve(file);
+      atomicJSON(this.path(main.id), main);
+    }
+    return main;
+  }
   registerMain({ cwd, sessionFile, sessionId, title }) {
     if (!sessionFile || !existsSync(sessionFile)) {
       throw new Error('Main 대화를 Pi에 먼저 저장하세요. 빈 대화는 Fork 출처가 될 수 없습니다.');
@@ -105,7 +147,7 @@ export class OrcaAgentStore {
       ? join(dirname(root), basename(root) + '-compose-' + id.slice(0, 8))
       : resolve(projectCwd || main.cwd);
     const baseSha = runGit(root, 'rev-parse', 'HEAD');
-    const sourceFile = role === 'work' ? main.sessionFile : null;
+    const sourceFile = role === 'work' ? this.mainWithSavedSession(main.id, SessionManager).sessionFile : null;
     let sourceEntryId = null;
     let sourceEntryCount = 0;
 
@@ -157,6 +199,12 @@ export class OrcaAgentStore {
       sourceEntryId, sourceEntryCount, sessionId, sessionFile,
       launcher: scriptPath, state: 'prepared', createdAt: new Date().toISOString(),
     });
+  }
+  prepareForMain({ mainId, role, task, workspace, SessionManager, launcherPath }) {
+    const main = this.get(mainId);
+    if (!main || main.role !== 'main') throw new Error('등록된 Main을 선택하세요.');
+    return this.prepare({ main, role, task, workspace, SessionManager,
+      projectCwd: main.cwd, launcherPath });
   }
   verifyCopiedEntries({ sourceFile, sessionFile, sourceEntryCount }) {
     if (!sourceFile || !sessionFile || !existsSync(sessionFile)) {
