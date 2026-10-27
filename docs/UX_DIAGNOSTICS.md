@@ -142,3 +142,26 @@ pic diagnostics clear --yes   # 저장된 JSONL 및 기본 export 파일 삭제
 - `launch.agent_started`: 정확히 연결된 Child Pi에서 모델 실행이 관측된 사실입니다. 초기 지시의 내용·모델 이해·개발 완료는 증명하지 못합니다.
 - Fork+Worktree의 하위 디렉터리 원본 세션은 Native Pi `--fork`를 사용하고, 원본 계보가 관찰되지 않은 경우 성공처럼 취급하지 않습니다.
 - 실제 Git Diff, 작업 지시, 프로젝트 경로는 여전히 진단에 기록되지 않습니다.
+
+## 2026-10-27 — Child delivery, versions and recovery
+
+실제 사용 로그 145개(2026-10-26~27) 중 10월 27일 이벤트는 41개입니다. 이 시점의 자연어 Fork+Shared 위임 1건은 dispatch success와 Child Pi linked를 기록했지만, `parentSession` 검증, 새 지시의 Child JSONL 기록, 실제 Assistant 응답 증거는 로그에서 확인되지 않았습니다. **이벤트 부재는 실패 확정이 아닙니다.** 실제 설치된 버전도 로그에 없습니다.
+
+재설계의 증거 계층:
+
+| 이벤트 | 확인된 사실 | 증명하지 못하는 것 |
+|---|---|---|
+| `launch.finished success` | 외부 실행 명령 정상 반환 | Child 준비 |
+| `launch.agent_linked` | Pi Session ID와 저장 대상 연결 | 원본 계보·지시 전달 |
+| `launch.context_linked success` | Child header `parentSession`과 승인한 원본 Pi JSONL 일치 | 지시 이해 |
+| `launch.prompt_observed` | Child Pi JSONL에 정확한 새 위임 지시 User 메시지 기록 | 모델이 읽었는지·처리했는지 |
+| `launch.response_observed` | 해당 지시 이후 Assistant 메시지 기록 | 구현·검증·완료 |
+| `sessions.listed` | Pi 원본 SessionManager를 통해 조회된 후보 수 | 사용자가 보고 이해했는지 |
+
+각 항목은 관측할 수 있는 범위까지만 표시하며, 진단 파일에 원본 지시/경로/코드/세션 본문을 기록하지 않습니다. `summary.metrics.delegation.promptsObserved` 및 `assistantResponsesObserved`는 단순 이벤트 횟수입니다. 여러 프로세스가 공유하는 로그에서 정확한 분모가 아니므로 성공률로 임의 변환하면 안 됩니다.
+
+**실행 버전 확인:** `pic version` 또는 `pic doctor`에서 설치 경로와 SHA를 확인하고, 열려 있는 Main과 Child에서 `/compose version`으로 런타임 Extension 정보를 각각 확인합니다. 모든 설치 방식에서 SHA가 관찰되는 것은 아닙니다. 새 설치 스크립트는 실제 설치 SHA를 저장하며, direct npm 설치는 `UNKNOWN`으로 표시할 수 있습니다.
+
+**실패 복구:** 위임이 승인된 뒤 실패했다면 Git·tmux의 잔여 리소스가 남을 수 있습니다. 삭제하거나 같은 작업을 자동 재실행하지 않습니다. 정확한 Child Session을 확인한 경우 사용자 승인 후 저장 대화를 재개합니다.
+
+Kiro `/spawn`·Crew Monitor는 실행과 관찰을 연결하고, Orca는 터미널 전달/대화 수신을 구분해 불확실하면 확인되지 않음으로 남깁니다. 동일한 의미의 상태를 Pi Compose의 관측 가능한 단계에 적용했습니다. 참고: [Kiro CLI](https://kiro.dev/docs/cli/reference/slash-commands/), [Orca Native Chat](https://www.onorca.dev/docs/agents/native-chat), [Pi Session Format](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/session-format.md).
