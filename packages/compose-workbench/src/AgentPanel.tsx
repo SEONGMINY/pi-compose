@@ -29,7 +29,10 @@ export function AgentPanel({ agent, bridge, visible, onClose, onContext }: {
         <strong title={agent.title}>{agent.title}</strong>
         <span className="panel-sub">
           {agent.role === 'work' ? '설계 이어받음' : agent.role === 'support' ? '독립 컨텍스트' : '설계·의사결정'}
-          {' · '}{agent.processStatus === 'running' ? '터미널 실행 중' : '터미널 중단됨'}
+          {' · '}{agent.processStatus === 'stopped' ? '터미널 중단됨' :
+            agent.activity?.phase === 'tool' ? '도구 실행: ' + (agent.activity.tool || '확인 중') :
+            agent.activity?.phase === 'responding' ? '모델 응답 중' :
+            agent.activity?.phase === 'idle' ? '입력 대기' : '터미널 실행 중'}
         </span>
       </div>
       <div className="panel-commands">
