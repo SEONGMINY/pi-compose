@@ -11,15 +11,20 @@ export class TerminalProcesses {
     this.changed = changed;
     this.stream = stream;
     this.processes = new Map();
+    this.seqCounters = new Map();
     this.exits = new Map();
   }
   status(id) { return this.processes.has(id) ? 'running' : 'stopped'; }
   snapshot() {
     const state = this.registry.list();
     return { ...state, agents: state.agents.map(a => ({
-      ...a, sessionFile: this.registry.locateSession(a), processStatus: this.status(a.id),
+      ...a,
+      sessionFile: this.safeSession(a), processStatus: this.status(a.id),
       activity: this.registry.activity(a.id),
     })) };
+  }
+  safeSession(agent) {
+    try { return this.registry.locateSession(agent); } catch { return agent.sessionFile || null; }
   }
   start(id) {
     this.registry.get(id);
@@ -44,13 +49,14 @@ export class TerminalProcesses {
       throw new Error('Pi 실행 실패. PATH에서 pi 명령을 확인하세요: ' +
         (error instanceof Error ? error.message : String(error)));
     }
-    const entry = { process: child, seq: 0, buffer: '' };
+    const entry = { process: child, seq: this.seqCounters.get(id) || 0, buffer: '' };
     this.processes.set(id, entry);
     this.exits.delete(id);
     // Never replay the initial task after a crash without user action.
     this.registry.markLaunched(id);
     child.onData(data => {
       entry.seq += 1;
+      this.seqCounters.set(id, entry.seq);
       entry.buffer = (entry.buffer + data).slice(-MAX_SCROLLBACK_BYTES);
       this.stream({ id, seq: entry.seq, data });
     });
@@ -68,7 +74,7 @@ export class TerminalProcesses {
     const item = this.processes.get(id);
     return item
       ? { seq: item.seq, buffer: item.buffer, running: true }
-      : { seq: 0, buffer: '', running: false };
+      : { seq: this.seqCounters.get(id) || 0, buffer: '', running: false };
   }
   write(id, data) {
     const item = this.processes.get(id);
