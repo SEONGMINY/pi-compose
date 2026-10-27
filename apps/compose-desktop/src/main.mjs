@@ -44,6 +44,11 @@ function createWindow() {
 app.whenReady().then(() => {
   registry = new AgentRegistry(join(app.getPath('userData'), 'compose'));
   terminals = new TerminalProcesses(registry, change, (event) => send('compose:terminal-event', event));
+  // Only real Pi Extension lifecycle facts are shown, never inferred from terminal output.
+  const activityTimer = setInterval(() => {
+    if (terminals.runningCount() > 0 && window && !window.isDestroyed()) change();
+  }, 1500);
+  app.once('will-quit', () => clearInterval(activityTimer));
   ipcMain.handle('compose:state', () => terminals.snapshot());
   ipcMain.handle('compose:choose-project', async () => {
     const options = { properties: ['openDirectory'], title: 'Git 프로젝트 선택' };
