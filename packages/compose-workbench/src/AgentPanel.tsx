@@ -1,66 +1,44 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { TerminalPane } from './TerminalPane';
 import type { Agent, Bridge } from './App';
 
 const names = { main: 'Main Agent', work: 'Work Agent', support: 'Support Agent' };
 
-export function AgentPanel({ agent, bridge, visible, onClose, onContext }: {
+export function AgentPanel({ agent, bridge, visible, onClose, onContext, onReview }: {
   agent: Agent; bridge: Bridge; visible: boolean;
-  onClose: () => void; onContext: () => void;
+  onClose: () => void; onContext: () => void; onReview: () => void;
 }) {
-  const [tab, setTab] = useState<'terminal' | 'diff'>('terminal');
-  const [diff, setDiff] = useState<Awaited<ReturnType<Bridge['review']>> | null>(null);
   const [error, setError] = useState('');
-  const showDiff = async () => {
-    setError('');
-    try { setDiff(await bridge.review(agent.id)); setTab('diff'); }
-    catch (e) { setError(String(e)); }
-  };
   const restart = async () => {
-    try { await bridge.start(agent.id); setTab('terminal'); setError(''); }
+    try { await bridge.start(agent.id); setError(''); }
     catch (e) { setError(String(e)); }
   };
-  // Offscreen panels stay mounted so their terminal buffers are never reconstructed
-  // from an arbitrary tail of ANSI bytes.
+  const activity = agent.processStatus === 'stopped' ? '중단됨'
+    : agent.activity?.phase === 'tool' ? '도구 실행: ' + (agent.activity.tool || '확인 중')
+    : agent.activity?.phase === 'responding' ? '모델 응답 중'
+    : agent.activity?.phase === 'idle' ? '입력 대기' : '터미널 실행 중';
   return <section className="multi-agent-panel">
     <header className="panel-bar">
       <div className="panel-heading">
         <span className={'kind ' + agent.role}>{names[agent.role]}</span>
         <strong title={agent.title}>{agent.title}</strong>
-        <span className="panel-sub">
-          {agent.role === 'work' ? '설계 이어받음' : agent.role === 'support' ? '독립 컨텍스트' : '설계·의사결정'}
-          {' · '}{agent.processStatus === 'stopped' ? '터미널 중단됨' :
-            agent.activity?.phase === 'tool' ? '도구 실행: ' + (agent.activity.tool || '확인 중') :
-            agent.activity?.phase === 'responding' ? '모델 응답 중' :
-            agent.activity?.phase === 'idle' ? '입력 대기' : '터미널 실행 중'}
-        </span>
+        <span className="panel-sub">{activity} · {agent.role==='work' ? 'Main Fork' :
+          agent.role==='support' ? '독립 대화' : '원본 설계'}</span>
       </div>
       <div className="panel-commands">
-        <button title="실제 세션 기록과 맥락 확인" onClick={onContext}>맥락</button>
-        {agent.role !== 'main' && <button title="실제 Git 변경 확인" onClick={() => void showDiff()}>변경</button>}
-        {tab === 'diff' && <button onClick={() => setTab('terminal')}>터미널</button>}
+        <button title="원본 컨텍스트·결정·출처 확인" onClick={onContext}>맥락</button>
+        {agent.role !== 'main' && <button title="오른쪽에서 Git 파일별 변경 검토" onClick={onReview}>변경</button>}
         {agent.role !== 'main' && <button title="화면에서 닫기 (Agent는 계속 실행)" onClick={onClose}>×</button>}
       </div>
     </header>
     {error && <div className="error-inline" role="alert">{error}</div>}
-    <div className="panel-console" style={{ visibility: tab === 'terminal' ? 'visible' : 'hidden' }}>
-      <TerminalPane id={agent.id} running={agent.processStatus === 'running'}
-        visible={visible && tab === 'terminal'} bridge={bridge}/>
+    <div className="panel-console">
+      <TerminalPane id={agent.id} running={agent.processStatus === 'running'} visible={visible} bridge={bridge}/>
       {agent.processStatus === 'stopped' && <div className="terminal-stop">
-        <p>세션과 Git 변경은 보존됩니다.</p>
-        <button className="primary" onClick={() => void restart()}>Pi 터미널 열기</button>
+        <strong>터미널이 중단되었습니다</strong><p>Pi 대화와 Git 변경은 그대로 보존됩니다.</p>
+        <button className="primary" onClick={() => void restart()}>기존 Pi 대화 다시 열기</button>
       </div>}
     </div>
-    {tab === 'diff' && <div className="panel-diff">
-      {diff ? <>
-        <p>Git 기준 커밋: {diff.baseSha.slice(0, 12)}</p>
-        {agent.workspace === 'shared' && <p>같은 폴더의 변경은 Agent별로 귀속할 수 없습니다.</p>}
-        <h4>변경 파일</h4><pre>{diff.status || '없음'}</pre>
-        {diff.untracked && <><h4>새 파일</h4><pre>{diff.untracked}</pre></>}
-        <h4>코드 변경</h4><pre className="raw-diff">{diff.diff || '변경된 추적 파일 없음'}</pre>
-        <p>코드 변경은 구현 완료 또는 계약 준수의 증거가 아닙니다.</p>
-      </> : 'Git 정보를 불러오는 중입니다.'}
-    </div>}
     <footer className="panel-path" title={agent.cwd}>
       {agent.workspace === 'worktree' ? '별도 작업 폴더' : '공유 폴더'} · {agent.cwd}
     </footer>
