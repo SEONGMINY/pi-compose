@@ -22,7 +22,7 @@ function Patch({ file }: { file: ChangedFile }) {
     return <div className="review-empty">미추적 파일입니다. 바이너리 파일이거나 크기가 커서 미리보기는 지원하지 않습니다.
       <p>파일 내용은 실제 작업 폴더에서 확인할 수 있습니다.</p></div>;
   }
-  let oldLine = 0, newLine = 0;
+  let oldLine = 0, newLine = file.untracked ? 1 : 0;
   return <div className="patch-body" role="table" aria-label="Git 파일 차이">
     {lines.map((line, index) => {
       const hunk = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
