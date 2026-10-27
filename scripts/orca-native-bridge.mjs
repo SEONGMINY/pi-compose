@@ -13,9 +13,13 @@ import { OrcaAgentStore } from '../src/orca/agent-sessions.mjs';
 
 const extension = resolve(dirname(fileURLToPath(import.meta.url)), '../extensions/orca-compose.ts');
 const store = new OrcaAgentStore();
-const gitRoot = cwd => execFileSync('git',['rev-parse','--show-toplevel'],{
+const runGit = (cwd, ...args) => execFileSync('git',args,{
   cwd,encoding:'utf8',timeout:15_000,
 }).trim();
+const gitRoot = cwd => {
+  const common = resolve(cwd,runGit(cwd,'rev-parse','--git-common-dir'));
+  return common.endsWith('/.git') ? dirname(common) : runGit(cwd,'rev-parse','--show-toplevel');
+};
 const response = envelope => process.stdout.write(JSON.stringify(envelope)+'\n');
 async function input() {
   let body='';
