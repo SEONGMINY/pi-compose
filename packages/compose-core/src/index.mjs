@@ -138,9 +138,15 @@ export class ComposeCore extends EventEmitter {
     const cwd = join(dirname(root), basename(root) + '-compose-' + id.slice(0, 8));
     // Git owns the checkout. On later Pi errors retain the worktree: never destroy user changes.
     git(root, 'worktree', 'add', '-b', branch, cwd, baseSha);
-    const manager = SessionManager.forkFrom(parentFile, cwd);
-    const item = await this.attach({ id, role: 'child', title: task.trim().slice(0, 72),
-      parentId: mainId, cwd, branch, baseSha, task: task.trim(), manager });
+    let item;
+    try {
+      const manager = SessionManager.forkFrom(parentFile, cwd);
+      item = await this.attach({ id, role: 'child', title: task.trim().slice(0, 72),
+        parentId: mainId, cwd, branch, baseSha, task: task.trim(), manager });
+    } catch (error) {
+      throw new Error('Child 초기화 실패. 안전을 위해 Worktree는 보존했습니다: ' +
+        cwd + '. 원인: ' + safeError(error));
+    }
     // First development instruction is sent to the fork, not inserted into Main.
     this.send(item.id, task.trim());
     return item.id;
