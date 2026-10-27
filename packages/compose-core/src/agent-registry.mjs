@@ -63,6 +63,20 @@ export class AgentRegistry {
     });
   }
   locateSession(agent) {
+    // Prefer the identity reported by the *actual* Pi TUI (including custom
+    // session directories). Never use an arbitrary latest Pi conversation.
+    const observation = this.observationFile(agent.id);
+    if (existsSync(observation)) {
+      try {
+        const active = JSON.parse(readFileSync(observation, 'utf8'));
+        if (active.sessionId === agent.sessionId && active.sessionFile &&
+            existsSync(active.sessionFile) && resolve(active.cwd) === resolve(agent.cwd)) {
+          agent.sessionFile = active.sessionFile;
+          this.save();
+          return active.sessionFile;
+        }
+      } catch { /* malformed observation is not an authority */ }
+    }
     if (agent.sessionFile && existsSync(agent.sessionFile)) return agent.sessionFile;
     const file = SessionManager.findById(agent.cwd, agent.sessionId);
     if (file) {
