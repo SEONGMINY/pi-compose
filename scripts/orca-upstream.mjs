@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, symlinkSync, realpathSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -38,6 +38,7 @@ function prepare() {
     if (existsSync(orcaDir)) throw new Error('기존 폴더가 Git Orca 저장소가 아닙니다. 삭제하지 않고 중단합니다: ' + orcaDir);
     run('git', ['clone', '--filter=blob:none', '--depth', '1', '--no-checkout',
       'https://github.com/stablyai/orca.git', orcaDir]);
+    run('git', ['fetch', '--depth', '1', 'origin', revision], orcaDir);
     run('git', ['-c', 'advice.detachedHead=false', 'checkout', '--detach', revision], orcaDir);
   }
   const origin = output('git', ['remote', 'get-url', 'origin'], orcaDir);
@@ -52,10 +53,12 @@ function prepare() {
   }
   mkdirSync(binDir, { recursive: true });
   const link = join(binDir, 'pic-orca');
+  const wrapper = '#!/bin/sh\nexec ' + "'node'" + ' ' +
+    "'" + resolve(root, 'bin/pic-orca.mjs').replaceAll("'", "'\\''") + "'" + ' "$@"\n';
   if (!existsSync(link)) {
-    symlinkSync(resolve(root, 'bin/pic-orca.mjs'), link);
-  } else if (realpathSync(link) !== resolve(root, 'bin/pic-orca.mjs')) {
-    throw new Error('pic-orca 명령 경로가 다른 파일을 가리킵니다. 덮어쓰지 않습니다: ' + link);
+    writeFileSync(link, wrapper, { mode: 0o755, flag: 'wx' });
+  } else if (readFileSync(link, 'utf8') !== wrapper) {
+    throw new Error('기존 pic-orca 실행 파일을 덮어쓰지 않습니다: ' + link);
   }
   console.log('\nOrca 원본 체크아웃:', orcaDir);
   console.log('Orca commit:', sha);
