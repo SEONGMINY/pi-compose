@@ -38,11 +38,12 @@ export function PiComposeOutline(): React.JSX.Element | null {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [error, setError] = useState('')
-  const [isLoading, setLoading] = useState(false)
+  const [isLoading, setLoading] = useState(true)
   const cwd = active?.path ?? ''
   const refresh = useCallback(async () => {
     if (!cwd) { setAgents([]); return }
     setLoading(true)
+    setAgents([])
     try {
       setAgents(await window.api.piCompose.list(cwd))
       setError('')
@@ -142,7 +143,8 @@ export function PiComposeOutline(): React.JSX.Element | null {
         onClick={() => window.dispatchEvent(new Event('pi-compose:new'))}><Plus className="size-3.5"/></button>
     </div>
     {error && <div role="alert" className="mx-2 my-2 rounded-md border border-destructive/30 p-2 text-[11px] leading-relaxed text-destructive">{error}</div>}
-    {mains.length===0 && <div className="px-3 py-3 text-[11px] leading-relaxed text-muted-foreground">
+    {isLoading && <p role="status" className="px-3 py-3 text-[11px] text-muted-foreground">Agent 목록 확인 중…</p>}
+    {!isLoading && !error && mains.length===0 && <div className="px-3 py-3 text-[11px] leading-relaxed text-muted-foreground">
       <p>먼저 Main Agent에서 요구사항과 설계를 논의하세요.</p>
       <button type="button" className="mt-2 rounded-md border border-worktree-sidebar-border px-2 py-1.5 text-worktree-sidebar-foreground hover:bg-worktree-sidebar-foreground/10"
         onClick={() => window.dispatchEvent(new Event('pi-compose:new'))}>Main Agent 만들기</button>
