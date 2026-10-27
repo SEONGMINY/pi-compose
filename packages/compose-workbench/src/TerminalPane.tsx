@@ -11,13 +11,28 @@ type Transport = {
 
 const ghosttyReady = Ghostty.load(wasmUrl);
 
-export function TerminalPane({ id, running, bridge }: {
-  id: string; running: boolean; bridge: Transport;
+export function TerminalPane({ id, running, visible, bridge }: {
+  id: string; running: boolean; visible: boolean; bridge: Transport;
 }) {
   const node = useRef<HTMLDivElement>(null);
   const [loadError, setLoadError] = useState('');
   const runningRef = useRef(running);
+  const visibleRef = useRef(visible);
+  const view = useRef<Terminal | null>(null);
+  const fitter = useRef<FitAddon | null>(null);
   useEffect(() => { runningRef.current = running; }, [running]);
+  useEffect(() => {
+    visibleRef.current = visible;
+    if (visible && view.current && fitter.current) {
+      // On returning from an offscreen pane, resize Pi TUI and repaint its grid.
+      requestAnimationFrame(() => {
+        fitter.current?.fit();
+        if (runningRef.current && view.current) {
+          bridge.resize(id, view.current.cols, view.current.rows);
+        }
+      });
+    }
+  }, [bridge, id, visible]);
   useEffect(() => {
     const host = node.current;
     if (!host) return;
@@ -53,6 +68,8 @@ export function TerminalPane({ id, running, bridge }: {
           theme: { background: '#10151d', foreground: '#d7e1ed' },
         });
         fit = new FitAddon();
+        view.current = terminal;
+        fitter.current = fit;
         terminal.loadAddon(fit);
         terminal.open(host);
         // Chromium may insert a second visible Hangul glyph into Ghostty's
@@ -97,7 +114,7 @@ export function TerminalPane({ id, running, bridge }: {
         fit.fit();
         fit.observeResize();
         bridge.resize(id, terminal.cols, terminal.rows);
-        if (runningRef.current) terminal.focus();
+        if (runningRef.current && visibleRef.current) terminal.focus();
       } catch (error) {
         if (!disposed) setLoadError(error instanceof Error ? error.message : String(error));
       }
@@ -112,6 +129,8 @@ export function TerminalPane({ id, running, bridge }: {
       imeObserver?.disconnect();
       fit?.dispose();
       terminal?.dispose();
+      view.current = null;
+      fitter.current = null;
       host.replaceChildren();
     };
   }, [bridge, id]);
