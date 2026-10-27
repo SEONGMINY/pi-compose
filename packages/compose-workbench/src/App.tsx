@@ -24,7 +24,8 @@ export type ContextDetail = {
   pinned: { entryId: string; category: 'decision'|'constraint'; role: string;
     text: string; includedInAgent: boolean }[];
   fork: { verified: boolean; parentMatches: boolean; inheritedEntryPresent: boolean;
-    snapshotFound: boolean; explanation: string } | null;
+    snapshotFound: boolean; completeCopyVerified: boolean;
+    expectedCount: number; matchedCount: number; explanation: string } | null;
   relatedMainTitle: string | null; note: string;
 };
 type AuthEvent = { type: string; url?: string; instructions?: string; message?: string;
