@@ -288,11 +288,20 @@ export class AgentRegistry {
         inheritedEntryPresent = Boolean(agent.sourceEntryId && presentIds.has(agent.sourceEntryId));
         snapshotFound = Boolean(agent.sourceEntryId && sourceBranch.some(entry => entry.id === agent.sourceEntryId));
       }
+      const cut = sourceBranch.findIndex(entry => entry.id === agent.sourceEntryId);
+      const sourceAtFork = cut >= 0 ? sourceBranch.slice(0, cut + 1) : [];
+      const targetEntries = new Map(branch.map(entry => [entry.id, entry]));
+      const matchedCount = sourceAtFork.filter(entry => {
+        const match = targetEntries.get(entry.id);
+        return match && JSON.stringify(match) === JSON.stringify(entry);
+      }).length;
+      const completeCopyVerified = sourceAtFork.length > 0 && matchedCount === sourceAtFork.length;
       fork = {
         parentMatches, inheritedEntryPresent, snapshotFound,
-        verified: parentMatches && inheritedEntryPresent && snapshotFound,
+        expectedCount: sourceAtFork.length, matchedCount, completeCopyVerified,
+        verified: parentMatches && inheritedEntryPresent && snapshotFound && completeCopyVerified,
         sourceSession: agent.sourceSession, sourceEntryId: agent.sourceEntryId,
-        explanation: '정확한 원본 세션 경로와 분기 시점 기록의 존재를 확인합니다. 모델이 모든 결정을 이해했다는 의미는 아닙니다.',
+        explanation: '원본 활성 대화의 분기 시점까지 기록을 실제 Work 세션의 기록과 항목별로 대조합니다. Compaction 이후 모델에 전달된 세부 내용이나 의미 이해까지 보장하지는 않습니다.',
       };
     }
     return {
