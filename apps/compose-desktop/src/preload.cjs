@@ -7,6 +7,12 @@ const listen = (channel, callback) => {
 contextBridge.exposeInMainWorld('compose', Object.freeze({
   state: () => ipcRenderer.invoke('compose:state'),
   chooseProject: () => ipcRenderer.invoke('compose:choose-project'),
+  switchProject: path => ipcRenderer.invoke('compose:switch-project', path),
+  context: id => ipcRenderer.invoke('compose:context', id),
+  authStatus: () => ipcRenderer.invoke('compose:auth-status'),
+  authLogin: () => ipcRenderer.invoke('compose:auth-login'),
+  authCode: code => ipcRenderer.invoke('compose:auth-code', code),
+  onAuth: fn => listen('compose:auth-event', fn),
   createMain: title => ipcRenderer.invoke('compose:create-main', title),
   createWork: (mainId, task, workspace) =>
     ipcRenderer.invoke('compose:create-work', mainId, task, workspace),
