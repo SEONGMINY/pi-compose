@@ -35,6 +35,28 @@ npm install -g --ignore-scripts --no-audit --no-fund \
 
 The **direct npm command** requires compatible Node, Pi, tmux and workmux to already be installed, and it does not offer the install script's collision checks. To pin an exact release candidate, replace `feat/task-hub-ghostty` with the final 40-character PR #3 commit SHA. Both routes support first-run setup. The direct command intentionally uses `--ignore-scripts`; setup lives in **`pic`, not npm postinstall**, so both install paths behave the same.
 
+## Path C — Reference-led redesign (unmerged development branch)
+
+This branch is created from the PR #3 Head, **without changing PR #2, PR #3 or main**. It is the reference-led core-flow implementation under review, not a stable release.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SEONGMINY/pi-compose/feat/reference-led-core/scripts/install.sh \
+  | PIC_COMPOSE_REF=feat/reference-led-core bash
+```
+
+If Pi, Git, tmux and workmux are installed and compatible:
+
+```bash
+npm install -g --ignore-scripts --no-audit --no-fund \
+  "git+https://github.com/SEONGMINY/pi-compose.git#feat/reference-led-core"
+```
+
+Run `pic doctor` and use `pic setup` only to repair missing setup. The base Pi session, models and prior task records are not deleted or reset.
+
+**First delegation is different here:** current conversation Fork + a new Worktree are defaults; branch suggested automatically, exact source and instruction shown for approval. Advanced combinations remain accessible via `/compose advanced`. Review Git changes from `/compose` without Handoff. See [USAGE](USAGE.md) and [reference contract](REFERENCE_LED_DESIGN.md).
+
+**Release gate:** static checks, scoped Unit Tests and actual macOS acceptance A–G must be reported separately. GitHub code updates do not prove Child Pi prompt delivery, context reasoning, terminal switching or implementation completion.
+
 ## First interactive launch — Core features enabled by default
 
 ```bash
