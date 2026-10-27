@@ -74,7 +74,7 @@ test('legacy record without exact launch identity is never treated as live', () 
 
 test('shared task uses exact tmux window rather than mere session existence', () => {
   const shared: TaskRecord = { ...record, workspace: 'shared', branch: undefined };
-  assert.match(taskHubRows([shared], [], [main, agent], main).find(r => r.kind === 'task')!.label, /대상 열림/);
+  assert.match(taskHubRows([shared], [], [main, agent], main).find(r => r.kind === 'task')!.label, /tmux 창 확인됨/);
   assert.match(taskHubRows([shared], [], [main], main).find(r => r.kind === 'task')!.label, /대상 종료/);
 });
 
@@ -92,4 +92,14 @@ test('task ordering remains stable as worktree activity changes', () => {
     .filter(row => row.kind === 'task').map(row => row.record?.id);
   assert.deepEqual(rows1, [newer.id, older.id]);
   assert.deepEqual(rows2, [newer.id, older.id]);
+});
+
+test('native Pi Fork fallback can be found without workmux registry', () => {
+  const native: TaskRecord = { ...record, branch:'feat/nested',
+    worktreePath:'/tmp/worktrees/nested',workmuxHandle:undefined,workmuxTargetName:undefined,
+    tmuxTarget:'pc-nested-id',targetLocation:{session:'pc-nested-id',windowId:'@7',windowName:'pi'} };
+  const rows=taskHubRows([native],[],[main,native.targetLocation!],main);
+  assert.match(rows.find(r=>r.kind==='task')!.label,/tmux 창 확인됨/);
+  const absent=taskHubRows([native],[],[main],main);
+  assert.match(absent.find(r=>r.kind==='task')!.label,/대상 종료/);
 });
