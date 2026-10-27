@@ -58,4 +58,4 @@ jobs:
       - name: Typecheck Orca renderer and main/preload bridge
         run: |
           cd .cache/orca-upstream
-          pnpm run typecheck:tsc
+          pnpm run typecheck
