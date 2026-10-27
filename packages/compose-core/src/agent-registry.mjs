@@ -83,7 +83,7 @@ export class AgentRegistry {
     return this.add({
       id, role: 'main', title: title?.trim() || '새 메인 대화',
       project: this.project, cwd: this.project, sessionId: randomUUID(), sessionFile: null,
-      relatedMainId: null, sourceSession: null, workspace: 'shared',
+      relatedMainId: null, sourceSession: null, workspace: 'shared', pins: [],
     });
   }
   locateSession(agent) {
@@ -214,32 +214,97 @@ export class AgentRegistry {
     item.initialPromptPending = false;
     this.save();
   }
+  markContext(agentId, entryId, category) {
+    const agent = this.get(agentId);
+    if (agent.role !== 'main') throw new Error('중요한 맥락은 Main Agent에서 표시합니다.');
+    if (!['decision', 'constraint'].includes(category)) throw new Error('결정 또는 제약만 표시할 수 있습니다.');
+    const path = this.locateSession(agent);
+    if (!path) throw new Error('저장된 Pi 대화가 없습니다.');
+    const entry = SessionManager.open(path).getBranch().find(item => item.id === entryId);
+    if (!entry || entry.type !== 'message' || !['user','assistant'].includes(entry.message?.role)) {
+      throw new Error('현재 Main 대화에 없는 기록은 표시할 수 없습니다.');
+    }
+    agent.pins ||= [];
+    const existing = agent.pins.find(item => item.entryId === entryId);
+    if (existing) existing.category = category;
+    else agent.pins.push({ entryId, category, markedAt: Date.now() });
+    this.save();
+    return this.context(agentId);
+  }
+  unmarkContext(agentId, entryId) {
+    const agent = this.get(agentId);
+    if (agent.role !== 'main') throw new Error('Main Agent의 표시만 변경할 수 있습니다.');
+    agent.pins = (agent.pins || []).filter(item => item.entryId !== entryId);
+    this.save();
+    return this.context(agentId);
+  }
   context(id) {
     const agent = this.get(id);
     const path = this.locateSession(agent);
     const records = [];
+    let branch = [];
     if (path && existsSync(path)) {
-      // Pi's recorded active branch, not a generated or speculative summary.
-      const manager = SessionManager.open(path);
-      for (const entry of manager.getBranch()) {
+      branch = SessionManager.open(path).getBranch();
+      for (const entry of branch) {
         if (entry.type !== 'message') continue;
         const m = entry.message;
-        if (!m || !['user', 'assistant'].includes(m.role)) continue;
-        const text = typeof m.content === 'string'
-          ? m.content
-          : (m.content || []).filter(part => part.type === 'text')
-            .map(part => part.text || '').join('\n');
-        if (text.trim()) records.push({ role: m.role, text: text.slice(0, 3000) });
+        if (!m || !['user','assistant'].includes(m.role)) continue;
+        const content = typeof m.content === 'string'
+          ? m.content : (m.content || []).filter(p => p.type === 'text').map(p => p.text || '').join('\n');
+        if (content.trim()) records.push({ id: entry.id, role: m.role, text: content.slice(0, 5000) });
       }
+    }
+    const main = agent.role === 'main' ? agent
+      : agent.relatedMainId ? this.get(agent.relatedMainId) : null;
+    // A pin stores only a Pi entry ID; all displayed content is read again from the original.
+    const sourcePath = main ? this.locateSession(main) : null;
+    const sourceBranch = sourcePath && existsSync(sourcePath)
+      ? SessionManager.open(sourcePath).getBranch() : [];
+    const sourceRecords = new Map();
+    for (const entry of sourceBranch) {
+      if (entry.type !== 'message' || !entry.message) continue;
+      const m = entry.message;
+      const content = typeof m.content === 'string' ? m.content :
+        (m.content || []).filter(p => p.type === 'text').map(p => p.text || '').join('\n');
+      sourceRecords.set(entry.id, { role: m.role, text: content.slice(0, 5000) });
+    }
+    const presentIds = new Set(branch.map(e => e.id));
+    const pins = (main?.pins || []).filter(pin => sourceRecords.has(pin.entryId))
+      .map(pin => ({
+        ...pin, ...sourceRecords.get(pin.entryId),
+        includedInAgent: agent.role === 'main' ? true
+          : agent.role === 'work' ? presentIds.has(pin.entryId) : false,
+      }));
+    let fork = null;
+    if (agent.role === 'work') {
+      let parentMatches = false;
+      let inheritedEntryPresent = false;
+      let snapshotFound = false;
+      if (path && existsSync(path)) {
+        try {
+          const header = JSON.parse(readFileSync(path, 'utf8').split('\n')[0]);
+          parentMatches = header.type === 'session' && resolve(header.parentSession || '') === resolve(agent.sourceSession);
+        } catch {}
+        inheritedEntryPresent = Boolean(agent.sourceEntryId && presentIds.has(agent.sourceEntryId));
+        snapshotFound = Boolean(agent.sourceEntryId && sourceBranch.some(entry => entry.id === agent.sourceEntryId));
+      }
+      fork = {
+        parentMatches, inheritedEntryPresent, snapshotFound,
+        verified: parentMatches && inheritedEntryPresent && snapshotFound,
+        sourceSession: agent.sourceSession, sourceEntryId: agent.sourceEntryId,
+        explanation: '정확한 원본 세션 경로와 분기 시점 기록의 존재를 확인합니다. 모델이 모든 결정을 이해했다는 의미는 아닙니다.',
+      };
     }
     return {
       title: agent.title, role: agent.role, task: agent.task || null,
       sourceSession: agent.sourceSession, sourceEntryId: agent.sourceEntryId || null,
-      sessionFile: path, totalMessages: records.length, messages: records.slice(-30),
-      relatedMainTitle: agent.relatedMainId ? this.get(agent.relatedMainId).title : null,
-      note: 'Pi 세션의 실제 대화 발췌입니다. 자동으로 핵심 결정이라고 판단하거나 다른 Agent에 전달하지 않습니다.',
+      sessionFile: path, totalMessages: records.length, messages: records.slice(-50),
+      pinned: pins, fork,
+      relatedMainTitle: main && agent.role !== 'main' ? main.title : null,
+      note: 'Pi의 활성 대화 경로에서 읽은 기록입니다. 표시한 결정은 자동 요약이 아니며 다른 Agent에 자동 전송되지 않습니다.',
     };
   }
+
   review(id) {
     const item = this.get(id);
     if (!item.baseSha) throw new Error('코드 검토 기준 커밋이 없습니다.');
