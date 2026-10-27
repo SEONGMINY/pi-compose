@@ -252,6 +252,18 @@ export class OrcaAgentStore {
       copied === sourceEntryCount && target.length === sourceEntryCount;
     return { allMatch, copied, expected: sourceEntryCount };
   }
+  attachTerminal({ id, tabId, worktreeId }) {
+    const record = this.get(id);
+    if (!record) throw new Error('연결할 Agent가 없습니다.');
+    if (typeof tabId !== 'string' || !/^[a-zA-Z0-9-]{8,100}$/.test(tabId) ||
+        typeof worktreeId !== 'string' || !worktreeId.trim() || worktreeId.length > 512) {
+      throw new Error('잘못된 Orca 터미널 식별자입니다.');
+    }
+    record.orcaTabId = tabId;
+    record.orcaWorktreeId = worktreeId;
+    atomicJSON(this.path(record.id),record);
+    return record;
+  }
   inspect(id) {
     const record = this.get(id);
     if (!record) throw new Error('Agent를 찾을 수 없습니다.');
