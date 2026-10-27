@@ -110,7 +110,11 @@ export function taskHubRows(
     const available = isLive(record.targetLocation) && (record.workspace === 'shared' || Boolean(worktree?.is_open));
     const location = equalLocation(record.targetLocation, current) ? ' · 현재 작업' : '';
     const status = available
-      ? 'tmux 창 확인됨 · Pi 활동/개발 진행 미확인'
+      ? record.agentSessionId
+        ? record.context === 'fork'
+          ? (record.forkParentVerified === true ? 'Child Pi 연결 · 원본 Main Fork 확인' : 'Child Pi 연결 · 원본 Fork 확인 불가')
+          : 'Child Pi 연결 · Independent'
+        : '실행 창만 확인됨 · Child Pi 미확인'
       : record.targetLocation ? '대상 종료 또는 확인 불가' : '연결 정보 없음 · 이전 작업 탐색';
     const displayName = titleCount.get(record.title)! > 1 ? record.title + ' [' + record.id.slice(0, 8) + ']' : record.title;
     return { kind: 'task' as const, record, available, label: displayName
@@ -296,7 +300,13 @@ export async function showTaskHub(
     // Always distinguish identical names, without guessing by a branch name.
     return (index + 1) + '. ' + prefix + ' [' + r.id.slice(0, 8) + '] · '
       + (r.context === 'fork' ? 'Fork' : 'Independent') + ' · '
-      + (row.available ? '화면 연결됨' : '기록만 있음');
+      + (row.available
+        ? r.agentSessionId
+          ? r.context === 'fork'
+            ? (r.forkParentVerified === true ? 'Pi + Fork 확인' : 'Pi 연결, Fork 미확인')
+            : 'Pi 연결'
+          : '실행 창만 확인'
+        : '기록만 있음');
   });
   // Native select handles terminal width, keyboard focus and input restoration.
   const selected = await ctx.ui.select('관련 작업 · ' + basename(root), choices);
