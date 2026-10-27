@@ -245,6 +245,8 @@ async function taskActions(pi: ExtensionAPI, ctx: ExtensionContext, row: HubRow,
         '컨텍스트: ' + (record.context === 'fork' ? 'Fork' : 'Independent'),
         ...(record.sourceSessionId ? ['Fork 원본 세션 ID: ' + record.sourceSessionId] : []),
         ...(record.agentSessionId ? ['실제 Agent Pi 세션 ID: ' + record.agentSessionId] : ['실제 Agent Pi 세션: 연결 미확인']),
+        ...(record.context === 'fork' ? ['원본 대화 계보 검증: '
+          + (record.forkParentVerified === true ? '확인됨' : '확인되지 않음 (모델 이해 여부와 별개)')] : []),
         '공간: ' + (record.workspace === 'worktree' ? 'Worktree' : 'Shared'),
         ...(record.branch ? ['브랜치: ' + record.branch] : []),
         '\n실제 위임 지시 (원본 대화 전체 아님):\n' + (record.instruction || record.title),
@@ -337,6 +339,15 @@ async function linkCurrentPi(pi: ExtensionAPI, ctx: ExtensionContext): Promise<v
   if(linked==='saved') {
     const task=(await listTasks(root)).find(t=>t.agentSessionId===ctx.sessionManager.getSessionId());
     diagnosticEvent('launch.agent_linked',{source:'automatic',flowId:task?.diagnosticFlowId,outcome:'success',sessionId:ctx.sessionManager.getSessionId(),taskId:task?.id,projectId:root,data:{linked:true}});
+    if (task?.context === 'fork') {
+      diagnosticEvent('launch.context_linked',{source:'automatic',flowId:task.diagnosticFlowId,
+        outcome:task.forkParentVerified===true?'success':'unavailable',
+        sessionId:ctx.sessionManager.getSessionId(),taskId:task.id,projectId:root,
+        data:{linked:task.forkParentVerified===true}});
+      if(task.forkParentVerified!==true && ctx.hasUI) {
+        ctx.ui.notify('Child Pi는 연결됐지만 승인한 원본 Pi 대화의 parentSession을 확인하지 못했습니다. 원본 맥락을 검증하기 전에는 Fork 성공으로 판단하지 마세요.', 'warning');
+      }
+    }
   }
 }
 
