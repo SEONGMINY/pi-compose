@@ -7,7 +7,7 @@ export const SCHEMA_VERSION = 1;
 const VALID = new Set([
   'setup.started','setup.component','setup.finished','setup.hook_prompted',
   'command.entered','command.invalid','command.finished',
-  'launch.started','launch.approval','launch.finished','launch.agent_linked','launch.context_linked','launch.agent_started','launch.stage',
+  'launch.started','launch.approval','launch.finished','launch.agent_linked','launch.context_linked','launch.agent_started','launch.prompt_observed','launch.response_observed','launch.stage',
   'navigation.opened','navigation.selected','navigation.finished','navigation.detail',
   'switch.started','switch.finished','sessions.opened','sessions.listed','sessions.finished',
   'handoff.started','handoff.finished','verify.started','verify.finished',
@@ -204,6 +204,8 @@ export function analyzeDiagnostics(events) {
         childPiLinked:count(events,'launch.agent_linked','success'),
         forkParentVerified:count(events,'launch.context_linked','success'),
         agentRunsObserved:count(events,'launch.agent_started','success'),
+        promptsObserved:count(events,'launch.prompt_observed','success'),
+        assistantResponsesObserved:count(events,'launch.response_observed','success'),
         cancellationPercent:rate(realFinished.filter(e=>e.outcome==='cancelled').length,launchStarted),
         failures:realFinished.filter(e=>e.outcome==='failure').length,
         unavailable:realFinished.filter(e=>e.outcome==='unavailable').length,
