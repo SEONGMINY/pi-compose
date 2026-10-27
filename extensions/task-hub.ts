@@ -363,13 +363,17 @@ export async function showTaskHub(
   // A matching title or branch is never enough; exact cwd, parent and prompt
   // must be verified before adopting a saved child.
   const records:TaskRecord[]=[];
+  const sessionsByCwd=new Map<string,string[]>();
   for(const record of saved.slice(0,15)){
     let candidates:string[]=[];
     if(!record.agentSessionFile){
       const cwd=record.workspace==='worktree'?record.worktreePath:record.launchCwd||record.projectRoot;
       if(cwd){
-        try{candidates=(await SessionManager.list(cwd,ctx.sessionManager.getSessionDir())).slice(0,40).map(x=>x.path);}
-        catch{/* unavailable sessions remain unknown */}
+        if(!sessionsByCwd.has(cwd)){
+          try{sessionsByCwd.set(cwd,(await SessionManager.list(cwd,ctx.sessionManager.getSessionDir())).slice(0,40).map(x=>x.path));}
+          catch{sessionsByCwd.set(cwd,[]);}
+        }
+        candidates=sessionsByCwd.get(cwd)||[];
       }
     }
     const updated=await reconcileTaskSession(root,record.id,candidates) || record;
