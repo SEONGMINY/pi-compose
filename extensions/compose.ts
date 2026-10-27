@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { Text } from '@earendil-works/pi-tui';
 import { approveLaunch, taskName } from './compose-panel.ts';
 import { diagnosticEvent, startFlow, finishFlow } from '../src/diagnostics.mjs';
+import { DEFAULT_DELEGATION, proposedBranch } from '../src/delegation-defaults.ts';
 
 const baseExtension = fileURLToPath(import.meta.url);
 
@@ -86,9 +87,9 @@ async function chooseForkSource(ctx: ExtensionContext, { includeCurrent = true }
   return index < 0 ? undefined : other[index]?.path;
 }
 
-export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, mode: 'launch' | 'preview', suppliedTask = ''): Promise<void> {
+export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, mode: 'launch' | 'preview', suppliedTask = '', advanced = false): Promise<void> {
   const flow = startFlow('launch.started',{source:'slash',data:{route:mode}});
-  let outcome: 'success'|'failure'|'cancelled' = 'cancelled';
+  let outcome: 'success'|'failure'|'cancelled'|'unavailable' = 'cancelled';
   let chosenContext: 'fork'|'independent'|undefined;
   let chosenWorkspace: 'shared'|'worktree'|undefined;
   let stage='input';
@@ -99,26 +100,41 @@ export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, 
   }
   const task = suppliedTask || await ctx.ui.input('Development task', 'What should the new agent do?');
   if (!task?.trim()) return;
-  const contextChoice = await ctx.ui.select('Context source', ['Fork existing Pi session', 'Independent new session']);
-  if (!contextChoice) return;
-  const workspaceChoice = await ctx.ui.select('Workspace', ['Shared directory', 'Git Worktree']);
-  if (!workspaceChoice) return;
-  const context = contextChoice.startsWith('Fork') ? 'fork' : 'independent';
-  const workspace = workspaceChoice === 'Git Worktree' ? 'worktree' : 'shared';
+  // Kiro's prompt-first entry, Orca's default worktree: one confirmation for the normal case.
+  // Explicit advanced mode preserves all four independent Context/Workspace combinations.
+  let context: 'fork' | 'independent' = DEFAULT_DELEGATION.context;
+  let workspace: 'worktree' | 'shared' = DEFAULT_DELEGATION.workspace;
+  if (advanced || mode === 'preview') {
+    const contextChoice = await ctx.ui.select('대화 맥락', ['Fork existing Pi session', 'Independent new session']);
+    if (!contextChoice) return;
+    const workspaceChoice = await ctx.ui.select('작업 공간', ['Shared directory', 'Git Worktree']);
+    if (!workspaceChoice) return;
+    context = contextChoice.startsWith('Fork') ? 'fork' : 'independent';
+    workspace = workspaceChoice === 'Git Worktree' ? 'worktree' : 'shared';
+  }
   chosenContext=context; chosenWorkspace=workspace;
   let sourceSessionFile: string | undefined;
   try {
-    sourceSessionFile = context === 'fork' ? await chooseForkSource(ctx) : undefined;
+    sourceSessionFile = context === 'fork'
+      ? (advanced || mode === 'preview' ? await chooseForkSource(ctx) : ctx.sessionManager.getSessionFile())
+      : undefined;
   } catch (error) {
     outcome='failure';
     diagnosticEvent('launch.stage',{source:'slash',flowId:flow.flowId,outcome:'failure',
       data:{stage:'input',failureKind:'source_missing'}});
-    ctx.ui.notify(`Cannot list Pi sessions: ${error instanceof Error ? error.message : String(error)}`, 'error');
+    ctx.ui.notify(`저장된 Pi 대화를 찾을 수 없습니다: ${error instanceof Error ? error.message : String(error)}`, 'error');
     return;
   }
-  if (context === 'fork' && !sourceSessionFile?.trim()) return;
+  if (context === 'fork' && !sourceSessionFile?.trim()) {
+    outcome='unavailable';
+    ctx.ui.notify('현재 Pi 세션이 저장되지 않아 Fork할 수 없습니다. Main에서 한 번 대화를 저장한 다음 다시 실행하세요. 자동으로 Independent로 바꾸지는 않습니다.', 'warning');
+    return;
+  }
   const branch = workspace === 'worktree'
-    ? await ctx.ui.input('New branch name', 'feat/example') : undefined;
+    ? (advanced || mode === 'preview'
+        ? await ctx.ui.input('New branch name', proposedBranch(task))
+        : proposedBranch(task))
+    : undefined;
   if (workspace === 'worktree' && !branch?.trim()) return;
   stage='plan';
   try {
@@ -158,13 +174,13 @@ export async function showLaunchWizard(pi: ExtensionAPI, ctx: ExtensionContext, 
 
 export default function composeExtension(pi: ExtensionAPI): void {
   registerWorkReturn(pi);
-  const openHub = (ctx: ExtensionContext) => showTaskHub(pi, ctx, () => showLaunchWizard(pi, ctx, 'launch'));
+  const openHub = (ctx: ExtensionContext) => showTaskHub(pi, ctx, (advanced = false) => showLaunchWizard(pi, ctx, 'launch', '', advanced));
   registerTaskHub(pi, openHub);
   pi.registerCommand('compose', {
     description: 'Pi Compose: /compose related agents; /compose launch, /compose monitor, /compose sessions',
     handler: async (args, ctx) => {
       const [subcommand, ...rest] = args.trim().split(/\s+/);
-      const route = ['launch','preview','monitor','dashboard','sessions','back','resume','work'].includes(subcommand||'') ? subcommand : !subcommand?'home':'invalid';
+      const route = ['launch','advanced','preview','monitor','dashboard','sessions','back','resume','work'].includes(subcommand||'') ? subcommand : !subcommand?'home':'invalid';
       const commandFlow=startFlow('command.entered',{source:'slash',data:{route}});
       try {
       if(route==='invalid') diagnosticEvent('command.invalid',{source:'slash',outcome:'failure',data:{route:'invalid'}});
@@ -220,11 +236,12 @@ export default function composeExtension(pi: ExtensionAPI): void {
         }
         return;
       }
-      if (subcommand !== 'launch' && subcommand !== 'preview') {
-        ctx.ui.notify('Usage: /compose, /compose launch [task], /compose monitor, /compose sessions [query], /compose back [query], /compose resume', 'info');
+      if (subcommand !== 'launch' && subcommand !== 'preview' && subcommand !== 'advanced') {
+        ctx.ui.notify('Usage: /compose (작업 열기), /compose launch [task], /compose advanced [task], /compose sessions [query]', 'info');
         return;
       }
-      await showLaunchWizard(pi, ctx, subcommand, rest.join(' '));
+      await showLaunchWizard(pi, ctx, subcommand === 'preview' ? 'preview' : 'launch',
+        rest.join(' '), subcommand === 'advanced' || subcommand === 'preview');
       } finally {finishFlow(commandFlow,'command.finished',{source:'slash',outcome:route==='invalid'?'failure':'unknown',data:{route}});}
     },
   });
