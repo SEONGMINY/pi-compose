@@ -10,7 +10,7 @@
 4. 사이드바는 Main → Work / Support로 관계를 표시합니다. Work는 정확한 Fork, Support는 독립 세션입니다.
 5. Agent 행을 누르면 열려 있는 Orca 탭을 먼저 포커스하고, 없다면 저장된 동일 Pi 세션을 다시 엽니다. 새 Fork를 만들지 않습니다.
 6. 동일 Orca 작업 공간에서 허용되는 경우 기존 탭을 오른쪽으로 분할합니다. 불가능한 경우 버튼을 비활성화합니다.
-7. 별도 Git Worktree는 Orca의 실제 Worktree 목록에서 확인된 경우에만 해당 공간에서 실행합니다. 미등록이면 세션·Worktree를 보존하고 안내합니다.
+7. 별도 Git Worktree는 Orca의 실제 Worktree 목록에서 확인된 경우에만 해당 공간에서 실행합니다. 같은 Git 저장소의 다른 Worktree에서도 Main/Work/Support 관계를 유지합니다. 미등록이면 세션·Worktree를 보존하고 안내합니다.
 8. Pi 세션 준비 성공과 Orca 터미널 실행 성공을 구분하고, 탭 실행 실패 후 중복 Agent 생성을 막습니다.
 
 ## 지키는 제품 계약
