@@ -43,12 +43,21 @@ const patches = [
     secondAfter: "const label = '새 작업 또는 Agent 만들기'"
   }
 
+  ,{
+    path: 'src/renderer/src/components/sidebar/index.tsx',
+    before: "import WorktreeList from './WorktreeList'",
+    after: "import WorktreeList from './WorktreeList'\\nimport { PiComposeOutline } from '../pi-compose/PiComposeOutline'",
+    secondBefore: '                <StartupWorktreeRefreshStatus />',
+    secondAfter: '                <StartupWorktreeRefreshStatus />\\n                <PiComposeOutline />'
+  }
+
 ]
 
 const additions = [
   'src/main/pi-compose-ipc.ts',
   'src/preload/api/pi-compose-bridge.ts',
   'src/renderer/src/components/pi-compose/PiComposeMenu.tsx',
+  'src/renderer/src/components/pi-compose/PiComposeOutline.tsx',
 ]
 const original = (root, relative) => join(root,'orca-overlay',relative)
 
