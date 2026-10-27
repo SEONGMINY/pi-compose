@@ -14,7 +14,7 @@ function fakeManager() {
   return {
     open(path) {
       const entries=readFileSync(path,'utf8').trim().split('\n').map(JSON.parse);
-      return { getLeafEntry: () => entries.at(-1) };
+      return { getLeafEntry: () => entries.at(-1), getBranch: () => entries.slice(1) };
     },
     forkFrom(source, cwd, _dir, options) {
       const data=readFileSync(source,'utf8').trim().split('\n').map(JSON.parse);

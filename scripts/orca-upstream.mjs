@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { applyOrcaOverlay } from './orca-native-overlay.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const orcaDir = resolve(process.env.PI_COMPOSE_ORCA_DIR || join(root, '.cache', 'orca-upstream'));
@@ -60,6 +61,7 @@ function prepare() {
   } else if (readFileSync(link, 'utf8') !== wrapper) {
     throw new Error('기존 pic-orca 실행 파일을 덮어쓰지 않습니다: ' + link);
   }
+  applyOrcaOverlay(orcaDir, root);
   console.log('\nOrca 원본 체크아웃:', orcaDir);
   console.log('Orca commit:', sha);
   console.log('Pi Compose 확장 명령: pic-orca\n');
@@ -75,8 +77,8 @@ try {
   } else {
     prepare();
     if (cmd === 'dev') {
-      console.log('Orca 소스를 직접 실행합니다. Pi Compose UI를 새로 렌더링하지 않습니다.');
-      const env = { ...process.env, PATH: binDir + ':' + process.env.PATH };
+      console.log('Orca 원본 UI에 Pi Compose Agent 생성 메뉴를 연결했습니다.');
+      const env = { ...process.env, PI_COMPOSE_ROOT: root, PATH: binDir + ':' + process.env.PATH };
       if (!existsSync(join(orcaDir, 'node_modules'))) run('pnpm', ['install'], orcaDir, env);
       run('pnpm', ['dev'], orcaDir, env);
     }

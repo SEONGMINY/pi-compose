@@ -2,12 +2,17 @@ name: Orca-based Pi Compose context checks
 
 on:
   push:
-    branches: [feat/orca-upstream-foundation]
+    branches: [feat/orca-upstream-foundation, feat/orca-native-agent-actions]
   pull_request:
     paths:
       - 'src/orca/**'
+      - 'orca-overlay/**'
       - 'extensions/orca-compose.ts'
       - 'scripts/orca-upstream.mjs'
+      - 'scripts/orca-native-overlay.mjs'
+      - 'scripts/orca-native-bridge.mjs'
+      - 'test/orca-native-bridge.test.mjs'
+      - 'test/orca-native-overlay.test.mjs'
       - 'bin/pic-orca.mjs'
       - 'test/orca-foundation.test.mjs'
       - 'package.json'
@@ -28,7 +33,29 @@ jobs:
           node --check src/orca/agent-sessions.mjs
           node --check scripts/orca-upstream.mjs
           node --check bin/pic-orca.mjs
+          node --check scripts/orca-native-overlay.mjs
+          node --check scripts/orca-native-bridge.mjs
       - name: Install Pi SDK dependencies
         run: npm install --no-audit --no-fund
       - name: Test exact Fork and Support context isolation (including real Pi SDK)
         run: npm run test:orca
+
+  upstream-integration:
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Prepare pinned actual Orca upstream and apply native UI patch
+        run: node scripts/orca-upstream.mjs prepare
+      - name: Install pinned Orca dependencies
+        run: |
+          corepack enable
+          cd .cache/orca-upstream
+          pnpm install --frozen-lockfile
+      - name: Typecheck Orca renderer and main/preload bridge
+        run: |
+          cd .cache/orca-upstream
+          pnpm run typecheck
