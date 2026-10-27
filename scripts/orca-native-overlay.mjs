@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 /**
@@ -51,6 +51,14 @@ const patches = [
     secondAfter: '                <StartupWorktreeRefreshStatus />\n                <PiComposeOutline />'
   }
 
+  ,{
+    path: 'src/renderer/src/components/sidebar/sidebar-header-actions.tsx',
+    before: "import { openWorkspaceCreationComposerWithTourHandoff } from '../contextual-tours/workspace-creation-tour-handoff'",
+    after: "// Pi Compose integrates the original +; the native Orca workspace flow remains in its dialog.",
+    secondBefore: "const shortcutLabel = formatOptionalPrimaryShortcutLabel('workspace.create', keybindings)",
+    secondAfter: "const shortcutLabel = undefined // the + action now opens the unified Compose/Orca chooser"
+  }
+
 ]
 
 const additions = [
@@ -66,10 +74,10 @@ export function applyOrcaOverlay(orca, piComposeRoot) {
     throw new Error('정상적인 Orca 원본 체크아웃이 아닙니다.')
   }
   // Read and validate the entire patch before writing ANY upstream code.
-  const staged = []
+  const staged = new Map()
   for (const patch of patches) {
     const path = join(orca,patch.path)
-    const source = readFileSync(path,'utf8')
+    const source = staged.get(path) ?? readFileSync(path,'utf8')
     let result = source
     for (const pair of [
       [patch.before,patch.after],[patch.secondBefore,patch.secondAfter]
@@ -81,7 +89,7 @@ export function applyOrcaOverlay(orca, piComposeRoot) {
       }
       result=result.replace(from,to)
     }
-    staged.push({path,content:result})
+    staged.set(path,result)
   }
   for (const relative of additions) {
     const path=join(orca,relative)
@@ -90,9 +98,9 @@ export function applyOrcaOverlay(orca, piComposeRoot) {
     if (existsSync(path) && readFileSync(path,'utf8')!==content) {
       throw new Error('Orca 원본의 사용자 변경 파일을 덮어쓸 수 없습니다: ' + relative)
     }
-    staged.push({path,content})
+    staged.set(path,content)
   }
-  for (const {path,content} of staged) {
+  for (const [path,content] of staged) {
     mkdirSync(dirname(path),{recursive:true})
     if (!existsSync(path) || readFileSync(path,'utf8')!==content) writeFileSync(path,content)
   }
