@@ -37,11 +37,12 @@ export function PiComposeMenu(): React.JSX.Element {
   const [task, setTask] = useState('')
   const [workspace, setWorkspace] = useState<'shared'|'worktree'>('worktree')
   const [busy, setBusy] = useState(false)
+  const [preparedId, setPreparedId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const cwd = activeWorktree?.path ?? ''
   // The native Orca + button and project tree both open this same creation flow.
   useEffect(() => {
-    const openMenu = () => { setOpen(true); setError('') };
+    const openMenu = () => { setOpen(true); setError(''); setPreparedId(null) };
     window.addEventListener('pi-compose:new',openMenu);
     return () => window.removeEventListener('pi-compose:new',openMenu);
   }, [])
@@ -88,6 +89,10 @@ export function PiComposeMenu(): React.JSX.Element {
     }).catch(cause=>setError(String(cause)));
   }, [open, cwd, role, mainMode]);
   const onLaunch = async () => {
+    if (preparedId) {
+      setError('이미 Agent가 준비됐습니다. 사이드바에서 해당 Agent를 선택해 기존 세션을 열어주세요.')
+      return
+    }
     if (!cwd || !activeWorktreeId) {
       setError('먼저 로컬 Git 작업 공간을 선택하세요.')
       return
@@ -118,6 +123,10 @@ export function PiComposeMenu(): React.JSX.Element {
       if (role === 'work' && !result.proof?.allMatch) {
         throw new Error('원본 Main 컨텍스트 복제가 검증되지 않아 실행을 차단했습니다.')
       }
+      // Preparation and terminal launch are different outcomes. Always reveal a
+      // prepared record in the sidebar, even if Orca fails to open its tab.
+      setPreparedId(result.record.id)
+      window.dispatchEvent(new Event('pi-compose:changed'))
       let targetWorktreeId = activeWorktreeId
       if (result.record.workspace === 'worktree') {
         // Orca, not Pi Compose, must own the resulting Git workspace and Git UI.
@@ -285,8 +294,8 @@ export function PiComposeMenu(): React.JSX.Element {
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="outline" onClick={() => setOpen(false)} disabled={busy}>취소</Button>
             <Button onClick={() => void onLaunch()}
-              disabled={busy || !cwd || (role !== 'main' && !mainId)}>
-              {busy ? '세션 검증·준비 중…' : 'Agent 생성하고 실행'}
+              disabled={busy || Boolean(preparedId) || !cwd || (role !== 'main' && !mainId)}>
+              {busy ? '세션 검증·준비 중…' : preparedId ? '기존 Agent에서 다시 열기' : 'Agent 생성하고 실행'}
             </Button>
           </div>
         </div>
