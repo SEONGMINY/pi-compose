@@ -54,6 +54,8 @@ function createWindow() {
       sandbox: false,
     },
   });
+  window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  window.webContents.on('will-navigate', (event) => event.preventDefault());
   if (process.env.COMPOSE_DEV_URL) {
     void window.loadURL(process.env.COMPOSE_DEV_URL);
   } else {
@@ -66,9 +68,10 @@ app.whenReady().then(async () => {
   await core.restore();
   ipcMain.handle('compose:state', () => core.snapshot());
   ipcMain.handle('compose:choose-project', async () => {
-    const result = await dialog.showOpenDialog(window || undefined, {
-      properties: ['openDirectory'], title: 'Git 프로젝트 선택',
-    });
+    const options = { properties: ['openDirectory'], title: 'Git 프로젝트 선택' };
+    const result = window && !window.isDestroyed()
+      ? await dialog.showOpenDialog(window, options)
+      : await dialog.showOpenDialog(options);
     if (result.canceled || !result.filePaths[0]) return null;
     return core.openProject(result.filePaths[0]);
   });
