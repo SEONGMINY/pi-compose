@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useAppStore } from '@/store'
 import { useActiveWorktree } from '@/store/selectors'
 import { createNewTerminalTab } from '@/components/terminal/terminal-tab-create'
+import { activateAndRevealWorkspace } from '@/lib/worktree-activation'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { openWorkspaceCreationComposerWithTourHandoff } from '../contextual-tours/workspace-creation-tour-handoff'
@@ -128,6 +129,9 @@ export function PiComposeMenu(): React.JSX.Element {
           throw new Error('Git Worktree와 Pi 세션은 준비됐지만 Orca 작업 공간 등록을 확인하지 못했습니다. 기존 Agent를 중복 생성하지 말고 Orca 프로젝트 목록에서 작업 폴더를 가져와 주세요.')
         }
         targetWorktreeId = target.id
+      }
+      if (activateAndRevealWorkspace(targetWorktreeId) === false) {
+        throw new Error('해당 Orca 작업 공간을 열지 못했습니다. Pi 세션은 준비된 상태로 보존됩니다.')
       }
       const started = await new Promise<boolean>((resolve) => {
         createNewTerminalTab(targetWorktreeId, undefined, {
