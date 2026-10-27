@@ -372,7 +372,22 @@ export async function showTaskHub(
         catch{/* unavailable sessions remain unknown */}
       }
     }
-    records.push(await reconcileTaskSession(root,record.id,candidates) || record);
+    const updated=await reconcileTaskSession(root,record.id,candidates) || record;
+    if(!record.agentSessionId&&updated.agentSessionId)
+      diagnosticEvent('launch.agent_linked',{source:'automatic',outcome:'success',
+        flowId:record.diagnosticFlowId,taskId:record.id,sessionId:updated.agentSessionId,
+        projectId:root,data:{linked:true}});
+    if(record.forkParentVerified!==true&&updated.forkParentVerified===true)
+      diagnosticEvent('launch.context_linked',{source:'automatic',outcome:'success',
+        flowId:record.diagnosticFlowId,taskId:record.id,sessionId:updated.agentSessionId,
+        projectId:root,data:{linked:true}});
+    if(!record.promptObserved&&updated.promptObserved)
+      diagnosticEvent('launch.prompt_observed',{source:'automatic',outcome:'success',
+        flowId:record.diagnosticFlowId,taskId:record.id,sessionId:updated.agentSessionId,projectId:root});
+    if(!record.assistantObserved&&updated.assistantObserved)
+      diagnosticEvent('launch.response_observed',{source:'automatic',outcome:'success',
+        flowId:record.diagnosticFlowId,taskId:record.id,sessionId:updated.agentSessionId,projectId:root});
+    records.push(updated);
   }
   records.push(...saved.slice(15));
   const flow=startFlow('navigation.opened',{source:'slash',projectId:root,data:{availableTargets:records.length,screen:process.env.PIC_COMPOSE_MAIN==='1'?'main':'agent'}});
