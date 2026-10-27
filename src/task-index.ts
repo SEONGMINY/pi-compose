@@ -56,6 +56,8 @@ export type TaskRecord = {
   workspace: 'shared' | 'worktree';
   context: 'fork' | 'independent';
   branch?: string;
+  /** Exact committed base at approved Worktree creation (for later review). */
+  baseSha?: string;
   tmuxTarget?: string;
   /** PR #3 legacy field. Never use it to infer an originating Main. */
   mainTmux?: string;
@@ -88,6 +90,7 @@ export async function recordTask(plan: LaunchPlan, link: TaskLink = {}): Promise
     workspace: plan.workspace,
     context: plan.context,
     ...(plan.branch ? { branch: plan.branch } : {}),
+    ...(plan.baseSha ? { baseSha: plan.baseSha } : {}),
     ...(plan.tmuxTarget ? { tmuxTarget: plan.tmuxTarget } : {}),
     ...(link.mainLocation ? { mainLocation: link.mainLocation } : {}),
     ...(link.targetLocation ? { targetLocation: link.targetLocation } : {}),
@@ -129,6 +132,7 @@ function isRecord(value: unknown): value is TaskRecord {
     && (x.workspace === 'shared' || x.workspace === 'worktree')
     && (x.context === 'fork' || x.context === 'independent')
     && (typeof x.branch === 'string' || typeof x.tmuxTarget === 'string')
+    && (x.baseSha === undefined || (typeof x.baseSha === 'string' && /^[a-f0-9]{40,64}$/i.test(x.baseSha)))
     && (x.instruction === undefined || (typeof x.instruction === 'string' && x.instruction.length <= 20000))
     && (x.handoff === undefined || (x.handoff.kind === 'developer_claim'
       && typeof x.handoff.summary === 'string' && typeof x.handoff.gitHead === 'string'))
