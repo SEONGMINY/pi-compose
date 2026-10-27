@@ -36,7 +36,7 @@ export function AgentPanel({ agent, bridge, visible, onClose, onContext }: {
         <button title="실제 세션 기록과 맥락 확인" onClick={onContext}>맥락</button>
         {agent.role !== 'main' && <button title="실제 Git 변경 확인" onClick={() => void showDiff()}>변경</button>}
         {tab === 'diff' && <button onClick={() => setTab('terminal')}>터미널</button>}
-        <button title="화면에서 닫기 (Agent는 계속 실행)" onClick={onClose}>×</button>
+        {agent.role !== 'main' && <button title="화면에서 닫기 (Agent는 계속 실행)" onClick={onClose}>×</button>}
       </div>
     </header>
     {error && <div className="error-inline" role="alert">{error}</div>}
