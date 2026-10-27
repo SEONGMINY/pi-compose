@@ -52,6 +52,8 @@ export function ContextInspector({ detail, bridge, onChange, onClose }: {
               <dt>Fork 분기 기록</dt><dd>{detail.sourceEntryId || '확인되지 않음'}</dd>
               <dt>원본 계보</dt><dd>{detail.fork?.parentMatches ? '일치' : '미확인'}</dd>
               <dt>분기 시점 기록 포함</dt><dd>{detail.fork?.inheritedEntryPresent ? '확인됨' : '미확인'}</dd>
+              <dt>원본 기록 대조</dt><dd>{detail.fork?.matchedCount ?? 0} / {detail.fork?.expectedCount ?? 0}개
+                {detail.fork?.completeCopyVerified ? ' · 모두 일치' : ' · 추가 확인 필요'}</dd>
             </dl>
             <p className="fine-print">{detail.fork?.explanation}</p>
           </div>}
