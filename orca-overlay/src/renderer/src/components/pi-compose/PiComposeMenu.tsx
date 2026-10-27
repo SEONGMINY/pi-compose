@@ -117,8 +117,20 @@ export function PiComposeMenu(): React.JSX.Element {
       if (role === 'work' && !result.proof?.allMatch) {
         throw new Error('원본 Main 컨텍스트 복제가 검증되지 않아 실행을 차단했습니다.')
       }
+      let targetWorktreeId = activeWorktreeId
+      if (result.record.workspace === 'worktree') {
+        // Orca, not Pi Compose, must own the resulting Git workspace and Git UI.
+        await useAppStore.getState().fetchAllWorktrees({ hydrationPurge: 'defer' })
+        const target = useAppStore.getState().allWorktrees().find(
+          candidate => candidate.path === result.record.cwd
+        )
+        if (!target) {
+          throw new Error('Git Worktree와 Pi 세션은 준비됐지만 Orca 작업 공간 등록을 확인하지 못했습니다. 기존 Agent를 중복 생성하지 말고 Orca 프로젝트 목록에서 작업 폴더를 가져와 주세요.')
+        }
+        targetWorktreeId = target.id
+      }
       const started = await new Promise<boolean>((resolve) => {
-        createNewTerminalTab(activeWorktreeId, undefined, {
+        createNewTerminalTab(targetWorktreeId, undefined, {
           startupCwd: result.record.cwd,
           command: 'sh ' + shellQuote(result.launcher),
           onSettled: resolve,
@@ -129,13 +141,13 @@ export function PiComposeMenu(): React.JSX.Element {
       }
       // The terminal tab is owned by Orca, not by a second Pi Compose renderer.
       // Persist both identities so selecting this Agent reuses the live tab.
-      const active = useAppStore.getState().getActiveTab(activeWorktreeId)
+      const active = useAppStore.getState().getActiveTab(targetWorktreeId)
       if (active?.contentType === 'terminal') {
         useAppStore.getState().setTabCustomLabel(active.id,
           (role === 'main' ? 'Main · ' : role === 'work' ? 'Work · ' : 'Support · ') +
           result.record.title.slice(0, 60))
         try {
-          await window.api.piCompose.attach(cwd,result.record.id,active.id,activeWorktreeId)
+          await window.api.piCompose.attach(cwd,result.record.id,active.id,targetWorktreeId)
         } catch (cause) {
           setError('터미널은 열렸지만 Agent와 탭의 연결을 저장하지 못했습니다: ' +
             (cause instanceof Error ? cause.message : String(cause)))
