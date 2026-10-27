@@ -74,7 +74,7 @@ test('legacy record without exact launch identity is never treated as live', () 
 
 test('shared task uses exact tmux window rather than mere session existence', () => {
   const shared: TaskRecord = { ...record, workspace: 'shared', branch: undefined };
-  assert.match(taskHubRows([shared], [], [main, agent], main).find(r => r.kind === 'task')!.label, /tmux 창 확인됨/);
+  assert.match(taskHubRows([shared], [], [main, agent], main).find(r => r.kind === 'task')!.label, /실행 창만 확인됨/);
   assert.match(taskHubRows([shared], [], [main], main).find(r => r.kind === 'task')!.label, /대상 종료/);
 });
 
@@ -99,7 +99,16 @@ test('native Pi Fork fallback can be found without workmux registry', () => {
     worktreePath:'/tmp/worktrees/nested',workmuxHandle:undefined,workmuxTargetName:undefined,
     tmuxTarget:'pc-nested-id',targetLocation:{session:'pc-nested-id',windowId:'@7',windowName:'pi'} };
   const rows=taskHubRows([native],[],[main,native.targetLocation!],main);
-  assert.match(rows.find(r=>r.kind==='task')!.label,/tmux 창 확인됨/);
+  assert.match(rows.find(r=>r.kind==='task')!.label,/실행 창만 확인됨/);
   const absent=taskHubRows([native],[],[main],main);
   assert.match(absent.find(r=>r.kind==='task')!.label,/대상 종료/);
+});
+
+test('task picker shows a confirmed Fork separately from an unconfirmed Pi session', () => {
+  const confirmed={...record,agentSessionId:'child-id',forkParentVerified:true};
+  const uncertain={...record,agentSessionId:'child-id',forkParentVerified:false};
+  const a=taskHubRows([confirmed],[worktree],[main,agent],main).find(x=>x.kind==='task')?.label;
+  const b=taskHubRows([uncertain],[worktree],[main,agent],main).find(x=>x.kind==='task')?.label;
+  assert.match(a||'',/원본 Main Fork 확인/);
+  assert.match(b||'',/원본 Fork 확인 불가/);
 });
