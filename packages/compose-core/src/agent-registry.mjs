@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, lstatSync, renameSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { SessionManager } from '@earendil-works/pi-coding-agent';
 
@@ -83,7 +83,7 @@ export class AgentRegistry {
     return this.add({
       id, role: 'main', title: title?.trim() || '새 메인 대화',
       project: this.project, cwd: this.project, sessionId: randomUUID(), sessionFile: null,
-      relatedMainId: null, sourceSession: null, workspace: 'shared',
+      relatedMainId: null, sourceSession: null, workspace: 'shared', pins: [],
     });
   }
   locateSession(agent) {
@@ -214,42 +214,149 @@ export class AgentRegistry {
     item.initialPromptPending = false;
     this.save();
   }
+  markContext(agentId, entryId, category) {
+    const agent = this.get(agentId);
+    if (agent.role !== 'main') throw new Error('중요한 맥락은 Main Agent에서 표시합니다.');
+    if (!['decision', 'constraint'].includes(category)) throw new Error('결정 또는 제약만 표시할 수 있습니다.');
+    const path = this.locateSession(agent);
+    if (!path) throw new Error('저장된 Pi 대화가 없습니다.');
+    const entry = SessionManager.open(path).getBranch().find(item => item.id === entryId);
+    if (!entry || entry.type !== 'message' || !['user','assistant'].includes(entry.message?.role)) {
+      throw new Error('현재 Main 대화에 없는 기록은 표시할 수 없습니다.');
+    }
+    agent.pins ||= [];
+    const existing = agent.pins.find(item => item.entryId === entryId);
+    if (existing) existing.category = category;
+    else agent.pins.push({ entryId, category, markedAt: Date.now() });
+    this.save();
+    return this.context(agentId);
+  }
+  unmarkContext(agentId, entryId) {
+    const agent = this.get(agentId);
+    if (agent.role !== 'main') throw new Error('Main Agent의 표시만 변경할 수 있습니다.');
+    agent.pins = (agent.pins || []).filter(item => item.entryId !== entryId);
+    this.save();
+    return this.context(agentId);
+  }
   context(id) {
     const agent = this.get(id);
     const path = this.locateSession(agent);
     const records = [];
+    let branch = [];
     if (path && existsSync(path)) {
-      // Pi's recorded active branch, not a generated or speculative summary.
-      const manager = SessionManager.open(path);
-      for (const entry of manager.getBranch()) {
+      branch = SessionManager.open(path).getBranch();
+      for (const entry of branch) {
         if (entry.type !== 'message') continue;
         const m = entry.message;
-        if (!m || !['user', 'assistant'].includes(m.role)) continue;
-        const text = typeof m.content === 'string'
-          ? m.content
-          : (m.content || []).filter(part => part.type === 'text')
-            .map(part => part.text || '').join('\n');
-        if (text.trim()) records.push({ role: m.role, text: text.slice(0, 3000) });
+        if (!m || !['user','assistant'].includes(m.role)) continue;
+        const content = typeof m.content === 'string'
+          ? m.content : (m.content || []).filter(p => p.type === 'text').map(p => p.text || '').join('\n');
+        if (content.trim()) records.push({ id: entry.id, role: m.role, text: content.slice(0, 5000) });
       }
     }
+    const main = agent.role === 'main' ? agent
+      : agent.relatedMainId ? this.get(agent.relatedMainId) : null;
+    // A pin stores only a Pi entry ID; all displayed content is read again from the original.
+    const sourcePath = main ? this.locateSession(main) : null;
+    const sourceBranch = sourcePath && existsSync(sourcePath)
+      ? SessionManager.open(sourcePath).getBranch() : [];
+    const sourceRecords = new Map();
+    for (const entry of sourceBranch) {
+      if (entry.type !== 'message' || !entry.message) continue;
+      const m = entry.message;
+      const content = typeof m.content === 'string' ? m.content :
+        (m.content || []).filter(p => p.type === 'text').map(p => p.text || '').join('\n');
+      sourceRecords.set(entry.id, { role: m.role, text: content.slice(0, 5000) });
+    }
+    const presentIds = new Set(branch.map(e => e.id));
+    const pins = (main?.pins || []).filter(pin => sourceRecords.has(pin.entryId))
+      .map(pin => ({
+        ...pin, ...sourceRecords.get(pin.entryId),
+        includedInAgent: agent.role === 'main' ? true
+          : agent.role === 'work' ? presentIds.has(pin.entryId) : false,
+      }));
+    let fork = null;
+    if (agent.role === 'work') {
+      let parentMatches = false;
+      let inheritedEntryPresent = false;
+      let snapshotFound = false;
+      if (path && existsSync(path)) {
+        try {
+          const header = JSON.parse(readFileSync(path, 'utf8').split('\n')[0]);
+          parentMatches = header.type === 'session' && resolve(header.parentSession || '') === resolve(agent.sourceSession);
+        } catch {}
+        inheritedEntryPresent = Boolean(agent.sourceEntryId && presentIds.has(agent.sourceEntryId));
+        snapshotFound = Boolean(agent.sourceEntryId && sourceBranch.some(entry => entry.id === agent.sourceEntryId));
+      }
+      const cut = sourceBranch.findIndex(entry => entry.id === agent.sourceEntryId);
+      const sourceAtFork = cut >= 0 ? sourceBranch.slice(0, cut + 1) : [];
+      const targetEntries = new Map(branch.map(entry => [entry.id, entry]));
+      const matchedCount = sourceAtFork.filter(entry => {
+        const match = targetEntries.get(entry.id);
+        return match && JSON.stringify(match) === JSON.stringify(entry);
+      }).length;
+      const completeCopyVerified = sourceAtFork.length > 0 && matchedCount === sourceAtFork.length;
+      fork = {
+        parentMatches, inheritedEntryPresent, snapshotFound,
+        expectedCount: sourceAtFork.length, matchedCount, completeCopyVerified,
+        verified: parentMatches && inheritedEntryPresent && snapshotFound && completeCopyVerified,
+        sourceSession: agent.sourceSession, sourceEntryId: agent.sourceEntryId,
+        explanation: '원본 활성 대화의 분기 시점까지 기록을 실제 Work 세션의 기록과 항목별로 대조합니다. Compaction 이후 모델에 전달된 세부 내용이나 의미 이해까지 보장하지는 않습니다.',
+      };
+    }
     return {
-      title: agent.title, role: agent.role, task: agent.task || null,
+      agentId: agent.id, title: agent.title, role: agent.role, task: agent.task || null,
       sourceSession: agent.sourceSession, sourceEntryId: agent.sourceEntryId || null,
-      sessionFile: path, totalMessages: records.length, messages: records.slice(-30),
-      relatedMainTitle: agent.relatedMainId ? this.get(agent.relatedMainId).title : null,
-      note: 'Pi 세션의 실제 대화 발췌입니다. 자동으로 핵심 결정이라고 판단하거나 다른 Agent에 전달하지 않습니다.',
+      sessionFile: path, totalMessages: records.length, messages: records.slice(-50),
+      pinned: pins, fork,
+      relatedMainTitle: main && agent.role !== 'main' ? main.title : null,
+      note: 'Pi의 활성 대화 경로에서 읽은 기록입니다. 표시한 결정은 자동 요약이 아니며 다른 Agent에 자동 전송되지 않습니다.',
     };
   }
+
   review(id) {
     const item = this.get(id);
     if (!item.baseSha) throw new Error('코드 검토 기준 커밋이 없습니다.');
-    const diff = execFileSync('git', ['diff', '--no-ext-diff', '--no-color', item.baseSha], {
-      cwd: item.cwd, encoding: 'utf8', maxBuffer: 3 * 1024 * 1024,
+    const raw = args => execFileSync('git', args, {
+      cwd: item.cwd, encoding: 'utf8', maxBuffer: 6 * 1024 * 1024,
     });
+    const baseline = item.baseSha;
+    const status = raw(['status', '--short']);
+    const untracked = raw(['ls-files', '-z', '--others', '--exclude-standard']).split('\0').filter(Boolean);
+    const changed = raw(['diff', '--name-status', '-z', baseline]).split('\0').filter(Boolean);
+    const files = [];
+    for (let i = 0; i < changed.length; ) {
+      const kind = changed[i++];
+      if (!kind) break;
+      const from = changed[i++];
+      const path = kind.startsWith('R') || kind.startsWith('C') ? changed[i++] : from;
+      if (!path) continue;
+      const diff = raw(['diff', '--no-ext-diff', '--no-color', baseline, '--', path]);
+      files.push({ path, kind: kind[0], from: from !== path ? from : null,
+        diff: diff.slice(0, 190000), untracked: false, preview: null });
+      if (files.length >= 300) break;
+    }
+    for (const path of untracked) {
+      if (files.length >= 300) break;
+      const full = resolve(item.cwd, path);
+      let preview = null;
+      try {
+        if (full.startsWith(resolve(item.cwd) + '/')) {
+          const stat = lstatSync(full);
+          if (stat.isFile() && stat.size <= 150000) {
+            const data = readFileSync(full);
+            if (!data.includes(0)) preview = data.toString('utf8').slice(0, 25000);
+          }
+        }
+      } catch { /* not a safe text preview */ }
+      files.push({ path, kind: '?', from: null, diff: '', untracked: true, preview });
+    }
     return {
-      baseSha: item.baseSha, diff: diff.slice(0, 180_000),
-      status: runGit(item.cwd, 'status', '--short'),
-      untracked: runGit(item.cwd, 'ls-files', '--others', '--exclude-standard'),
+      baseSha: baseline, status, untracked: untracked.join('\n'),
+      files, count: files.length, hasMore: files.length >= 300,
+      attribution: item.workspace === 'shared'
+        ? '공유 폴더의 Git 변경은 해당 Agent만 작성했다고 판단할 수 없습니다.'
+        : '이 Worktree의 변경입니다. 완료 및 계약 준수 여부는 별도 검토가 필요합니다.',
     };
   }
 }

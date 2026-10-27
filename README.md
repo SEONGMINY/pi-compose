@@ -6,6 +6,13 @@ Pi Compose는 [Pi](https://github.com/earendil-works/pi)를 기반으로, Main�
 
 Main은 그대로 둡니다. 실제 구현은 새 Pi Agent와 별도 Git Worktree에서 진행합니다. 구현 중 Main에서는 다른 설계를 계속할 수 있습니다. 여러 Agent를 관리하기 위한 별도 AI Runtime이나 Git 관리 시스템을 만들지 않습니다.
 
+> **ADE UI 개선 브랜치:** Orca 레퍼런스 기반 프로젝트/작업 사이드바, 실제 맥락·Fork 계보 확인, 파일별 Git Diff, Pi 로그인 방법 선택. [사용법과 검증 기준](docs/ADE_ORCA_UX.md)
+
+    git fetch origin
+    git switch feat/ade-orca-workspace-context-review
+    npm install
+    npm run ade:dev
+
 ## macOS ADE — Main / Work / Support Agent (개발 버전)
 
 Pi의 **실제 TUI**를 Electron 안에서 실행하는 ADE입니다. React로 Pi 채팅 화면을 재구현하지 않습니다.

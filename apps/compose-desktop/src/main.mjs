@@ -14,6 +14,7 @@ let stopping = false;
 let authRuntime;
 let authLoginPending = false;
 let codeResolve = null;
+let authController = null;
 
 const send = (channel, payload) => {
   if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) {
@@ -66,18 +67,23 @@ app.whenReady().then(() => {
     return state;
   });
   ipcMain.handle('compose:context', (_event, id) => registry.context(id));
+  ipcMain.handle('compose:mark-context', (_event, id, entry, kind) => registry.markContext(id, entry, kind));
+  ipcMain.handle('compose:unmark-context', (_event, id, entry) => registry.unmarkContext(id, entry));
   ipcMain.handle('compose:auth-status', () => ({
     connected: Boolean(readStoredCredential('openai-codex')),
     provider: 'openai-codex',
   }));
-  ipcMain.handle('compose:auth-login', async () => {
+  ipcMain.handle('compose:auth-login', async (_event, method = 'browser') => {
+    if (!['browser', 'device_code'].includes(method)) throw new Error('지원하지 않는 로그인 방법입니다.');
     if (authLoginPending) throw new Error('이미 로그인이 진행 중입니다.');
     authLoginPending = true;
+    authController = new AbortController();
     try {
       authRuntime ??= await ModelRuntime.create({ refreshOnCreate: false });
       await authRuntime.login('openai-codex', 'oauth', {
+        signal: authController.signal,
         prompt: prompt => {
-          if (prompt.type === 'select') return Promise.resolve('browser');
+          if (prompt.type === 'select') return Promise.resolve(method);
           // For callbacks blocked by local port ownership, request the redirect URL in our own UI.
           return new Promise((resolve, reject) => {
             codeResolve = { resolve, reject };
@@ -92,6 +98,7 @@ app.whenReady().then(() => {
         },
         notify: event => {
           if (event.type === 'auth_url') void shell.openExternal(event.url);
+          if (event.type === 'device_code') void shell.openExternal(event.verificationUri);
           send('compose:auth-event', event);
         },
       }, { agentName: 'Pi Compose' });
@@ -100,7 +107,11 @@ app.whenReady().then(() => {
     } catch (error) {
       send('compose:auth-event', { type: 'error', message: error instanceof Error ? error.message : String(error) });
       throw error;
-    } finally { authLoginPending = false; codeResolve = null; }
+    } finally { authLoginPending = false; codeResolve = null; authController = null; }
+  });
+  ipcMain.handle('compose:auth-cancel', () => {
+    authController?.abort();
+    if (codeResolve) { codeResolve.reject(new Error('로그인이 취소됐습니다.')); codeResolve = null; }
   });
   ipcMain.handle('compose:auth-code', (_event, code) => {
     if (!codeResolve) throw new Error('인증 코드를 요청하지 않았습니다.');
