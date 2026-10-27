@@ -1,9 +1,10 @@
 import { ipcRenderer } from 'electron'
 
-export type PiComposeCommand = 'list' | 'main' | 'work' | 'support'
+export type PiComposeCommand = 'list' | 'sessions' | 'import' | 'main' | 'work' | 'support'
 export type PiComposeRequest = {
   cwd: string
   title?: string
+  sessionId?: string
   mainId?: string
   task?: string
   workspace?: 'shared' | 'worktree'
@@ -29,9 +30,11 @@ export type PiComposeResult = {
 }
 export type PiComposeApi = {
   list: (cwd: string) => Promise<PiComposeListRecord[]>
-  create: (command: Exclude<PiComposeCommand, 'list'>, request: PiComposeRequest) => Promise<PiComposeResult>
+  sessions: (cwd: string) => Promise<{id:string;title:string;messageCount:number;path:string}[]>
+  create: (command: 'main'|'import'|'work'|'support', request: PiComposeRequest) => Promise<PiComposeResult>
 }
 export const piComposeApi: PiComposeApi = {
   list: (cwd) => ipcRenderer.invoke('pi-compose:execute', 'list', { cwd }),
+  sessions: (cwd) => ipcRenderer.invoke('pi-compose:execute', 'sessions', { cwd }),
   create: (command, request) => ipcRenderer.invoke('pi-compose:execute', command, request)
 }
