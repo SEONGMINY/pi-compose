@@ -2,9 +2,9 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { AgentPanel } from './AgentPanel';
 import type { Agent, Bridge } from './App';
 
-export function SplitWorkspace({ agents, visibleIds, bridge, onRemove, onContext, onReview }: {
+export function SplitWorkspace({ agents, visibleIds, bridge, onRemove, onContext, onReview, focusId }: {
   agents: Agent[]; visibleIds: string[]; bridge: Bridge;
-  onRemove(id: string): void; onContext(id: string): void; onReview(id: string): void;
+  onRemove(id: string): void; onContext(id: string): void; onReview(id: string): void; focusId: string | null;
 }) {
   const [visited, setVisited] = useState<string[]>([]);
   const [weights, setWeights] = useState<Record<string, number>>({});
@@ -14,6 +14,11 @@ export function SplitWorkspace({ agents, visibleIds, bridge, onRemove, onContext
     setVisited(prev => [...prev, ...opened.filter(id => !prev.includes(id))]);
   }, [visibleIds.join('|'), agents.length]);
   const shown = useMemo(() => new Set(opened), [opened.join('|')]);
+  useEffect(() => {
+    if (!focusId) return;
+    const el=parent.current?.querySelector<HTMLElement>('[data-agent-id="'+focusId+'"]');
+    if (el && !el.classList.contains('off-screen')) el.scrollIntoView({ behavior:'smooth', block:'nearest', inline:'nearest' });
+  }, [focusId, visibleIds.join('|')]);
   const current = opened.map(id => weights[id] ?? 1);
   const gutter = 7;
   const columns = opened.flatMap((id, i) =>
@@ -61,7 +66,7 @@ export function SplitWorkspace({ agents, visibleIds, bridge, onRemove, onContext
         if (!agent) return null;
         const index = opened.indexOf(id);
         const visible = shown.has(id);
-        return <div key={id} className={'retained-pane ' + (visible ? 'on-screen' : 'off-screen')}
+        return <div key={id} data-agent-id={id} className={'retained-pane ' + (visible ? 'on-screen' : 'off-screen')}
           style={visible ? { gridColumn: index * 2 + 1 } : undefined}>
           <AgentPanel agent={agent} visible={visible} bridge={bridge}
             onClose={() => onRemove(id)} onContext={() => onContext(id)} onReview={() => onReview(id)}/>
