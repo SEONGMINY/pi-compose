@@ -26,7 +26,7 @@ export type PiComposeRecord = {
   orcaTabId?: string | null
   orcaWorktreeId?: string | null
 }
-export type PiComposeListRecord = Pick<PiComposeRecord, 'id'|'role'|'title'|'parentMainId'|'state'|'sessionId'|'launcher'|'orcaTabId'|'orcaWorktreeId'> & {
+export type PiComposeListRecord = Pick<PiComposeRecord, 'id'|'role'|'title'|'parentMainId'|'state'|'sessionId'|'cwd'|'launcher'|'orcaTabId'|'orcaWorktreeId'> & {
   proof?: { allMatch: boolean; copied: number; expected: number }
 }
 export type PiComposeResult = {
