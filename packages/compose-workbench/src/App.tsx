@@ -190,7 +190,7 @@ export function App({ bridge }: { bridge: Bridge }) {
               </div>
               {showDelegate && <div className="delegate-form">
                 <strong>현재 Main에서 정확하게 Fork</strong>
-                <p>저장된 이 대화의 설계 맥락을 별도 Child와 새 Git Worktree에 전달합니다. Main은 변경하지 않습니다.</p>
+                <p>저장된 이 대화의 설계 맥락을 별도 Child와 새 Git Worktree에 전달합니다. Main은 변경하지 않습니다. 원본 작업 폴더의 미커밋 파일은 Worktree에 복사되지 않습니다.</p>
                 <textarea rows={4} autoFocus placeholder="개발할 작업을 설명하세요…" value={task} onChange={(event) => setTask(event.target.value)} />
                 <div className="form-actions"><button onClick={() => setShowDelegate(false)}>취소</button>
                   <button className="primary" disabled={!task.trim() || busy || selectedMain.status === 'running'} onClick={launch}>Fork하고 개발 시작</button></div>
