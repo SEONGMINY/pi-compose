@@ -413,6 +413,7 @@ export async function showSavedSessions(
 ): Promise<void> {
   const flow = startFlow('sessions.opened',{source:'slash',projectId:ctx.cwd});
   let outcome:'success'|'failure'|'cancelled'|'unavailable'='cancelled';
+  let reason:'no_selection'|'not_found'|'unknown'='unknown';
   try {
   if (!ctx.hasUI) {
     ctx.ui.notify('Pi 저장 대화는 /resume 또는 /compose sessions에서 선택하세요.', 'warning');
@@ -431,8 +432,12 @@ export async function showSavedSessions(
   // caused a ReferenceError whenever a saved session was evaluated.
   const savedSessions = sessions.filter(s => s.path !== current
     && matches([s.name, s.firstMessage, s.id].join(' '), query)).slice(0, 50);
+  diagnosticEvent('sessions.listed',{source:'slash',flowId:flow.flowId,
+    outcome:savedSessions.length?'success':'unavailable',
+    projectId:ctx.cwd,data:{availableTargets:savedSessions.length}});
   if (!savedSessions.length) {
     outcome='unavailable';
+    reason='not_found';
     ctx.ui.notify('현재 폴더(cwd)에서 일치하는 저장 대화가 없습니다. 다른 작업 폴더에서 진행한 대화는 Pi /resume에서 전체 목록을 확인하세요.', 'info');
     return;
   }
@@ -440,7 +445,11 @@ export async function showSavedSessions(
     (index + 1) + '. ' + label(session.name || session.firstMessage || '(이름 없음)')
     + ' [' + session.id.slice(0, 8) + '] · 저장된 Pi 대화');
   const chosen = await ctx.ui.select('이전 기능·대화 · ' + (query || '현재 프로젝트'), labels);
-  if (!chosen) return;
+  if (!chosen) {
+    reason='no_selection';
+    ctx.ui.notify('이전 대화 선택을 취소했습니다. 현재 Main 대화는 그대로 유지됩니다.','info');
+    return;
+  }
   const session = savedSessions[labels.indexOf(chosen)];
   if (!session) return;
   // This is Pi's existing in-process session switch, NOT tmux/Pi spawning.
@@ -452,5 +461,6 @@ export async function showSavedSessions(
   } catch (error) {
     outcome='failure';
     ctx.ui.notify('저장 Pi 대화 탐색 또는 전환 실패: ' + String(error) + '. Pi /resume에서도 확인할 수 있습니다.', 'error');
-  } finally { finishFlow(flow,'sessions.finished',{source:'slash',outcome}); }
+  } finally { finishFlow(flow,'sessions.finished',{source:'slash',outcome,
+    data:{reason}}); }
 }
