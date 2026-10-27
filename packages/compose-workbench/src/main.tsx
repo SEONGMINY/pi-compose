@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { App, type Bridge } from './App';
 import './terminal-workbench.css';
 import './ux-overrides.css';
+import './orca-workspace.css';
 
 declare global { interface Window { compose: Bridge; } }
 
