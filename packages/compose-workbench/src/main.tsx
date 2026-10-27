@@ -4,6 +4,7 @@ import { App, type Bridge } from './App';
 import './terminal-workbench.css';
 import './ux-overrides.css';
 import './orca-workspace.css';
+import './login-v2.css';
 
 declare global { interface Window { compose: Bridge; } }
 
