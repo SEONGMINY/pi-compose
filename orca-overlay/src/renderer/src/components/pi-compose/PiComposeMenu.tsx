@@ -137,10 +137,41 @@ export function PiComposeMenu(): React.JSX.Element {
           throw new Error('Work를 생성하지 않았습니다. Native Chat 준비 불가: ' + reason)
         }
       }
+      // Validate the exact source branch BEFORE asking Orca to create a checkout.
+      // Invalid/stale/multi-branch sources must not strand a Git Worktree.
+      const forkPreview = role === 'work'
+        ? await window.api.piCompose.previewWorkFork(cwd, mainId)
+        : null
+      let managedWorktree: { id: string; path: string } | undefined
+      if (role !== 'main' && workspace === 'worktree') {
+        const source = useAppStore.getState().getKnownWorktreeById(selectedWorktreeId)
+        if (!source?.repoId || !source.branch) {
+          throw new Error('Orca에서 기준 Git 브랜치와 프로젝트를 확인할 수 없습니다.')
+        }
+        const branch = source.branch.replace(/^refs\/heads\//, '')
+        const owner = structuredLaunchOwner(
+          { route: 'structured-native-chat' }, selectedWorktreeId
+        )
+        if (!owner || owner.target.kind !== 'local') {
+          throw new Error('현재 Pi Compose 기록 브리지는 로컬 호스트만 지원합니다. 원격 작업 공간은 생성하지 않았습니다.')
+        }
+        // Reuse Orca's actual managed creation, host routing, branch collision
+        // handling, registry and Git UI. No startup agent/prompt is passed.
+        const suffix = window.crypto.randomUUID().slice(0, 8)
+        const created = await useAppStore.getState().createWorktree(
+          source.repoId, `compose-${role}-${suffix}`, branch, 'inherit'
+        )
+        if (!created.worktree?.id || !created.worktree?.path) {
+          throw new Error('Orca의 Worktree 생성 영수증을 받지 못했습니다.')
+        }
+        managedWorktree = { id: created.worktree.id, path: created.worktree.path }
+      }
       const result: PiComposeResult = await window.api.piCompose.create(role === 'main' && mainMode === 'existing' ? 'import' : role, {
         cwd,
         ...(role === 'main' ? { title: title.trim(), ...(mainMode === 'existing' ? { sessionId: savedId } : {}) }
           : { mainId, title: task.trim(), workspace: workspace as 'shared' | 'worktree',
+              ...(forkPreview ? { expectedSourceEntryId: forkPreview.sourceEntryId } : {}),
+              ...(managedWorktree ? { managedWorktree } : {}),
               ...(role === 'support' && relatedWorkId ? { relatedWorkId } : {}) }),
       })
       if (role === 'work' && !result.proof?.allMatch) {
@@ -157,15 +188,17 @@ export function PiComposeMenu(): React.JSX.Element {
       window.dispatchEvent(new Event('pi-compose:changed'))
       let targetWorktreeId = selectedWorktreeId
       if (result.record.workspace === 'worktree') {
-        // Orca, not Pi Compose, must own the resulting Git workspace and Git UI.
-        await useAppStore.getState().fetchAllWorktrees({ hydrationPurge: 'defer' })
-        const target = useAppStore.getState().allWorktrees().find(
-          candidate => candidate.path === result.record.cwd
-        )
-        if (!target) {
-          throw new Error('Git Worktree와 Pi 세션은 준비됐지만 Orca 작업 공간 등록을 확인하지 못했습니다. 기존 Agent를 중복 생성하지 말고 Orca 프로젝트 목록에서 작업 폴더를 가져와 주세요.')
+        if (!managedWorktree ||
+            result.record.orcaWorktreeId !== managedWorktree.id ||
+            result.record.cwd !== managedWorktree.path) {
+          throw new Error('Orca 생성 영수증과 준비된 Pi 대화의 작업 공간 ID가 다릅니다. 자산은 보존했습니다.')
         }
-        targetWorktreeId = target.id
+        targetWorktreeId = managedWorktree.id
+      } else if (role === 'support' && relatedWorkId) {
+        // Linked Support in shared mode follows the Work's real execution
+        // workspace. Do not accidentally attach it to the currently selected Main.
+        const related = agents.find(record => record.id === relatedWorkId)
+        if (related?.orcaWorktreeId) targetWorktreeId = related.orcaWorktreeId
       }
       if (activateAndRevealWorkspace(targetWorktreeId) === false) {
         throw new Error('해당 Orca 작업 공간을 열지 못했습니다. Pi 세션은 준비된 상태로 보존됩니다.')
