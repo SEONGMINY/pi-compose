@@ -38,7 +38,7 @@ export function PiComposeMenu(): React.JSX.Element {
   const [savedId, setSavedId] = useState('')
   const [task, setTask] = useState('')
   const [relatedWorkId, setRelatedWorkId] = useState('')
-  const [workspace, setWorkspace] = useState<'shared'|'worktree'>('worktree')
+  const [workspace, setWorkspace] = useState<'shared'|'worktree'|''>('')
   const [busy, setBusy] = useState(false)
   const [preparedId, setPreparedId] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -50,6 +50,7 @@ export function PiComposeMenu(): React.JSX.Element {
       if (picked?.role) setRole(picked.role)
       if (picked?.mainId) setMainId(picked.mainId)
       setRelatedWorkId(picked?.relatedWorkId || '')
+      setWorkspace('')
       setOpen(true); setError(''); setPreparedId(null)
     };
     window.addEventListener('pi-compose:new',openMenu);
@@ -117,6 +118,10 @@ export function PiComposeMenu(): React.JSX.Element {
       setError('Main 이름을 입력하세요.')
       return
     }
+    if (role !== 'main' && !workspace) {
+      setError('코드를 실행할 작업 공간을 선택하세요.')
+      return
+    }
     if (role !== 'main' && !task.trim()) {
       setError('Work 또는 Support 이름을 입력하세요.')
       return
@@ -127,7 +132,7 @@ export function PiComposeMenu(): React.JSX.Element {
       const result: PiComposeResult = await window.api.piCompose.create(role === 'main' && mainMode === 'existing' ? 'import' : role, {
         cwd,
         ...(role === 'main' ? { title: title.trim(), ...(mainMode === 'existing' ? { sessionId: savedId } : {}) }
-          : { mainId, title: task.trim(), workspace,
+          : { mainId, title: task.trim(), workspace: workspace as 'shared' | 'worktree',
               ...(role === 'support' && relatedWorkId ? { relatedWorkId } : {}) }),
       })
       if (role === 'work' && !result.proof?.allMatch) {
@@ -281,9 +286,10 @@ export function PiComposeMenu(): React.JSX.Element {
               Git 작업 폴더
               <select className="mt-2 h-9 w-full rounded-md border border-input bg-background px-2"
                 value={workspace} disabled={busy}
-                onChange={(event) => setWorkspace(event.target.value as 'shared'|'worktree')}>
-                <option value="worktree">별도 Worktree</option>
-                <option value="shared">기존 작업 폴더 공유</option>
+                onChange={(event) => setWorkspace(event.target.value as 'shared'|'worktree'|'')}>
+                <option value="" disabled>작업 공간을 선택해 주세요</option>
+                <option value="shared">{role === 'support' && relatedWorkId ? '연결된 Work의 작업 폴더 사용' : '현재 작업 폴더 사용'}</option>
+                <option value="worktree">별도 Worktree 생성</option>
               </select>
             </label>
             {workspace === 'worktree' && <p className="text-xs leading-relaxed text-amber-500">
@@ -323,7 +329,7 @@ export function PiComposeMenu(): React.JSX.Element {
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="outline" onClick={() => setOpen(false)} disabled={busy}>취소</Button>
             <Button onClick={() => void onLaunch()}
-              disabled={busy || Boolean(preparedId) || !cwd || (role !== 'main' && !mainId)}>
+              disabled={busy || Boolean(preparedId) || !cwd || (role !== 'main' && (!mainId || !workspace))}>
               {busy ? '세션 검증·준비 중…' : preparedId ? '기존 Agent에서 다시 열기' : role === 'main' ? 'Main 대화 열기' : 'Agent 준비하고 대화 열기'}
             </Button>
           </div>
