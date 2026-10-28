@@ -2,7 +2,7 @@
 
 > 작업 브랜치: `feat/orca-batch-integration-20261028`  
 > 기준: `stablyai/orca@4a39d186da72a496b29a9ec5c523bbbf0a3460d8`, Pi SDK `1.4.0`  
-> 상태: **코드 통합 중. Orca macOS GUI 빌드 및 실기 동작은 검증 전.**  
+> 상태: **계획서 P0/P1/P2 재감사 중 · 기존 macOS TypeScript 타입 검사 1회 성공, 실제 GUI 실기 동작은 미검증. 최종 GO 불가.**  
 > 기존 브랜치, Git Worktree, Pi 대화 파일을 자동 삭제·병합하지 않음. 사용자 요청에 따라 새 CI/테스트 코드는 작성하지 않음.
 
 ## 우선하는 제품 가치
@@ -106,3 +106,46 @@ npm run orca:dev
 - 수행: 실제 GitHub 소스 조회, 계획서와 함수별 비교, 변경된 두 `.mjs` 파일을 JS 파서로 구문 검사 **PASS**.
 - 미수행: 코드 실행, 기존 테스트 실행, Node/pnpm 타입 검사, Electron 빌드, 실제 Orca GUI, U01~U24 제품 QA. 따라서 **정적 수준의 수정 코드 반영**이며 제품 통합 완료가 아니다.
 - 후속은 기존 계획서의 **go/no-go gate**를 따르며, 남은 blocking을 새 자작 UI/Agent/Worktree 관리자로 우회하지 않는다. 사용자가 요청한 대로 별도 CI/테스트 코드를 추가하지 않는다.
+
+
+## 2026-10-28 · 원본 P2 의사결정 게이트 복구 / P0·P1 재감사
+
+이 절은 [1,052줄 계획서](./ORCA_CONTEXT_FIRST_EXECUTION_PLAN.md)의 **실행/검증 기록**이며 별도 정책 정본이 아니다. 계획서 P0→P1→P2 단계별 go/no-go와 사용자 확정 결정을 우선한다.
+
+### 확인된 Orca 원본과 실제 사용 경계
+
+| 구분 | Orca 원본 코드 | Compose가 할 수 있는 일 | 변경하면 안 되는 일 |
+| --- | --- | --- | --- |
+| Agent 아이콘·활동 상태 | `DashboardAgentRow.tsx`의 `AgentTypeIcon`/`AgentStateDot`; `rowSource='subagent'`에서만 종류 아이콘 생략 | 실제 Orca Pi native row의 관계만 투영 | Main 말풍선 아이콘/역할 아이콘 추가, 상태 자체 계산 |
+| 같은 Worktree 부모 관계 | `WorktreeCardAgents.tsx`, `agent-row-lineage-model.ts`, `applyAgentRowLineage` | **실제** Orca Native Chat ID를 갖고 있고 Fork 증거가 유효한 Work의 `parent` projection | fake paneKey, AgentStatus, 실행 대상 변경 |
+| 다른 Worktree의 Agent | 각각의 `useWorktreeAgentRows(worktreeId)`, `activateAndRevealWorkspace`, `activateStructuredAgentSessionTab` | 원래 Worktree 및 Orca Agent 관리자를 유지하며 관계를 참조 | 원래 Worktree를 바꿔 끼우기·세션 중복 등록 |
+| `×`/Dismiss | 원본 `DashboardAgentRowTrailingControls` + 원래 Worktree의 `dropAgentStatus`/retained dismiss | 별도 'Main에서 연결 숨김'은 다른 동작임을 명시 | 같은 `×`에 다른 생명주기 의미 몰래 적용 |
+
+### P2-2 A/B 대조 — 아직 사용자 선택 전
+
+| | A: 원본 Orca 위치 유지, Main에서 참조 | B: Main 아래에도 Native Agent 행 표시 |
+| --- | --- | --- |
+| 비용/변경 범위 | 더 작음: Main에서는 실제 Orca 세션을 여는 명시적 참조 링크/메뉴만 추가 | 더 큼: 다른 Worktree의 상태·포커스·dismiss·접기·가상화를 원본 owner에 정확히 라우팅 |
+| 기대 효과 | Orca 본래 행과 소유권, 아이콘/상태/메뉴 의미를 그대로 보존 | Main 아래에서 Work 진행을 한 화면에 모아 볼 수 있음 |
+| 위험 | Main 트리에서 원격 Agent의 전체 행을 바로 볼 수 없음 | 같은 Agent가 두 번 표시됨, `×` 의미 차이, 두 Worktree의 focus·virtualization·reopen 충돌 |
+| 현재 결정 | **기존 Orca 원래 위치를 손대지 않는 안전한 임시 상태** | **활성 오버레이에서 제외, 코드만 검토용 보존**. 실제 사용성·소유권을 증명하고 사용자와 범위 결정 전 활성화 금지 |
+
+기존 `PiComposeCrossWorktreeAgentRefs.tsx`는 예전 B안 시도의 **비활성 참고 코드**다. 파일이 존재한다고 배포 UI에서 해당 컴포넌트를 사용한다는 뜻은 아니다. 새 오버레이에서는 관련 `WorktreeCardAgents` 네이티브 행 복제 삽입 4개를 제거했다.
+
+**업데이트 안전:** 기존 Orca 체크아웃에 과거 B안 오버레이가 적용돼 있을 수 있다. 단순히 새 hook 목록에서 제거하면 원래 파일에 중복행 코드가 남는 문제가 있어, 이전 manifest의 전체 파일 SHA256과 실제 현재 파일이 동일할 때만 `git show HEAD:<original-path>`로 **고정 Orca 커밋의 원본을 읽고**, 현행 overlay hook 전체를 다시 구성하도록 수정했다. 사용자 수정이 한 글자라도 달라 hash가 불일치하면 덮어쓰지 않고 중단한다. Git checkout/reset/delete는 수행하지 않는다.
+
+**같은 Worktree:** `usePiComposeNativeLineage.ts`에서 Work의 `proof.allMatch===true`까지 확인해야 native Main 아래에 연결한다. 증명이 없으면 원래 Orca Native Chat은 그대로 유지하지만 Main의 검증된 Fork처럼 보이지 않는다.
+
+### P0·P1 Go/No-Go
+
+- **P0: 아직 NO-GO.** Orca 실제 Pi host registry 및 provider handle 파일의 Pi 세션 ID와 RPC의 `get_entries.leafId` 연결은 소스·타입 수준에서 확인. macOS 실제 다중 branch, 실행 중 writer, 재시작/호스트 불일치에서 한 번의 정확한 Fork 증거 및 부작용 없음은 미검증.
+- **P1: 아직 NO-GO.** 생성 경로는 Orca `createWorktree`를 사용하고 원래 Git/Orca 자산을 삭제하지 않지만, **크래시/재시작을 넘어 동일 사용자 의도를 구분하는 durable operation ID/중복 방지/부분 성공 재개는 미구현**. 현재 in-dialog 중복 차단을 완료로 오인하지 않는다.
+- **P2: 아직 NO-GO.** 동일 Worktree의 read-only lineage는 남김. **다른 Worktree B안 중복 행을 비활성화**했으므로 Main의 전체 cross-Worktree 그룹핑은 제품 기능으로 완료되지 않았다. A/B안은 실사용 및 사용자 결정 후 선택한다.
+- **P3~P6:** 이전 코드가 존재하는 것과 단계별 제품 완료는 다르다. 상위 게이트를 통과하기 전 완료라고 선언하지 않는다.
+
+### 검증 증거와 한계
+
+- 고정 원본 Orca source 및 overlay patch 정적 대조: 현재 overlay가 `WorktreeCardAgents`에 **같은 Worktree 관계용 4개 hook만** 삽입하고, `crossRefs.map`은 삽입하지 않는 것을 확인. JS 구문 검사 통과.
+- 기존 GitHub macOS [Actions 실행 40679291301](https://github.com/SEONGMINY/pi-compose/actions/runs/40679291301)의 **upstream-integration 타입 검사 성공**: 당시 커밋 `d8b5fbd` 기준. 이후 overlay 리베이스·P2 수정의 실제 타입 검사 결과는 별도 확인이 필요.
+- 기존 `contract-check`는 구형 구현을 기준으로 한 fixture가 활성 leaf ID 없이 Work Fork, Compose의 Git Worktree 직접 생성 등을 요구해 실패하고 있다. 계약을 약화해 테스트를 통과시키지 않는다. 신규 테스트·CI는 추가하지 않았다.
+- macOS GUI 실제 실행, Agent icon/status/focus/`×` 클릭, `orca:prepare` **이미 패치한 checkout에서 업데이트 후 반복 실행**, U01~U24 전체 결과는 **미검증**. 소스 대조만으로 완료 선언 금지.
