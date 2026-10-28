@@ -20,24 +20,36 @@ export function usePiComposeNativeLineage(
     records: PiComposeListRecord[]
   }>({ cwd: '', records: [] })
 
+  // A same-count replacement is still a different Orca owner. Never rely on
+  // agents.length alone to invalidate the Pi-to-native session mapping.
+  const agentIdentity = agents.map(agent =>
+    agent.paneKey + ':' + agent.tab.id + ':' + agent.rowSource
+  ).join('|')
+  const tabIdentity = (tabs ?? []).filter(tab =>
+    tab.contentType === 'agent-session' && tab.agentSessionAgent === 'pi'
+  ).map(tab => tab.id + ':' + tab.entityId).join('|')
+
   useEffect(() => {
     if (!cwd || agents.length < 2) return
     let alive = true
+    let requestEpoch = 0
     const refresh = () => {
+      const epoch = ++requestEpoch
       void window.api.piCompose.list(cwd).then(records => {
-        if (alive) setSnapshot({ cwd, records })
+        if (alive && epoch === requestEpoch) setSnapshot({ cwd, records })
       }).catch(() => {
         // Bad/unavailable relations must leave every native Orca row unchanged.
-        if (alive) setSnapshot({ cwd, records: [] })
+        if (alive && epoch === requestEpoch) setSnapshot({ cwd, records: [] })
       })
     }
     refresh()
     window.addEventListener('pi-compose:changed', refresh)
     return () => {
       alive = false
+      requestEpoch += 1
       window.removeEventListener('pi-compose:changed', refresh)
     }
-  }, [cwd, worktreeId, agents.length])
+  }, [cwd, worktreeId, agentIdentity, tabIdentity, agents.length])
 
   return useMemo(() => {
     const parents = new Map<string, string>()
@@ -70,9 +82,12 @@ export function usePiComposeNativeLineage(
     const byId = new Map(visible.map(record => [record.id, record]))
     for (const record of visible) {
       if (record.role === 'main') continue
-      const parentId = record.role === 'support' && record.relatedWorkId
-        ? record.relatedWorkId : record.parentMainId
-      const parent = parentId ? byId.get(parentId) : undefined
+      // Support owns an independent Pi transcript. A missing, hidden or
+      // unverified related Work must not orphan it from its actual Main.
+      const linkedWork = record.role === 'support' && record.relatedWorkId
+        ? byId.get(record.relatedWorkId) : undefined
+      const parent = linkedWork?.role === 'work'
+        ? linkedWork : (record.parentMainId ? byId.get(record.parentMainId) : undefined)
       const childPane = paneBySessionId.get(record.orcaSessionId!)
       const parentPane = parent?.orcaSessionId
         ? paneBySessionId.get(parent.orcaSessionId) : undefined

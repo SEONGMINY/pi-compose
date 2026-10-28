@@ -242,3 +242,22 @@ npm run orca:dev
 - **CI:** `f3fdf8b` macOS pinned Orca `upstream-integration` **PASS**, `contract-check`는 구형 Fork/Worktree fixture를 기대해 실패. 이번 P0 컨텍스트 변경까지 포함한 최신 커밋의 macOS 타입 검사 결과는 별도 확인 필요.
 
 새 테스트 코드/CI는 추가하지 않았으며, 기존 세션·작업 공간·Git 브랜치를 삭제하거나 재작성하지 않았다.
+
+
+## 2026-10-29 · P2 관계 갱신 / P3 출처 확인 / P4 초안 전달 안전성 보완
+
+> 범위: `feat/orca-batch-integration-20261028` · 제품 정책 변경 없음 · 로직 구현 기록.
+> 자동 테스트/CI/GUI 검증은 수행하지 않음. 구현 여부와 제품 검증은 별도 판단.
+
+| Task | 이번 코드 변경 | Orca 재사용 | 남은 경계 |
+| --- | --- | --- | --- |
+| T08 | 같은 개수의 Agent 교체·Pi 세션 탭 교체 시 관계 조회 무효화, 오래된 비동기 조회 결과 차단. 관련 Work가 숨겨졌거나 Fork 미검증이면 독립 Support를 Main에 귀속 | `useWorktreeAgentRows`, `applyAgentRowLineage`, Orca native row | 실제 GUI 관계/키보드 검증은 사용자 담당 |
+| T12 | Work의 실제 완료 응답 읽기 전에 source/target Pi JSONL entry chain의 Fork 증거 재검증. 불일치 기록은 보고하지 않음 | Orca Native Chat 원본으로 이동하는 기존 경로 유지 | 현재 결과 키는 Pi assistant entry ID. Orca host turn ID/journal 기반 영속 출처와 unreadable 구분은 미구현 |
+| T15 | Support 전달 메타데이터에 등록된 Orca Worktree ID와 실제 Pi 세션 ID·응답 시각 추가 | Orca 실제 Worktree ID 참조 | 실행 당시 Git HEAD/브랜치는 관찰되지 않아 임의로 채우지 않음 |
+| T16 | 선택 대상의 최신 Compose Fork 증거 및 살아 있는 Pi Native Chat 탭 확인 뒤 Orca draft store에 append. 제목이 아닌 원본 Support+entry ID로 중복 감지하고 같은 renderer 내 중복 동시 호출 직렬화. 기록된 텍스트와 draft 영속 저장 확인 | `findStructuredAgentSessionTab`, `appendToNativeChatComposerDraft`, `nativeChatComposerDraftWriteSettled` | 여러 Orca 창 간 동일 전달의 완전 원자성/원격 호스트 전달은 별도 계약 필요 |
+
+**보존:** Main·Work·Support Pi JSONL 및 fork source entries 원본 수정 없음. Worktree 생성·삭제·Git 변경 없음. 자동 모델 입력·Support 즉시 전송 없음. 기존 Orca Agent 소유권·아이콘·상태·포커스·native draft 영속성 유지.
+
+**미확정 / 보류:** D1 교차 Worktree A/B UI, D2 기본 작업 공간, D3 파괴적 삭제 UI, D4 미커밋 변경 복제, D5 모델 읽기 Tool, D6 Native↔TUI 전환, D7 원격 초안 전달. T09는 Orca 원본 근거로 별도 비교. B안의 비활성 `PiComposeCrossWorktreeAgentRefs.tsx`는 활성화하지 않음. P5/P6 전체 완료로 분류하지 않음.
+
+**기술적 제한:** Work 결과는 아직 로컬 Pi JSONL의 단일 분기에서 읽는 bounded projection이며 host journal의 진짜 Orca Turn ID를 제공하지 않는다. 이것을 호스트 근거를 갖춘 완료 상태라고 주장하지 않는다. Source Git HEAD를 관찰하지 않은 Support 결과에 저장된 생성 당시 HEAD를 실행 시점 HEAD로 표기하지 않는다.

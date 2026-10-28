@@ -57,6 +57,7 @@ export type PiComposeSupportResult = {
   relatedWorkId: string | null
   sessionId: string
   sessionFile: string
+  worktreeId: string | null
   observedAt: string
   entryId: string
   text: string

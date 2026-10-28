@@ -739,6 +739,17 @@ export class OrcaAgentStore {
     ).slice(-12);
     return works.flatMap(work => {
       try {
+        // Every displayed Work must be an exact Pi branch Fork, not merely a
+        // saved parentMainId. Older or damaged records remain untouched.
+        if (!work.orcaSessionId || !work.sourceEntryId ||
+            !this.verifyCopiedEntries({
+              sourceFile:work.sourceSessionFile, sessionFile:work.sessionFile,
+              sourceSessionId:work.sourceSessionId,
+              targetSessionId:work.sessionId,
+              sourceEntryCount:work.sourceEntryCount,
+              sourceEntryIds:work.sourceEntryIds,
+              sourceEntryId:work.sourceEntryId
+            }).allMatch) return [];
         const sessionFile = work.sessionFile && existsSync(work.sessionFile)
           ? work.sessionFile
           : SessionManager.findById(work.cwd, work.sessionId);
@@ -852,6 +863,9 @@ export class OrcaAgentStore {
       supportId: support.id, supportTitle: support.title,
       relatedWorkId: support.relatedWorkId || null,
       sessionId: support.sessionId, sessionFile: resolve(file),
+      // Orca's registered location is known; the Git HEAD at execution time
+      // is not captured, so never invent a commit/branch for this result.
+      worktreeId: support.orcaWorktreeId || null,
       observedAt: finished.timestamp, entryId: finished.id,
       text: text.slice(0, 12000),
       truncated: text.length > 12000
