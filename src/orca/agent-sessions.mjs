@@ -177,6 +177,20 @@ export class OrcaAgentStore {
     return main;
   }
 
+  /** Read-only preflight: a Git Worktree must not be created for an invalid Fork. */
+  previewMainFork({ mainId, SessionManager, activeLeafId }) {
+    const main = this.mainWithSavedSession(mainId, SessionManager);
+    const snapshot = captureCompletedMain({
+      sessionFile: main.sessionFile, sessionId: main.sessionId, activeLeafId
+    });
+    return {
+      mainId: main.id,
+      sourceSessionId: snapshot.sourceSessionId,
+      sourceEntryId: snapshot.sourceEntryId,
+      sourceEntryCount: snapshot.entries.length,
+      excludedInProgress: snapshot.excludedInProgress
+    };
+  }
   /**
    * Context choice and Git workspace choice are independent.
    * This method PREPARES a child, but never claims to run an Agent in Orca.
@@ -187,7 +201,8 @@ export class OrcaAgentStore {
    * Support has an independent context; relatedWorkId is a UI/result link.
    */
   prepare({ role, main, title, task, workspace, SessionManager, projectCwd,
-    launcherPath, relatedWorkId = null, activeLeafId, managedWorktree = null }) {
+    launcherPath, relatedWorkId = null, activeLeafId, managedWorktree = null,
+    expectedSourceEntryId = null }) {
     if (!['work','support'].includes(role)) throw new Error('Work 또는 Support만 만들 수 있습니다.');
     if (!['shared','worktree'].includes(workspace)) throw new Error('잘못된 작업 공간입니다.');
     if (!main || main.role !== 'main' || !this.get(main.id)) {
@@ -227,6 +242,9 @@ export class OrcaAgentStore {
       ? captureCompletedMain({
           sessionFile: sourceFile, sessionId: main.sessionId, activeLeafId
         }) : null;
+    if (snapshot && expectedSourceEntryId && snapshot.sourceEntryId !== expectedSourceEntryId) {
+      throw new Error('Main 대화가 Work 생성 전 변경됐습니다. 새 Fork 출처를 확인해 주세요.');
+    }
     let sessionId;
     let sessionFile = null;
     if (snapshot) {
@@ -270,11 +288,13 @@ export class OrcaAgentStore {
     });
   }
   prepareForMain({ mainId, role, title, task, workspace, relatedWorkId,
-    activeLeafId, SessionManager, launcherPath, projectCwd, managedWorktree }) {
+    activeLeafId, SessionManager, launcherPath, projectCwd, managedWorktree,
+    expectedSourceEntryId }) {
     const main = this.get(mainId);
     if (!main || main.role !== 'main') throw new Error('등록된 Main을 선택하세요.');
     return this.prepare({ main, role, title, task, workspace, relatedWorkId,
-      activeLeafId, managedWorktree, SessionManager, projectCwd: projectCwd || main.cwd,
+      activeLeafId, managedWorktree, expectedSourceEntryId,
+      SessionManager, projectCwd: projectCwd || main.cwd,
       launcherPath });
   }
   verifyCopiedEntries({ sourceFile, sessionFile, sourceEntryCount,
