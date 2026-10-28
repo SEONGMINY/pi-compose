@@ -581,14 +581,25 @@ export class OrcaAgentStore {
     const record = this.get(id);
     if (!record) throw new Error('Agent를 찾을 수 없습니다.');
     if (record.role !== 'work') return { record, fork: null };
-    return { record, fork: this.verifyCopiedEntries({
-      sourceFile: record.sourceSessionFile, sessionFile: record.sessionFile,
-      sourceEntryCount: record.sourceEntryCount,
-      sourceEntryIds: record.sourceEntryIds,
-      sourceEntryId: record.sourceEntryId,
-      sourceSessionId: record.sourceSessionId,
-      targetSessionId: record.sessionId,
-    }) };
+    try {
+      return { record, fork: this.verifyCopiedEntries({
+        sourceFile: record.sourceSessionFile, sessionFile: record.sessionFile,
+        sourceEntryCount: record.sourceEntryCount,
+        sourceEntryIds: record.sourceEntryIds,
+        sourceEntryId: record.sourceEntryId,
+        sourceSessionId: record.sourceSessionId,
+        targetSessionId: record.sessionId,
+      }) };
+    } catch {
+      // One corrupt, missing, or still-being-written Work transcript must not
+      // break the entire Main/Work/Support listing. Fail this *one* proof
+      // closed; never turn an unreadable transcript into a verified Fork.
+      return { record, fork: {
+        allMatch: false, copied: 0,
+        expected: record.sourceEntryCount || 0, leafMatches: false,
+        reason: 'Fork 기록을 확인할 수 없습니다. 원본 Pi/Orca 대화는 보존됩니다.'
+      } };
+    }
   }
 }
 
