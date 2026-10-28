@@ -14,15 +14,16 @@ import { MessageRow } from '../native-chat/NativeChatMessageRow'
  */
 export function PiComposeLinkedWorkReports({
   orcaSessionId,
+  worktreeId,
   isVisible
 }: {
   orcaSessionId: string | null
+  worktreeId: string | null
   isVisible: boolean
 }): React.JSX.Element | null {
-  const cwd = useAppStore(s => {
-    const id = s.activeWorktreeId
-    return id ? s.getKnownWorktreeById(id)?.path ?? '' : ''
-  })
+  const cwd = useAppStore(s => worktreeId
+    ? s.getKnownWorktreeById(worktreeId)?.path ?? '' : '')
+  const [mainId, setMainId] = useState<string | null>(null)
   const [reports, setReports] = useState<{
     sessionId: string
     items: PiComposeLinkedWorkResult[]
@@ -34,6 +35,7 @@ export function PiComposeLinkedWorkReports({
       const main = records.find(record =>
         record.role === 'main' && record.orcaSessionId === orcaSessionId)
       if (!alive()) return
+      setMainId(main?.id ?? null)
       if (!main) {
         setReports({sessionId:orcaSessionId,items:[]})
         return
@@ -59,6 +61,20 @@ export function PiComposeLinkedWorkReports({
       window.removeEventListener('pi-compose:changed', update)
     }
   }, [isVisible, orcaSessionId, refresh])
+
+  // The Orca host provides the actual Work's execution status; this read-only
+  // interval discovers newly settled Pi responses without fabricating a task-done
+  // event. Poll only while a confirmed Main chat is visible.
+  useEffect(() => {
+    if (!mainId || !orcaSessionId || !cwd || !isVisible) return
+    let alive = true
+    const timer = setInterval(() => {
+      void window.api.piCompose.linkedWorkResults(cwd, mainId).then(items => {
+        if (alive) setReports({sessionId:orcaSessionId,items})
+      }).catch(() => { /* preserve previously verified reports */ })
+    }, 10_000)
+    return () => { alive = false; clearInterval(timer) }
+  }, [mainId, cwd, orcaSessionId, isVisible])
 
   if (reports.sessionId !== orcaSessionId || reports.items.length === 0) return null
   return (
