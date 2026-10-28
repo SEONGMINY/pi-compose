@@ -36,6 +36,13 @@ const patches = [
     secondAfter: '      <PiComposeMenu />\n      <NewWorkspaceButton preserveWorkspaceBoardOpen />'
   }
   ,{
+    path: 'src/renderer/src/components/sidebar/worktree-list/rows/item-row.tsx',
+    before: "      onClickCapture={ctx.onRowClickCapture}",
+    after: "      onClickCapture={(event) => {\n        if ((event.target as HTMLElement).closest('[data-pi-compose-context]')) return\n        ctx.onRowClickCapture(event)\n      }}",
+    secondBefore: "      onClick={(event) => {\n        forwardOptionPressToCardSurface(event)",
+    secondAfter: "      onClick={(event) => {\n        if ((event.target as HTMLElement).closest('[data-pi-compose-context]')) return\n        forwardOptionPressToCardSurface(event)"
+  }
+  ,{
     path: 'src/renderer/src/components/sidebar/sidebar-header-actions.tsx',
     before: "    openWorkspaceCreationComposerWithTourHandoff()",
     after: "    window.dispatchEvent(new Event('pi-compose:new'))",
