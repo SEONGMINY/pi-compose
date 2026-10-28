@@ -149,3 +149,45 @@ npm run orca:dev
 - 기존 GitHub macOS [Actions 실행 40679291301](https://github.com/SEONGMINY/pi-compose/actions/runs/40679291301)의 **upstream-integration 타입 검사 성공**: 당시 커밋 `d8b5fbd` 기준. 이후 overlay 리베이스·P2 수정의 실제 타입 검사 결과는 별도 확인이 필요.
 - 기존 `contract-check`는 구형 구현을 기준으로 한 fixture가 활성 leaf ID 없이 Work Fork, Compose의 Git Worktree 직접 생성 등을 요구해 실패하고 있다. 계약을 약화해 테스트를 통과시키지 않는다. 신규 테스트·CI는 추가하지 않았다.
 - macOS GUI 실제 실행, Agent icon/status/focus/`×` 클릭, `orca:prepare` **이미 패치한 checkout에서 업데이트 후 반복 실행**, U01~U24 전체 결과는 **미검증**. 소스 대조만으로 완료 선언 금지.
+
+
+## P1 영속 생성 의도·실제 Orca 영수증 복구 (2026-10-28 후속)
+
+**정본 게이트:** `ORCA_CONTEXT_FIRST_EXECUTION_PLAN.md`의 P1, A-4(부분 성공 복구), T04~T07. 새 관리 시스템을 만들지 않는다. Worktree/상태/삭제/포커스는 계속 고정 Orca 원본이 담당한다.
+
+### 고정 Orca 4a39d186 소스 재검증
+
+- `src/renderer/src/store/slices/worktrees/create/create-worktree.ts`의 `createWorktree` **19번째 인자**가 `creationId`이며, Orca의 생성 요청에 그대로 전달된다.
+- `src/main/runtime/workspaces/workspace-creation.ts`의 `createManagedWorktree`는 `creationId`로 `workspaceLifecycle.openCreate`를 호출한다.
+- `src/main/runtime/workspaces/workspace-lifecycle-creations.ts`의 `open`은 **메모리 생성 진행 목록**을 등록한다. 같은 `creationId`를 재등록하면 이전 요청을 자동 완료/재사용하는 영속 idempotency 저장소가 아니다. **이 값을 전달하는 것만으로 재시도 안전하다고 주장하지 않는다.**
+- 실제 생성·등록은 Orca의 `createWorktree` / `createManagedWorktree`에만 위임한다. Compose에서 직접 `git worktree add` 하지 않는다.
+
+### 이번 최소 구현
+
+| 단계/실패 경계 | 변경 내용 | 여전히 확인할 것 |
+| --- | --- | --- |
+| 생성 버튼 누름 | `OrcaAgentStore.beginCreation`이 Main당 하나의 영속 생성 의도를 atomic `wx`로 저장. 생성 ID/명칭을 재시작 후에도 유지 | 여러 Electron 창 동시 작업 실기 |
+| Orca 생성/응답 끊김 | `createWorktree` 호출에 저장된 `creationId`를 전달. `requested` 기록을 유지하고 **자동 두 번째 생성 금지** | 호스트의 실제 생성 여부 확인 |
+| Orca 영수증 반환 | `recordCreatedWorkspace`가 동일 프로젝트 Git 정체성과 원래 의도 ID에 맞는 Orca `id/path`만 저장 | 원격 호스트는 지원 선언하지 않음 |
+| 영수증 저장 후 앱 종료 | `pendingWorktreeCreation`의 `workspace-created` 영수증과 Orca 현재 목록의 `id/path`가 일치하면 **같은 영수증**으로 Pi 준비 재개 | 사용자가 삭제/이동한 작업 공간 처리 |
+| 응답만 누락됨 | `requested` 상태는 사용자 명시적 '기존 작업 공간 확인'을 통해 Orca 등록 목록에 **같은 생성 이름의 브랜치 하나**가 있을 때만 연결. 근거가 없으면 계속 중단 | Orca가 자동으로 이름을 변경한 경우는 강제 추측하지 않음 |
+| Pi Fork 생성, Compose 기록 저장 실패 | 저장된 `creationIntentId`를 실제 Pi child session ID로도 사용. SDK에서 해당 Pi 파일을 조회해 Main branch 항목과 parent 원본을 전부 확인한 경우만 재사용. 다른 파일이면 중단 | 실제 fork/record 사이 크래시 주입 |
+| Compose 기록 저장, 인텐트 완료 저장 실패 | 같은 ID의 기존 Pi Compose 레코드를 확인한 뒤 재사용. 완료 기록을 썼으나 보관(rename) 전 크래시가 나면 다음 조회에서 원본 연관성을 확인한 뒤 영구 보관 | 디스크 오류/일부 손상 입력 |
+| Pi 세션 준비 완료 | Main/role/worktree/creationIntentId가 모두 일치하면 활성 인텐트를 별도 완료 레코드로 보관. 기존 Worktree, Pi 파일, 브랜치 삭제 없음 | end-to-end macOS 재시작 |
+
+### 아직 P1 GO로 판정할 수 없는 이유
+
+1. Orca host 응답이 없고 등록 목록에서도 **동일한 기존 Worktree를 증명할 수 없는 상태**에는 생성 인텐트를 그대로 보존한다. 안전하게 존재하지 않음을 입증하기 전 자동으로 인텐트를 폐기하거나 새 생성을 재개하지 않는다. 이 경우 사용자에게 원본 Orca/Git 상태 점검이 필요하다.
+2. 생성된 Git Worktree가 Orca의 이름 충돌 처리로 다른 브랜치명을 받은 경우, 현재 자동 복구는 그 브랜치를 추측하지 않는다.
+3. 두 개의 앱 창, 강제 종료, writer 경합, 여러 호스트에서의 인텐트·영수증·Pi 세션 관리 실제 실기는 검증되지 않았다.
+4. `OrcaAgentStore`는 여전히 실행/세션 연결을 위한 일부 legacy 메타데이터를 보유한다. Orca 자체 lifecycle을 완전히 대체한 뒤 코드 삭제하기 전까지 P6 종료 아님.
+5. 기존 `test:orca`는 이전 P0/P1 계약을 기대해 실패. **새 CI·테스트 코드를 추가하지 않았고**, 기존 검증을 실제 고정 Orca 타입 검사와 분리해 기록한다.
+
+### 변경한 파일
+
+- `src/orca/agent-sessions.mjs`: 영속 생성 의도, 독점 예약, 영수증, 기존 Fork 확인·재사용, 완료 기록 보관.
+- `scripts/orca-native-bridge.mjs`: 안전한 생성 intent 명령과 Work/Support 준비 연동.
+- `orca-overlay/src/main/pi-compose-ipc.ts` / `orca-overlay/src/preload/api/pi-compose-bridge.ts`: 새로운 좁은 IPC 계약.
+- `orca-overlay/src/renderer/src/components/pi-compose/PiComposeMenu.tsx`: 재시작 후 영수증 사용, 응답 분실 시 사용자 명시적 원본 확인.
+
+**검증 상태:** 위 파일들은 GitHub에 반영했고 `.mjs` JavaScript 구문 검사를 수행했다. macOS Orca GUI 재시작·Worktree/파일 실제 크래시 복구 테스트는 수행하지 못했다. 이 단계에서 완료/GO를 주장하지 않는다.
