@@ -200,6 +200,13 @@ const patches = [
     secondBefore: "                )\n              )}\n            </div>",
     secondAfter: "                  )\n                )}\n                {crossRefs.map(refRecord => (\n                  <PiComposeCrossWorktreeAgentRef\n                    key={refRecord.id}\n                    refRecord={refRecord}\n                    mainId={refRecord.parentMainId!}\n                    cwd={useAppStore.getState().getKnownWorktreeById(worktreeId)?.path ?? ''}\n                    compact\n                  />\n                ))}\n              </div>"
   }
+  ,{
+    path: 'src/main/pi/rpc-launch.ts',
+    before: "import { ORCA_AGENT_SESSION_SPAWN_TOKEN_ENV } from '../../shared/agent-session-caller-env'",
+    after: "import { ORCA_AGENT_SESSION_SPAWN_TOKEN_ENV } from '../../shared/agent-session-caller-env'\nimport { existsSync } from 'node:fs'\nimport { join } from 'node:path'",
+    secondBefore: "  const args = [...(options.extraArgs ?? [])]",
+    secondAfter: "  // Extend the normal Pi CLI args; never disable the user's own Extensions.\n  // PI_COMPOSE_ROOT is set only in the opt-in Pi Compose Orca launch environment.\n  const composeRoot = options.env?.PI_COMPOSE_ROOT\n  const composeExtension = composeRoot ? join(composeRoot, 'extensions/orca-compose.ts') : null\n  const args = [...(options.extraArgs ?? [])]\n  if (composeExtension && existsSync(composeExtension) && !args.includes(composeExtension)) {\n    args.push('--extension', composeExtension)\n  }"
+  }
 ]
 
 const additions = [
