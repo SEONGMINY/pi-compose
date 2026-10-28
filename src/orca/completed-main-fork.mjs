@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, renameSync, writeFileSyn
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
-function readCompleteJsonl(path) {
+export function readCompleteJsonl(path) {
   const body = readFileSync(path, 'utf8')
   const lines = body.split('\n')
   const result = []
