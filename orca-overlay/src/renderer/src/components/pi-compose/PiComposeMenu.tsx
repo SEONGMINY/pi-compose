@@ -6,7 +6,7 @@ import { activateAndRevealWorkspace } from '@/lib/worktree-activation'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import type { PiComposeListRecord, PiComposeResult } from '../../../../preload/api/pi-compose-bridge'
-import { openPreparedPiNativeChat } from './PiComposeNativeChat'
+import { openPreparedPiNativeChat, reopenPiNativeChat } from './PiComposeNativeChat'
 import { structuredLaunchOwner } from '@/lib/agent-session/structured-agent-session-provisional-tab'
 import { admitStructuredLaunchOnHost } from '@/lib/structured-agent-session-host-admission'
 import { toRuntimeWorktreeSelector } from '@/runtime/runtime-worktree-selector'
@@ -104,8 +104,13 @@ export function PiComposeMenu(): React.JSX.Element {
       const owner = structuredLaunchOwner({ route: 'structured-native-chat' }, targetId)
       if (!owner) throw new Error('Orca 실행 호스트를 찾을 수 없습니다.')
       if (activateAndRevealWorkspace(targetId) === false) throw new Error('원래 Orca 작업 공간을 열지 못했습니다.')
-      const sessionId = await openPreparedPiNativeChat(targetId, record.sessionId)
-      await window.api.piCompose.attachChat(cwd, record.id, sessionId, targetId)
+      const opened = record.orcaSessionId
+        ? await reopenPiNativeChat(targetId, record.sessionId, record.orcaSessionId)
+        : { sessionId: await openPreparedPiNativeChat(targetId, record.sessionId),
+            replacedClosed: false }
+      await window.api.piCompose.attachChat(
+        cwd, record.id, opened.sessionId, targetId, opened.replacedClosed
+      )
       window.dispatchEvent(new Event('pi-compose:changed'))
       setOpen(false)
     } catch (cause) {
