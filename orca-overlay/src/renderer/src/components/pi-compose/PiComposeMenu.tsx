@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { openWorkspaceCreationComposerWithTourHandoff } from '../contextual-tours/workspace-creation-tour-handoff'
 import type { PiComposeListRecord, PiComposeResult } from '../../../../preload/api/pi-compose-bridge'
+import { openPreparedWorkNativeChat } from './PiComposeNativeChat'
 
 type Role = 'main' | 'work' | 'support'
 const ROLES: ReadonlyArray<{ id: Role; title: string; description: string }> = [
@@ -150,6 +151,17 @@ export function PiComposeMenu(): React.JSX.Element {
       }
       if (activateAndRevealWorkspace(targetWorktreeId) === false) {
         throw new Error('해당 Orca 작업 공간을 열지 못했습니다. Pi 세션은 준비된 상태로 보존됩니다.')
+      }
+      if (role === 'work') {
+        // Adopt the prepared Pi session into Orca's original Native Chat.
+        // There is no initial prompt: the user sends the first Work instruction.
+        const chatSessionId = await openPreparedWorkNativeChat(targetWorktreeId, result.record.sessionId)
+        await window.api.piCompose.attachChat(cwd, result.record.id, chatSessionId, targetWorktreeId)
+        window.dispatchEvent(new Event('pi-compose:changed'))
+        setOpen(false)
+        setTitle('')
+        setTask('')
+        return
       }
       const started = await new Promise<boolean>((resolve) => {
         createNewTerminalTab(targetWorktreeId, undefined, {
