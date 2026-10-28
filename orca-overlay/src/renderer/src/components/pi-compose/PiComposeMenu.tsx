@@ -151,16 +151,24 @@ export function PiComposeMenu(): React.JSX.Element {
     setBusy(true)
     setError('')
     try {
+      const linkedSupportWork = role === 'support' && relatedWorkId
+        ? agents.find(record => record.id === relatedWorkId &&
+            record.role === 'work' && record.parentMainId === mainId)
+        : null
+      if (role === 'support' && relatedWorkId && !linkedSupportWork) {
+        throw new Error('Support에 연결한 Work가 선택한 Main에 속하지 않습니다.')
+      }
+      const executionSourceWorktreeId = linkedSupportWork?.orcaWorktreeId || selectedWorktreeId
       // All three roles use the same native chat transport.
       if (role === 'main' || workspace === 'shared') {
         const owner = structuredLaunchOwner(
-          { route: 'structured-native-chat' }, selectedWorktreeId
+          { route: 'structured-native-chat' }, executionSourceWorktreeId
         )
         if (!owner) {
           throw new Error('Orca에서 이 작업 공간의 Native Chat 실행 호스트를 확인할 수 없습니다.')
         }
         const admission = await admitStructuredLaunchOnHost(
-          owner.target, toRuntimeWorktreeSelector(selectedWorktreeId), 'pi'
+          owner.target, toRuntimeWorktreeSelector(executionSourceWorktreeId), 'pi'
         )
         if (admission.kind !== 'admitted') {
           const reason = admission.kind === 'declined'
@@ -187,13 +195,13 @@ export function PiComposeMenu(): React.JSX.Element {
         : null
       let managedWorktree: { id: string; path: string } | undefined
       if (role !== 'main' && workspace === 'worktree') {
-        const source = useAppStore.getState().getKnownWorktreeById(selectedWorktreeId)
+        const source = useAppStore.getState().getKnownWorktreeById(executionSourceWorktreeId)
         if (!source?.repoId || !source.branch) {
           throw new Error('Orca에서 기준 Git 브랜치와 프로젝트를 확인할 수 없습니다.')
         }
         const branch = source.branch.replace(/^refs\/heads\//, '')
         const owner = structuredLaunchOwner(
-          { route: 'structured-native-chat' }, selectedWorktreeId
+          { route: 'structured-native-chat' }, executionSourceWorktreeId
         )
         if (!owner || owner.target.kind !== 'local') {
           throw new Error('현재 Pi Compose 기록 브리지는 로컬 호스트만 지원합니다. 원격 작업 공간은 생성하지 않았습니다.')
@@ -230,7 +238,7 @@ export function PiComposeMenu(): React.JSX.Element {
       // prepared record in the sidebar, even if Orca fails to open its tab.
       setPreparedId(result.record.id)
       window.dispatchEvent(new Event('pi-compose:changed'))
-      let targetWorktreeId = selectedWorktreeId
+      let targetWorktreeId = executionSourceWorktreeId
       if (result.record.workspace === 'worktree') {
         if (!managedWorktree ||
             result.record.orcaWorktreeId !== managedWorktree.id ||
