@@ -56,6 +56,18 @@ async function run(command,args) {
         messageCount:session.messageCount, path:session.path,
       }));
   }
+  if (command==='attach-chat') {
+    const id = requiredText(args.id,'Agent ID',48);
+    const existing = store.get(id);
+    if (!existing || gitRoot(args.cwd)!==existing.projectRoot || existing.role!=='work') {
+      throw new Error('선택한 Work 대화를 연결할 수 없습니다.');
+    }
+    return store.attachNativeChat({
+      id,
+      orcaSessionId:requiredText(args.orcaSessionId,'Orca 세션 ID',100),
+      worktreeId:requiredText(args.worktreeId,'작업 공간 ID',512),
+    });
+  }
   if (command==='attach') {
     const id = requiredText(args.id,'Agent ID',48);
     const existing = store.get(id);
@@ -74,6 +86,7 @@ async function run(command,args) {
         parentMainId:item.parentMainId||null,relatedWorkId:item.relatedWorkId||null,
         cwd:item.cwd,workspace:item.workspace||'shared',
         sessionId:item.sessionId,cwd:item.cwd,launcher:item.launcher||null,
+        orcaSessionId:item.orcaSessionId||null,
         orcaTabId:item.orcaTabId||null,orcaWorktreeId:item.orcaWorktreeId||null,
         ...(item.role==='work'?{proof:store.inspect(item.id).fork,
           sourceEntryId:item.sourceEntryId,excludedInProgress:!!item.excludedInProgress}:{}),
