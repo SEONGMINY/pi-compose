@@ -82,7 +82,8 @@ export function captureCompletedMain({ sessionFile, sessionId, activeLeafId }) {
     sourceEntryIds: completed.map(entry => entry.id),
     entries: completed,
     header,
-    excludedInProgress: lastDone !== branch.length - 1
+    excludedInProgress: branch.slice(lastDone + 1).some(entry =>
+      entry.type === 'message' && ['user', 'assistant', 'toolResult'].includes(entry.message?.role))
   }
 }
 
