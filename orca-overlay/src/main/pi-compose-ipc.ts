@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process'
 import { resolve } from 'node:path'
 
 type NativeRole = 'main' | 'work' | 'support'
-type NativeCommand = 'list' | 'sessions' | 'import' | 'attach' | 'attach-chat' | 'connection-failed' | 'support-result' | NativeRole
+type NativeCommand = 'list' | 'sessions' | 'import' | 'attach' | 'attach-chat' | 'connection-failed' | 'support-result' | 'set-work-main-visibility' | NativeRole
 export type NativeComposeRequest = {
   cwd: string
   title?: string
@@ -15,10 +15,11 @@ export type NativeComposeRequest = {
   message?: string
   mainId?: string
   relatedWorkId?: string
+  hidden?: boolean
   task?: string
   workspace?: 'shared' | 'worktree'
 }
-const VALID_COMMANDS = new Set<NativeCommand>(['list', 'sessions', 'import', 'attach', 'attach-chat', 'connection-failed', 'support-result', 'main', 'work', 'support'])
+const VALID_COMMANDS = new Set<NativeCommand>(['list', 'sessions', 'import', 'attach', 'attach-chat', 'connection-failed', 'support-result', 'set-work-main-visibility', 'main', 'work', 'support'])
 const TIMEOUT_MS = 90_000
 
 /**
