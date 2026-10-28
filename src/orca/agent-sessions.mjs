@@ -77,8 +77,9 @@ export class OrcaAgentStore {
     const manager = SessionManager.create(cwd, undefined, { id: sessionId });
     const file = manager.getSessionFile();
     if (!file || existsSync(file)) throw new Error('새 Pi 세션 경로를 안전하게 준비할 수 없습니다.');
-    const header = manager.getEntries().find(entry => entry.type === 'session');
-    if (!header || header.id !== sessionId) throw new Error('Pi 세션 헤더 ID가 일치하지 않습니다.');
+    // Pi SDK v1.4.0 CURRENT_SESSION_VERSION=3; getEntries() excludes the header.
+    const header = { type: 'session', version: 3, id: sessionId,
+      timestamp: new Date().toISOString(), cwd: resolve(cwd) };
     writeFileSync(file, JSON.stringify(header) + '\n', { flag: 'wx', mode: 0o600 });
     return file;
   }
