@@ -9,6 +9,7 @@ import {
   moveTabToNewPaneColumn
 } from '@/components/tab-bar/tab-move-to-pane-column'
 import type { PiComposeListRecord } from '../../../../preload/api/pi-compose-bridge'
+import { openPreparedWorkNativeChat } from './PiComposeNativeChat'
 
 function quote(value: string): string {
   return "'" + value.replaceAll("'", "'\\''") + "'"
@@ -66,6 +67,36 @@ export function PiComposeOutline(): React.JSX.Element | null {
     setBusyId(agent.id)
     setError('')
     try {
+      if (agent.role === 'work') {
+        let targetId = agent.orcaWorktreeId || worktreeId
+        if (agent.workspace === 'worktree') {
+          await useAppStore.getState().fetchAllWorktrees({ hydrationPurge: 'defer' })
+          const target = useAppStore.getState().allWorktrees().find(item => item.path === agent.cwd)
+          if (!target) throw new Error('Work의 Git Worktree가 Orca에 등록되지 않았습니다. 해당 폴더를 등록한 뒤 다시 열어주세요.')
+          targetId = target.id
+        }
+        if (split && targetId !== worktreeId) throw new Error('다른 Worktree의 Native Chat을 현재 화면으로 분할할 수 없습니다.')
+        if (activateAndRevealWorkspace(targetId) === false) throw new Error('Orca 작업 공간을 열 수 없습니다.')
+        let orcaSessionId = agent.orcaSessionId
+        if (!orcaSessionId) {
+          // A failed prior Native Chat launch preserves the prepared Pi fork.
+          // Recover by adopting it, never creating another Pi fork.
+          orcaSessionId = await openPreparedWorkNativeChat(targetId, agent.sessionId)
+          await window.api.piCompose.attachChat(cwd, agent.id, orcaSessionId, targetId)
+          await refresh()
+        }
+        const chat = (useAppStore.getState().unifiedTabsByWorktree[targetId] ?? []).find(item =>
+          item.contentType === 'agent-session' && item.entityId === orcaSessionId)
+        if (!chat) throw new Error('연결된 Native Chat 탭이 보이지 않습니다. 중복 세션을 만들지 않고 Orca 세션 복원을 확인해 주세요.')
+        useAppStore.getState().activateTab(chat.id, { worktreeId: targetId })
+        if (split) {
+          if (!canMoveTabToNewPaneColumn(chat.id, chat.groupId) ||
+              !moveTabToNewPaneColumn({unifiedTabId: chat.id, groupId: chat.groupId, direction:'right'})) {
+            throw new Error('이 Native Chat을 현재 레이아웃에서 분할할 수 없습니다.')
+          }
+        }
+        return
+      }
       let tab = existingTab(agent)
       let owningWorktree = agent.orcaWorktreeId
       if (!tab) {
