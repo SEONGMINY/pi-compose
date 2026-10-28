@@ -189,7 +189,9 @@ export function applyOrcaOverlay(orca, piComposeRoot) {
     [...patchInputs].map(([relative, inputs]) => [relative, hash(JSON.stringify(inputs))])
   )
   const nextPatchedFiles = {}
+  const alreadyUpToDate = new Set()
   for (const patch of patches) {
+    if (alreadyUpToDate.has(patch.path)) continue
     const path = join(orca, patch.path)
     const source = staged.get(path) ?? readFileSync(path, 'utf8')
     const previousPatch = previous.patchedFiles?.[patch.path]
@@ -199,6 +201,7 @@ export function applyOrcaOverlay(orca, piComposeRoot) {
     if (previousPatch?.signature === patchSignatures.get(patch.path) &&
         hash(source) === previousPatch.hash && !staged.has(path)) {
       staged.set(path, source)
+      alreadyUpToDate.add(patch.path)
       continue
     }
     let result = source
