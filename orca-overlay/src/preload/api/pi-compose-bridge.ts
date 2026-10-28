@@ -69,6 +69,8 @@ export type PiComposeLinkedWorkResult = {
   worktreeId: string | null
   entryId: string
   observedAt: string | null
+  workedSeconds: number | null
+  reasoning: Array<{ id: string; text: string; timestamp: string | null }>
   reportText: string
   truncated: boolean
   toolBlocks: Array<
