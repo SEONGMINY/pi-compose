@@ -119,6 +119,7 @@ async function run(command,args) {
         orcaSessionId:item.orcaSessionId||null,
         connectionError:item.connectionError||null,
         orcaTabId:item.orcaTabId||null,orcaWorktreeId:item.orcaWorktreeId||null,
+        ...(item.workspace==='worktree'?{branch:item.branch,baseSha:item.baseSha}:{}),
         ...(item.role==='work'?{proof:store.inspect(item.id).fork,
           sourceEntryId:item.sourceEntryId,excludedInProgress:!!item.excludedInProgress}:{}),
         state:item.state||'prepared'}));
@@ -161,9 +162,20 @@ async function run(command,args) {
       }
       executionCwd=linked.cwd;
     }
+    const managedWorktree = workspace === 'worktree' ? args.managedWorktree : undefined;
+    if (managedWorktree && (
+      typeof managedWorktree.id !== 'string' ||
+      typeof managedWorktree.path !== 'string' ||
+      gitRootSafe(managedWorktree.path) !== main.projectRoot
+    )) {
+      throw new Error('Orca가 생성한 동일 Git 프로젝트의 Worktree만 연결할 수 있습니다.');
+    }
     const result=store.prepareForMain({
       mainId:main.id,role:command,workspace,title,
       relatedWorkId,projectCwd:executionCwd,
+      managedWorktree,
+      ...(typeof args.activeLeafId === 'string' && args.activeLeafId
+        ? { activeLeafId: args.activeLeafId } : {}),
       SessionManager,
       launcherPath:{extension,piBinary:process.env.PI_COMPOSE_PI_BINARY||'pi'},
     });
