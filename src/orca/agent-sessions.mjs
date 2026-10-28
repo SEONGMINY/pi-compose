@@ -28,6 +28,36 @@ function headerOf(path) {
   if (!header || header.type !== 'session' || !header.id) throw new Error('유효한 Pi 세션 JSONL이 아닙니다: ' + path);
   return header;
 }
+/**
+ * A saved JSONL containing multiple leaves does not identify which branch
+ * the live Pi process selected. Never present an abandoned branch as a
+ * completed Work report or append it to another Work's unsent draft.
+ * A future host RPC-backed reader can supply authoritative leaf selection.
+ */
+function readUnambiguousStoredBranch(path, SessionManager) {
+  const entries = readEntries(path).slice(1);
+  const ids = new Set();
+  const parentIds = new Set();
+  for (const entry of entries) {
+    if (!entry || typeof entry.id !== 'string' || ids.has(entry.id)) {
+      throw new Error('Pi 대화 기록의 항목 ID가 중복되거나 없습니다.');
+    }
+    ids.add(entry.id);
+    if (entry.parentId != null) parentIds.add(entry.parentId);
+  }
+  if ([...parentIds].some(id => !ids.has(id))) {
+    throw new Error('Pi 대화 기록의 부모 항목을 찾지 못했습니다.');
+  }
+  const leaves = entries.filter(entry => !parentIds.has(entry.id));
+  if (leaves.length !== 1) {
+    throw new Error('Pi 대화에 여러 분기가 있어 활성 분기를 증명할 수 없습니다. 원본 Native Chat에서 확인하세요.');
+  }
+  const branch = SessionManager.open(path).getBranch();
+  if (branch.at(-1)?.id !== leaves[0].id) {
+    throw new Error('Pi SDK의 대화 분기와 저장된 leaf가 일치하지 않습니다.');
+  }
+  return branch;
+}
 function atomicJSON(path, data) {
   const tmp = path + '.' + randomUUID() + '.tmp';
   writeFileSync(tmp, JSON.stringify(data, null, 2) + '\n', { mode: 0o600, flag: 'wx' });
@@ -373,7 +403,7 @@ export class OrcaAgentStore {
           : SessionManager.findById(work.cwd, work.sessionId);
         if (!sessionFile || !existsSync(sessionFile) ||
             headerOf(sessionFile).id !== work.sessionId) return [];
-        const branch = SessionManager.open(sessionFile).getBranch();
+        const branch = readUnambiguousStoredBranch(sessionFile, SessionManager);
         // The Work file contains copied Main messages. None of those is
         // evidence that this Work executed or completed a task.
         if (!work.sourceEntryId) return [];
@@ -466,7 +496,7 @@ export class OrcaAgentStore {
     if (!file || !existsSync(file) || headerOf(file).id !== support.sessionId) {
       throw new Error('Support 대화가 아직 저장되지 않았습니다. 실제 작업을 수행한 뒤 결과를 확인하세요.');
     }
-    const branch = SessionManager.open(file).getBranch();
+    const branch = readUnambiguousStoredBranch(file, SessionManager);
     const finished = branch.filter(entry =>
       entry.type === 'message' &&
       entry.message?.role === 'assistant' &&
