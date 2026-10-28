@@ -21,6 +21,7 @@ export function PiComposeOutline({ projectCwd, projectWorktreeId }: {
   const worktreeId = projectWorktreeId
   // React to Orca tab moves/closes without restarting the underlying Pi process.
   const tabCatalog = useAppStore(s => s.unifiedTabsByWorktree)
+  const activeTabIdByWorktree = useAppStore(s => s.activeTabIdByWorktree)
   const activeWorktreeId = useAppStore(s => s.activeWorktreeId)
   const [agents, setAgents] = useState<PiComposeListRecord[]>([])
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -149,7 +150,10 @@ export function PiComposeOutline({ projectCwd, projectWorktreeId }: {
   }
   const renderRow = (agent: PiComposeListRecord, depth: number): React.JSX.Element => {
     const owner = agent.orcaWorktreeId || worktreeId
-    const activeTab = activeWorktreeId === owner ? useAppStore.getState().getActiveTab(owner) : null
+    const activeTab = activeWorktreeId === owner
+      ? (tabCatalog[owner] ?? []).find(tab => tab.id === activeTabIdByWorktree[owner]) ??
+        useAppStore.getState().getActiveTab(owner)
+      : null
     const selected = Boolean(activeTab && (
       (agent.orcaSessionId && activeTab.contentType === 'agent-session' && activeTab.entityId === agent.orcaSessionId) ||
       (agent.orcaTabId && activeTab.id === agent.orcaTabId)
