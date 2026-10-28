@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { useAppStore } from '@/store'
 import { useActiveWorktree } from '@/store/selectors'
 import { createNewTerminalTab } from '@/components/terminal/terminal-tab-create'
@@ -137,6 +138,11 @@ export function PiComposeMenu(): React.JSX.Element {
       })
       if (role === 'work' && !result.proof?.allMatch) {
         throw new Error('원본 Main 컨텍스트 복제가 검증되지 않아 실행을 차단했습니다.')
+      }
+      if (role === 'work' && result.record.excludedInProgress) {
+        toast.info('Main의 진행 중인 응답은 Work에 포함하지 않았습니다.', {
+          description: '마지막으로 완료된 Pi 응답까지 Fork했습니다. Main의 이후 변경 사항은 이 Work에 자동 반영되지 않습니다.'
+        })
       }
       // Preparation and terminal launch are different outcomes. Always reveal a
       // prepared record in the sidebar, even if Orca fails to open its tab.
