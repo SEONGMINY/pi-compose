@@ -106,6 +106,7 @@ async function run(command,args) {
         cwd:item.cwd,workspace:item.workspace||'shared',
         sessionId:item.sessionId,cwd:item.cwd,launcher:item.launcher||null,
         orcaSessionId:item.orcaSessionId||null,
+        connectionError:item.connectionError||null,
         orcaTabId:item.orcaTabId||null,orcaWorktreeId:item.orcaWorktreeId||null,
         ...(item.role==='work'?{proof:store.inspect(item.id).fork,
           sourceEntryId:item.sourceEntryId,excludedInProgress:!!item.excludedInProgress}:{}),
