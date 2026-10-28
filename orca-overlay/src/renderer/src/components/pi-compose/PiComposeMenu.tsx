@@ -245,20 +245,36 @@ export function PiComposeMenu(): React.JSX.Element {
           throw new Error('Work를 생성하지 않았습니다. Native Chat 준비 불가: ' + reason)
         }
       }
-      // Validate the exact source branch BEFORE asking Orca to create a checkout.
-      // Invalid/stale/multi-branch sources must not strand a Git Worktree.
+      // Read a previously recorded creation intent before deciding which
+      // Main branch to fork. Fresh Work MUST use Orca's authoritative LIVE Pi
+      // leaf. A resumed Work MUST use the original PINNED leaf and completed
+      // checkpoint, even if the user continued chatting with Main meanwhile.
+      // The backend validates that immutable branch against the original Pi
+      // session JSONL before it can reuse/create the saved child.
+      const previousIntent = role !== 'main' && workspace === 'worktree'
+        ? await window.api.piCompose.pendingWorktreeCreation(cwd, mainId) : null
+      const resumeWork = role === 'work' &&
+        previousIntent?.role === 'work' &&
+        previousIntent.phase === 'workspace-created'
       const sourceMain = role === 'work'
         ? agents.find(record => record.id === mainId && record.role === 'main')
         : null
       if (role === 'work' &&
-          (!sourceMain?.orcaSessionId || !sourceMain.orcaWorktreeId || !sourceMain.sessionFile)) {
-        throw new Error('Fork할 Main의 Orca Pi 세션이 없습니다. Main 대화를 먼저 열어 주세요.')
+          (!sourceMain?.sessionFile ||
+            (!resumeWork && (!sourceMain.orcaSessionId || !sourceMain.orcaWorktreeId)))) {
+        throw new Error('Fork할 Main의 원본 Pi 세션을 확인할 수 없습니다. 새 Work는 Orca Native Chat을 먼저 열어 주세요.')
       }
-      const liveLeaf = sourceMain?.orcaSessionId && sourceMain.orcaWorktreeId && sourceMain.sessionFile
-        ? await window.api.piCompose.liveMainLeaf(
-            cwd, sourceMain.orcaSessionId, sourceMain.orcaWorktreeId, sourceMain.sessionId,
-            sourceMain.sessionFile
-          ) : null
+      if (resumeWork && (!previousIntent?.activeLeafId ||
+          !previousIntent.expectedSourceEntryId)) {
+        throw new Error('기존 생성 의도의 Main Fork 출처가 불완전합니다. 원본을 보존하고 중단합니다.')
+      }
+      const liveLeaf = resumeWork
+        ? { activeLeafId: previousIntent!.activeLeafId!, orcaSessionId: sourceMain?.orcaSessionId ?? '' }
+        : sourceMain?.orcaSessionId && sourceMain.orcaWorktreeId && sourceMain.sessionFile
+          ? await window.api.piCompose.liveMainLeaf(
+              cwd, sourceMain.orcaSessionId, sourceMain.orcaWorktreeId, sourceMain.sessionId,
+              sourceMain.sessionFile
+            ) : null
       const forkPreview = role === 'work'
         ? await window.api.piCompose.previewWorkFork(cwd, mainId, liveLeaf!.activeLeafId)
         : null
@@ -278,7 +294,7 @@ export function PiComposeMenu(): React.JSX.Element {
         }
         // Reuse Orca's actual managed creation, host routing, branch collision
         // handling, registry and Git UI. No startup agent/prompt is passed.
-        const previous = await window.api.piCompose.pendingWorktreeCreation(cwd, mainId)
+        const previous = previousIntent
         if (previous) {
           setPendingIntent(previous)
           if (previous.role !== role || previous.phase !== 'workspace-created' ||
