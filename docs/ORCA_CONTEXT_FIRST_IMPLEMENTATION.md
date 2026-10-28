@@ -17,6 +17,17 @@
 
 **현재 미검증:** macOS 실제 UI, Orca 프로젝트/Worktree 가상화 행의 크기 측정·클릭 이벤트, 이전에 실패한 세션 연결 복구, Orca Native Chat 실제 세션 복원. 새 CI/테스트 코드를 추가하지 않았다.
 
+## 2026-10-28 16:20 사용자 검증 후 후속 변경
+
+- **대화 화면 통일:** 새 Main, Work, Support 모두 Orca Native Chat으로 시작하도록 같은 Pi session adoption 경로를 사용한다. TUI는 Orca 기존 터미널/기존 세션으로 접근 가능하다.
+- **빈 Main/Support 준비:** Pi SDK v1.4.0의 SessionManager가 빈 세션을 파일로 기록하지 않는 제약 때문에, 모델 메시지를 추가하지 않고 Pi v3 헤더만 생성해 Orca가 고정된 Pi ID를 채택할 수 있게 했다. 실제 Pi RPC 실행으로 검증하기 전까지 이 방식은 잠정 구현이다.
+- **선택 하이라이트:** Orca의 활성 Worktree + 활성 탭 ID 기준으로 해당 Main/Work/Support 행에 선택 스타일과 `aria-current` 표시.
+- **탭 재열기:** 저장된 Orca Native Chat ID를 `agentSession.reveal`로 우선 재발행. 호스트가 확정적으로 세션이 사라졌다고 답한 경우에만 **동일 Pi transcript**를 새 Orca 세션으로 채택한다. 응답 불명확/호스트 오류는 중복 실행하지 않고 중단. 새 Pi Fork는 생성하지 않는다.
+- **기존 Main TUI의 이전:** 실행 중인 Pi TUI가 소유한 동일 세션을 Native Chat으로 동시에 여는 것은 Orca가 의도적으로 금지한다. 이 경우 사용자가 기존 TUI에서 대화를 끝내고 종료한 뒤 같은 Main을 Native Chat에서 열어야 한다. 기존 세션은 삭제하지 않는다.
+- **Git Worktree 목록:** 사용자의 별도 노이즈 지적은 확인했다. Orca의 `그룹화 기준`은 정렬·그룹 변경이며, Git Worktree 보기/숨기기 설정이 아니다. 기존 Git Worktree UI의 숨김 정책은 **미결정**으로 두고 이번 변경에서 별도의 Orca 설정을 임의로 추가하지 않았다.
+
+**검증 상태:** GitHub 소스 정적 대조 및 코드 커밋. macOS Orca 실제 실행, Native Chat 빈 Pi transcript 채택, 기존 Main/TUI 소유권 이전, Work tab reveal/재채택, UI 하이라이트 재현은 **미검증**. CI나 테스트 코드는 추가하지 않았다.
+
 ## 구현된 코드 경로
 
 | 기능 | 변경 위치 | 현 상태 |
