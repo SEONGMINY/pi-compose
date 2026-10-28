@@ -86,8 +86,14 @@ export function usePiComposeNativeLineage(
       // unverified related Work must not orphan it from its actual Main.
       const linkedWork = record.role === 'support' && record.relatedWorkId
         ? byId.get(record.relatedWorkId) : undefined
-      const parent = linkedWork?.role === 'work'
-        ? linkedWork : (record.parentMainId ? byId.get(record.parentMainId) : undefined)
+      // The optional Support link is only a relationship within the SAME
+      // Main. A stale relatedWorkId must never reparent Support to another
+      // Main merely because both rows share a Git worktree.
+      const sameMainWork = linkedWork?.role === 'work' &&
+        linkedWork.parentMainId === record.parentMainId
+        ? linkedWork : undefined
+      const fallbackMain = record.parentMainId ? byId.get(record.parentMainId) : undefined
+      const parent = sameMainWork ?? (fallbackMain?.role === 'main' ? fallbackMain : undefined)
       const childPane = paneBySessionId.get(record.orcaSessionId!)
       const parentPane = parent?.orcaSessionId
         ? paneBySessionId.get(parent.orcaSessionId) : undefined
