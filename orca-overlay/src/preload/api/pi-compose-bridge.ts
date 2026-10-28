@@ -1,6 +1,6 @@
 import { ipcRenderer } from 'electron'
 
-export type PiComposeCommand = 'begin-worktree-creation' | 'pending-worktree-creation' | 'record-worktree-creation' | 'list' | 'sessions' | 'import' | 'attach' | 'attach-chat' | 'connection-failed' | 'support-result' | 'preview-work-fork' | 'live-main-leaf' | 'linked-work-results' | 'set-work-main-visibility' | 'main' | 'work' | 'support'
+export type PiComposeCommand = 'begin-worktree-creation' | 'pending-worktree-creation' | 'record-worktree-creation' | 'recover-pi-preparation' | 'list' | 'sessions' | 'import' | 'attach' | 'attach-chat' | 'connection-failed' | 'support-result' | 'preview-work-fork' | 'live-main-leaf' | 'linked-work-results' | 'set-work-main-visibility' | 'main' | 'work' | 'support'
 export type PiComposeRequest = {
   cwd: string
   title?: string
@@ -100,6 +100,7 @@ export type PiComposeApi = {
     relatedWorkId: string | null, activeLeafId: string | null,
     expectedSourceEntryId: string | null) => Promise<PiComposeCreationIntent>
   pendingWorktreeCreation: (cwd: string, mainId: string) => Promise<PiComposeCreationIntent | null>
+  recoverPiPreparation: (cwd: string, mainId: string, creationIntentId: string) => Promise<{recovered:boolean;message:string}>
   recordWorktreeCreation: (cwd: string, mainId: string, creationIntentId: string, managedWorktree: { id: string; path: string }) => Promise<PiComposeCreationIntent>
   list: (cwd: string) => Promise<PiComposeListRecord[]>
   attach: (cwd: string, id: string, tabId: string, worktreeId: string) => Promise<PiComposeRecord>
@@ -119,6 +120,8 @@ export const piComposeApi: PiComposeApi = {
       cwd,mainId,role,title,relatedWorkId,activeLeafId,expectedSourceEntryId
     }),
   pendingWorktreeCreation: (cwd,mainId) => ipcRenderer.invoke('pi-compose:execute', 'pending-worktree-creation',{cwd,mainId}),
+  recoverPiPreparation: (cwd,mainId,creationIntentId) =>
+    ipcRenderer.invoke('pi-compose:execute','recover-pi-preparation',{cwd,mainId,creationIntentId}),
   recordWorktreeCreation: (cwd,mainId,creationIntentId,managedWorktree) => ipcRenderer.invoke('pi-compose:execute','record-worktree-creation',{cwd,mainId,creationIntentId,managedWorktree}),
   list: (cwd) => ipcRenderer.invoke('pi-compose:execute', 'list', { cwd }),
   attach: (cwd,id,tabId,worktreeId) => ipcRenderer.invoke('pi-compose:execute','attach',{cwd,id,tabId,worktreeId}),
