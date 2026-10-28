@@ -3,6 +3,8 @@ import { createHash } from 'node:crypto'
 import { dirname, join } from 'node:path'
 
 /**
+ * Preserve Orca's original New Workspace button and its shortcut/tour.
+ * Pi Compose never replaces an upstream action with a new private launcher.
  * Minimal reversible overlay on a pinned original Orca checkout.
  * Fail closed if upstream changes; never overwrite user's own edits.
  * Orca source and LICENSE remain the real app.
@@ -44,35 +46,11 @@ const patches = [
     secondAfter: "      onClick={(event) => {\n        if ((event.target as HTMLElement).closest('[data-pi-compose-context]')) return\n        forwardOptionPressToCardSurface(event)"
   }
   ,{
-    path: 'src/renderer/src/components/sidebar/sidebar-header-actions.tsx',
-    before: "    openWorkspaceCreationComposerWithTourHandoff()",
-    after: "    window.dispatchEvent(new Event('pi-compose:new'))",
-    secondBefore: "const label = translate('auto.components.sidebar.SidebarHeader.92154beb7e', 'New workspace')",
-    secondAfter: "const label = '새 작업 또는 Agent 만들기'"
-  }
-
-  ,{
     path: 'src/renderer/src/components/sidebar/worktree-list/rows/item-row.tsx',
     before: "import WorktreeCard, { type ActiveSurfaceVariant } from '../../WorktreeCard'",
     after: "import WorktreeCard, { type ActiveSurfaceVariant } from '../../WorktreeCard'\nimport { PiComposeOutline } from '../../../pi-compose/PiComposeOutline'",
     secondBefore: "      />\n    </div>\n  )\n}\n\n// Rebuild the visible lineage subtree",
     secondAfter: "      />\n      {itemRow.worktree.isMainWorktree && !nested ? (\n        <PiComposeOutline projectCwd={itemRow.worktree.path} projectWorktreeId={itemRow.worktree.id} />\n      ) : null}\n    </div>\n  )\n}\n\n// Rebuild the visible lineage subtree"
-  }
-
-  ,{
-    path: 'src/renderer/src/components/sidebar/sidebar-header-actions.tsx',
-    before: "import { openWorkspaceCreationComposerWithTourHandoff } from '../contextual-tours/workspace-creation-tour-handoff'",
-    after: "// Pi Compose integrates the original +; the native Orca workspace flow remains in its dialog.",
-    secondBefore: "const shortcutLabel = formatOptionalPrimaryShortcutLabel('workspace.create', keybindings)",
-    secondAfter: "const shortcutLabel = '' // the + action now opens the unified Compose/Orca chooser"
-  }
-
-  ,{
-    path: 'src/renderer/src/components/sidebar/sidebar-header-actions.tsx',
-    before: "import { formatOptionalPrimaryShortcutLabel } from '@/hooks/useShortcutLabel'",
-    after: "// Pi Compose '+' opens the combined Agent and Orca workspace chooser.",
-    secondBefore: "  const keybindings = useAppStore((s) => s.keybindings)",
-    secondAfter: "  // Workspace creation shortcut remains Orca-owned; button now opens Pi Compose."
   }
 
 ]
