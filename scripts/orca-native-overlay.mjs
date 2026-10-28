@@ -45,6 +45,13 @@ const patches = [
     secondBefore: "  const deleteShortcut = useOptionalShortcutLabel('workspace.delete')",
     secondAfter: "  const deleteShortcut = useOptionalShortcutLabel('workspace.delete')\n  // Native Workspace menu owns lifecycle; Compose only adds creation context."
   }
+  ,{
+    path: 'src/renderer/src/components/native-chat/use-native-chat-context-menu.tsx',
+    before: "  const menuOpenedAtRef = useRef(0)",
+    after: "  const composeChat = useAppStore((s) => chatPane\n    ? s.unifiedTabsByWorktree[chatPane.worktreeId]?.find(tab => tab.id === chatPane.tabId)\n    : undefined)\n  const composeWorktree = useAppStore((s) => chatPane ? s.getKnownWorktreeById(chatPane.worktreeId) : null)\n  const [composeMainId, setComposeMainId] = useState<string | null>(null)\n  useEffect(() => {\n    const sessionId = composeChat?.contentType === 'agent-session' && composeChat.agentSessionAgent === 'pi'\n      ? composeChat.entityId : null\n    if (!enabled || !state.open || !sessionId || !composeWorktree?.path) {\n      setComposeMainId(null)\n      return\n    }\n    let current = true\n    void window.api.piCompose.list(composeWorktree.path).then(records => {\n      if (current) setComposeMainId(records.find(record =>\n        record.role === 'main' && record.orcaSessionId === sessionId)?.id ?? null)\n    }).catch(() => { if (current) setComposeMainId(null) })\n    return () => { current = false }\n  }, [enabled, state.open, composeChat?.entityId, composeChat?.agentSessionAgent, composeWorktree?.path])\n  const menuOpenedAtRef = useRef(0)",
+    secondBefore: "          {chatPane ? (",
+    secondAfter: "          {composeMainId && chatPane && composeWorktree ? (\n            <DropdownMenuItem onSelect={() => {\n              window.dispatchEvent(new CustomEvent('pi-compose:new', {\n                detail: {\n                  role: 'work', mainId: composeMainId,\n                  projectCwd: composeWorktree.path, projectWorktreeId: chatPane.worktreeId\n                }\n              }))\n            }}>\n              <GitFork className=\"size-3.5\" />\n              이 Main에서 Work 만들기…\n            </DropdownMenuItem>\n          ) : null}\n          {chatPane ? ("
+  }
 
 ]
 
