@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process'
 import { resolve } from 'node:path'
 
 type NativeRole = 'main' | 'work' | 'support'
-type NativeCommand = 'list' | 'sessions' | 'import' | 'attach' | NativeRole
+type NativeCommand = 'list' | 'sessions' | 'import' | 'attach' | 'attach-chat' | NativeRole
 export type NativeComposeRequest = {
   cwd: string
   title?: string
@@ -11,12 +11,13 @@ export type NativeComposeRequest = {
   id?: string
   tabId?: string
   worktreeId?: string
+  orcaSessionId?: string
   mainId?: string
   relatedWorkId?: string
   task?: string
   workspace?: 'shared' | 'worktree'
 }
-const VALID_COMMANDS = new Set<NativeCommand>(['list', 'sessions', 'import', 'attach', 'main', 'work', 'support'])
+const VALID_COMMANDS = new Set<NativeCommand>(['list', 'sessions', 'import', 'attach', 'attach-chat', 'main', 'work', 'support'])
 const TIMEOUT_MS = 90_000
 
 /**
