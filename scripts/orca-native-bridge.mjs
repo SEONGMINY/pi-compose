@@ -45,6 +45,15 @@ function belonging(mainId, cwd) {
 }
 const gitRootSafe = cwd => {try{return gitRoot(cwd)}catch{return null}};
 async function run(command,args) {
+  if (command==='preview-work-fork') {
+    const cwd=resolve(requiredText(args.cwd,'프로젝트 경로',2000));
+    const main=belonging(args.mainId,cwd);
+    return store.previewMainFork({
+      mainId:main.id, SessionManager,
+      ...(typeof args.activeLeafId==='string' && args.activeLeafId
+        ? {activeLeafId:args.activeLeafId} : {})
+    });
+  }
   if (command==='sessions') {
     const cwd=resolve(requiredText(args.cwd,'프로젝트 경로',2000));
     const root=gitRoot(cwd);
@@ -176,6 +185,8 @@ async function run(command,args) {
       managedWorktree,
       ...(typeof args.activeLeafId === 'string' && args.activeLeafId
         ? { activeLeafId: args.activeLeafId } : {}),
+      ...(typeof args.expectedSourceEntryId === 'string' && args.expectedSourceEntryId
+        ? { expectedSourceEntryId: args.expectedSourceEntryId } : {}),
       SessionManager,
       launcherPath:{extension,piBinary:process.env.PI_COMPOSE_PI_BINARY||'pi'},
     });
