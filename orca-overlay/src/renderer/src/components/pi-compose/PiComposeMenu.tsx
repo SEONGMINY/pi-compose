@@ -168,6 +168,23 @@ export function PiComposeMenu(): React.JSX.Element {
     }
   }
 
+  const recoverStoppedPiPreparation = async () => {
+    if (!pendingIntent || pendingIntent.phase !== 'workspace-created' ||
+        !mainId || !cwd || busy) return
+    setBusy(true)
+    setError('')
+    try {
+      const result = await window.api.piCompose.recoverPiPreparation(
+        cwd, mainId, pendingIntent.operationId
+      )
+      toast.info(result.message)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const onLaunch = async () => {
     if (preparedId) {
       setError('이미 Agent가 준비됐습니다. 사이드바에서 해당 Agent를 선택해 기존 세션을 열어주세요.')
@@ -408,18 +425,24 @@ export function PiComposeMenu(): React.JSX.Element {
             프로젝트: {cwd || '선택되지 않음'}
           </div>
           {pendingIntent ? (
-            <p className="rounded-md border border-border p-2 text-xs text-muted-foreground">
+            <div className="rounded-md border border-border p-2 text-xs text-muted-foreground">
               이전 Orca 생성 요청: {pendingIntent.name} · {pendingIntent.phase}
               {pendingIntent.workspace?.path ? ' · ' + pendingIntent.workspace.path : ''}
               {' '}— 생성 결과가 불확실하면 새 Worktree를 만들지 않습니다.
               기존 영수증이 Orca에 확인된 경우에만 이어서 Pi 세션을 준비합니다.
+              {pendingIntent.phase === 'workspace-created' && (
+                <Button type="button" className="mt-2" size="sm" variant="outline"
+                  disabled={busy} onClick={() => void recoverStoppedPiPreparation()}>
+                  중단된 Pi 세션 준비 상태 확인·복구
+                </Button>
+              )}
               {pendingIntent.phase === 'requested' && (
                 <Button type="button" className="mt-2" size="sm" variant="outline"
                   disabled={busy} onClick={() => void reconcileRequestedWorktree()}>
                   Orca에 생성된 기존 작업 공간 확인
                 </Button>
               )}
-            </p>
+            </div>
           ) : null}
           {recoverable.length > 0 ? <details className="rounded-md border border-border px-3 py-2 text-xs">
             <summary className="cursor-pointer">연결되지 않은 기존 Pi 세션 복구 · {recoverable.length}개</summary>
