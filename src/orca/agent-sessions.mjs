@@ -187,7 +187,7 @@ export class OrcaAgentStore {
    * Support has an independent context; relatedWorkId is a UI/result link.
    */
   prepare({ role, main, title, task, workspace, SessionManager, projectCwd,
-    launcherPath, relatedWorkId = null, activeLeafId }) {
+    launcherPath, relatedWorkId = null, activeLeafId, managedWorktree = null }) {
     if (!['work','support'].includes(role)) throw new Error('Work 또는 Support만 만들 수 있습니다.');
     if (!['shared','worktree'].includes(workspace)) throw new Error('잘못된 작업 공간입니다.');
     if (!main || main.role !== 'main' || !this.get(main.id)) {
@@ -203,16 +203,23 @@ export class OrcaAgentStore {
       }
     }
     const id = randomUUID();
-    const branch = workspace === 'worktree'
-      ? 'compose/' + role + '-' + id.slice(0, 8) : null;
-    const cwd = workspace === 'worktree'
-      ? join(dirname(root), basename(root) + '-compose-' + id.slice(0, 8))
-      : resolve(projectCwd || main.cwd);
-    const selectedCwd = resolve(projectCwd || main.cwd);
-    if (projectRootOf(selectedCwd) !== root) {
-      throw new Error('선택한 작업 디렉터리는 Main과 같은 Git 프로젝트여야 합니다.');
+    // Orca is the ONLY owner of Git Worktree creation, registration and
+    // cleanup. A Compose record references the managed workspace it returned.
+    if (workspace === 'worktree' &&
+        (!managedWorktree || typeof managedWorktree.id !== 'string' ||
+         typeof managedWorktree.path !== 'string' || !managedWorktree.id.trim())) {
+      throw new Error('별도 작업 공간은 Orca에서 먼저 생성해야 합니다. Git Worktree를 직접 만들지 않습니다.');
     }
-    const baseSha = runGit(selectedCwd, 'rev-parse', 'HEAD');
+    const cwd = workspace === 'worktree'
+      ? resolve(managedWorktree.path) : resolve(projectCwd || main.cwd);
+    if (projectRootOf(cwd) !== root) {
+      throw new Error('선택한 작업 공간이 Main과 다른 Git 저장소입니다.');
+    }
+    const branch = workspace === 'worktree' ? runGit(cwd, 'branch', '--show-current') : null;
+    if (workspace === 'worktree' && !branch) {
+      throw new Error('Orca가 생성한 Git Worktree 브랜치를 확인할 수 없습니다.');
+    }
+    const baseSha = runGit(cwd, 'rev-parse', 'HEAD');
     const sourceFile = role === 'work'
       ? this.mainWithSavedSession(main.id, SessionManager).sessionFile : null;
     // Capture the source BEFORE mutating Git. Main's original JSONL is read-only.
@@ -220,12 +227,6 @@ export class OrcaAgentStore {
       ? captureCompletedMain({
           sessionFile: sourceFile, sessionId: main.sessionId, activeLeafId
         }) : null;
-    if (workspace === 'worktree') {
-      // Never overwrite an existing checkout. Orca registration remains a
-      // separate host operation; do not imply the workspace already exists in Orca.
-      runGit(root, 'worktree', 'add', '-b', branch, cwd, baseSha);
-    }
-
     let sessionId;
     let sessionFile = null;
     if (snapshot) {
@@ -258,6 +259,7 @@ export class OrcaAgentStore {
       parentMainId: main.id,
       ...(relatedWorkId ? { relatedWorkId } : {}),
       projectRoot: root, cwd, workspace, branch, baseSha,
+      ...(managedWorktree ? { orcaWorktreeId: managedWorktree.id } : {}),
       sourceSessionFile: sourceFile, sourceSessionId: snapshot?.sourceSessionId || null,
       sourceEntryId: snapshot?.sourceEntryId || null,
       sourceEntryIds: snapshot?.sourceEntryIds || [],
@@ -268,11 +270,11 @@ export class OrcaAgentStore {
     });
   }
   prepareForMain({ mainId, role, title, task, workspace, relatedWorkId,
-    activeLeafId, SessionManager, launcherPath, projectCwd }) {
+    activeLeafId, SessionManager, launcherPath, projectCwd, managedWorktree }) {
     const main = this.get(mainId);
     if (!main || main.role !== 'main') throw new Error('등록된 Main을 선택하세요.');
     return this.prepare({ main, role, title, task, workspace, relatedWorkId,
-      activeLeafId, SessionManager, projectCwd: projectCwd || main.cwd,
+      activeLeafId, managedWorktree, SessionManager, projectCwd: projectCwd || main.cwd,
       launcherPath });
   }
   verifyCopiedEntries({ sourceFile, sessionFile, sourceEntryCount,
