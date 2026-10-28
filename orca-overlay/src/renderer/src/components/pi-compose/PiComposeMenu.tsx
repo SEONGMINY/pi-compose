@@ -298,7 +298,7 @@ export function PiComposeMenu(): React.JSX.Element {
             <label className="block text-xs font-medium">
               Agent 이름
               <input className="mt-2 h-9 w-full rounded-md border border-input bg-background px-3"
-                value={task} onChange={(event) => setTask(event.target.value)} disabled={busy}
+                value={task} onChange={(event) => { setTask(event.target.value); setError('') }} disabled={busy}
                 maxLength={100} placeholder={role === 'work' ? '예: 로그인 구현' : '예: 테스트 검증'}/>
             </label>
             <label className="block text-xs font-medium">
