@@ -39,8 +39,8 @@ function boundedComposeToolInput(value) {
   if (value === undefined || value === null) return {};
   try {
     const serialized = JSON.stringify(value);
-    return serialized && serialized.length <= 2500
-      ? value : { preview: String(serialized).slice(0, 1800), truncated: true };
+    return serialized && serialized.length <= 1400
+      ? value : { preview: String(serialized).slice(0, 950), truncated: true };
   } catch {
     return { preview: 'Tool arguments could not be serialized', truncated: true };
   }
@@ -374,16 +374,16 @@ export class OrcaAgentStore {
         const turn = workEntries.slice(previousUser + 1, last + 1);
         const blocks = [];
         for (const entry of turn) {
-          if (blocks.length >= 24) break;
+          if (blocks.length >= 20) break;
           if (entry.type !== 'message') continue;
           for (const part of entry.message?.content || []) {
-            if (blocks.length >= 24) break;
+            if (blocks.length >= 20) break;
             if (entry.message.role === 'assistant' && part.type === 'toolCall') {
               blocks.push({ type:'tool-call', name:part.name || 'tool',
                 input:boundedComposeToolInput(part.arguments), ...(part.id ? {callId:part.id} : {}) });
             } else if (entry.message.role === 'toolResult' && part.type === 'text') {
               blocks.push({ type:'tool-result',
-                output:String(part.text || '').slice(0, 1800),
+                output:String(part.text || '').slice(0, 1000),
                 isError:Boolean(entry.message.isError),
                 ...(entry.message.toolCallId ? {callId:entry.message.toolCallId} : {}) });
             }
@@ -396,7 +396,9 @@ export class OrcaAgentStore {
           workPiSessionId:work.sessionId, worktreeId:work.orcaWorktreeId ?? null,
           entryId:workEntries[last].id, observedAt:workEntries[last].timestamp ?? null,
           reportText:report.slice(0, 12000), truncated:report.length > 12000,
-          toolBlocks:blocks
+          toolBlocks:blocks,
+          // The full execution history remains in Orca's own Work Chat.
+          toolActivityTruncated:blocks.length >= 20
         }];
       } catch {
         // No fabricated completion when the source host or file is unreadable.
