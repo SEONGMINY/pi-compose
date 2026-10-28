@@ -128,6 +128,28 @@ Main 대화
 
 **마이그레이션 안전:** 이전 `OrcaAgentStore` 및 `PiComposeOutline` 레코드를 자동 삭제하거나 Orca 세션을 새로 Fork하지 않는다. 레거시 목록이 더 이상 그려지지 않으므로 실제 Orca가 열려 있지 않은 `prepared` 기록은 새 UI에서 즉시 보이지 않을 수 있다. 재복원·대상 확인 경로가 추가될 때까지 원본 보존이 우선이다.
 
+## 4.2 개별 하위 Agent 목록 제거 — 구현 및 의미
+
+**배경:** Orca의 `WorktreeCardAgents`는 부모 `AgentStatusEntry`의 child-work로 합성된 `rowSource: 'subagent'` 행도 표시한다. 이 행의 key는 `parentPaneKey + '\\0subagent:' + childId`이며 독립 pane/status가 없어 기존 `dropAgentStatus()`에 전달해도 자식만 제거할 수 없다. 반대로 부모 행의 `×`를 누르면 부모 상태가 사라지면서 해당 부모로부터 생성된 모든 child 행도 사라질 수 있다.
+
+**이번 코드의 동작:**
+
+- Orca가 원래 쓰는 `DashboardAgentRow`의 `×`를 합성된 하위 Agent에도 사용하되, `WorktreeCardAgents`는 이 키를 정확히 식별해 **부모 상태를 삭제하지 않고 특정 합성 하위 행만 숨긴다**. 이미 존재하는 lineage disclosure 캐시(`worktree-card-agents-expansion-state.ts`)를 확장했으며, 별도 Agent 상태/세션 관리자나 종료 명령은 만들지 않았다.
+- 부모 행에는 *표시 중인* 하위 Agent가 있을 때 `×`를 숨겨 한 번의 클릭으로 자식 전체를 없애지 않도록 했다.
+- Orca compact Agent 행에서도 동일한 개별 하위 Agent `×`를 제공한다.
+- 기존 독립 pane을 가진 Agent는 Orca 원본의 `dropAgentStatus` / `dismissRetainedAgent` 동작을 그대로 사용한다.
+- **합성 child 목록 숨김은 Orca renderer-session 캐시 범위**이며 앱을 완전히 재시작하면 다시 나타날 수 있다. 이는 Pi 세션/실행 자체의 삭제가 아니며, 자식 실행을 종료하지 않는다.
+
+**Pi Compose의 독립 Work:**
+
+- `OrcaAgentStore.setWorkMainVisibility({mainId,workId,hidden})`는 해당 Work의 `hiddenFromMainAt` 표시 속성만 변경한다. Main/Work/Support parent provenance, Pi JSONL, Orca 세션, Git worktree 및 파일을 삭제하거나 수정하지 않는다.
+- `scripts/orca-native-bridge.mjs`의 `set-work-main-visibility`는 동일 Git 프로젝트의 등록된 Main과 그 하위 Work만 허용한다. IPC/preload도 같은 명령을 허용한다.
+- 기존 Native Chat 우클릭 메뉴에서 Main은 `연결된 Work 관리`로 특정 Work를 `목록에서 제거 / 다시 표시` 할 수 있다. Work 자신의 Native Chat에서는 `이 Work만 Main 목록에서 제거` / 다시 표시를 제공한다. 새로운 별도 관리 화면은 없다.
+- Pi Compose의 새로운 Support 생성 연결 목록에서는 `hiddenFromMainAt`가 존재하는 Work를 제외한다.
+- **주의:** Work는 현재 다른 Orca Worktree의 실제 Native Agent 행에 계속 표시될 수 있다. Main 컨텍스트 *표시 연결*만 제거하는 것이고 Orca가 소유한 활성 Agent를 삭제하는 게 아니다. 실제 Work 세션 종료 및 Worktree 삭제는 사용자가 Orca 기존 메뉴에서 별도로 한다.
+
+**검증 상태:** 코드와 고정 Orca 원본에 대한 overlay patch 적용 문자열을 정적으로 확인했다. macOS 앱/타입 검사/실제 클릭은 아직 검증하지 못했다. CI 및 테스트 코드는 추가하지 않았다.
+
 ## 5. 실제 검증 게이트 (테스트 코드/CI 추가 없음)
 
 - 기본 Orca: 원본 `+`/shortcut/tour, 프로젝트·Worktree 생성·우클릭·정리·선택, 상태/Agents feed/탭 close/reveal.
