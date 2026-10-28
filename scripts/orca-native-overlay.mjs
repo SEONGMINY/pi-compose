@@ -83,14 +83,14 @@ const patches = [
   ,{
     path: "src/renderer/src/components/sidebar/WorktreeCardAgents.tsx",
     before: "        <CompactAgentRow\n          agent={agent}\n          now={now}",
-    after: "        <CompactAgentRow\n          agent={agent}\n          now={now}\n          onDismiss={handleDismissAgent}",
+    after: "        <CompactAgentRow\n          agent={agent}\n          now={now}\n          onDismiss={handleDismissAgent}\n          hasParentAgent={ancestorPaneKeys.size > 0}",
     secondBefore: "import React",
     secondAfter: "import React"
   }
   ,{
     path: "src/renderer/src/components/dashboard/DashboardAgentRow.tsx",
     before: "          hideDismiss={agent.rowSource === 'subagent'}",
-    after: "          // Parent X must not make its entire visible child subtree disappear.\n          hideDismiss={lineageChildCount > 0}",
+    after: "          // Parent X must not make its entire visible child subtree disappear.\n          hideDismiss={hasChildDisclosure}",
     secondBefore: "import React",
     secondAfter: "import React"
   }
@@ -114,6 +114,20 @@ const patches = [
     after: "import { translate } from '@/i18n/i18n'\nimport { toast } from 'sonner'",
     secondBefore: "  DropdownMenuItem,\n  DropdownMenuSeparator,",
     secondAfter: "  DropdownMenuItem,\n  DropdownMenuSub,\n  DropdownMenuSubTrigger,\n  DropdownMenuSubContent,\n  DropdownMenuSeparator,"
+  }
+  ,{
+    path: 'src/renderer/src/components/sidebar/worktree-card-compact-agent-row.tsx',
+    before: "  onDismiss?: (paneKey: string) => void\n  // Send-target mode",
+    after: "  onDismiss?: (paneKey: string) => void\n  hasParentAgent?: boolean\n  // Send-target mode",
+    secondBefore: "  onDismiss,\n  sendTargetStatus,",
+    secondAfter: "  onDismiss,\n  hasParentAgent = false,\n  sendTargetStatus,"
+  }
+  ,{
+    path: 'src/renderer/src/components/sidebar/worktree-card-compact-agent-row.tsx',
+    before: "  const isLineageChild = agent.lineage?.depth === 1",
+    after: "  const isLineageChild = hasParentAgent || agent.lineage?.depth === 1",
+    secondBefore: "import React",
+    secondAfter: "import React"
   }
 
 ]
