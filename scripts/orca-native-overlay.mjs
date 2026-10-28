@@ -113,7 +113,7 @@ const patches = [
     before: "import { translate } from '@/i18n/i18n'",
     after: "import { translate } from '@/i18n/i18n'\nimport { toast } from 'sonner'",
     secondBefore: "  DropdownMenuItem,\n  DropdownMenuSeparator,",
-    secondAfter: "  DropdownMenuItem,\n  DropdownMenuSub,\n  DropdownMenuSubTrigger,\n  ,\n  hasParentAgent = false,\n  sendTargetStatus,"
+    secondAfter: "  DropdownMenuItem,\n  DropdownMenuSub,\n  DropdownMenuSubTrigger,\n  DropdownMenuSubContent,\n  DropdownMenuSeparator,"
   }
   ,{
     path: 'src/renderer/src/components/sidebar/worktree-card-compact-agent-row.tsx',
