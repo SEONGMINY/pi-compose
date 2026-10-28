@@ -114,7 +114,7 @@ export function PiComposeMenu(): React.JSX.Element {
         : { sessionId: await openPreparedPiNativeChat(targetId, record.sessionId),
             replacedClosed: false }
       await window.api.piCompose.attachChat(
-        cwd, record.id, opened.sessionId, targetId, opened.replacedClosed
+        cwd, record.id, opened.sessionId, targetId, record.sessionId, opened.replacedClosed
       )
       window.dispatchEvent(new Event('pi-compose:changed'))
       setOpen(false)
@@ -271,7 +271,7 @@ export function PiComposeMenu(): React.JSX.Element {
       // already-running TUI import Orca may refuse a second writer; preserve it.
       try {
         const chatSessionId = await openPreparedPiNativeChat(targetWorktreeId, result.record.sessionId)
-        await window.api.piCompose.attachChat(cwd, result.record.id, chatSessionId, targetWorktreeId)
+        await window.api.piCompose.attachChat(cwd, result.record.id, chatSessionId, targetWorktreeId, result.record.sessionId)
         // Orca's host-owned conversation name is the single source used by
         // tabs, Agent rows, session history and other connected clients.
         // Do not add a second Pi Compose label renderer.
