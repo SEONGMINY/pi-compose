@@ -18,6 +18,29 @@ function projectRootOf(cwd) {
     : runGit(cwd, 'rev-parse', '--show-toplevel');
 }
 
+/**
+ * Orca owns Worktree IDs: pinned native format is repoId::absolutePath.
+ * A renderer-supplied ID must agree with the physical workspace. This is
+ * read-only admission validation, never a replacement Git worktree manager.
+ */
+function assertOrcaWorktreeIdentity({ id, path }, main) {
+  if (typeof id !== 'string' || typeof path !== 'string') {
+    throw new Error('Orca 작업 공간 ID와 실제 경로가 필요합니다.');
+  }
+  const separator = id.indexOf('::');
+  if (separator <= 0 || separator === id.length - 2 ||
+      resolve(id.slice(separator + 2)) !== resolve(path)) {
+    throw new Error('Orca Worktree ID와 실제 작업 경로가 일치하지 않습니다.');
+  }
+  if (main?.orcaWorktreeId) {
+    const sourceSeparator = main.orcaWorktreeId.indexOf('::');
+    if (sourceSeparator <= 0 ||
+        main.orcaWorktreeId.slice(0, sourceSeparator) !== id.slice(0, separator)) {
+      throw new Error('Orca의 원본 Main과 새 Worktree 저장소 소유자가 다릅니다.');
+    }
+  }
+}
+
 function readEntries(path) {
   // Main and Work can be writing their final JSONL record. Never interpret
   // an incomplete trailing line as corruption or modify the source file.
@@ -202,11 +225,26 @@ export class OrcaAgentStore {
   }
   recordCreatedWorkspace({ mainId, operationId, workspace }) {
     const intent = this.pendingCreation(mainId);
+    const main = this.get(mainId);
     if (!intent || intent.operationId !== operationId ||
+        !main || main.role !== 'main' ||
         typeof workspace?.id !== 'string' || !workspace.id ||
         typeof workspace?.path !== 'string' ||
         projectRootOf(workspace.path) !== intent.projectRoot) {
       throw new Error('Orca 작업 공간 생성 영수증이 기존 요청과 일치하지 않습니다.');
+    }
+    assertOrcaWorktreeIdentity(workspace, main);
+    if (intent.phase === 'requested') {
+      // Orca may add a user-configured branch prefix or a conflict suffix.
+      // Neither changes the original creation name or its operation ID.
+      const actualBranch = runGit(workspace.path, 'branch', '--show-current');
+      const branchLeaf = actualBranch.split('/').at(-1) || '';
+      const retrySuffix = branchLeaf.startsWith(intent.name + '-')
+        ? branchLeaf.slice(intent.name.length + 1) : '';
+      if (branchLeaf !== intent.name &&
+          !( /^[1-9][0-9]*$/.test(retrySuffix) && Number(retrySuffix) >= 2)) {
+        throw new Error('Orca Worktree의 실제 브랜치가 원래 생성 요청과 다릅니다.');
+      }
     }
     if (intent.phase === 'workspace-created') {
       if (intent.workspace?.id !== workspace.id ||
@@ -238,6 +276,9 @@ export class OrcaAgentStore {
         resolve(intent.workspace?.path || '') !== resolve(managedWorktree?.path || '')) {
       throw new Error('원래 생성한 Orca Worktree 영수증과 작업 요청이 일치하지 않습니다.');
     }
+    const main = this.get(mainId);
+    if (!main) throw new Error('원본 Main의 Orca 소유권을 확인할 수 없습니다.');
+    assertOrcaWorktreeIdentity(managedWorktree, main);
     return intent;
   }
   finishCreation({ mainId, operationId, agentId }) {
