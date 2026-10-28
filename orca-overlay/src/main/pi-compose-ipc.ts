@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process'
 import { resolve } from 'node:path'
 
 type NativeRole = 'main' | 'work' | 'support'
-type NativeCommand = 'list' | 'sessions' | 'import' | 'attach' | 'attach-chat' | 'connection-failed' | 'support-result' | 'preview-work-fork' | 'linked-work-results' | 'set-work-main-visibility' | NativeRole
+type NativeCommand = 'list' | 'sessions' | 'import' | 'attach' | 'attach-chat' | 'connection-failed' | 'support-result' | 'preview-work-fork' | 'live-main-leaf' | 'linked-work-results' | 'set-work-main-visibility' | NativeRole
 export type NativeComposeRequest = {
   cwd: string
   title?: string
@@ -22,7 +22,7 @@ export type NativeComposeRequest = {
   expectedSourceEntryId?: string
   managedWorktree?: { id: string; path: string }
 }
-const VALID_COMMANDS = new Set<NativeCommand>(['list', 'sessions', 'import', 'attach', 'attach-chat', 'connection-failed', 'support-result', 'preview-work-fork', 'linked-work-results', 'set-work-main-visibility', 'main', 'work', 'support'])
+const VALID_COMMANDS = new Set<NativeCommand>(['list', 'sessions', 'import', 'attach', 'attach-chat', 'connection-failed', 'support-result', 'preview-work-fork', 'live-main-leaf', 'linked-work-results', 'set-work-main-visibility', 'main', 'work', 'support'])
 const TIMEOUT_MS = 90_000
 
 /**
@@ -35,6 +35,29 @@ export function registerPiComposeIpc(): void {
     if (!data || typeof data.cwd !== 'string' || !data.cwd.startsWith('/') ||
         data.cwd.length > 2000) throw new Error('Select a local Git project first')
     if (JSON.stringify(data).length > 16_000) throw new Error('Pi Compose request is too long')
+    if (command === 'live-main-leaf') {
+      // The ORIGINAL live Pi RPC process is the source of truth for its branch.
+      // Reading JSONL's last appended row would silently fork abandoned branches.
+      const orcaSessionId = data.orcaSessionId
+      const worktreeId = data.worktreeId
+      if (!orcaSessionId || !worktreeId) throw new Error('Main Orca 세션/Worktree ID가 없습니다.')
+      const { getStructuredAgentSessionHost } = await import('./native-chat/agent-session-wire/structured-agent-session-registry')
+      const host = getStructuredAgentSessionHost()
+      const record = host?.deps.store.getConversation(orcaSessionId)
+      if (!record || record.provider !== 'pi' ||
+          record.location.workspaceId !== worktreeId) {
+        throw new Error('선택한 Main은 이 Orca 호스트의 Pi 대화가 아닙니다.')
+      }
+      const { PiRpcSessionAdapter } = await import('./pi/rpc-session-adapter')
+      const adapter = host.deps.agents.registration('pi')?.adapter
+      if (!(adapter instanceof PiRpcSessionAdapter)) {
+        throw new Error('현재 호스트에서 Pi RPC 대화의 활성 분기를 확인할 수 없습니다.')
+      }
+      const activeLeafId = await adapter.readComposeActiveLeaf(orcaSessionId)
+      if (!activeLeafId) throw new Error('Main의 Pi 대화에 완료된 분기가 없습니다.')
+      return { activeLeafId, orcaSessionId }
+    }
+
     const root = process.env.PI_COMPOSE_ROOT
     if (!root) throw new Error('Pi Compose bridge unavailable: start with npm run orca:dev')
     const script = resolve(root, 'scripts/orca-native-bridge.mjs')
