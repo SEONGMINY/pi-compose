@@ -52,6 +52,62 @@ const patches = [
     secondBefore: "          {chatPane ? (",
     secondAfter: "          {composeMainId && chatPane && composeWorktree ? (\n            <DropdownMenuItem onSelect={() => {\n              window.dispatchEvent(new CustomEvent('pi-compose:new', {\n                detail: {\n                  role: 'work', mainId: composeMainId,\n                  projectCwd: composeWorktree.path, projectWorktreeId: chatPane.worktreeId\n                }\n              }))\n            }}>\n              <GitFork className=\"size-3.5\" />\n              이 Main에서 Work 만들기…\n            </DropdownMenuItem>\n          ) : null}\n          {chatPane ? ("
   }
+  ,{
+    path: "src/renderer/src/components/sidebar/worktree-card-agents-expansion-state.ts",
+    before: "  compactRootListExpanded: boolean\n}",
+    after: "  compactRootListExpanded: boolean\n  /** Synthetic child rows hidden without touching their parent session. */\n  hiddenSubagentPaneKeys?: ReadonlySet<string>\n}",
+    secondBefore: "  if (state.compactRootListExpanded || state.collapsedLineageParents.size > 0) {",
+    secondAfter: "  if (state.compactRootListExpanded || state.collapsedLineageParents.size > 0 ||\n    (state.hiddenSubagentPaneKeys?.size ?? 0) > 0) {"
+  }
+  ,{
+    path: "src/renderer/src/components/sidebar/worktree-card-agents-expansion-state.ts",
+    before: "  toggleCompactRootList: () => void\n}",
+    after: "  toggleCompactRootList: () => void\n  hiddenSubagentPaneKeys: ReadonlySet<string>\n  dismissSubagent: (paneKey: string) => void\n}",
+    secondBefore: "  return {\n    collapsedLineageParents: current.collapsedLineageParents,",
+    secondAfter: "  const dismissSubagent = useCallback((paneKey: string) => {\n    const base = readExpansionState(worktreeId)\n    const keys = new Set(base.hiddenSubagentPaneKeys ?? [])\n    keys.add(paneKey)\n    // Follow Orca's bounded renderer-session disclosure cache.\n    commit({ ...base, hiddenSubagentPaneKeys: new Set(Array.from(keys).slice(-128)) })\n  }, [commit, worktreeId])\n\n  return {\n    hiddenSubagentPaneKeys: current.hiddenSubagentPaneKeys ?? EMPTY_COLLAPSED_PARENTS,\n    dismissSubagent,\n    collapsedLineageParents: current.collapsedLineageParents,"
+  }
+  ,{
+    path: "src/renderer/src/components/sidebar/WorktreeCardAgents.tsx",
+    before: "  const focusedAgentPaneKey = useFocusedAgentPaneKey(worktreeId)",
+    after: "  const focusedAgentPaneKey = useFocusedAgentPaneKey(worktreeId)\n  const {\n    collapsedLineageParents, compactRootListExpanded, toggleLineageParent: toggleLineageParentState,\n    toggleCompactRootList, hiddenSubagentPaneKeys, dismissSubagent\n  } = useWorktreeAgentExpansionState(worktreeId)",
+    secondBefore: "  const handleDismissAgent = useCallback(\n    (paneKey: string) => {\n      dropAgentStatus(paneKey)\n      dismissRetainedAgent(paneKey)\n    },\n    [dropAgentStatus, dismissRetainedAgent]\n  )",
+    secondAfter: "  const handleDismissAgent = useCallback(\n    (paneKey: string) => {\n      // Synthetic children have no own status record: never drop the parent.\n      if (agents.some(agent => agent.paneKey === paneKey && agent.rowSource === 'subagent')) {\n        dismissSubagent(paneKey)\n        return\n      }\n      dropAgentStatus(paneKey)\n      dismissRetainedAgent(paneKey)\n    },\n    [agents, dismissSubagent, dropAgentStatus, dismissRetainedAgent]\n  )"
+  }
+  ,{
+    path: "src/renderer/src/components/sidebar/WorktreeCardAgents.tsx",
+    before: "  const { rootRows: rootAgents, childrenByParentPaneKey } = useMemo(\n    () => buildAgentRowLineageTree(agents),\n    [agents]\n  )",
+    after: "  const visibleAgents = useMemo(() => agents.filter(agent =>\n    agent.rowSource !== 'subagent' || !hiddenSubagentPaneKeys.has(agent.paneKey)\n  ), [agents, hiddenSubagentPaneKeys])\n  const { rootRows: rootAgents, childrenByParentPaneKey } = useMemo(\n    () => buildAgentRowLineageTree(visibleAgents),\n    [visibleAgents]\n  )",
+    secondBefore: "  const {\n    collapsedLineageParents,\n    compactRootListExpanded,\n    toggleLineageParent: toggleLineageParentState,\n    toggleCompactRootList\n  } = useWorktreeAgentExpansionState(worktreeId)\n",
+    secondAfter: ""
+  }
+  ,{
+    path: "src/renderer/src/components/sidebar/WorktreeCardAgents.tsx",
+    before: "        <CompactAgentRow\n          agent={agent}\n          now={now}",
+    after: "        <CompactAgentRow\n          agent={agent}\n          now={now}\n          onDismiss={handleDismissAgent}",
+    secondBefore: "import React",
+    secondAfter: "import React"
+  }
+  ,{
+    path: "src/renderer/src/components/dashboard/DashboardAgentRow.tsx",
+    before: "          hideDismiss={agent.rowSource === 'subagent'}",
+    after: "          // Parent X must not make its entire visible child subtree disappear.\n          hideDismiss={lineageChildCount > 0}",
+    secondBefore: "import React",
+    secondAfter: "import React"
+  }
+  ,{
+    path: "src/renderer/src/components/sidebar/worktree-card-compact-agent-row.tsx",
+    before: "import { DashboardAgentChildDisclosure } from '@/components/dashboard/DashboardAgentChildDisclosure'",
+    after: "import { DashboardAgentChildDisclosure } from '@/components/dashboard/DashboardAgentChildDisclosure'\nimport { X } from 'lucide-react'",
+    secondBefore: "  onActivate: (tabId: string, paneKey: string) => void\n  // Send-target mode",
+    secondAfter: "  onActivate: (tabId: string, paneKey: string) => void\n  onDismiss?: (paneKey: string) => void\n  // Send-target mode"
+  }
+  ,{
+    path: "src/renderer/src/components/sidebar/worktree-card-compact-agent-row.tsx",
+    before: "  onActivate,\n  sendTargetStatus,",
+    after: "  onActivate,\n  onDismiss,\n  sendTargetStatus,",
+    secondBefore: "      {hasChildDisclosure ? (\n        <DashboardAgentChildDisclosure",
+    secondAfter: "      {onDismiss && isLineageChild && !hasChildDisclosure ? (\n        <button type=\"button\" aria-label=\"목록에서 이 Agent만 제거\"\n          className=\"shrink-0 rounded-sm p-1 text-muted-foreground/70 hover:text-foreground\"\n          onClick={e => { e.stopPropagation(); onDismiss(agent.paneKey) }}\n          onMouseDown={e => e.stopPropagation()}\n          onPointerDown={e => e.stopPropagation()}>\n          <X className=\"size-3\" />\n        </button>\n      ) : null}\n      {hasChildDisclosure ? (\n        <DashboardAgentChildDisclosure"
+  }
 
 ]
 
