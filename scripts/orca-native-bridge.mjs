@@ -132,7 +132,7 @@ async function run(command,args) {
         parentMainId:item.parentMainId||null,relatedWorkId:item.relatedWorkId||null,
         hiddenFromMainAt:item.hiddenFromMainAt||null,
         cwd:item.cwd,workspace:item.workspace||'shared',
-        sessionId:item.sessionId,cwd:item.cwd,launcher:item.launcher||null,
+        sessionId:item.sessionId,sessionFile:item.sessionFile||null,cwd:item.cwd,launcher:item.launcher||null,
         orcaSessionId:item.orcaSessionId||null,
         connectionError:item.connectionError||null,
         orcaTabId:item.orcaTabId||null,orcaWorktreeId:item.orcaWorktreeId||null,
