@@ -53,9 +53,9 @@ jobs:
       - name: Install pinned Orca dependencies
         run: |
           corepack enable
-          cd .cache/orca-upstream
+          cd .cache/orca-upstream-batch-integration
           pnpm install --frozen-lockfile
       - name: Typecheck Orca renderer and main/preload bridge
         run: |
-          cd .cache/orca-upstream
+          cd .cache/orca-upstream-batch-integration
           pnpm run typecheck
