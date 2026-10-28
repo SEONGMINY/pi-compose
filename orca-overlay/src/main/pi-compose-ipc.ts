@@ -40,13 +40,29 @@ export function registerPiComposeIpc(): void {
       // Reading JSONL's last appended row would silently fork abandoned branches.
       const orcaSessionId = data.orcaSessionId
       const worktreeId = data.worktreeId
-      if (!orcaSessionId || !worktreeId) throw new Error('Main Orca 세션/Worktree ID가 없습니다.')
+      const expectedPiSessionId = data.sessionId
+      if (!orcaSessionId || !worktreeId || !expectedPiSessionId) {
+        throw new Error('Main Orca 세션/Worktree ID 또는 Pi 원본 세션 ID가 없습니다.')
+      }
       const { getStructuredAgentSessionHost } = await import('./native-chat/agent-session-wire/structured-agent-session-registry')
       const host = getStructuredAgentSessionHost()
       const record = host?.deps.store.getConversation(orcaSessionId)
       if (!record || record.provider !== 'pi' ||
           record.location.workspaceId !== worktreeId) {
         throw new Error('선택한 Main은 이 Orca 호스트의 Pi 대화가 아닙니다.')
+      }
+      // Orca's Pi provider handle identifies the *file*, not the Pi UUID.
+      // The live leaf is safe to use only when that file's canonical Pi
+      // session header belongs to the selected Main.
+      const handle = record.providerHandleChain.at(-1)?.handle
+      if (handle?.agent !== 'pi' || handle.transport !== 'jsonl-rpc' ||
+          !handle.nativeId) {
+        throw new Error('Main의 Pi 원본 파일 소유권을 확인할 수 없습니다.')
+      }
+      const { readPiSessionHeader } = await import('./pi/rpc-launch-resolution')
+      const header = await readPiSessionHeader(handle.nativeId)
+      if (!header || header.id !== expectedPiSessionId) {
+        throw new Error('Orca Native Chat의 Pi 기록이 선택한 Main 세션과 다릅니다. Fork를 중단했습니다.')
       }
       const { PiRpcSessionAdapter } = await import('./pi/rpc-session-adapter')
       const adapter = host.deps.agents.registration('pi')?.adapter
