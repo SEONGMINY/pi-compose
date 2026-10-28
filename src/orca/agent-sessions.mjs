@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync, chmodSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
+import { captureCompletedMain, forkCompletedMain } from './completed-main-fork.mjs';
 
 const STATE_DIR = join(process.env.XDG_STATE_HOME || join(homedir(), '.local', 'state'), 'pi-compose', 'orca');
 const q = value => "'" + String(value).replaceAll("'", "'\\''") + "'";
@@ -93,8 +94,7 @@ export class OrcaAgentStore {
       throw new Error('이 Main에서 먼저 Pi와 설계를 논의해 저장한 뒤 Work Agent를 만드세요.');
     }
     if (headerOf(file).id !== main.sessionId) throw new Error('Pi 세션 정본 식별자가 다릅니다.');
-    const source = SessionManager.open(file);
-    if (!source.getBranch().some(entry => entry.type === 'message')) {
+    if (!readEntries(file).some(entry => entry.type === 'message')) {
       throw new Error('Main에 아직 실제 대화가 없습니다. 설계를 먼저 논의하세요.');
     }
     if (main.sessionFile !== resolve(file)) {
@@ -162,15 +162,27 @@ export class OrcaAgentStore {
    * Context choice and Git workspace choice are independent.
    * This method PREPARES a child, but never claims to run an Agent in Orca.
    */
-  prepare({ role, main, task, workspace, SessionManager, projectCwd, launcherPath }) {
+  /**
+   * Prepare an independent Pi session WITHOUT sending a task prompt.
+   * Work inherits exactly the selected Main's last finished branch point.
+   * Support has an independent context; relatedWorkId is a UI/result link.
+   */
+  prepare({ role, main, title, task, workspace, SessionManager, projectCwd,
+    launcherPath, relatedWorkId = null, activeLeafId }) {
     if (!['work','support'].includes(role)) throw new Error('Work 또는 Support만 만들 수 있습니다.');
     if (!['shared','worktree'].includes(workspace)) throw new Error('잘못된 작업 공간입니다.');
-    if (typeof task !== 'string' || !task.trim()) throw new Error('실제 작업 지시를 입력하세요.');
     if (!main || main.role !== 'main' || !this.get(main.id)) {
       throw new Error('등록된 Main에서만 작업을 시작할 수 있습니다.');
     }
     const root = projectRootOf(main.projectRoot);
     if (root !== main.projectRoot) throw new Error('Git 프로젝트 정체성이 변경됐습니다.');
+    if (relatedWorkId !== null) {
+      const linked = this.get(relatedWorkId);
+      if (role !== 'support' || !linked || linked.role !== 'work' ||
+          linked.parentMainId !== main.id || linked.projectRoot !== root) {
+        throw new Error('Support의 연결 대상은 동일한 Main에 속한 Work여야 합니다.');
+      }
+    }
     const id = randomUUID();
     const branch = workspace === 'worktree'
       ? 'compose/' + role + '-' + id.slice(0, 8) : null;
@@ -178,86 +190,86 @@ export class OrcaAgentStore {
       ? join(dirname(root), basename(root) + '-compose-' + id.slice(0, 8))
       : resolve(projectCwd || main.cwd);
     const baseSha = runGit(root, 'rev-parse', 'HEAD');
-    const sourceFile = role === 'work' ? this.mainWithSavedSession(main.id, SessionManager).sessionFile : null;
-    let sourceEntryId = null;
-    let sourceEntryCount = 0;
-
-    if (role === 'work') {
-      // Inspect the exact selected Main Pi JSONL, not the most recent session.
-      if (!existsSync(sourceFile)) throw new Error('원본 Main Pi 세션을 찾을 수 없습니다.');
-      const header = headerOf(sourceFile);
-      if (header.id !== main.sessionId) throw new Error('원본 Main Pi 세션 식별자가 바뀌었습니다.');
-      const source = SessionManager.open(sourceFile);
-      sourceEntryId = source.getLeafEntry()?.id || null;
-      sourceEntryCount = readEntries(sourceFile).filter(e => e.type !== 'session').length;
-    }
+    const sourceFile = role === 'work'
+      ? this.mainWithSavedSession(main.id, SessionManager).sessionFile : null;
+    // Capture the source BEFORE mutating Git. Main's original JSONL is read-only.
+    const snapshot = role === 'work'
+      ? captureCompletedMain({
+          sessionFile: sourceFile, sessionId: main.sessionId, activeLeafId
+        }) : null;
     if (workspace === 'worktree') {
-      // Existing worktree/branch is never overwritten; no automatic clean/reset.
+      // Never overwrite an existing checkout. Orca registration remains a
+      // separate host operation; do not imply the workspace already exists in Orca.
       runGit(root, 'worktree', 'add', '-b', branch, cwd, baseSha);
     }
 
     let sessionId;
     let sessionFile = null;
-    if (role === 'work') {
+    if (snapshot) {
       try {
-        const fork = SessionManager.forkFrom(sourceFile, cwd, undefined, { id });
-        sessionId = fork.getSessionId();
-        sessionFile = fork.getSessionFile();
-        const proof = this.verifyCopiedEntries({ sourceFile, sessionFile, sourceEntryCount });
-        if (!proof.allMatch) throw new Error('원본 Pi 대화의 전체 복제가 확인되지 않았습니다.');
+        const fork = forkCompletedMain({ snapshot, targetCwd: cwd, id, SessionManager });
+        sessionId = fork.sessionId;
+        sessionFile = fork.sessionFile;
       } catch (error) {
-        throw new Error('Work Fork 실패. 이미 생성된 Worktree와 Pi 파일은 보존됩니다: ' +
+        throw new Error('Work Fork 실패. 기존 Main과 만들어진 Worktree는 보존됩니다: ' +
           (error instanceof Error ? error.message : String(error)));
       }
     } else {
-      sessionId = id; // Pi will create its own new JSONL at its FIRST user message.
+      sessionId = id; // Pi creates its independent session on the first real message.
     }
     const scriptPath = join(this.launchersDir, id + '.sh');
-    const args = ['--extension', resolve(launcherPath.extension)];
-    if (role === 'work') args.push('--session', sessionFile);
-    else args.push('--session-id', sessionId);
-    args.push('--', task.trim());
+    const args = ['--extension', resolve(launcherPath.extension),
+      ...(snapshot ? ['--session', sessionFile] : ['--session-id', sessionId])];
     const command = [q(launcherPath.piBinary || 'pi'), ...args.map(q)].join(' ');
-    const resumeArgs = ['--extension', resolve(launcherPath.extension),
-      ...(role === 'work' ? ['--session', sessionFile] : ['--session-id', sessionId])];
-    const resumeCommand = [q(launcherPath.piBinary || 'pi'), ...resumeArgs.map(q)].join(' ');
-    const firstLaunchMarker = join(this.launchersDir, id + '.started');
-    // Atomic one-shot claim: reopening a crashed tab NEVER resubmits the original
-    // development request. Session files / Git worktrees are always preserved.
-    const script = '#!/bin/sh\ncd ' + q(cwd) +
-      '\nif mkdir ' + q(firstLaunchMarker) + ' 2>/dev/null; then\n  exec ' +
-      command + '\nelif [ -d ' + q(firstLaunchMarker) + ' ]; then\n  exec ' +
-      resumeCommand + '\nelse\n  echo ' + q('Pi Compose: launch marker unavailable') +
-      ' >&2\n  exit 1\nfi\n';
-    writeFileSync(scriptPath, script, { mode: 0o700, flag: 'wx' });
+    // This launch only opens an existing/fresh session. Never auto-submit an
+    // initial development instruction; each Work starts when the user types.
+    writeFileSync(scriptPath, '#!/bin/sh\ncd ' + q(cwd) + '\nexec ' + command + '\n',
+      { mode: 0o700, flag: 'wx' });
     chmodSync(scriptPath, 0o700);
 
+    const label = (title || task || (role === 'work' ? '새 Work' : '새 Support')).trim();
     return this.put({
-      id, role, title: task.trim().slice(0, 100), task: task.trim(),
-      parentMainId: main.id, projectRoot: root, cwd, workspace, branch, baseSha,
-      sourceSessionFile: sourceFile, sourceSessionId: role === 'work' ? main.sessionId : null,
-      sourceEntryId, sourceEntryCount, sessionId, sessionFile,
+      id, role, title: label.slice(0, 100),
+      ...(typeof task === 'string' && task.trim() ? { task: task.trim() } : {}),
+      parentMainId: main.id,
+      ...(relatedWorkId ? { relatedWorkId } : {}),
+      projectRoot: root, cwd, workspace, branch, baseSha,
+      sourceSessionFile: sourceFile, sourceSessionId: snapshot?.sourceSessionId || null,
+      sourceEntryId: snapshot?.sourceEntryId || null,
+      sourceEntryIds: snapshot?.sourceEntryIds || [],
+      sourceEntryCount: snapshot?.entries.length || 0,
+      excludedInProgress: snapshot?.excludedInProgress || false,
+      sessionId, sessionFile,
       launcher: scriptPath, state: 'prepared', createdAt: new Date().toISOString(),
     });
   }
-  prepareForMain({ mainId, role, task, workspace, SessionManager, launcherPath }) {
+  prepareForMain({ mainId, role, title, task, workspace, relatedWorkId,
+    activeLeafId, SessionManager, launcherPath, projectCwd }) {
     const main = this.get(mainId);
     if (!main || main.role !== 'main') throw new Error('등록된 Main을 선택하세요.');
-    return this.prepare({ main, role, task, workspace, SessionManager,
-      projectCwd: main.cwd, launcherPath });
+    return this.prepare({ main, role, title, task, workspace, relatedWorkId,
+      activeLeafId, SessionManager, projectCwd: projectCwd || main.cwd,
+      launcherPath });
   }
-  verifyCopiedEntries({ sourceFile, sessionFile, sourceEntryCount }) {
-    if (!sourceFile || !sessionFile || !existsSync(sessionFile)) {
+  verifyCopiedEntries({ sourceFile, sessionFile, sourceEntryCount,
+    sourceEntryIds, sourceEntryId }) {
+    if (!sourceFile || !sessionFile || !existsSync(sessionFile) || !existsSync(sourceFile)) {
       return { allMatch: false, copied: 0, expected: sourceEntryCount || 0 };
     }
-    const source = readEntries(sourceFile).filter(e => e.type !== 'session').slice(0, sourceEntryCount);
+    const original = readEntries(sourceFile).filter(entry => entry.type !== 'session');
+    const selected = sourceEntryIds?.length
+      ? sourceEntryIds.map(id => original.find(entry => entry.id === id))
+      : original.slice(0, sourceEntryCount);
     const targetRows = readEntries(sessionFile);
     const header = targetRows[0];
-    const target = targetRows.filter(e => e.type !== 'session').slice(0, sourceEntryCount);
-    const copied = source.filter((e,i) => JSON.stringify(e) === JSON.stringify(target[i])).length;
+    const target = targetRows.filter(entry => entry.type !== 'session');
+    const copied = selected.filter((entry, index) =>
+      entry && JSON.stringify(entry) === JSON.stringify(target[index])).length;
+    const expected = selected.length;
+    const leafMatches = !sourceEntryId || target.at(-1)?.id === sourceEntryId;
     const allMatch = resolve(header?.parentSession || '') === resolve(sourceFile) &&
-      copied === sourceEntryCount && target.length === sourceEntryCount;
-    return { allMatch, copied, expected: sourceEntryCount };
+      leafMatches && copied === expected && target.length === expected;
+    return { allMatch, copied, expected, leafMatches };
   }
   attachTerminal({ id, tabId, worktreeId }) {
     const record = this.get(id);
@@ -278,6 +290,8 @@ export class OrcaAgentStore {
     return { record, fork: this.verifyCopiedEntries({
       sourceFile: record.sourceSessionFile, sessionFile: record.sessionFile,
       sourceEntryCount: record.sourceEntryCount,
+      sourceEntryIds: record.sourceEntryIds,
+      sourceEntryId: record.sourceEntryId,
     }) };
   }
 }
