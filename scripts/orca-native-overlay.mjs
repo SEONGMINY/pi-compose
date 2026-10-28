@@ -168,9 +168,9 @@ const patches = [
   ,{
     path: 'src/main/pi/rpc-session-adapter.ts',
     before: "  readCommands = (id: string) => this.sessions.get(id)?.startup.commands",
-    after: "  /** Read authoritative live Pi branch leaf without changing the conversation. */\n  async readComposeActiveLeaf(sessionId: string): Promise<string | null> {\n    const session = this.sessions.get(sessionId)\n    if (!session || session.connection.closed) throw new Error('Pi Main is not live on this host')\n    const response = await session.connection.request('get_entries', {}, {\n      oversizedReply: 'reject', timeoutMs: 10_000\n    })\n    if (!response || typeof response !== 'object' || !('leafId' in response)) {\n      throw new Error('Pi did not return a live branch leaf')\n    }\n    const leaf = response.leafId\n    if (leaf !== null && typeof leaf !== 'string') throw new Error('Invalid Pi leaf identity')\n    return leaf as string | null\n  }\n  readCommands = (id: string) => this.sessions.get(id)?.startup.commands",
-    secondBefore: "export class PiRpcSessionAdapter implements StructuredAgentSessionAdapter {",
-    secondAfter: "export class PiRpcSessionAdapter implements StructuredAgentSessionAdapter {"
+    after: "  /** Read authoritative live Pi branch leaf without changing the conversation. */\n  async readComposeActiveLeaf(sessionId: string): Promise<string | null> {\n    const session = this.sessions.get(sessionId)\n    if (!session || session.connection.closed) throw new Error('Pi Main is not live on this host')\n    const response = await readPiEntries(session.connection, null, 10_000)\n    return response.leafId\n  }\n  readCommands = (id: string) => this.sessions.get(id)?.startup.commands",
+    secondBefore: "import { PiRpcSession, type PiRpcSessionDeps, type PiRpcConnection } from './rpc-session'",
+    secondAfter: "import { PiRpcSession, type PiRpcSessionDeps, type PiRpcConnection } from './rpc-session'\nimport { readPiEntries } from './rpc-history-catch-up'"
   }
 ]
 
