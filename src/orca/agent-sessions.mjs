@@ -335,6 +335,27 @@ export class OrcaAgentStore {
     atomicJSON(this.path(id), record);
     return record;
   }
+  /**
+   * Change only the Main's visible Work membership. Keep the Pi fork origin,
+   * Orca chat, Git worktree, source entries and related Support records intact.
+   */
+  setWorkMainVisibility({ mainId, workId, hidden }) {
+    const main = this.get(mainId);
+    const work = this.get(workId);
+    if (!main || main.role !== 'main' || !work || work.role !== 'work' ||
+        work.parentMainId !== main.id || work.projectRoot !== main.projectRoot) {
+      throw new Error('같은 Main에 연결된 Work만 개별적으로 정리할 수 있습니다.');
+    }
+    if (typeof hidden !== 'boolean') throw new Error('잘못된 목록 표시 설정입니다.');
+    if (hidden && !work.hiddenFromMainAt) {
+      work.hiddenFromMainAt = new Date().toISOString();
+      atomicJSON(this.path(work.id), work);
+    } else if (!hidden && work.hiddenFromMainAt) {
+      delete work.hiddenFromMainAt;
+      atomicJSON(this.path(work.id), work);
+    }
+    return work;
+  }
   attachNativeChat({ id, orcaSessionId, worktreeId, replaceClosed = false }) {
     const record = this.get(id);
     if (!record || !['main','work','support'].includes(record.role)) {
