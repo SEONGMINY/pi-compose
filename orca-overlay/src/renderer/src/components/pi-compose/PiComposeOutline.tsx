@@ -246,7 +246,7 @@ export function PiComposeOutline({ projectCwd, projectWorktreeId }: {
   }
   // Render inside Orca's real project checkout row rather than a duplicate
   // "Pi Compose" panel. Logical parent is always Main, never the Git worktree.
-  return <div className="px-2 pb-1 pt-1" aria-label="프로젝트의 Main Work Support Agent"
+  return <div className="px-2 pb-1 pt-1" data-pi-compose-context="" aria-label="프로젝트의 Main Work Support Agent"
     onClick={event => event.stopPropagation()}
     onDoubleClick={event => event.stopPropagation()}
     onPointerDown={event => event.stopPropagation()}
