@@ -71,10 +71,12 @@ async function run(command,args) {
     const projectRoot=gitRoot(requiredText(args.cwd,'프로젝트 경로',2000));
     return store.list().filter(item=>item.projectRoot===projectRoot)
       .map(item=>({id:item.id,title:item.title,role:item.role,
-        parentMainId:item.parentMainId||null,cwd:item.cwd,workspace:item.workspace||'shared',
+        parentMainId:item.parentMainId||null,relatedWorkId:item.relatedWorkId||null,
+        cwd:item.cwd,workspace:item.workspace||'shared',
         sessionId:item.sessionId,cwd:item.cwd,launcher:item.launcher||null,
         orcaTabId:item.orcaTabId||null,orcaWorktreeId:item.orcaWorktreeId||null,
-        ...(item.role==='work'?{proof:store.inspect(item.id).fork}:{}),
+        ...(item.role==='work'?{proof:store.inspect(item.id).fork,
+          sourceEntryId:item.sourceEntryId,excludedInProgress:!!item.excludedInProgress}:{}),
         state:item.state||'prepared'}));
   }
   const cwd=resolve(requiredText(args.cwd,'프로젝트 경로',2000));
@@ -100,9 +102,14 @@ async function run(command,args) {
     const main=belonging(args.mainId,cwd);
     const workspace=args.workspace;
     if (!['shared','worktree'].includes(workspace))throw new Error('지원하지 않는 Git 작업 공간입니다.');
+    const title=requiredText(args.title || args.task,'Agent 이름',200);
+    const relatedWorkId=args.relatedWorkId;
+    if (relatedWorkId!==undefined && (command!=='support'||typeof relatedWorkId!=='string')) {
+      throw new Error('Support Agent에만 Work 연결을 지정할 수 있습니다.');
+    }
     const result=store.prepareForMain({
-      mainId:main.id,role:command,workspace,
-      task:requiredText(args.task,'작업 지시'),
+      mainId:main.id,role:command,workspace,title,
+      relatedWorkId,projectCwd:cwd,
       SessionManager,
       launcherPath:{extension,piBinary:process.env.PI_COMPOSE_PI_BINARY||'pi'},
     });
