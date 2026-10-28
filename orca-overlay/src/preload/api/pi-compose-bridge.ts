@@ -1,6 +1,6 @@
 import { ipcRenderer } from 'electron'
 
-export type PiComposeCommand = 'list' | 'sessions' | 'import' | 'attach' | 'attach-chat' | 'connection-failed' | 'support-result' | 'preview-work-fork' | 'live-main-leaf' | 'linked-work-results' | 'set-work-main-visibility' | 'main' | 'work' | 'support'
+export type PiComposeCommand = 'begin-worktree-creation' | 'pending-worktree-creation' | 'record-worktree-creation' | 'list' | 'sessions' | 'import' | 'attach' | 'attach-chat' | 'connection-failed' | 'support-result' | 'preview-work-fork' | 'live-main-leaf' | 'linked-work-results' | 'set-work-main-visibility' | 'main' | 'work' | 'support'
 export type PiComposeRequest = {
   cwd: string
   title?: string
@@ -18,6 +18,8 @@ export type PiComposeRequest = {
   workspace?: 'shared' | 'worktree'
   activeLeafId?: string
   expectedSourceEntryId?: string
+  creationIntentId?: string
+  role?: 'work' | 'support'
   managedWorktree?: { id: string; path: string }
 }
 export type PiComposeRecord = {
@@ -80,7 +82,19 @@ export type PiComposeLinkedWorkResult = {
   >
   toolActivityTruncated: boolean
 }
+export type PiComposeCreationIntent = {
+  operationId: string
+  mainId: string
+  role: 'work' | 'support'
+  name: string
+  phase: 'requested' | 'workspace-created' | 'prepared'
+  createdAt: string
+  workspace?: { id: string; path: string }
+}
 export type PiComposeApi = {
+  beginWorktreeCreation: (cwd: string, mainId: string, role: 'work' | 'support') => Promise<PiComposeCreationIntent>
+  pendingWorktreeCreation: (cwd: string, mainId: string) => Promise<PiComposeCreationIntent | null>
+  recordWorktreeCreation: (cwd: string, mainId: string, creationIntentId: string, managedWorktree: { id: string; path: string }) => Promise<PiComposeCreationIntent>
   list: (cwd: string) => Promise<PiComposeListRecord[]>
   attach: (cwd: string, id: string, tabId: string, worktreeId: string) => Promise<PiComposeRecord>
   attachChat: (cwd: string, id: string, orcaSessionId: string, worktreeId: string, sessionId: string, replaceClosed?: boolean) => Promise<PiComposeRecord>
@@ -94,6 +108,9 @@ export type PiComposeApi = {
   create: (command: 'main'|'import'|'work'|'support', request: PiComposeRequest) => Promise<PiComposeResult>
 }
 export const piComposeApi: PiComposeApi = {
+  beginWorktreeCreation: (cwd,mainId,role) => ipcRenderer.invoke('pi-compose:execute', 'begin-worktree-creation',{cwd,mainId,role}),
+  pendingWorktreeCreation: (cwd,mainId) => ipcRenderer.invoke('pi-compose:execute', 'pending-worktree-creation',{cwd,mainId}),
+  recordWorktreeCreation: (cwd,mainId,creationIntentId,managedWorktree) => ipcRenderer.invoke('pi-compose:execute','record-worktree-creation',{cwd,mainId,creationIntentId,managedWorktree}),
   list: (cwd) => ipcRenderer.invoke('pi-compose:execute', 'list', { cwd }),
   attach: (cwd,id,tabId,worktreeId) => ipcRenderer.invoke('pi-compose:execute','attach',{cwd,id,tabId,worktreeId}),
   attachChat: (cwd,id,orcaSessionId,worktreeId,sessionId,replaceClosed) => ipcRenderer.invoke('pi-compose:execute','attach-chat',{cwd,id,orcaSessionId,worktreeId,sessionId,replaceClosed}),
