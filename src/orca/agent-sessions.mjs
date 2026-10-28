@@ -196,6 +196,9 @@ export class OrcaAgentStore {
 
   /** Read-only preflight: a Git Worktree must not be created for an invalid Fork. */
   previewMainFork({ mainId, SessionManager, activeLeafId }) {
+    if (typeof activeLeafId !== 'string' || !activeLeafId) {
+      throw new Error('현재 Main Pi RPC의 활성 분기를 확인하지 못했습니다. 추측해서 Fork하지 않습니다.');
+    }
     const main = this.mainWithSavedSession(mainId, SessionManager);
     const snapshot = captureCompletedMain({
       sessionFile: main.sessionFile, sessionId: main.sessionId, activeLeafId
@@ -252,6 +255,9 @@ export class OrcaAgentStore {
       throw new Error('Orca가 생성한 Git Worktree 브랜치를 확인할 수 없습니다.');
     }
     const baseSha = runGit(cwd, 'rev-parse', 'HEAD');
+    if (role === 'work' && (typeof activeLeafId !== 'string' || !activeLeafId)) {
+      throw new Error('Main Pi RPC의 활성 leaf ID 없이 Work를 Fork할 수 없습니다.');
+    }
     const sourceFile = role === 'work'
       ? this.mainWithSavedSession(main.id, SessionManager).sessionFile : null;
     // Capture the source BEFORE mutating Git. Main's original JSONL is read-only.
