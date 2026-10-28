@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 import { realpathSync } from 'node:fs'
 
 type NativeRole = 'main' | 'work' | 'support'
-type NativeCommand = 'list' | 'sessions' | 'import' | 'attach' | 'attach-chat' | 'connection-failed' | 'support-result' | 'preview-work-fork' | 'live-main-leaf' | 'linked-work-results' | 'set-work-main-visibility' | NativeRole
+type NativeCommand = 'begin-worktree-creation' | 'pending-worktree-creation' | 'record-worktree-creation' | 'list' | 'sessions' | 'import' | 'attach' | 'attach-chat' | 'connection-failed' | 'support-result' | 'preview-work-fork' | 'live-main-leaf' | 'linked-work-results' | 'set-work-main-visibility' | NativeRole
 export type NativeComposeRequest = {
   cwd: string
   title?: string
@@ -22,9 +22,11 @@ export type NativeComposeRequest = {
   workspace?: 'shared' | 'worktree'
   activeLeafId?: string
   expectedSourceEntryId?: string
+  creationIntentId?: string
+  role?: 'work' | 'support'
   managedWorktree?: { id: string; path: string }
 }
-const VALID_COMMANDS = new Set<NativeCommand>(['list', 'sessions', 'import', 'attach', 'attach-chat', 'connection-failed', 'support-result', 'preview-work-fork', 'live-main-leaf', 'linked-work-results', 'set-work-main-visibility', 'main', 'work', 'support'])
+const VALID_COMMANDS = new Set<NativeCommand>(['begin-worktree-creation', 'pending-worktree-creation', 'record-worktree-creation', 'list', 'sessions', 'import', 'attach', 'attach-chat', 'connection-failed', 'support-result', 'preview-work-fork', 'live-main-leaf', 'linked-work-results', 'set-work-main-visibility', 'main', 'work', 'support'])
 const TIMEOUT_MS = 90_000
 
 /**
