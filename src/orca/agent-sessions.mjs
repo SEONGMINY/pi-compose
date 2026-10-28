@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync, chmodSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync, chmodSync, linkSync, unlinkSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { captureCompletedMain, forkCompletedMain, readCompleteJsonl } from './completed-main-fork.mjs';
@@ -98,8 +98,22 @@ export class OrcaAgentStore {
   }
   put(record) {
     const path = this.path(record.id);
-    if (existsSync(path)) throw new Error('기존 Agent 정보를 덮어쓰지 않습니다.');
-    atomicJSON(path, record);
+    // A check-then-rename can replace another process's newly written
+    // record. Write a complete temp file and atomically hard-link it into
+    // the destination: linkSync fails with EEXIST instead of replacing data.
+    const temp = path + '.' + randomUUID() + '.tmp';
+    try {
+      writeFileSync(temp, JSON.stringify(record, null, 2) + '\n',
+        { mode: 0o600, flag: 'wx' });
+      linkSync(temp, path);
+    } catch (error) {
+      if (error?.code === 'EEXIST') {
+        throw new Error('같은 Pi Agent 기록이 이미 있습니다. 덮어쓰거나 다시 Fork하지 않습니다.');
+      }
+      throw error;
+    } finally {
+      if (existsSync(temp)) unlinkSync(temp);
+    }
     return record;
   }
   list() {
@@ -549,10 +563,37 @@ export class OrcaAgentStore {
     expectedSourceEntryId, creationIntentId }) {
     const main = this.get(mainId);
     if (!main || main.role !== 'main') throw new Error('등록된 Main을 선택하세요.');
-    return this.prepare({ main, role, title, task, workspace, relatedWorkId,
-      activeLeafId, managedWorktree, expectedSourceEntryId, creationIntentId,
-      SessionManager, projectCwd: projectCwd || main.cwd,
-      launcherPath });
+    // Cross-process lock belongs to Pi child *preparation*, not Orca's Git
+    // workspace owner. Hold it until the Pi child record is durable; another
+    // window must not invoke SessionManager.forkFrom with the same child ID.
+    // On a process crash the file remains as recovery evidence; do not
+    // automatically break a possibly-live or stale lock and risk duplication.
+    const lock = workspace === 'worktree' && creationIntentId
+      ? this.creationIntentPath(mainId) + '.preparing.lock' : null;
+    if (lock) {
+      try {
+        writeFileSync(lock, JSON.stringify({
+          operationId: creationIntentId, pid: process.pid,
+          startedAt: new Date().toISOString()
+        }) + '\n', { flag: 'wx', mode: 0o600 });
+      } catch (error) {
+        if (error?.code === 'EEXIST') {
+          throw new Error('이 Main의 Pi 세션 준비가 이미 진행됐거나 중단된 기록이 있습니다. ' +
+            '중복 Fork를 막기 위해 자동으로 다시 실행하지 않습니다: ' + lock);
+        }
+        throw error;
+      }
+    }
+    try {
+      return this.prepare({ main, role, title, task, workspace, relatedWorkId,
+        activeLeafId, managedWorktree, expectedSourceEntryId, creationIntentId,
+        SessionManager, projectCwd: projectCwd || main.cwd,
+        launcherPath });
+    } finally {
+      // A normal return/exception releases the lock. The creation intent
+      // and any generated Pi JSONL persist independently for recovery.
+      if (lock && existsSync(lock)) unlinkSync(lock);
+    }
   }
   verifyCopiedEntries({ sourceFile, sessionFile, sourceSessionId, targetSessionId,
     sourceEntryCount, sourceEntryIds, sourceEntryId }) {
