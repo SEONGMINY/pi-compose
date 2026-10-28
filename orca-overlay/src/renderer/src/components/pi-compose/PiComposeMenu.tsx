@@ -31,7 +31,7 @@ export function PiComposeMenu(): React.JSX.Element {
   const [agents, setAgents] = useState<PiComposeListRecord[]>([])
   const mains = agents.filter((record) => record.role === 'main')
   const [mainId, setMainId] = useState('')
-  const linkedWorks = agents.filter((record) => record.role === 'work' && record.parentMainId === mainId)
+  const linkedWorks = agents.filter((record) => record.role === 'work' && record.parentMainId === mainId && !record.hiddenFromMainAt)
   const [title, setTitle] = useState('')
   const [mainMode, setMainMode] = useState<'new'|'existing'>('new')
   const [saved, setSaved] = useState<{id:string;title:string;messageCount:number;path:string}[]>([])
