@@ -1,5 +1,7 @@
 # Pi Compose × Orca — Context-first integration (WIP)
 
+> **후속 구현 주의:** 이 문서는 초기 Context-first 구현 시점의 상태 기록입니다. `git worktree add` 직접 호출, 활성 leaf 미연결 등 아래의 미완료 항목은 새 브랜치에서 일부 교정되었습니다. 최신 코드/정적 검증/남은 실기 검증 상태는 [Native-first 통합 문서](./ORCA_BATCH_INTEGRATION_20261028.md)를 먼저 확인하세요. 이 문서의 완료·미완료 표시는 작성 당시 기준입니다.
+
 > 브랜치: `feat/orca-context-first-work-support-20261028`
 >
 > 상태: **부분 구현, macOS Orca GUI 실행/타입 검사/실사용 검증 전**.
