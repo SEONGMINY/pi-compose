@@ -2,13 +2,12 @@ import React, { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useAppStore } from '@/store'
 import { useActiveWorktree } from '@/store/selectors'
-import { createNewTerminalTab } from '@/components/terminal/terminal-tab-create'
 import { activateAndRevealWorkspace } from '@/lib/worktree-activation'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { openWorkspaceCreationComposerWithTourHandoff } from '../contextual-tours/workspace-creation-tour-handoff'
 import type { PiComposeListRecord, PiComposeResult } from '../../../../preload/api/pi-compose-bridge'
-import { openPreparedWorkNativeChat } from './PiComposeNativeChat'
+import { openPreparedPiNativeChat } from './PiComposeNativeChat'
 import { structuredLaunchOwner } from '@/lib/agent-session/structured-agent-session-provisional-tab'
 import { admitStructuredLaunchOnHost } from '@/lib/structured-agent-session-host-admission'
 import { toRuntimeWorktreeSelector } from '@/runtime/runtime-worktree-selector'
@@ -19,10 +18,6 @@ const ROLES: ReadonlyArray<{ id: Role; title: string; description: string }> = [
   { id: 'work', title: 'Work Agent', description: '선택한 Main의 실제 Pi 세션 Fork' },
   { id: 'support', title: 'Support Agent', description: 'Main을 상속하지 않는 독립 조사·테스트' },
 ]
-function shellQuote(path: string): string {
-  return "'" + path.replaceAll("'", "'\\''") + "'"
-}
-
 /**
  * Thin native Orca UI. All session and Git mutations go through main IPC.
  * Pi Compose never reimplements Orca terminals/tabs/worktree navigation.
@@ -138,9 +133,8 @@ export function PiComposeMenu(): React.JSX.Element {
     setBusy(true)
     setError('')
     try {
-      // Check Pi Native Chat support BEFORE creating a persistent Work in a
-      // shared workspace. A definitive refusal must not leave an unusable fork.
-      if (role === 'work' && workspace === 'shared') {
+      // All three roles use the same native chat transport.
+      if (role === 'main' || workspace === 'shared') {
         const owner = structuredLaunchOwner(
           { route: 'structured-native-chat' }, selectedWorktreeId
         )
@@ -190,52 +184,17 @@ export function PiComposeMenu(): React.JSX.Element {
       if (activateAndRevealWorkspace(targetWorktreeId) === false) {
         throw new Error('해당 Orca 작업 공간을 열지 못했습니다. Pi 세션은 준비된 상태로 보존됩니다.')
       }
-      if (role === 'work') {
-        // Adopt the prepared Pi session into Orca's original Native Chat.
-        // There is no initial prompt: the user sends the first Work instruction.
-        try {
-          const chatSessionId = await openPreparedWorkNativeChat(targetWorktreeId, result.record.sessionId)
-          await window.api.piCompose.attachChat(cwd, result.record.id, chatSessionId, targetWorktreeId)
-        } catch (cause) {
-          const message = cause instanceof Error ? cause.message : String(cause)
-          await window.api.piCompose.connectionFailed(cwd, result.record.id, message)
-            .catch(() => { /* original launch failure is the important error */ })
-          window.dispatchEvent(new Event('pi-compose:changed'))
-          throw cause
-        }
+      // Adopt the exact prepared Pi session, with no implicit prompt. For an
+      // already-running TUI import Orca may refuse a second writer; preserve it.
+      try {
+        const chatSessionId = await openPreparedPiNativeChat(targetWorktreeId, result.record.sessionId)
+        await window.api.piCompose.attachChat(cwd, result.record.id, chatSessionId, targetWorktreeId)
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : String(cause)
+        await window.api.piCompose.connectionFailed(cwd, result.record.id, message)
+          .catch(() => { /* preserve initial error */ })
         window.dispatchEvent(new Event('pi-compose:changed'))
-        setOpen(false)
-        setTitle('')
-        setTask('')
-        return
-      }
-      const started = await new Promise<boolean>((resolve) => {
-        createNewTerminalTab(targetWorktreeId, undefined, {
-          startupCwd: result.record.cwd,
-          command: 'sh ' + shellQuote(result.launcher),
-          onSettled: resolve,
-        })
-      })
-      if (!started) {
-        throw new Error('Pi 세션은 준비됐지만 Orca 탭을 열지 못했습니다. 생성 화면에서 다시 생성하지 말고 기존 Agent를 열어주세요.')
-      }
-      // The terminal tab is owned by Orca, not by a second Pi Compose renderer.
-      // Persist both identities so selecting this Agent reuses the live tab.
-      const active = useAppStore.getState().getActiveTab(targetWorktreeId)
-      if (active?.contentType === 'terminal') {
-        useAppStore.getState().setTabCustomLabel(active.id,
-          (role === 'main' ? 'Main · ' : role === 'work' ? 'Work · ' : 'Support · ') +
-          result.record.title.slice(0, 60))
-        try {
-          await window.api.piCompose.attach(cwd,result.record.id,active.id,targetWorktreeId)
-        } catch (cause) {
-          setError('터미널은 열렸지만 Agent와 탭의 연결을 저장하지 못했습니다: ' +
-            (cause instanceof Error ? cause.message : String(cause)))
-          return
-        }
-      } else {
-        setError('Pi 터미널은 생성됐지만 탭 식별을 확인하지 못했습니다. 기존 Agent에서 다시 열 수 있습니다.')
-        return
+        throw cause
       }
       window.dispatchEvent(new Event('pi-compose:changed'))
       setOpen(false)
