@@ -86,13 +86,19 @@ export type PiComposeCreationIntent = {
   operationId: string
   mainId: string
   role: 'work' | 'support'
+  title: string
+  relatedWorkId: string | null
+  activeLeafId: string | null
+  expectedSourceEntryId: string | null
   name: string
   phase: 'requested' | 'workspace-created' | 'prepared'
   createdAt: string
   workspace?: { id: string; path: string }
 }
 export type PiComposeApi = {
-  beginWorktreeCreation: (cwd: string, mainId: string, role: 'work' | 'support') => Promise<PiComposeCreationIntent>
+  beginWorktreeCreation: (cwd: string, mainId: string, role: 'work' | 'support', title: string,
+    relatedWorkId: string | null, activeLeafId: string | null,
+    expectedSourceEntryId: string | null) => Promise<PiComposeCreationIntent>
   pendingWorktreeCreation: (cwd: string, mainId: string) => Promise<PiComposeCreationIntent | null>
   recordWorktreeCreation: (cwd: string, mainId: string, creationIntentId: string, managedWorktree: { id: string; path: string }) => Promise<PiComposeCreationIntent>
   list: (cwd: string) => Promise<PiComposeListRecord[]>
@@ -108,7 +114,10 @@ export type PiComposeApi = {
   create: (command: 'main'|'import'|'work'|'support', request: PiComposeRequest) => Promise<PiComposeResult>
 }
 export const piComposeApi: PiComposeApi = {
-  beginWorktreeCreation: (cwd,mainId,role) => ipcRenderer.invoke('pi-compose:execute', 'begin-worktree-creation',{cwd,mainId,role}),
+  beginWorktreeCreation: (cwd,mainId,role,title,relatedWorkId,activeLeafId,expectedSourceEntryId) =>
+    ipcRenderer.invoke('pi-compose:execute','begin-worktree-creation',{
+      cwd,mainId,role,title,relatedWorkId,activeLeafId,expectedSourceEntryId
+    }),
   pendingWorktreeCreation: (cwd,mainId) => ipcRenderer.invoke('pi-compose:execute', 'pending-worktree-creation',{cwd,mainId}),
   recordWorktreeCreation: (cwd,mainId,creationIntentId,managedWorktree) => ipcRenderer.invoke('pi-compose:execute','record-worktree-creation',{cwd,mainId,creationIntentId,managedWorktree}),
   list: (cwd) => ipcRenderer.invoke('pi-compose:execute', 'list', { cwd }),
