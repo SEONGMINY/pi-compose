@@ -42,11 +42,16 @@ export default function orcaComposeExtension(pi) {
       );
       if (!task?.trim()) return;
       const selection = await ctx.ui.select('작업 폴더 (컨텍스트 유형과는 별개)',
-        ['별도 Git Worktree', '현재 작업 폴더 공유']);
+        ['현재 작업 폴더 공유', 'Orca 관리 Git Worktree']);
       if (!selection) return;
-      const workspace = selection.startsWith('별도') ? 'worktree' : 'shared';
+      if (selection.startsWith('Orca')) {
+        ctx.ui.notify('별도 Worktree 생성은 Orca의 기존 Worktree 생성 기능을 사용합니다. Orca에서 Main 대화의 Work 생성 메뉴를 이용해 주세요. Pi CLI에서 Git Worktree를 직접 만들지 않습니다.', 'info');
+        return;
+      }
+      const activeLeafId = ctx.sessionManager.getLeafId();
       const record = store.prepare({
-        role, main, task, workspace, SessionManager, projectCwd: ctx.cwd,
+        role, main, task, workspace: 'shared', SessionManager, projectCwd: ctx.cwd,
+        ...(role === 'work' && activeLeafId ? { activeLeafId } : {}),
         launcherPath: { extension, piBinary: process.env.PI_COMPOSE_PI_BINARY || 'pi' },
       });
       ctx.ui.notify(displayLaunch(record), 'info');
