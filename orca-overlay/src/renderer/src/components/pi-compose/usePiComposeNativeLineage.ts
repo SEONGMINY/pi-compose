@@ -62,7 +62,10 @@ export function usePiComposeNativeLineage(
     const visible = snapshot.records.filter(record =>
       record.orcaWorktreeId === worktreeId &&
       record.orcaSessionId &&
-      (record.role !== 'work' || !record.hiddenFromMainAt)
+      // A metadata parentMainId alone cannot prove a Pi Fork. An unverified
+      // Work remains accessible at its genuine Orca location, but is not
+      // presented as the Main's proven conversation child.
+      (record.role !== 'work' || (!record.hiddenFromMainAt && record.proof?.allMatch === true))
     )
     const byId = new Map(visible.map(record => [record.id, record]))
     for (const record of visible) {
