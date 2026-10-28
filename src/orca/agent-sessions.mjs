@@ -334,7 +334,6 @@ export class OrcaAgentStore {
     const leafMatches = !sourceEntryId ||
       (expected > 0 && target[expected - 1]?.id === sourceEntryId);
     const allMatch = header?.type === 'session' &&
-      header.id === targetRows[0]?.id &&
       resolve(header?.parentSession || '') === resolve(sourceFile) &&
       leafMatches && copied === expected && target.length >= expected;
     return { allMatch, copied, expected, leafMatches };
