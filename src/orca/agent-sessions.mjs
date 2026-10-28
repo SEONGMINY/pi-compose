@@ -362,7 +362,9 @@ export class OrcaAgentStore {
         mainId:main.id, operationId:creationIntentId, role, managedWorktree
       });
     }
-    const id = randomUUID();
+    // A managed-Worktree operation has one stable Pi child identity too.
+    // An interrupted bridge response must never silently fork to a new UUID.
+    const id = creationIntentId || randomUUID();
     // Orca is the ONLY owner of Git Worktree creation, registration and
     // cleanup. A Compose record references the managed workspace it returned.
     if (workspace === 'worktree' &&
@@ -393,9 +395,56 @@ export class OrcaAgentStore {
     if (snapshot && expectedSourceEntryId && snapshot.sourceEntryId !== expectedSourceEntryId) {
       throw new Error('Main 대화가 Work 생성 전 변경됐습니다. 새 Fork 출처를 확인해 주세요.');
     }
+    // A previous bridge may have saved the Compose record but crashed before
+    // marking its creation receipt. Return only the same proven child, never
+    // invent a second session for the same operation.
+    const existingRecord = creationIntentId ? this.get(id) : null;
+    if (existingRecord) {
+      if (existingRecord.creationIntentId !== creationIntentId ||
+          existingRecord.parentMainId !== main.id ||
+          existingRecord.role !== role ||
+          resolve(existingRecord.cwd) !== cwd ||
+          existingRecord.orcaWorktreeId !== managedWorktree?.id ||
+          (snapshot && !this.verifyCopiedEntries({
+            sourceFile:existingRecord.sourceSessionFile,
+            sessionFile:existingRecord.sessionFile,
+            sourceSessionId:existingRecord.sourceSessionId,
+            targetSessionId:existingRecord.sessionId,
+            sourceEntryCount:existingRecord.sourceEntryCount,
+            sourceEntryIds:existingRecord.sourceEntryIds,
+            sourceEntryId:existingRecord.sourceEntryId
+          }).allMatch)) {
+        throw new Error('기존 생성 의도의 Pi 기록이 일치하지 않습니다. 원본을 보존하고 중단합니다.');
+      }
+      return existingRecord;
+    }
     let sessionId;
     let sessionFile = null;
-    if (snapshot) {
+    // SessionManager can have written the fork even when a later launcher or
+    // Compose metadata write failed. Only adopt that file after exact
+    // source/target Pi identities and inherited entry content are verified.
+    const priorFile = creationIntentId
+      ? SessionManager.findById(cwd, id) : null;
+    if (priorFile && existsSync(priorFile)) {
+      if (snapshot) {
+        const proof = this.verifyCopiedEntries({
+          sourceFile:sourceFile,
+          sessionFile:priorFile,
+          sourceSessionId:snapshot.sourceSessionId,
+          targetSessionId:id,
+          sourceEntryCount:snapshot.entries.length,
+          sourceEntryIds:snapshot.sourceEntryIds,
+          sourceEntryId:snapshot.sourceEntryId
+        });
+        if (!proof.allMatch) {
+          throw new Error('이전 Work Fork 파일이 현재 Main 분기와 일치하지 않습니다. 중복 생성하지 않습니다.');
+        }
+      } else if (headerOf(priorFile).id !== id) {
+        throw new Error('기존 Support Pi 기록 ID가 다릅니다. 원본을 보존합니다.');
+      }
+      sessionId = id;
+      sessionFile = priorFile;
+    } else if (snapshot) {
       try {
         const fork = forkCompletedMain({ snapshot, targetCwd: cwd, id, SessionManager });
         sessionId = fork.sessionId;
@@ -414,8 +463,16 @@ export class OrcaAgentStore {
     const command = [q(launcherPath.piBinary || 'pi'), ...args.map(q)].join(' ');
     // This launch only opens an existing/fresh session. Never auto-submit an
     // initial development instruction; each Work starts when the user types.
-    writeFileSync(scriptPath, '#!/bin/sh\ncd ' + q(cwd) + '\nexec ' + command + '\n',
-      { mode: 0o700, flag: 'wx' });
+    const scriptBody = '#!/bin/sh\ncd ' + q(cwd) + '\nexec ' + command + '\n';
+    if (existsSync(scriptPath)) {
+      // The preceding attempt may have written its launcher before the
+      // metadata commit. Never overwrite a different user's local script.
+      if (!creationIntentId || readFileSync(scriptPath, 'utf8') !== scriptBody) {
+        throw new Error('기존 Pi 실행 스크립트가 달라 덮어쓰지 않습니다: ' + scriptPath);
+      }
+    } else {
+      writeFileSync(scriptPath, scriptBody, { mode: 0o700, flag: 'wx' });
+    }
     chmodSync(scriptPath, 0o700);
 
     const label = (title || task || (role === 'work' ? '새 Work' : '새 Support')).trim();
