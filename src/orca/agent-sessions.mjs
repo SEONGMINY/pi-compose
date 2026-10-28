@@ -139,11 +139,25 @@ export class OrcaAgentStore {
     }
     return intent;
   }
-  beginCreation({ mainId, role, cwd }) {
+  beginCreation({ mainId, role, cwd, title, relatedWorkId = null,
+    activeLeafId = null, expectedSourceEntryId = null }) {
     const main = this.get(mainId);
     if (!main || main.role !== 'main' || !['work','support'].includes(role) ||
         projectRootOf(cwd) !== main.projectRoot) {
       throw new Error('동일 프로젝트의 Main에서만 별도 작업 공간을 만들 수 있습니다.');
+    }
+    const label = typeof title === 'string' ? title.trim() : '';
+    if (!label || label.length > 200 ||
+        (role === 'work' && (!activeLeafId || !expectedSourceEntryId)) ||
+        (role === 'support' && (activeLeafId || expectedSourceEntryId))) {
+      throw new Error('작업 이름 또는 Main Fork 기준점이 올바르지 않습니다.');
+    }
+    if (relatedWorkId) {
+      const related = this.get(relatedWorkId);
+      if (role !== 'support' || !related || related.role !== 'work' ||
+          related.parentMainId !== mainId || related.projectRoot !== main.projectRoot) {
+        throw new Error('Support가 참조하는 Work가 원래 Main과 다릅니다.');
+      }
     }
     const file = this.creationIntentPath(mainId);
     mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
@@ -152,7 +166,8 @@ export class OrcaAgentStore {
     this.pendingCreation(mainId);
     const operationId = randomUUID();
     const intent = {
-      operationId, mainId, role, projectRoot: main.projectRoot,
+      operationId, mainId, role, projectRoot: main.projectRoot, title:label,
+      relatedWorkId, activeLeafId, expectedSourceEntryId,
       name: 'compose-' + role + '-' + operationId.slice(0, 8),
       phase: 'requested', createdAt: new Date().toISOString()
     };
@@ -195,11 +210,16 @@ export class OrcaAgentStore {
     atomicJSON(this.creationIntentPath(mainId), next);
     return next;
   }
-  assertCreationReceipt({ mainId, operationId, role, managedWorktree }) {
+  assertCreationReceipt({ mainId, operationId, role, managedWorktree,
+    title, relatedWorkId = null, activeLeafId = null, expectedSourceEntryId = null }) {
     const intent = this.pendingCreation(mainId);
     if (!intent || intent.operationId !== operationId ||
         intent.mainId !== mainId || intent.role !== role ||
         intent.phase !== 'workspace-created' ||
+        intent.title !== (typeof title === 'string' ? title.trim() : '') ||
+        (intent.relatedWorkId || null) !== (relatedWorkId || null) ||
+        (intent.activeLeafId || null) !== (activeLeafId || null) ||
+        (intent.expectedSourceEntryId || null) !== (expectedSourceEntryId || null) ||
         intent.workspace?.id !== managedWorktree?.id ||
         resolve(intent.workspace?.path || '') !== resolve(managedWorktree?.path || '')) {
       throw new Error('원래 생성한 Orca Worktree 영수증과 작업 요청이 일치하지 않습니다.');
@@ -387,7 +407,8 @@ export class OrcaAgentStore {
         throw new Error('Orca Worktree 생성 의도 ID가 없어 새 Pi 세션을 준비하지 않습니다.');
       }
       this.assertCreationReceipt({
-        mainId:main.id, operationId:creationIntentId, role, managedWorktree
+        mainId:main.id, operationId:creationIntentId, role, managedWorktree,
+        title:title || task, relatedWorkId, activeLeafId, expectedSourceEntryId
       });
     }
     // A managed-Worktree operation has one stable Pi child identity too.
@@ -431,6 +452,8 @@ export class OrcaAgentStore {
       if (existingRecord.creationIntentId !== creationIntentId ||
           existingRecord.parentMainId !== main.id ||
           existingRecord.role !== role ||
+          existingRecord.title !== (title || task || '').trim().slice(0, 100) ||
+          (existingRecord.relatedWorkId || null) !== (relatedWorkId || null) ||
           resolve(existingRecord.cwd) !== cwd ||
           existingRecord.orcaWorktreeId !== managedWorktree?.id ||
           (snapshot && !this.verifyCopiedEntries({
