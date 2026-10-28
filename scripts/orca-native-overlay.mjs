@@ -198,6 +198,40 @@ const patches = [
   }
 ]
 
+// Previously enabled without the P2 owner/UX decision. These are *reversal*
+// contracts, not new hooks. Only reverse a file whose bytes match our last
+// manifest, so user edits or an unknown Orca version are never overwritten.
+const retiredCrossWorktreePatches = [
+  {
+    path: "src/renderer/src/components/sidebar/WorktreeCardAgents.tsx",
+    before: "import { buildAgentRowLineageTree } from '@/components/dashboard/agent-row-lineage-model'",
+    after: "import { buildAgentRowLineageTree } from '@/components/dashboard/agent-row-lineage-model'\nimport { PiComposeCrossWorktreeAgentRef, usePiComposeCrossWorktreeAgentRefs } from '../pi-compose/PiComposeCrossWorktreeAgentRefs'",
+    secondBefore: "  const hasLineage = childrenByParentPaneKey.size > 0",
+    secondAfter: "  const crossWorktreeRefs = usePiComposeCrossWorktreeAgentRefs(worktreeId, visibleAgents)\n  const hasLineage = childrenByParentPaneKey.size > 0 || crossWorktreeRefs.size > 0"
+  }
+  ,{
+    path: "src/renderer/src/components/sidebar/WorktreeCardAgents.tsx",
+    before: "  const renderAgentBranch = (\n    agent: DashboardAgentRowData,\n    ancestorPaneKeys: ReadonlySet<string> = new Set()\n  ): React.ReactNode => {\n    if (ancestorPaneKeys.has(agent.paneKey)) {\n      // External lineage metadata may cycle; reject repeated ancestors before recursion.\n      return null\n    }\n    const childAgents = childrenByParentPaneKey.get(agent.paneKey) ?? []\n    const hasChildAgents = childAgents.length > 0",
+    after: "  const renderAgentBranch = (\n    agent: DashboardAgentRowData,\n    ancestorPaneKeys: ReadonlySet<string> = new Set()\n  ): React.ReactNode => {\n    if (ancestorPaneKeys.has(agent.paneKey)) {\n      // External lineage metadata may cycle; reject repeated ancestors before recursion.\n      return null\n    }\n    const childAgents = childrenByParentPaneKey.get(agent.paneKey) ?? []\n    const crossRefs = crossWorktreeRefs.get(agent.paneKey) ?? []\n    const hasChildAgents = childAgents.length + crossRefs.length > 0",
+    secondBefore: "  const renderCompactAgentBranch = (\n    agent: DashboardAgentRowData,\n    ancestorPaneKeys: ReadonlySet<string> = new Set(),\n    cacheTimerActive = true\n  ): React.ReactNode => {\n    if (ancestorPaneKeys.has(agent.paneKey)) {\n      return null\n    }\n    const childAgents = childrenByParentPaneKey.get(agent.paneKey) ?? []\n    const hasChildAgents = childAgents.length > 0",
+    secondAfter: "  const renderCompactAgentBranch = (\n    agent: DashboardAgentRowData,\n    ancestorPaneKeys: ReadonlySet<string> = new Set(),\n    cacheTimerActive = true\n  ): React.ReactNode => {\n    if (ancestorPaneKeys.has(agent.paneKey)) {\n      return null\n    }\n    const childAgents = childrenByParentPaneKey.get(agent.paneKey) ?? []\n    const crossRefs = crossWorktreeRefs.get(agent.paneKey) ?? []\n    const hasChildAgents = childAgents.length + crossRefs.length > 0"
+  }
+  ,{
+    path: "src/renderer/src/components/sidebar/WorktreeCardAgents.tsx",
+    before: "childAgentCount={hasChildAgents ? childAgents.length : undefined}",
+    after: "childAgentCount={hasChildAgents ? childAgents.length + crossRefs.length : undefined}",
+    secondBefore: "              renderAgentBranch(childAgent, descendantAncestorPaneKeys)\n            )}",
+    secondAfter: "              renderAgentBranch(childAgent, descendantAncestorPaneKeys)\n            )}\n            {crossRefs.map(refRecord => (\n              <PiComposeCrossWorktreeAgentRef\n                key={refRecord.id}\n                refRecord={refRecord}\n                mainId={refRecord.parentMainId!}\n                cwd={useAppStore.getState().getKnownWorktreeById(worktreeId)?.path ?? ''}\n                compact={false}\n              />\n            ))}"
+  }
+  ,{
+    path: "src/renderer/src/components/sidebar/WorktreeCardAgents.tsx",
+    before: "childAgentCount={hasChildAgents ? childAgents.length : undefined}",
+    after: "childAgentCount={hasChildAgents ? childAgents.length + crossRefs.length : undefined}",
+    secondBefore: "                )\n              )}\n            </div>",
+    secondAfter: "                  )\n                )}\n                {crossRefs.map(refRecord => (\n                  <PiComposeCrossWorktreeAgentRef\n                    key={refRecord.id}\n                    refRecord={refRecord}\n                    mainId={refRecord.parentMainId!}\n                    cwd={useAppStore.getState().getKnownWorktreeById(worktreeId)?.path ?? ''}\n                    compact\n                  />\n                ))}\n              </div>"
+  }
+]
+
 const additions = [
   'src/main/pi-compose-ipc.ts',
   'src/preload/api/pi-compose-bridge.ts',
@@ -224,6 +258,26 @@ export function applyOrcaOverlay(orca, piComposeRoot) {
   const hash = text => createHash('sha256').update(text).digest('hex')
   const nextFiles = {}
   const staged = new Map()
+  // A prior pi-compose overlay may already have displayed duplicated remote
+  // Agent rows. Simply removing hooks would leave those bytes active on the
+  // user's existing checkout. Reverse only our known, manifest-owned patches;
+  // never clean, delete, or reset the user's Orca checkout.
+  for (const patch of [...retiredCrossWorktreePatches].reverse()) {
+    const path = join(orca, patch.path)
+    const previousPatch = previous.patchedFiles?.[patch.path]
+    if (!previousPatch) continue
+    const source = staged.get(path) ?? readFileSync(path, 'utf8')
+    if (!staged.has(path) && hash(source) !== previousPatch.hash) {
+      throw new Error('Orca 원본에 사용자 변경이 있어 교차 Worktree 표시를 자동 수정하지 않습니다: ' + patch.path)
+    }
+    let result = source
+    for (const [from, to] of [
+      [patch.secondAfter, patch.secondBefore], [patch.after, patch.before]
+    ]) {
+      if (result.includes(from)) result = result.replace(from, to)
+    }
+    staged.set(path, result)
+  }
   // Later patches may intentionally refine earlier patches in the SAME file.
   // Compare the whole applied patch set, not individual intermediate strings:
   // a second prepare must not reapply an intermediate transformation.
