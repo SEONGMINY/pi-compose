@@ -6,6 +6,8 @@ import type { PiComposeLinkedWorkResult } from '../../../../preload/api/pi-compo
 import { NativeChatExpandable } from '../native-chat/NativeChatExpandable'
 import { NativeChatToolRun } from '../native-chat/NativeChatToolRun'
 import { MessageRow } from '../native-chat/NativeChatMessageRow'
+import { NativeChatWorkingStatus } from '../native-chat/NativeChatWorkingStatus'
+import { NativeChatReasoningRow } from '../native-chat/NativeChatReasoningRow'
 
 /**
  * READ-ONLY view into another Pi session. It does not send a user/assistant
@@ -97,21 +99,39 @@ function WorkReport({work}: {work:PiComposeLinkedWorkResult}): React.JSX.Element
     timestamp: work.observedAt ? Date.parse(work.observedAt) : null
   }
   return <div className="border-t border-border pt-2">
-    <button type="button"
-      aria-expanded={open}
-      onClick={() => setOpen(previous => !previous)}
-      className="flex w-full items-start gap-2 rounded-md px-1 py-1 text-left font-sans text-sm text-chat-foreground hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-      <ChevronRight aria-hidden="true" className={cn(
-        'mt-0.5 size-3.5 shrink-0 transition-transform motion-reduce:transition-none',
-        open && 'rotate-90'
-      )}/>
-      <span className="min-w-0">
-        <span className="block text-chat-foreground-faint">연결된 Work · {work.workTitle}</span>
-        <span className="block break-words">{firstLine}</span>
-      </span>
-    </button>
+    <div className="min-w-0 px-1 text-sm">
+      <span className="block text-chat-foreground-faint">연결된 Work · {work.workTitle}</span>
+      <span className="block truncate text-chat-foreground">{firstLine}</span>
+    </div>
+    {work.workedSeconds !== null ? (
+      <NativeChatWorkingStatus
+        startedAt={null}
+        workedSeconds={work.workedSeconds}
+        expanded={open}
+        onToggleExpanded={() => setOpen(previous => !previous)}
+      />
+    ) : (
+      <button type="button" aria-expanded={open}
+        onClick={() => setOpen(previous => !previous)}
+        className="flex min-h-8 w-full items-center gap-2 border-b border-border text-left text-sm text-chat-foreground-faint">
+        <span>Work 응답 상세</span>
+        <ChevronRight aria-hidden="true" className={cn(
+          'size-3.5 transition-transform motion-reduce:transition-none', open && 'rotate-90'
+        )}/>
+      </button>
+    )}
     <NativeChatExpandable open={open}>
       <div className="space-y-3 pl-5 pt-3">
+        {work.reasoning.map(item => (
+          <NativeChatReasoningRow key={item.id}
+            message={{
+              id:item.id,
+              role:'reasoning',
+              timestamp:item.timestamp ? Date.parse(item.timestamp) : null
+            }}
+            markdown={item.text}
+          />
+        ))}
         {work.reportText ? (
           <MessageRow
             message={reportMessage}
