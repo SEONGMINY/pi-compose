@@ -127,9 +127,9 @@ function WorkReport({work}: {work:PiComposeLinkedWorkResult}): React.JSX.Element
             followsProse={Boolean(work.reportText)}
           />
         ) : null}
-        {work.truncated ? (
+        {work.truncated || work.toolActivityTruncated ? (
           <p className="text-xs text-chat-foreground-faint">
-            긴 결과의 일부만 표시합니다. 전체 원본은 Work 대화에 보존되어 있습니다.
+            실행 내역의 일부만 표시할 수 있습니다. 전체 기록은 Orca의 Work 대화에 보존되어 있습니다.
           </p>
         ) : null}
       </div>
