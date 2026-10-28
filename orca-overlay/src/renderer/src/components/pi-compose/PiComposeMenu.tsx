@@ -196,7 +196,7 @@ export function PiComposeMenu(): React.JSX.Element {
       }
       const liveLeaf = sourceMain?.orcaSessionId && sourceMain.orcaWorktreeId
         ? await window.api.piCompose.liveMainLeaf(
-            cwd, sourceMain.orcaSessionId, sourceMain.orcaWorktreeId
+            cwd, sourceMain.orcaSessionId, sourceMain.orcaWorktreeId, sourceMain.sessionId
           ) : null
       const forkPreview = role === 'work'
         ? await window.api.piCompose.previewWorkFork(cwd, mainId, liveLeaf!.activeLeafId)
