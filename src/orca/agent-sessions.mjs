@@ -110,6 +110,93 @@ export class OrcaAgentStore {
       }).filter(Boolean).sort((a,b) => a.createdAt.localeCompare(b.createdAt));
   }
   /**
+   * A persistent creation *intent*, never another Worktree owner. Orca still
+   * creates and owns the checkout. The one-per-Main admission file prevents a
+   * restarted or second Compose window from silently inventing a fresh branch
+   * while a previous host response is unresolved.
+   */
+  creationIntentPath(mainId) {
+    if (!/^main-[a-f0-9-]{36}$/.test(mainId)) throw new Error('잘못된 Main ID입니다.');
+    return join(this.root, 'creation-intents', mainId + '.json');
+  }
+  pendingCreation(mainId) {
+    const path = this.creationIntentPath(mainId);
+    return existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null;
+  }
+  beginCreation({ mainId, role, cwd }) {
+    const main = this.get(mainId);
+    if (!main || main.role !== 'main' || !['work','support'].includes(role) ||
+        projectRootOf(cwd) !== main.projectRoot) {
+      throw new Error('동일 프로젝트의 Main에서만 별도 작업 공간을 만들 수 있습니다.');
+    }
+    const file = this.creationIntentPath(mainId);
+    mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+    const operationId = randomUUID();
+    const intent = {
+      operationId, mainId, role, projectRoot: main.projectRoot,
+      name: 'compose-' + role + '-' + operationId.slice(0, 8),
+      phase: 'requested', createdAt: new Date().toISOString()
+    };
+    try {
+      // O_EXCL makes admission atomic across separate Electron windows and
+      // short-lived bridge processes. No implicit expiration after a crash.
+      writeFileSync(file, JSON.stringify(intent, null, 2) + '\n',
+        { mode: 0o600, flag: 'wx' });
+    } catch (error) {
+      if (error?.code === 'EEXIST') {
+        throw new Error('이 Main의 이전 Orca 작업 공간 생성 요청을 먼저 확인해야 합니다. ' +
+          '기록: ' + (this.pendingCreation(mainId)?.name || mainId) +
+          '. 확인 전 새 Worktree를 중복 생성하지 않습니다.');
+      }
+      throw error;
+    }
+    return intent;
+  }
+  recordCreatedWorkspace({ mainId, operationId, workspace }) {
+    const intent = this.pendingCreation(mainId);
+    if (!intent || intent.operationId !== operationId ||
+        intent.phase !== 'requested' ||
+        typeof workspace?.id !== 'string' || !workspace.id ||
+        typeof workspace?.path !== 'string' ||
+        projectRootOf(workspace.path) !== intent.projectRoot) {
+      throw new Error('Orca 작업 공간 생성 영수증이 기존 요청과 일치하지 않습니다.');
+    }
+    const next = { ...intent, phase: 'workspace-created', workspace: {
+      id: workspace.id, path: resolve(workspace.path)
+    }};
+    atomicJSON(this.creationIntentPath(mainId), next);
+    return next;
+  }
+  assertCreationReceipt({ mainId, operationId, role, managedWorktree }) {
+    const intent = this.pendingCreation(mainId);
+    if (!intent || intent.operationId !== operationId ||
+        intent.mainId !== mainId || intent.role !== role ||
+        intent.phase !== 'workspace-created' ||
+        intent.workspace?.id !== managedWorktree?.id ||
+        resolve(intent.workspace?.path || '') !== resolve(managedWorktree?.path || '')) {
+      throw new Error('원래 생성한 Orca Worktree 영수증과 작업 요청이 일치하지 않습니다.');
+    }
+    return intent;
+  }
+  finishCreation({ mainId, operationId, agentId }) {
+    const intent = this.pendingCreation(mainId);
+    const agent = this.get(agentId);
+    if (!intent || intent.operationId !== operationId ||
+        intent.phase !== 'workspace-created' || !agent ||
+        agent.creationIntentId !== operationId ||
+        agent.parentMainId !== mainId ||
+        agent.orcaWorktreeId !== intent.workspace.id ||
+        resolve(agent.cwd) !== intent.workspace.path) {
+      throw new Error('준비된 Pi 세션과 원래 Worktree 생성 영수증이 다릅니다. 기록을 보존합니다.');
+    }
+    const activePath = this.creationIntentPath(mainId);
+    const completedPath = join(dirname(activePath), operationId + '.completed.json');
+    // Never delete the operation record: retain evidence for reconciliation.
+    atomicJSON(activePath, { ...intent, phase:'prepared', agentId });
+    renameSync(activePath, completedPath);
+    return { ...intent, phase:'prepared', agentId };
+  }
+  /**
    * Native Orca action can open a Main without requiring /compose-main.
    * Pi creates the actual JSONL after the first conversation message.
    * The UUID is pinned BEFORE launch so an arbitrary recent session is never used.
@@ -252,7 +339,7 @@ export class OrcaAgentStore {
    */
   prepare({ role, main, title, task, workspace, SessionManager, projectCwd,
     launcherPath, relatedWorkId = null, activeLeafId, managedWorktree = null,
-    expectedSourceEntryId = null }) {
+    expectedSourceEntryId = null, creationIntentId = null }) {
     if (!['work','support'].includes(role)) throw new Error('Work 또는 Support만 만들 수 있습니다.');
     if (!['shared','worktree'].includes(workspace)) throw new Error('잘못된 작업 공간입니다.');
     if (!main || main.role !== 'main' || !this.get(main.id)) {
@@ -266,6 +353,14 @@ export class OrcaAgentStore {
           linked.parentMainId !== main.id || linked.projectRoot !== root) {
         throw new Error('Support의 연결 대상은 동일한 Main에 속한 Work여야 합니다.');
       }
+    }
+    if (workspace === 'worktree') {
+      if (!creationIntentId) {
+        throw new Error('Orca Worktree 생성 의도 ID가 없어 새 Pi 세션을 준비하지 않습니다.');
+      }
+      this.assertCreationReceipt({
+        mainId:main.id, operationId:creationIntentId, role, managedWorktree
+      });
     }
     const id = randomUUID();
     // Orca is the ONLY owner of Git Worktree creation, registration and
@@ -331,6 +426,7 @@ export class OrcaAgentStore {
       ...(relatedWorkId ? { relatedWorkId } : {}),
       projectRoot: root, cwd, workspace, branch, baseSha,
       ...(managedWorktree ? { orcaWorktreeId: managedWorktree.id } : {}),
+      ...(creationIntentId ? { creationIntentId } : {}),
       sourceSessionFile: sourceFile, sourceSessionId: snapshot?.sourceSessionId || null,
       sourceEntryId: snapshot?.sourceEntryId || null,
       sourceEntryIds: snapshot?.sourceEntryIds || [],
@@ -342,11 +438,11 @@ export class OrcaAgentStore {
   }
   prepareForMain({ mainId, role, title, task, workspace, relatedWorkId,
     activeLeafId, SessionManager, launcherPath, projectCwd, managedWorktree,
-    expectedSourceEntryId }) {
+    expectedSourceEntryId, creationIntentId }) {
     const main = this.get(mainId);
     if (!main || main.role !== 'main') throw new Error('등록된 Main을 선택하세요.');
     return this.prepare({ main, role, title, task, workspace, relatedWorkId,
-      activeLeafId, managedWorktree, expectedSourceEntryId,
+      activeLeafId, managedWorktree, expectedSourceEntryId, creationIntentId,
       SessionManager, projectCwd: projectCwd || main.cwd,
       launcherPath });
   }
