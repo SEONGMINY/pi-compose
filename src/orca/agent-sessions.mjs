@@ -189,7 +189,11 @@ export class OrcaAgentStore {
     const cwd = workspace === 'worktree'
       ? join(dirname(root), basename(root) + '-compose-' + id.slice(0, 8))
       : resolve(projectCwd || main.cwd);
-    const baseSha = runGit(root, 'rev-parse', 'HEAD');
+    const selectedCwd = resolve(projectCwd || main.cwd);
+    if (projectRootOf(selectedCwd) !== root) {
+      throw new Error('선택한 작업 디렉터리는 Main과 같은 Git 프로젝트여야 합니다.');
+    }
+    const baseSha = runGit(selectedCwd, 'rev-parse', 'HEAD');
     const sourceFile = role === 'work'
       ? this.mainWithSavedSession(main.id, SessionManager).sessionFile : null;
     // Capture the source BEFORE mutating Git. Main's original JSONL is read-only.
