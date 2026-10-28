@@ -179,13 +179,13 @@ npm run orca:dev
 
 1. Orca host 응답이 없고 등록 목록에서도 **동일한 기존 Worktree를 증명할 수 없는 상태**에는 생성 인텐트를 그대로 보존한다. 안전하게 존재하지 않음을 입증하기 전 자동으로 인텐트를 폐기하거나 새 생성을 재개하지 않는다. 이 경우 사용자에게 원본 Orca/Git 상태 점검이 필요하다.
 2. 생성된 Git Worktree가 Orca의 이름 충돌 처리로 다른 브랜치명을 받은 경우, 현재 자동 복구는 그 브랜치를 추측하지 않는다.
-3. 두 개의 앱 창, 강제 종료, writer 경합, 여러 호스트에서의 인텐트·영수증·Pi 세션 관리 실제 실기는 검증되지 않았다.
+3. 두 개의 앱 창, 강제 종료, writer 경합, 여러 호스트에서의 인텐트·영수증·Pi 세션 관리 실제 실기는 검증되지 않았다. **재개할 때 작업명/Support 연결/실제 Main 활성 leaf·완료 지점이 최초 의도와 다르면 실패 보존**한다. 최초 기준으로 자동 Fork를 재구성하거나 다른 분기로 넘어가지 않는다.
 4. `OrcaAgentStore`는 여전히 실행/세션 연결을 위한 일부 legacy 메타데이터를 보유한다. Orca 자체 lifecycle을 완전히 대체한 뒤 코드 삭제하기 전까지 P6 종료 아님.
 5. 기존 `test:orca`는 이전 P0/P1 계약을 기대해 실패. **새 CI·테스트 코드를 추가하지 않았고**, 기존 검증을 실제 고정 Orca 타입 검사와 분리해 기록한다.
 
 ### 변경한 파일
 
-- `src/orca/agent-sessions.mjs`: 영속 생성 의도, 독점 예약, 영수증, 기존 Fork 확인·재사용, 완료 기록 보관.
+- `src/orca/agent-sessions.mjs`: 영속 생성 의도(작업명·Support 연결·Main 활성 leaf 및 완료 응답 ID 고정), 독점 예약, 영수증, 동일 Pi 자식 ID의 기존 Fork 검증·재사용, 완료 기록 보관.
 - `scripts/orca-native-bridge.mjs`: 안전한 생성 intent 명령과 Work/Support 준비 연동.
 - `orca-overlay/src/main/pi-compose-ipc.ts` / `orca-overlay/src/preload/api/pi-compose-bridge.ts`: 새로운 좁은 IPC 계약.
 - `orca-overlay/src/renderer/src/components/pi-compose/PiComposeMenu.tsx`: 재시작 후 영수증 사용, 응답 분실 시 사용자 명시적 원본 확인.
