@@ -5,7 +5,7 @@ import { activateAndRevealWorkspace } from '@/lib/worktree-activation'
 import { activateStructuredAgentSessionById } from '@/lib/agent-session/structured-agent-session-tab-activation'
 import { useAppStore } from '@/store'
 import { cn } from '@/lib/utils'
-import type { PiComposeLinkedWorkResult } from '../../../../preload/api/pi-compose-bridge'
+import type { PiComposeLinkedWorkResult, PiComposeLinkedWorkSnapshot } from '../../../../preload/api/pi-compose-bridge'
 import { NativeChatExpandable } from '../native-chat/NativeChatExpandable'
 import { NativeChatToolRun } from '../native-chat/NativeChatToolRun'
 import { MessageRow } from '../native-chat/NativeChatMessageRow'
@@ -38,8 +38,8 @@ export function PiComposeLinkedWorkReports({
   const [unavailableSessionId, setUnavailableSessionId] = useState<string | null>(null)
   const [reports, setReports] = useState<{
     sessionId: string
-    items: PiComposeLinkedWorkResult[]
-  }>({ sessionId: '', items: [] })
+    snapshot: PiComposeLinkedWorkSnapshot
+  }>({ sessionId: '', snapshot: {items:[], unavailable:[], omittedWorkCount:0} })
   // A late Work read from a previously selected Main must not be displayed
   // under a different Main. Focus, Compose changes and polling share this fence.
   const readEpoch = useRef(0)
@@ -61,13 +61,13 @@ export function PiComposeLinkedWorkReports({
         ).map(record => record.title) : []
       })
       if (!selected) {
-        setReports({sessionId:orcaSessionId,items:[]})
+        setReports({sessionId:orcaSessionId,snapshot:{items:[],unavailable:[],omittedWorkCount:0}})
         setUnavailableSessionId(null)
         return
       }
-      const items = await window.api.piCompose.linkedWorkResults(cwd, selected.id)
+      const snapshot = await window.api.piCompose.linkedWorkResults(cwd, selected.id)
       if (current()) {
-        setReports({sessionId:orcaSessionId,items})
+        setReports({sessionId:orcaSessionId,snapshot})
         setUnavailableSessionId(null)
       }
     } catch {
@@ -100,9 +100,9 @@ export function PiComposeLinkedWorkReports({
     const currentMainId = main.id
     const timer = setInterval(() => {
       const epoch = ++readEpoch.current
-      void window.api.piCompose.linkedWorkResults(cwd, currentMainId).then(items => {
+      void window.api.piCompose.linkedWorkResults(cwd, currentMainId).then(snapshot => {
         if (alive && epoch === readEpoch.current) {
-          setReports({sessionId:orcaSessionId,items})
+          setReports({sessionId:orcaSessionId,snapshot})
           setUnavailableSessionId(null)
         }
       }).catch(() => {
@@ -120,7 +120,9 @@ export function PiComposeLinkedWorkReports({
       </p>
     ) : null
   }
-  if (reports.items.length === 0 && unavailableSessionId !== orcaSessionId && unverifiedTitles.length === 0) return null
+  if (reports.snapshot.items.length === 0 && reports.snapshot.unavailable.length === 0 &&
+      reports.snapshot.omittedWorkCount === 0 && unavailableSessionId !== orcaSessionId &&
+      unverifiedTitles.length === 0) return null
   return (
     <section aria-label="연결된 Work 결과" className="mt-5 space-y-3">
       {unavailableSessionId === orcaSessionId ? (
@@ -134,7 +136,23 @@ export function PiComposeLinkedWorkReports({
           원본 Pi 대화는 그대로 보존됩니다.
         </p>
       ) : null}
-      {reports.items.map(work => <WorkReport key={work.workId + ':' + work.entryId} work={work} />)}
+      {reports.snapshot.omittedWorkCount > 0 ? (
+        <p className="text-xs text-chat-foreground-faint">
+          과거 Work {reports.snapshot.omittedWorkCount}개는 목록 범위를 벗어났습니다. 원본 Orca History에서 확인하세요.
+        </p>
+      ) : null}
+      {reports.snapshot.unavailable.map(work => (
+        <p key={work.workId} className="text-xs text-chat-foreground-faint">
+          {work.workTitle} · {work.reason === 'orca-unlinked'
+            ? '원본 Orca Native Chat 연결을 확인할 수 없습니다.'
+            : work.reason === 'pi-file-unavailable'
+              ? '원본 Pi 대화 파일을 읽을 수 없습니다.'
+              : '원본 Pi 대화 분기 또는 기록을 확인할 수 없습니다.'}
+          {' '}결과 완료 여부를 추측하지 않습니다.
+        </p>
+      ))}
+      {reports.snapshot.items.map(work => <WorkReport
+        key={(work.workOrcaSessionId || work.workPiSessionId) + ':' + work.entryId} work={work} />)}
     </section>
   )
 }
