@@ -191,3 +191,20 @@ npm run orca:dev
 - `orca-overlay/src/renderer/src/components/pi-compose/PiComposeMenu.tsx`: 재시작 후 영수증 사용, 응답 분실 시 사용자 명시적 원본 확인.
 
 **검증 상태:** 위 파일들은 GitHub에 반영했고 `.mjs` JavaScript 구문 검사를 수행했다. macOS Orca GUI 재시작·Worktree/파일 실제 크래시 복구 테스트는 수행하지 못했다. 이 단계에서 완료/GO를 주장하지 않는다.
+
+
+## P0/P1 후속: 활성 leaf 변경·동시 Pi Fork·중단된 준비 복구
+
+2026-10-28. 위 P1 구현 뒤 코드 재감사에서 추가된 보수적 동작이다.
+
+| 위험/검토 항목 | 이번 변경 | 완료 판단 |
+| --- | --- | --- |
+| 두 프로세스가 같은 생성 의도를 동시에 Pi SDK로 Fork | `OrcaAgentStore.prepareForMain`에서 Main별 `.preparing.lock`을 O_EXCL로 점유한 하나만 진행. 다른 프로세스는 중복 생성 대신 차단 | 코드 반영. 실제 동시 실행 미검증 |
+| 레코드 저장의 TOCTOU | `put`의 `existsSync -> rename` 패턴을 제거. 완성된 임시 파일을 `linkSync`로 새 경로에 배타적 등록하고 원본 사용자 레코드를 덮어쓰지 않음 | 코드 반영. 실제 fs 오류/멀티프로세스 QA 미검증 |
+| RPC await 동안 Main의 Orca 소유권 변경 | 활성 leaf 조회 완료 **후** Orca provider handle, 원본 Pi realpath, Pi header ID 재검증 | 코드 반영. 실제 전환 경쟁 검증 전 |
+| 준비 중 브리지 프로세스 강제 종료 | 잠금은 삭제하지 않고 원본 자산 보존. 사용자가 명시적으로 복구를 실행하면 같은 생성 의도와 종료된 PID(ESRCH)를 확인, `.recovery.lock`으로 복구 시도 직렬화 후 잠금만 해제 | 원본 Pi/Worktree 삭제 없음. 실제 강제종료 검증 전 |
+| Main이 이후 다른 분기로 대화를 계속한 상태에서 기존 생성 복구 | **새 Work**는 Orca의 live leaf 필수. 이미 영수증이 있는 **기존 Work**만 최초 기록된 `activeLeafId`/`expectedSourceEntryId`로 `captureCompletedMain`을 재검증해 재사용; 현재 live leaf로 슬쩍 교체 금지 | 코드 반영. 저장된 leaf가 삭제/변경되면 보수적으로 실패 |
+
+**제약:** 파일 잠금의 PID가 재사용됐거나 권한 오류(EPERM)로 생사를 확인할 수 없으면 자동 복구하지 않는다. 별도 잠금 복구자가 비정상 종료해 `.recovery.lock`이 남아도 자동 해제하지 않는다. 운영자 수동 정합성 점검이 필요하며, 원본 데이터를 임의로 삭제하거나 Git 리셋하는 방식으로 우회하지 않는다.
+
+기존 GitHub macOS `upstream-integration`은 **이번 변경 이전 커밋**에서 통과했다. 현재 커밋의 macOS TypeScript/GUI 및 P0/P1 크래시·다중창은 미검증이다. `contract-check`는 구형 구현을 전제로 한 fixture와 불일치하여 실패하며 변경된 코드에 대한 추가 테스트는 사용자 요청에 따라 작성하지 않았다. 이 기록은 P0/P1 **GO 판정이 아니다**.
