@@ -27,6 +27,7 @@ export function PiComposeSupportDraftMenu({
 }): React.JSX.Element | null {
   const [support, setSupport] = useState<PiComposeListRecord | null>(null)
   const [works, setWorks] = useState<PiComposeListRecord[]>([])
+  const [sendingDraft, setSendingDraft] = useState(false)
   useEffect(() => {
     let current = true
     void window.api.piCompose.list(cwd).then(records => {
@@ -48,7 +49,8 @@ export function PiComposeSupportDraftMenu({
   if (!support || works.length === 0) return null
 
   const sendAsDraft = async (work: PiComposeListRecord) => {
-    if (!work.orcaSessionId || !work.orcaWorktreeId) return
+    if (sendingDraft || !work.orcaSessionId || !work.orcaWorktreeId) return
+    setSendingDraft(true)
     try {
       const result = await window.api.piCompose.supportResult(cwd, support.id)
       if (result.truncated) {
@@ -80,13 +82,15 @@ export function PiComposeSupportDraftMenu({
         : 'Work의 미전송 초안을 저장했습니다. Work 대화를 열어 확인해 주세요.')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Support 결과 전달 실패')
+    } finally {
+      setSendingDraft(false)
     }
   }
   return <DropdownMenuSub>
     <DropdownMenuSubTrigger>Support 결과를 Work 초안에 추가…</DropdownMenuSubTrigger>
     <DropdownMenuSubContent className="w-72">
       {works.map(work => (
-        <DropdownMenuItem key={work.id} onSelect={() => void sendAsDraft(work)}>
+        <DropdownMenuItem key={work.id} disabled={sendingDraft} onSelect={() => void sendAsDraft(work)}>
           <span className="max-w-64 truncate">{work.title}</span>
           {work.id === support.relatedWorkId ? <span className="ml-auto text-xs text-muted-foreground">연결됨</span> : null}
         </DropdownMenuItem>
