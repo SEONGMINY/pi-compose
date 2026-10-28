@@ -1,6 +1,6 @@
 import { ipcRenderer } from 'electron'
 
-export type PiComposeCommand = 'begin-worktree-creation' | 'pending-worktree-creation' | 'record-worktree-creation' | 'recover-pi-preparation' | 'list' | 'sessions' | 'import' | 'attach' | 'attach-chat' | 'connection-failed' | 'support-result' | 'preview-work-fork' | 'live-main-leaf' | 'linked-work-results' | 'set-work-main-visibility' | 'main' | 'work' | 'support'
+export type PiComposeCommand = 'begin-worktree-creation' | 'pending-worktree-creation' | 'record-worktree-creation' | 'recover-pi-preparation' | 'list' | 'sessions' | 'import' | 'attach' | 'attach-chat' | 'connection-failed' | 'support-result' | 'preview-work-fork' | 'live-main-leaf' | 'linked-work-results' | 'set-work-main-visibility' | 'native-chat-owner' | 'main' | 'work' | 'support'
 export type PiComposeRequest = {
   cwd: string
   title?: string
@@ -9,6 +9,7 @@ export type PiComposeRequest = {
   tabId?: string
   worktreeId?: string
   orcaSessionId?: string
+  sessionFile?: string
   message?: string
   replaceClosed?: boolean
   mainId?: string
@@ -119,6 +120,8 @@ export type PiComposeApi = {
   previewWorkFork: (cwd: string, mainId: string, activeLeafId?: string) => Promise<{mainId:string;sourceEntryId:string;completedAssistantEntryId:string;sourceEntryCount:number;excludedInProgress:boolean}>
   liveMainLeaf: (cwd: string, orcaSessionId: string, worktreeId: string, piSessionId: string, piSessionFile: string) => Promise<{activeLeafId:string;orcaSessionId:string}>
   linkedWorkResults: (cwd: string, mainId: string) => Promise<PiComposeLinkedWorkSnapshot>
+  verifyNativeChatOwner: (cwd: string, orcaSessionId: string, worktreeId: string,
+    sessionId: string, sessionFile: string) => Promise<{orcaSessionId:string;worktreeId:string;sessionId:string}>
   setWorkMainVisibility: (cwd: string, mainId: string, id: string, hidden: boolean) => Promise<PiComposeRecord>
   connectionFailed: (cwd: string, id: string, message: string) => Promise<PiComposeRecord>
   sessions: (cwd: string) => Promise<{id:string;title:string;messageCount:number;path:string}[]>
@@ -140,6 +143,10 @@ export const piComposeApi: PiComposeApi = {
   previewWorkFork: (cwd,mainId,activeLeafId) => ipcRenderer.invoke('pi-compose:execute','preview-work-fork',{cwd,mainId,activeLeafId}),
   liveMainLeaf: (cwd,orcaSessionId,worktreeId,sessionId,sessionFile) => ipcRenderer.invoke('pi-compose:execute','live-main-leaf',{cwd,orcaSessionId,worktreeId,sessionId,sessionFile}),
   linkedWorkResults: (cwd,mainId) => ipcRenderer.invoke('pi-compose:execute','linked-work-results',{cwd,mainId}),
+  verifyNativeChatOwner: (cwd,orcaSessionId,worktreeId,sessionId,sessionFile) =>
+    ipcRenderer.invoke('pi-compose:execute','native-chat-owner',{
+      cwd,orcaSessionId,worktreeId,sessionId,sessionFile
+    }),
   setWorkMainVisibility: (cwd,mainId,id,hidden) => ipcRenderer.invoke('pi-compose:execute','set-work-main-visibility',{cwd,mainId,id,hidden}),
   connectionFailed: (cwd,id,message) => ipcRenderer.invoke('pi-compose:execute','connection-failed',{cwd,id,message}),
   sessions: (cwd) => ipcRenderer.invoke('pi-compose:execute', 'sessions', { cwd }),
