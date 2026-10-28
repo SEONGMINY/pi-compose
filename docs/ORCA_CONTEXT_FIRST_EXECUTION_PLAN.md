@@ -1,6 +1,6 @@
 # Pi Compose × Orca — Native-first 구현 실행 계획서
 
-> **2026-10-28 · 상세 구현 계획 / 구현 승인서 아님**
+> **2026-10-28 · 상세 구현 계획 / 구현 승인서 아님 · 필수 누락 사항 재감사 완료(부록 A)**
 >
 > 기준 저장소: [Pi Compose `refactor/orca-native-first-20261028`](https://github.com/SEONGMINY/pi-compose/tree/refactor/orca-native-first-20261028)
 >
@@ -635,3 +635,417 @@ type WorkResultReference = {
 ---
 
 **최종 판단 기준:** 기능을 개발하기 전에 **“Orca가 이미 제공하는 것은 무엇이며, 정확한 Pi Main Fork와 Extension 자유를 지키려면 무엇만 추가해야 하는가?”**에 코드와 사용자 흐름으로 답할 수 있어야 한다. 그 답이 없다면 새 기능을 구현하지 않는다.
+
+
+---
+
+## 부록 A. 실행 가능성 재감사 — 기존 계획에서 빠졌던 필수 계약 (2026-10-28)
+
+> **이 부록은 P0~P6의 필수 선행 조건이다.** 초기 계획서가 638줄이더라도 그 사실만으로 실행 가능한 설계가 되지 않는다. 아래에 **실제 코드로 확인한 차이**, **아직 불명확한 구현 계약**, **실패 시 지켜야 할 동작**, **사용자 결정 게이트**를 추가한다.
+>
+> 상태 구분: **확인** = 고정 버전의 소스 코드를 직접 확인함 / **설계** = 구현 접근이며 API 연결 검증 필요 / **미확정** = 사용자의 결정을 기다림 / **실행 미검증** = macOS 실제 조작·빌드·유지보수 확인 전.
+>
+> *Orca 기본 구현을 그대로 사용하는 것이 기본값이다. Orca의 어떤 함수·필드가 부족한지 증명되지 않은 항목에 대해 자체 상태 시스템이나 별도 Agent UI를 만드는 것은 금지한다.*
+
+### A-1. 기존 계획서의 보완·정정 사항
+
+| 번호 | 빠졌거나 모호했던 내용 | 실제 확인한 사실 | 수정된 실행 지침 |
+| --- | --- | --- | --- |
+| G01 | Work Fork의 원본 활성 leaf를 **어디서** 읽는지 | Pi v1.4.0 `session-manager.ts`에는 `getLeafId()`/`getBranch()`, RPC `get_entries` 응답에는 `leafId`가 있다. 하지만 **Orca host에서 해당 Pi RPC를 현재 Main과 묶어 읽는 어댑터는 미확인** | leaf 조회 연결 자체를 P0 통과 조건으로 승격 |
+| G02 | 여러 Pi 분기, Compaction, Context의 계보 | `get_entries`는 버려진 분기까지 append 순서로 반환, `getBranch`는 현재 분기만 반환. JSONL 마지막 행을 활성 leaf로 보면 틀린다 | 분기/Compaction/모델 변경/커스텀 entry 보존 확인 후 Fork |
+| G03 | Main 생성부터 Fork까지 데이터가 여러 곳에 분산 | `agent-sessions.mjs`가 레코드·launch script·Pi JSONL·Git Worktree를 순서대로 만든 뒤 Native Chat 연결은 UI에서 별도로 실행 | 생성 중간 실패, 중복 요청, 재시도, 앱 강제 종료에 대한 상태·복구표 필요 |
+| G04 | Pi Session vs Orca Agent Session vs Tab/Pane/Worktree의 식별 | 서로 다른 ID이며 Orca `structured-agent-session-tab-activation.ts`는 실제 Worktree/Tab/host owner를 검증한다 | ID 매핑·권한·호스트 검증을 mutation별로 정의 |
+| G05 | shared/isolated와 dirty Git 작업 복제 | 별도 Worktree는 선택된 `HEAD`를 기준으로 생성된다. 미커밋 파일은 자동 복제되지 않는다 | 실행 대상 코드 기준/미커밋 데이터 정책을 사용자에게 명시 |
+| G06 | Work “삭제”와 Agent 행 `×` | Orca `DashboardAgentRowTrailingControls.tsx`의 `×`는 목록/상태 레코드 dismiss. Pi Compose `hiddenFromMainAt`는 **Main 연결 표시만** 숨김 | 두 동작이 달라도 전체 삭제가 아님을 명확하게 표시. 서로 동기화할지는 별도 UX 결정 |
+| G07 | 합성 하위 Agent와 독립 Work를 구분하지 않음 | Orca `rowSource='subagent'`는 일반적으로 고유 session/tab 없이 부모 실행 상태에서 만들어짐 | 그 행을 Main에서 Fork된 Work의 생명주기로 취급 금지 |
+| G08 | Main 아래 다른 Worktree의 Agent | native `WorktreeCardAgents`는 해당 Worktree의 실제 Agent만 수집 | 가짜 `parentPaneKey`·`paneKey` 없이 참조 위치/클릭 라우팅 별도 증명 |
+| G09 | Orca Session History에 Main이 없어지는 경우 | native activity row는 영구 Main 인덱스가 아니다 | Main 불활성/닫힘/삭제 후 검색·재개·관계 확인 흐름 명세 |
+| G10 | Work 완료 보고의 발생 시점 | Orca는 턴 종료 시각을 알 수 있으나 “기능 구현 완료”의 진위는 아님 | `응답 종료` / `Work가 완료 보고` / `사용자 승인`을 별개 개념으로 정의 |
+| G11 | Main 화면에 Work 결과가 보이는 것 vs 모델이 안다는 것 | 화면 항목은 모델 입력이 아님. 현 `extensions/orca-compose.ts`는 slash command 위주이며 모델 호출 가능한 결과 조회 Tool은 없음 | Main 모델이 결과를 질문받을 때의 읽기 전용 접근 경로를 명시 |
+| G12 | 외부 Work 세션 실행 이력을 Main 내부에 펼침 | `NativeChatSubagentRun`은 **같은 journal의 하위 실행**이라는 전제가 있음 | 원본 host history를 읽어 **읽기 전용 참조**로 투영. 임의 subagent message 생성 금지 |
+| G13 | Support 결과 전송의 중복/초안 손상 | Orca `appendToNativeChatComposerDraft`와 영속성 경로 존재 | 기존 초안·첨부·늦은 hydration·동시 창 수정/중복 클릭 방지 필요 |
+| G14 | Pi Extension 호환성 설명 과도한 단순화 | Pi v1.4.0 공식 `extensions.md`는 RPC에서도 **지원되는 UI dialog/notification을 전달**할 수 있고, custom terminal component는 지원하지 않는다고 설명 | `ctx.hasUI` 전체를 “TUI 전용”이라 단정 금지. 기능별 실제 지원표 작성 |
+| G15 | 레거시 데이터 마이그레이션 절차 없음 | `OrcaAgentStore` JSON 레코드/launchers와 Orca history가 병존 | 읽기 전용 inventory → 정본 확인 → 안전한 idempotent 채택 → 상태표시 → 후속 정리 순서 |
+| G16 | overlay patch 정적 적용과 실제 빌드의 차이 | 문자열 삽입에 성공해도 TypeScript/API shape/React hook 제약이 보장되지 않음 | 기계적 패치 성공을 통합 완료로 보지 않음. typecheck·macOS 실제 흐름 확인 |
+| G17 | 시차·재진입·호스트 재시작·다중 창 | UI, bridge, session host, JSONL, Git이 별개 프로세스/영속 저장 | 정확한 재시도·중복 방지·부분 성공 복구 계약 필요 |
+| G18 | Repo/Host/Worktree path만으로 접근 검증 | 현재 `scripts/orca-native-bridge.mjs`는 프로젝트 root를 비교하지만 모든 작업의 host/session 소유권까지 검증하는 것은 아님 | 호스트 ID·workspace ID·provider session ID를 모두 확인. 다른 머신 파일을 로컬 파일 경로로 열지 않음 |
+| G19 | 단계 사이의 go/no-go 없이 기능 추가 | 현재 P0~P6 분류만으로는 잘못된 상태에 P2/P3 진행 가능 | **각 단계 진입/이탈 게이트**와 blocking defect를 추가 |
+| G20 | 기존 기능 보존의 검증 범위 부족 | Orca에는 compact/full Agent 목록, Worktree 메뉴/단축키, history, 가상 목록, 모바일/원격 경계가 있음 | 원본 동작 회귀 매트릭스 유지; 새 역할 전용 UI 추가 전 영향 확인 |
+
+### A-2. 특히 우선순위가 높은 현재 코드 결함/위험
+
+아래 항목은 **“설계가 완성되어 구현만 하면 된다”**고 간주할 수 없는 이유다. 발견한 코드 사실과 미검증을 구분한다.
+
+**R1 — 실제 활성 Main leaf 전달 누락 (Blocking, 코드 확인).**
+
+`src/orca/agent-sessions.mjs`의 `prepare({activeLeafId})`와 `prepareForMain({activeLeafId})`는 받는 인자를 Fork 코드로 보낸다. 그러나 `scripts/orca-native-bridge.mjs`가 `prepareForMain`에 넘기는 인자에는 활성 leaf 획득/전달 경로가 없다. `captureCompletedMain`은 분기가 하나이면 fallback하지만, 활성 분기가 여러 개인 경우 정확한 Fork를 보증하지 못한다.
+
+**처리:** Pi의 `get_entries.leafId`가 존재함은 확인됐다. **Orca의 특정 호스트 Native Chat이 가진 현재 Pi RPC 프로세스에 어떻게 안전하게 접근할지**를 먼저 소스 조사한다. `SessionManager.open(savedFile)`에서 leaf를 추정하거나 마지막 JSONL ID로 대신해서는 안 된다.
+
+**R2 — Git 작업 공간을 Orca 밖에서 만들고 나중에 검색 (Blocking, 코드 확인).**
+
+`agent-sessions.mjs`는 `git worktree add -b`로 별도 checkout을 만들고, `PiComposeMenu.tsx`는 그 경로와 같은 Orca Worktree가 있는지 `fetchAllWorktrees` 뒤에 찾는다. 이는 Orca가 생성 요청 자체의 책임을 소유하는 방식과 다르다. Git 생성 성공/Orca 등록 실패 시 고아 Worktree가 남을 수 있다.
+
+**처리:** Orca `createManagedWorktree`와 `agentLaunchWorkspaceFactory`의 실제 계약, 별도 create 요청의 재시도 ID와 자동 startup 옵션을 확인하고 **Orca 생성 → 결과 영수증 → Pi Fork** 순으로 교체한다.
+
+**R3 — Work “목록에서 제거”가 의미하는 위치가 서로 다름 (현재 기능 차이, 코드 확인).**
+
+- Pi Compose `setWorkMainVisibility`는 `hiddenFromMainAt`만 바꾼다.
+- Orca의 실제 Agent 행은 해당 Worktree에 계속 있을 수 있다.
+- native `×`는 기본적으로 Orca의 Agent status/retained 표시만 dismiss한다. 원본 Pi/Orca session이나 Main relation 삭제가 아니다.
+- 합성 `subagent`의 숨김은 renderer-session cache라 재시작하면 다시 나타날 수 있다.
+
+**처리:** 선택한 Work 하나를 없애도 Main/다른 Work/코드가 보존돼야 한다는 정책은 확정. **“Main 연결 표시 숨김”과 “현재 Agent activity 숨김”**을 사용자에게 동일한 삭제처럼 보여주지 않는다. 일관된 메뉴 라벨·복구 위치·재시작 동작까지 P2에서 확인한다.
+
+**R4 — 현재 Lineage adapter의 범위/무효화 누락 가능성 (검증 필요).**
+
+`usePiComposeNativeLineage`는 Worktree별 `unifiedTabsByWorktree`, `agents.length`, Compose records를 참조한다. Agent가 바뀌어도 수가 같거나 Tab이 달라질 때, 이벤트가 지연될 때, Main이 다른 Worktree에 있을 때 실제 부모 연결이 정확히 갱신되는지 미확인이다. `applyAgentRowLineage`와 `buildAgentRowLineageTree`를 함께 적용하는 현재 overlay가 native depth, child counts, collapse, 포커스에 회귀를 만드는지도 확인해야 한다.
+
+**처리:** 관계가 변경되는 실제 이벤트를 기준으로 갱신. 매 렌더마다 레코드 fetch/중복 UI 생성 금지. 오류 시 Orca 기본 행으로 안전하게 fallback.
+
+**R5 — Host 결과를 Main에 표시하기 위한 확장점 미확정 (Blocking for P3).**
+
+Orca `NativeChatWorkingStatus`/`NativeChatToolRun`/`NativeChatSubagentRun`은 이미 펼침 UI를 구현했지만, 별도 Pi Work의 이력을 Main의 가상 transcript에 연결하는 공식 slot은 아직 검증되지 않았다. **기존 UI가 있으므로 서로 다른 Session도 자동으로 보인다고 단정할 수 없다.**
+
+**처리:** `agentSession.history`, transcript projection, slot key, virtualization, disclosure state를 읽고 원본 ID를 잃지 않는 **read-only external-work reference slot** 최소 변경안을 제시한 후 구현.
+
+**R6 — 프로젝트 보존 정책과 삭제 시 실제 결과 불명확 (Blocking for destructive action).**
+
+Main Pi JSONL은 Worktree 삭제 후에도 보존되어야 한다. Orca 원본 Worktree Delete는 Git checkout을 없앨 수 있고, Orca `agentSession.close`는 provider/in-memory를 닫되 record/journal은 보존하도록 구현돼 있다. 둘은 다른 명령이다. **삭제 메뉴를 단순한 Work 목록 숨김과 합치지 않는다.**
+
+**R7 — native 연결은 세션 단위·호스트 단위 검증이 필요 (Blocking for remote).**
+
+현재 bridge가 확인하는 Git root는 프로젝트 소속 검사일 뿐, **호스트 실행 권한·파일 접근 권한·중복 writer 배제**의 완성된 계약이 아니다. 원격/WSL/다중 Orca 창에서는 같은 path의 의미도 다를 수 있다. Host provider identity가 다르면 자동 연결하지 않는다.
+
+### A-3. 실제 end-to-end 호출 흐름 — 목표/현황 비교
+
+#### 생성: 현재 코드(확인)
+
+```text
+사용자 Work 생성
+  PiComposeMenu.onLaunch
+    -> window.api.piCompose.create('work', { cwd, mainId, workspace, title })
+    -> Electron IPC (pi-compose:execute)
+    -> scripts/orca-native-bridge.mjs
+    -> OrcaAgentStore.prepareForMain(...)
+    -> captureCompletedMain(sessionFile, sessionId, activeLeafId?)
+    -> [workspace=worktree] execFileSync('git', ['worktree','add', ...])
+    -> forkCompletedMain / SessionManager.forkFrom(snapshot, cwd, ...)
+    -> OrcaAgentStore.put(record)
+    <- record / proof
+    -> [workspace=worktree] Orca fetchAllWorktrees + path lookup
+    -> openPreparedPiNativeChat(...)
+    -> PiCompose attach-chat (Orca session ID 기록)
+    -> Orca agentSession.rename(...)
+    -> native Agent rows
+```
+
+**이 흐름의 구멍:** Pi leaf 조회/전달 누락, Orca가 생성 책임을 소유하지 않음, Git 성공 후 Pi 실패, Orca 세션 채택 실패, 네이티브 이름 저장 실패, 중간 단계 재시작. 현재 UI가 `preparedId`를 보유하는 것만으로 영구 복구나 안전한 재시도가 보장되지 않는다.
+
+#### 생성: 목표 호출 흐름(설계 — 계약 검증 필요)
+
+```text
+사용자 Main/Work/Support 생성
+  1) 실제 Orca worktree + provider/Orca session/host 확인
+  2) role, 선택된 Main, 실행 공간 선택의 ID 유효성 검증
+  3) Work인 경우 활성 Pi branch leaf 조회 + 완료 지점/원본 스냅샷 고정
+  4) isolated인 경우 Orca managed worktree create (기존 API)
+  5) 영수증으로 새 worktree ID, 실제 path, base SHA 확인
+  6) Work: Pi SDK forkFrom(검증된 완료 branch) / Support: 독립 SessionManager
+  7) Pi session ID/파일과 Fork provenance를 안정적으로 기록
+  8) Orca structured Agent Session의 기존 create/ensure/reveal로 채택
+  9) Orca host-owned name, actual Agent row/status/owner 연결
+ 10) 관계 인덱스 갱신; 후속 Main 결과 참조에 활용
+ (어느 단계 실패하든 생성 자산을 숨기거나 임의 삭제하지 않고 재개/복구)
+```
+
+**실행 게이트:** 3의 활성 leaf 공급과 4의 Orca managed creation 호스트 계약이 증명되지 않으면 5~10을 프로덕트 완료로 선언하지 않는다.
+
+### A-4. 생성 단계별 부분 성공/복구 매트릭스 (P0/P1 필수)
+
+| 마지막 확인 단계 | 실제 남은 자산 | 표시할 상태/복구 동작 | 금지 행동 |
+| --- | --- | --- | --- |
+| 사용자 입력 검사 실패 | 없음 | UI 필드 오류, 그대로 수정 | 유령 Pi 세션 생성 |
+| Main leaf 읽기 실패 | Main 원본만 | 근거 있는 실패 안내, 다시 시도 | 마지막 append 행 추정 |
+| Main 완료 응답 없음 | Main 원본만 | 먼저 Main에 설계·완료 응답 저장 | 임의 빈 Fork 생성 |
+| Worktree 생성 요청 실패 | Orca가 보고한 성공/실패 확인 필요 | 기존 Orca 결과/영수증 사용 | Git 상태 추측·중복 생성 |
+| Worktree 생성 성공, Pi Fork 실패 | 새 managed Worktree 있음 | “작업 공간 준비됨, Pi 대화는 아직 없음” + 복구 | 자동 Git 삭제·Fork 성공 표시 |
+| Pi Fork 성공, 레코드 기록 실패 | 새 Pi 파일 및 Worktree 가능 | 실제 파일/ID로 복구 대상 식별, 원본 보존 | 같은 요청 재실행해 또 Fork |
+| Pi Fork/레코드 성공, Native Chat 연결 실패 | Work Pi 세션 준비됨 | Orca session 조회 후 동일 Pi 기록 재채택 | 새로운 Pi provider ID 자동 발급 |
+| Orca Chat 생성 성공, attach 기록 실패 | 이미 열린 Chat + Pi 파일 | Orca 실제 session ID 재확인 후 연결만 복구 | 새 Chat/새 Pi 파일 무조건 생성 |
+| rename 실패 | 실제 Chat과 Pi 원본 있음 | 생성 성공, 이름 보완 가능 상태 | 원본 기록 삭제/연결 롤백 |
+| 원격 host 응답 불확실 | 상태 불명 | host ID + creation ID로 재조회/재개 | “실패”라고 단정하고 두 번째 생성 |
+| 앱 강제 종료/재시작 | 일부 단계가 영속 완료됐을 수 있음 | 자산 inventory 읽기 및 단계별 재개 | 초기화/전량 cleanup |
+| 동일 버튼 연속 클릭 | 하나의 사용자 생성 의도 | 동일 operation ID에 동일 결과 반환 | 중복 Worktree/세션/브랜치 생성 |
+
+**필수 구현 계약:** API가 원자적으로 실행할 수 없는 작업이라면 **단계별 기록/creation ID/idempotency key**를 사용한다. 전역 트랜잭션을 흉내 내지 않는다. UI retry는 반드시 같은 생성 의도인지 먼저 확인한다.
+
+### A-5. Session & Context 정합성 스냅샷 계약
+
+정확한 Fork를 검증할 때 최소한 아래를 **같은 원본 기준 시점**에서 기록한다.
+
+```ts
+type ForkEvidence = {
+  source: {
+    piSessionId: string;
+    sessionFile: string;
+    activeLeafId: string;        // Pi의 실제 활성 leaf
+    completedEntryId: string;   // 선택한 branch의 마지막 완료 응답
+    entryIds: string[];         // root -> completedEntryId의 계보
+    readingGeneration?: string; // 동일 상태 재조회 검증용, 계약 확인 필요
+  };
+  target: {
+    piSessionId: string;
+    sessionFile: string;
+    cwd: string;
+    orcaWorktreeId?: string;
+  };
+  verification: {
+    copiedCount: number;
+    expectedCount: number;
+    identicalEntryChain: boolean;
+    originalUntouched: boolean;
+    excludedInProgress: boolean;
+  };
+};
+```
+
+이는 **검증 항목 목록**이지 SDK가 이 필드 전부를 바로 반환한다는 뜻이 아니다. 특히 `readingGeneration`은 제공되는지 조사 후 채택한다.
+
+- **활성 분기:** Pi `SessionManager.getLeafId` 또는 RPC `get_entries.leafId`가 실제 live Main을 대표한다는 경로까지 확인.
+- **완료 지점:** assistant `stopReason='stop'`/`endTurn`와 Pi SDK의 실제 turn 완료 시점이 일치하는지 확인. `message`가 아닌 branch entry(Compaction, Model Change, custom entry)는 보존 여부를 검토.
+- **실행 중 Main:** 읽기→Fork 사이 Main이 계속 append할 수 있다. Fork 기준을 **읽어 고정한 leaf와 완료 응답 ID**로 명시하고 변화를 조용히 섞지 않는다.
+- **복제 검증:** 목표 파일 헤더만이 아니라 원본 branch entry ID/parent ID/내용을 비교한다. Pi의 context 구성 중 `AGENTS.md`/system prompt/Extension 설정은 cwd에 따라 바뀌므로 “모든 미래 모델 입력이 byte-identical”하다고 주장하지 않는다.
+- **기록 보존:** Main 파일은 쓰기/수정/복원 금지. 새 Work 파일로만 writer를 시작.
+- **Compaction/마이그레이션:** 이전 Compaction summary가 활성 branch에 있으면 정상적으로 복사돼야 한다. 분기 밖의 abandon history를 자동 포함하지 않는다.
+- **검증 실패:** UI에 ‘Fork 준비됨’을 표시하지 않는다. 실패 원인·원본 ID·복구 가능한 자산만 기록한다.
+
+### A-6. Native Agent 행 표시와 실제 제거의 상태표
+
+**Orca 소스:** `DashboardAgentRowTrailingControls.tsx`의 `hideDismiss`/`onDismiss`, `WorktreeCardAgents.tsx`의 `dropAgentStatus`/`dismissRetainedAgent`, `worktree-card-agents-expansion-state.ts`. 
+
+| 사용자 동작 | Orca 실제 상태/표시 | Pi 대화 기록 | Main-Work 의미적 관계 |
+| --- | --- | --- | --- |
+| Work 행 선택 | 올바른 Orca tab/pane 활성화 | 유지 | 유지 |
+| Activity row의 `×` | 해당 row/status 표시를 제거 | 유지 | 유지(별도 명시 없으면) |
+| Main의 `연결된 Work 관리 → 목록에서 제거` | Main 관점에서 관계 표시 숨김 | 유지 | `hiddenFromMainAt`로 숨김 기록 |
+| 숨긴 Work 다시 표시 | 관계 표시 복구 | 유지 | 부모/자식 관계 그대로 |
+| Chat 탭 닫기 | 탭 숨김/호스트 Close 정책 확인 | 별도 삭제 명령이 없다면 보존 대상 | 유지 |
+| Agent 실행 정지 | 현재 실행/턴에 대한 Orca stop/cancel | 기존 기록 보존 | 유지 |
+| Worktree 삭제 | Orca Git Worktree 수명주기 | **Main Pi 세션 원본 보호 필수** | 관련 레코드는 고아 상태/재개 정책 필요 |
+| Pi 세션 기록 실제 삭제 | 별도 파괴적 동작 | 삭제 위험 | 관계 orphan 재처리 |
+
+**현재 제품 미완성:** Activity `×`와 `hiddenFromMainAt`가 반드시 같은 화면 결과를 만드는 것은 아니다. 이 문제는 “개별 제거 기능 완료”로 보지 않고 **같은 사용자가 어느 위치에서 제거했는지와 결과가 같은지**를 실제 UI로 비교한 뒤 통일한다. 부모 집합의 모든 자식이 사라지지 않는 것도 확인해야 한다. 
+
+**원칙:** native Agent 상태 삭제와 relation 숨김을 무리하게 결합해 Orca의 `dropAgentStatus`를 호출하지 않는다. 역할 데이터의 숨김이 언제 무엇을 숨겨야 하는지 사용자에게 설명한 다음, 기존 메뉴/행 연결 최소 변경을 선택한다.
+
+### A-7. Main/Work/Support/Worktree 상태의 진실표
+
+| 사실 | 가능한 표현 | 데이터 정본 |
+| --- | --- | --- |
+| Pi 레코드만 작성 | “대화 준비 중/등록됨” | Compose workflow metadata |
+| Pi Fork 검증 완료, Orca Chat 연결 전 | “Pi Fork 준비됨, Chat 연결 필요” | Pi 파일 + Fork evidence |
+| Orca Chat 열린 상태에서 실제 생성 요청 처리 중 | “실행 중” | Orca Agent host |
+| Orca가 사용자 응답을 기다림 | “확인 대기/입력 필요” | Orca Agent host |
+| Orca 턴 정상 종료 | “응답 종료” | Orca journal/turn lifecycle |
+| Work가 “구현 완료”라고 보고 | “구현 완료를 보고했습니다” | 원본 Work assistant turn (검증된 텍스트) |
+| 사용자가 구현 검토 승인 | “사용자 확인 완료” (별도 정책이 있다면) | 실제 사용자 행동 |
+| Host 연결 불명 | “상태 확인 불가” | Orca host/network |
+| 앱 닫음 / 오프라인 | “실행 상태 확인 불가, 기록은 보존될 수 있음” | history vs host 상태 구분 |
+| Git Worktree 삭제됨 | “실행 공간 없음/재연결 필요” | Orca Worktree + Git 정보 |
+
+**금지:** `state='ready'`를 실행 중으로 표시, timer elapsed만으로 “작업 완료” 판단, 미검증 assistant 문장을 제품 검증 완료로 표시.
+
+### A-8. Work 결과 보고 계약 — Main 접기 UI 상세
+
+**결과 발생 주체**
+- **보고 생성:** Work가 실제 assistant 응답으로 남긴 텍스트.
+- **결과 감지:** Orca host의 작업 턴/Journaling 또는 기존 Activity 이벤트.
+- **전달 주소:** 검증된 Main Orca session ID와 Work Orca session ID의 *관계*, Work의 고유 turn ID.
+- **결과 표시:** Main의 Native Chat 화면에 읽기 전용 참조. Main Pi JSONL에 새 사용자/assistant 메시지를 만들지 않는다.
+- **상세 열기:** 원본 Work history와 Orca의 native transcript rendering 구성 요소를 사용한다. 닫는다고 작업/세션이 종료되지 않는다.
+
+**반복/동시성**
+1. Work가 같은 턴을 여러 번 publish해도 `(workOrcaSessionId, turnId)`는 한 번만 표시.
+2. Work가 구현 뒤 두 번 수정하면 두 종료 턴은 **각각의 출처·시각·결과**를 가질 수 있다. 최신 결과 하나로 덮어쓰지 않는다.
+3. 출처 Work를 숨겨도 과거 결과 참조를 지우거나 거짓으로 완료 상태를 변경하지 않는다. **보일지/숨길지는 별도 UX 정책 결정**.
+4. Main 화면이 닫혀 있는 동안 Work가 완료되더라도 다음 열기에서 host history로 복구 가능한지 검증.
+5. 외부 Work 호스트가 꺼져 있을 때 마지막 알고 있던 완료와 현재 연결 불가를 구분한다.
+6. Work의 명령/파일 읽기/추론 가운데 host journal에 실제 없는 기록을 꾸며내지 않는다. Reasoning은 provider가 출력/보관·권한 허용한 범위만 보여준다.
+7. 원본 파일의 최신 Git 상태를 과거 Work 턴의 변경 증거인 양 표시하지 않는다. 당시 Git HEAD/Worktree/시각이 기록돼 있을 때만 대응시킨다.
+
+**추가로 검증할 Orca 원본 코드**
+- `agentSession.history` / `agentSession.subscribe`와 응답의 cursor/paging/role/session ownership.
+- `NativeChatMessageList.tsx` / `use-native-chat-transcript-slots.ts` / `NativeChatTranscriptRow.tsx`의 slot identity, virtualizer 위치, 펼침/접힘 state.
+- `NativeChatSubagentRun.tsx`는 native 하위 실행 UI지만, 별도 Fork Pi session을 자동으로 서브에이전트라고 해석할 수 없다.
+
+**Main 모델이 답할 수 있게 하는 최소 조회 후보**
+```ts
+// 설명용 계약 후보. 실제 Pi registerTool 인터페이스는 v1.4.0과 연결해야 한다.
+type ReadLinkedWorkResult = (args: {
+  workId: string;
+  turnId?: string;
+  detail?: 'report' | 'tools';
+}) => {
+  sourceWorkPiSessionId: string;
+  sourceWorkOrcaSessionId: string;
+  turnId: string;
+  content: string;
+  observedAt: string;
+};
+```
+
+- 도구 등록은 **실제 Pi Main 세션의 Extension tool 경로**를 우선 검토하고, model이 권한 없는 Work/다른 프로젝트를 열 수 없게 한다.
+- 모델 호출 시 필요한 근거만 반환. 모든 Work logs의 자동 컨텍스트 주입 금지.
+- 결과 길이 제한/큰 로그 쪽 나누기/민감한 데이터 노출 방지는 기존 Orca/Pi 모델 권한 내에서 처리.
+- 사용자 요청 없이 실제 Work 입력/세션 수정/명령 실행하는 Tool은 만들지 않는다.
+
+### A-9. Support → Work 초안 전달: 상세 실패 매트릭스
+
+| 조건 | 사용자가 보게 되는 행동 | 보존 대상 |
+| --- | --- | --- |
+| Work 한 개, 초안 비어 있음 | 대상 Work의 미전송 입력에 결과 제안 | 원본 Support 결과 |
+| Work 여럿 | 대상 선택 후 입력 초안에 추가 | 대상의 원래 내용 |
+| Work 이미 작성 중 | 기존 문장을 지우지 않고 내용 병합/검토 가능 | 텍스트·이미지·첨부·커서/사용자 입력 |
+| Work 다른 Worktree | 실제 Orca session/host 확인 후 해당 Chat 열기 | 다른 Worktree 실행 소속 |
+| Work host 불명/닫힘 | 성공을 선언하지 않고 복구/복사 경로 안내 | 지원 세션 원본 |
+| 초안 저장 실패 | “저장되지 않음” 안내, 다시 시도 | 기존 초안·결과 |
+| 초안 추가 중 늦은 hydration | Orca draft store의 기존 replay-safe append 사용 | 늦게 복원된 원래 초안 |
+| 사용자가 두 번 클릭 | 중복 문구 삽입 방지 (새 delivery ID의 정책 검토) | 내용 중복 방지 |
+| Work가 동시에 다른 창에서 입력 | Orca의 기존 draft broadcast/ownership 계약 따라 충돌 안내 | 사용자 작성 중 내용 |
+| 결과 12,000자 초과 | 현재 `supportResult`가 `text.slice(0,12000)`와 `truncated`를 반환함을 표시 | 전문은 원본 Support 기록에서 확인 |
+
+**호출 금지:** `agentSession.send` / `agent-message-send.ts`는 **즉시 전송 경로**이므로 “Work에 보내기”의 기본 구현에 사용하지 않는다. 결과는 Work의 실제 초안에 저장된 뒤 사용자가 제출한다.
+
+### A-10. Pi Extension 지원 정책의 정확한 구분
+
+Pi v1.4.0 `docs/extensions.md`는 `ctx.hasUI`가 TUI와 일부 RPC UI 모두에서 의미가 있고, **RPC Extension UI가 지원하는 dialog/notification은 전달 가능**, **custom terminal component는 RPC에서 제공되지 않음**이라고 설명한다. 따라서:
+
+| 구분 | 기대 처리 | 검증 |
+| --- | --- | --- |
+| Model-callable Extension tool | Pi runtime에 등록되는 그대로 유지 | Native Chat Pi provider가 실제 도구 목록/호출 노출하는지 |
+| Session lifecycle/변경 이벤트 | Pi SDK 자체의 이벤트 사용 | Fork 후 동일 Extension 재로딩 여부 |
+| `ctx.ui.input` / `ctx.ui.select` | RPC UI에서 지원 가능한 프로토콜인지 실제 host 검사 | Orca Native Chat Pi adapter에서 실행해 볼 것 |
+| terminal-only custom component | Native Chat에서 지원된다고 가정 금지 | Pi TUI 진입 경로 제공 여부 |
+| slash command/shortcut | 각 모드의 실제 지원 수준 구분 | Native Chat·TUI 각각 테스트 |
+| 사용자 설치 Extension, tool renderer | 원본 Extension 설정을 보존 | 복제된 cwd·config 경로 달라지는지 |
+| Remote Pi host | 해당 host에 Extension/설정이 실제 설치돼 있는지 | 로컬 설정이 원격에 자동 적용된다고 주장 금지 |
+
+**추가 설계:** Native Chat에서 Pi UI 기능이 일부 제한되는 경우 **사용자에게 정확히 알리고, 실제 원본 Pi 세션을 TUI에서 안전하게 열 수 있는지 검증**한다. 같은 세션을 동시에 두 writer가 열도록 하지 않는다.
+
+### A-11. 운영/성능/안전성 경계
+
+1. **대량 Agent:** Main 수십 개·Work/Support 다수에서도 `window.api.piCompose.list`를 Agent row 하나마다 RPC 호출하지 않도록 조회 단위를 정한다. Orca의 `worktree-agent-row-selectors.ts`는 Worktree별 인덱스를 캐시하며 이를 깨지 않는다.
+2. **대량 transcript:** 오래된 Work 턴의 상세는 처음부터 전체 불러오기 대신 Orca history pagination·virtualization으로 읽는다. Main의 큰 설계 컨텍스트를 다시 계산하지 않는다.
+3. **Race:** Work rename/reveal/dismiss/새 턴 완료/Worktree 삭제가 동시에 발생할 때 stale response가 최신 UI를 덮지 않도록 epoch/실제 session ID를 비교한다.
+4. **데이터 민감성:** Work transcript에는 tool output·환경 변수·파일 내용이 포함될 수 있다. **사용자 화면에 읽기 허용된 원본 내용만 표시하고, Main 모델 도구 반환은 권한 확인 후 필요한 범위로 제한**한다. 별도 로그 복제 저장을 기본으로 하지 않는다.
+5. **Host 경계:** 로컬/원격/WSL에서 파일 경로·Git repository ID·session ID 충돌을 검사한다. 다른 호스트의 Pi JSONL을 로컬 경로로 임의 열지 않는다.
+6. **캐시:** 생성/삭제/Work 숨김/rename/탭 재열기 후 UI가 실제 정본을 반영해야 한다. 껐다 켜야 나타나는 값은 제품 완료가 아니다.
+7. **접근성:** Orca 기존 Agent 행의 키보드 선택/메뉴/접기, Native Chat의 접근성, 가상 목록 스크롤 위치가 그대로 유지돼야 한다.
+8. **오류 관측:** host/bridge/renderer 각 단계에서 **동일 operation ID**, 역할, 실제 Worktree ID, 실패 단계 정도만 식별 가능하게 로깅. 비밀번호·세션 전체 메시지·파일 내용을 진단 로그에 복제하지 않는다.
+9. **버전 호환:** Orca pin 변경 시 API/patch manifest 비교가 먼저. `orca:prepare` 첫 실행/재실행/이전 패치에서 업그레이드/중단 복구 모두 확인. hash mismatch에는 overwrite 금지.
+10. **중복 작업 금지:** Git Worktree 관리·Agent UI·터미널 탭/컨텍스트 메뉴·Native Chat transcript의 기존 Orca 기능을 Pi Compose 아래에 다시 만들지 않는다.
+
+### A-12. 단계별 go/no-go, Blocking 조건 및 의존성
+
+| 단계 | 시작 가능 조건 | 끝났다고 인정할 조건 | 실패하면 되돌아갈 곳 |
+| --- | --- | --- | --- |
+| **P0** | Pi SDK/Orca pin 확정, 기존 자산 읽기 보존 | 활성 leaf 실제 획득, 안정적인 ID/owner 매핑, 원본 Fork 증거와 실패 기준 | Pi 런타임/host bridge 계약 조사 |
+| **P1** | P0 Fork 안전성 보장 | Orca managed worktree로만 생성, 동일 session 복원, 실패 후 재시도 안전 | Orca `createManagedWorktree` API·workflow |
+| **P2** | P1 owner/Worktree ID 보장 | 같은/다른 Worktree에서 관계 표시·포커스·상태·개별 숨김이 정확 | native Worktree/Agent 행 owner 라우팅 |
+| **P3** | P2 Work session 주소 확인, host history read 확인 | Main 화면에 실제 보고와 펼침, 중복 없음, Main 모델 자동 주입 없음 | native journal/slot 접근 조사 |
+| **P4** | P2 대상 Work 확인, draft API 사용 가능 | Support 결과가 미전송 초안에 안전하게 저장되고 직접 전송 전 모델 메시지 0 | Orca draft owner/persistence |
+| **P5** | 동일 Pi 세션 Native Chat/TUI 운영 계약 | 지원/미지원 Extension이 명확하고 데이터 오염 없음 | Pi RPC UI / 원본 Extension API |
+| **P6** | 이전 단계별 실행 결과/데이터 inventory | 기존 작업 보존, 중복 코드 제거, Orca 주요 흐름 회귀 0, 앱 재시작 후 사용 가능 | 해당 원본 기능의 owner/contract |
+
+**Blocking이면 동작을 우회하는 새 구현을 만들지 않는다.** 예: Orca가 현재 Pi의 활성 leaf를 노출하지 않는다는 결론이 나오면 직접 대화를 요약해 Work에게 보내는 식으로 “완료”하지 않는다. 필요한 host 확장 계약을 먼저 명시하고 구현 범위를 승인받는다.
+
+### A-13. 실사용 검증 상세 시나리오 (CI/테스트 코드 작성 아님)
+
+**기준 데이터:** 하나의 Git 프로젝트에 Main A(회원가입), Main B(결제); A의 Work 1(진짜 구현), Work 2(API 연동); Work 1의 Support 1(테스트); 다른 Worktree의 Support 2(코드 탐색). 가능하면 단일/다중 Pi branch와 이미 만들어진 레거시 record를 하나씩 준비한다.
+
+| 번호 | 실제 사용자 조작 | 기대 결과 | 실패 증거 |
+| --- | --- | --- | --- |
+| U01 | Orca 기본 `+` / 단축키로 Worktree 생성 | 기존 UI/생성/상태 그대로 | 새로운 Compose 모달이 원본을 대체 |
+| U02 | Worktree 우클릭으로 Pi Compose 생성 | 기존 메뉴 유지 + 역할 선택 진입 | 원본 메뉴/작동 사라짐 |
+| U03 | 두 Main을 같은 Worktree에 생성 | 원본 세션 ID/대화 독립 | A/B 선택이 섞임 |
+| U04 | Main A에서 다중 분기 만든 뒤 Work 1 생성 | 활성 완료 분기만 새 Pi 세션으로 복제 | 마지막 append 분기 복제 |
+| U05 | Main A가 응답 중일 때 Work 생성 | 직전 완료 지점만 Fork, 제외 안내 | 진행 중 token/tool 포함 |
+| U06 | Work 1 생성 직후 아무 메시지 안 보냄 | Work 대화만 준비, 모델 개발 시작 0 | 자동 생성 프롬프트 실행 |
+| U07 | 같은 Worktree의 Work 1/Work 2 사용 | 별개 Pi session, Orca 상태/선택 각각 | 중복 하이라이트/세션 뒤바뀜 |
+| U08 | 별도 Worktree로 Work 1 생성 | Orca managed Worktree·실제 Agent/삭제 메뉴·Git Diff 사용 | Git에만 있는 미등록 checkout |
+| U09 | Work 1 종료/탭 닫기/재열기 | 각 동작의 뜻이 다르고 동일 Pi 원본 복원 | 새 Pi writer / 기록 사라짐 |
+| U10 | Work 1만 숨김 | Main/Work 2/Support 1/미커밋 파일 보존 | 전체 그룹 사라짐/파일 삭제 |
+| U11 | Work 1 복원 | 같은 Pi/Orca 원본, 관계 재확인 | 새 Fork/새 session 생성 |
+| U12 | Main A 닫고 다시 열기 | Work 연결을 다시 찾음 | 활동 행 없어서 관계 실종 |
+| U13 | Work 1을 별도 Worktree로 이동/연결 | Orca 실행 위치와 Main의 의미적 관계 모두 정확 | 가짜 parentPaneKey/잘못된 종료 대상 |
+| U14 | Support 1 테스트와 Work 1 구현 동시 실행 | 독립 Pi context, 실제 Git 기준 확인 | Main 대화 자동 복제/시험 결과 오인 |
+| U15 | Support에서 Work에 보내기 | 미전송 초안, 기존 입력·이미지 유지 | 즉시 Work 모델 실행 |
+| U16 | Work 1 완료 보고 후 Main 보기 | Work가 실제 보고한 문구와 원본 턴 ID를 표시 | 응답 종료만으로 구현 완료 생성 |
+| U17 | Main의 Work 항목 펼치기 | 명령·읽은 파일 등 원본 Orca 렌더러, Main 전환 없음 | 새 자체 로그 UI/자동 모델 주입 |
+| U18 | Main에게 “Work에서 뭘 했어?” 질문 | 실제 조회 Tool로 확인하거나 접근 불가 명시 | 확인하지 않았는데 handoff 받았다고 주장 |
+| U19 | Work 호스트 끊고 Main 열기 | 마지막 결과와 연결 불명 구분 | 최신 작업 상태를 지어냄 |
+| U20 | App crash 이후 재실행 | 세션/레코드/Worktree 조회·재개 가능 | 중복 Work/자동 삭제 |
+| U21 | 작업 중 생성/rename/attach 일부 실패 유도 | 중간 자산 보존·복구 버튼/절차 존재 | 자동 새 Fork 남발 |
+| U22 | `orca:prepare` 2회 + 업그레이드 | 둘 다 성공, 변경된 Orca 파일은 fail closed | 패치 중복 적용/덮어쓰기 |
+| U23 | Pi TUI 전용 Extension 사용 | 지원 여부 안내, 원본 세션 안전한 호환 경로 | Extension 기능 제거 |
+| U24 | Git Worktree 삭제 시도 | Orca 원본 영향·경고, Main Pi 세션 보존 | 예기치 않은 사용자 파일 삭제 |
+
+**실행 관측 자료:** 각 시나리오의 사용자 행동, 실제 Main/Work/Support ID(민감 정보는 축약), Orca host ID, 결과 화면, 실패 로그의 **이벤트명·원인**만 기록한다. 사용자의 전체 대화나 민감한 파일 내용을 진단 데이터에 넣지 않는다.
+
+### A-14. 설계 결정 기록 양식 — 미확정 항목은 임의 구현 금지
+
+| 결정 코드 | 사용자 관점 질문 | 확인해야 할 Orca 기존 기능 | 선택 전 필요한 근거 |
+| --- | --- | --- | --- |
+| D01 | 다른 Worktree의 Work를 Main 아래 **어느 위치에** 표시할까? | Worktree 카드/Agent Dashboard/Context menu/History | 기존 UI 보존량·포커스 대상·삭제 범위 |
+| D02 | 목록 `×`로 숨긴 Work를 어디서 다시 찾을까? | Orca retained Agent/Session History | 같은 Worktree·다른 Worktree·앱 재시작 시 발견 가능성 |
+| D03 | 현재 폴더/별도 Worktree 선택의 기본값은? | 원본 workspace creation preference | 코드 변경의 resource·충돌 위험·이해도 |
+| D04 | 작업 공간 삭제 시 연결된 Pi 대화를 어떻게 재개할까? | Orca Delete/History/Session archive | 원본 파일 위치·보존 범위 |
+| D05 | Work가 후속 수정한 결과를 Main에 어떻게 누적할까? | Native Chat turn list/Activity | 새 보고가 과거 결과를 덮지 않는 방식 |
+| D06 | Main 모델이 Work 결과를 요청하면 어디까지 조회할까? | Orca host journal read, Pi registerTool | 컨텍스트 비용, 권한, 요구사항 변경 승인 경계 |
+| D07 | Support의 별도 Worktree에서 Work의 미커밋 코드를 어떻게 검사할까? | Orca Git Diff/Worktree base | 자동 복제 금지·명시적 코드 기준 |
+| D08 | 호스트가 다른 Work에 Support 결과 초안을 전달할까? | Native Chat draft owner/remote | 현재 호스트의 RPC와 접근 범위 |
+| D09 | 별도 역할 아이콘/메뉴의 표현이 필요할까? | Orca AgentTypeIcon/StatusDot/기존 context menu | **기본값은 추가 안 함**. 구체적 결핍 증명 필요 |
+
+*이 표를 변경하기 전에는 기존 사용자 합의 제품 결정 문서를 먼저 읽는다. 새로운 기본값을 임의로 확정하지 않는다.*
+
+### A-15. 구현자의 실제 작업 단위 — Task별 산출물
+
+다음은 “기능 하나 구현”보다 작은 단위로 나누어, 손실 없이 다음 세션으로 인계할 수 있게 한 작업 계약이다.
+
+| 작업 ID | 구현/조사 대상 | 산출물과 완료 증거 |
+| --- | --- | --- |
+| T00 | 고정 Orca/Pi 버전과 코드 경로 일치 | 실제 파일 경로·함수·소유권 매트릭스 |
+| T01 | Pi active leaf 조회 경로 | host 세션 ID → `get_entries.leafId`의 실제 연결 |
+| T02 | 완료 branch Fork 안전성 | 한 Main에서 분기·실행 중 Fork 시 원본/새 세션 증명 |
+| T03 | existing/empty Main 등록과 writer 충돌 | Main ID 채택·원본 보존 및 복구 흐름 |
+| T04 | Orca managed Worktree 생성 경로 | 호출 인자·영수증·auto-start 방지·중간 실패표 |
+| T05 | Work/Support shared/isolated 생성 연결 | 실제 Orca Worktree ID와 Pi targetCwd 일치 |
+| T06 | Native session lifecycle 정리 | create/reveal/close/history/rename 원본 API 사용 |
+| T07 | 레거시 record inventory | 기존 Pi/Orca/Worktree별 상태 목록, **변경 없음** |
+| T08 | 같은 Worktree의 관계 투영 | 두 Main/여러 Work/Support, Native row 회귀 검증 |
+| T09 | 교차 Worktree 관계의 사용성 설계 | 기존 Orca UX A/B 비교, 사용자 결정용 영향표 |
+| T10 | 교차 Worktree read-only 링크 | 실제 원본 Agent를 정확히 활성화·관리 |
+| T11 | 개별 행 제거·숨김·복구 정책 | 실제 메뉴와 보존/재시작 동작이 일관 |
+| T12 | Main의 Work 결과 데이터 모델 | Work turn ID/보고/host history/idempotency |
+| T13 | Native Chat 결과 projection | Main에 접는 결과 항목, 원본 renderer/scroll 유지 |
+| T14 | Main 모델 on-demand read tool | 명시적 읽기 근거, 무단 실행/자동 전송 없음 |
+| T15 | Support 결과/원본 코드 기준 | Worktree/브랜치/검사 시점 포함 |
+| T16 | Support→Work draft append | 기존 초안/첨부/동시창·중복 클릭 보호 |
+| T17 | Extension RPC/TUI 호환성 | Extension 기능별 실제 성공/미지원 표 |
+| T18 | overlay patch 최소화·기존 데이터 migration | 반복 prepare, 실패/복구, 레거시 원본 보존 |
+| T19 | 실사용 QA 전체 흐름 | U01~U24 결과, 실패 시 원인·수정 범위 |
+| T20 | 중복 관리자/리스트 정리 | 없어지는 코드와 대체한 Orca 원본 API 명시 |
+
+**각 T 단위의 완료 보고에 반드시 포함할 것:**
+1. 이미 있던 Orca 기능의 정확한 이름·함수·파일.
+2. 사용한 API와 추가한 필드 또는 입력·출력 계약.
+3. Main 고품질 컨텍스트/정확한 Pi Fork/Extension 유연성을 어떻게 보존했는지.
+4. 재사용하지 못했다면 왜 원본으로 부족했는지.
+5. 파일/Worktree/세션 삭제·수정 범위와 실패 후 복구.
+6. 정적 검증, 실제 실행 검증, 아직 미검증을 따로 표기.
+7. 미확정 정책 및 사용자 결정 요청 여부.
+
+---
+
+**이 부록이 추가됐다고 모든 기술적 가능성이 증명된 것은 아니다.** 실제 호스트를 통한 활성 leaf 조회·cross-worktree Agent 참조·다른 Pi 세션의 Main transcript slot, 정확한 RPC Extension 지원은 여전히 **소스/실사용 검증 뒤 범위를 확정할 항목**이다. 이 사실을 숨기고 새로운 UI나 상태 관리자를 만들지 않는 것이 핵심 원칙이다.
