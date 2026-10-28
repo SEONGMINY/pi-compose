@@ -5,7 +5,6 @@ import { useActiveWorktree } from '@/store/selectors'
 import { activateAndRevealWorkspace } from '@/lib/worktree-activation'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { openWorkspaceCreationComposerWithTourHandoff } from '../contextual-tours/workspace-creation-tour-handoff'
 import type { PiComposeListRecord, PiComposeResult } from '../../../../preload/api/pi-compose-bridge'
 import { openPreparedPiNativeChat } from './PiComposeNativeChat'
 import { structuredLaunchOwner } from '@/lib/agent-session/structured-agent-session-provisional-tab'
@@ -202,10 +201,6 @@ export function PiComposeMenu(): React.JSX.Element {
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
-          <button type="button" className="w-full rounded-md border border-border px-3 py-2 text-left text-xs hover:bg-muted"
-            onClick={() => { setOpen(false); openWorkspaceCreationComposerWithTourHandoff() }} disabled={busy}>
-            Orca 일반 작업 만들기 <span className="ml-1 text-muted-foreground">· Git 작업 공간 및 일반 Agent</span>
-          </button>
           <div className="text-xs text-muted-foreground">
             프로젝트: {cwd || '선택되지 않음'}
           </div>
