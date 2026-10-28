@@ -129,6 +129,10 @@ async function run(command,args) {
     if (!existing || gitRoot(args.cwd)!==existing.projectRoot) {
       throw new Error('선택한 Work 대화를 연결할 수 없습니다.');
     }
+    if (!existing.sessionFile ||
+        resolve(existing.sessionFile) !== resolve(requiredText(args.sessionFile,'Pi 원본 세션 파일',2000))) {
+      throw new Error('등록된 Compose Pi 원본 파일과 전달된 파일 경로가 일치하지 않습니다. 연결을 중단합니다.');
+    }
     if (existing.sessionId !== requiredText(args.sessionId,'Pi 원본 세션 ID',120)) {
       throw new Error('연결하려는 Orca Chat과 등록된 Agent의 Pi 세션 ID가 다릅니다.');
     }
