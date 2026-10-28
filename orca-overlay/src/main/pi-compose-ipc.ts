@@ -12,6 +12,7 @@ export type NativeComposeRequest = {
   tabId?: string
   worktreeId?: string
   mainId?: string
+  relatedWorkId?: string
   task?: string
   workspace?: 'shared' | 'worktree'
 }
