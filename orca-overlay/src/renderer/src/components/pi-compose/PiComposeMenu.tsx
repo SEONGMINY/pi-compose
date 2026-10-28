@@ -5,7 +5,7 @@ import { useActiveWorktree } from '@/store/selectors'
 import { activateAndRevealWorkspace } from '@/lib/worktree-activation'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import type { PiComposeListRecord, PiComposeResult } from '../../../../preload/api/pi-compose-bridge'
+import type { PiComposeCreationIntent, PiComposeListRecord, PiComposeResult } from '../../../../preload/api/pi-compose-bridge'
 import { openPreparedPiNativeChat, reopenPiNativeChat } from './PiComposeNativeChat'
 import { structuredLaunchOwner } from '@/lib/agent-session/structured-agent-session-provisional-tab'
 import { admitStructuredLaunchOnHost } from '@/lib/structured-agent-session-host-admission'
@@ -43,9 +43,7 @@ export function PiComposeMenu(): React.JSX.Element {
   const [preparedId, setPreparedId] = useState<string | null>(null)
   // An ambiguous Orca worktree creation is NOT a failed/no-op creation.
   // Block another create in this dialog until the user reconciles Orca state.
-  const [unresolvedWorktree, setUnresolvedWorktree] = useState<{
-    mainId: string; name: string; id?: string; path?: string
-  } | null>(null)
+  const [pendingIntent, setPendingIntent] = useState<PiComposeCreationIntent | null>(null)
   const [error, setError] = useState('')
   const [sourceWorkspace, setSourceWorkspace] = useState<{ cwd: string; worktreeId: string } | null>(null)
   const cwd = sourceWorkspace?.cwd ?? activeWorktree?.path ?? ''
@@ -66,6 +64,18 @@ export function PiComposeMenu(): React.JSX.Element {
     window.addEventListener('pi-compose:new',openMenu);
     return () => window.removeEventListener('pi-compose:new',openMenu);
   }, [])
+
+  useEffect(() => {
+    if (!open || !cwd || !mainId) {
+      setPendingIntent(null)
+      return
+    }
+    let alive = true
+    void window.api.piCompose.pendingWorktreeCreation(cwd, mainId)
+      .then(intent => { if (alive) setPendingIntent(intent) })
+      .catch(() => { if (alive) setPendingIntent(null) })
+    return () => { alive = false }
+  }, [open, cwd, mainId])
 
   const refresh = async () => {
     if (!cwd) return
@@ -158,14 +168,7 @@ export function PiComposeMenu(): React.JSX.Element {
       setError('Work 또는 Support 이름을 입력하세요.')
       return
     }
-    if (role !== 'main' && workspace === 'worktree' &&
-        unresolvedWorktree?.mainId === mainId) {
-      setError('이전 Orca Worktree 생성 여부가 불확실합니다 (' +
-        unresolvedWorktree.name + '). Orca의 기존 Worktree 목록과 준비된 Pi 세션을 확인한 후 ' +
-        '기존 작업 공간을 선택해 이어가세요. 중복 생성하지 않습니다.')
-      return
-    }
-    setBusy(true)
+     setBusy(true)
     setError('')
     try {
       const linkedSupportWork = role === 'support' && relatedWorkId
@@ -215,6 +218,7 @@ export function PiComposeMenu(): React.JSX.Element {
         ? await window.api.piCompose.previewWorkFork(cwd, mainId, liveLeaf!.activeLeafId)
         : null
       let managedWorktree: { id: string; path: string } | undefined
+      let creationIntentId: string | undefined
       if (role !== 'main' && workspace === 'worktree') {
         const source = useAppStore.getState().getKnownWorktreeById(executionSourceWorktreeId)
         if (!source?.repoId || !source.branch) {
@@ -229,19 +233,45 @@ export function PiComposeMenu(): React.JSX.Element {
         }
         // Reuse Orca's actual managed creation, host routing, branch collision
         // handling, registry and Git UI. No startup agent/prompt is passed.
-        const suffix = window.crypto.randomUUID().slice(0, 8)
-        const createdName = `compose-${role}-${suffix}`
-        // The host might succeed even when its reply is interrupted. Keep
-        // this intent visible instead of silently retrying a new Git checkout.
-        setUnresolvedWorktree({ mainId, name: createdName })
-        const created = await useAppStore.getState().createWorktree(
-          source.repoId, createdName, branch, 'inherit'
-        )
-        if (!created.worktree?.id || !created.worktree?.path) {
-          throw new Error('Orca의 Worktree 생성 영수증을 받지 못했습니다.')
+        const previous = await window.api.piCompose.pendingWorktreeCreation(cwd, mainId)
+        if (previous) {
+          setPendingIntent(previous)
+          if (previous.role !== role || previous.phase !== 'workspace-created' ||
+              !previous.workspace?.id || !previous.workspace.path) {
+            throw new Error('이 Main에 이전 Orca Worktree 생성 의도가 남아 있습니다: ' +
+              previous.name + '. 원본 Orca 작업 공간을 확인하기 전 새로 생성하지 않습니다.')
+          }
+          const known = useAppStore.getState().getKnownWorktreeById(previous.workspace.id)
+          if (!known || known.path !== previous.workspace.path) {
+            throw new Error('이전 Orca Worktree 영수증의 실제 작업 공간을 확인할 수 없습니다. ' +
+              previous.name + '의 원본을 보존하며 새로 생성하지 않습니다.')
+          }
+          managedWorktree = previous.workspace
+          creationIntentId = previous.operationId
+        } else {
+          // This intent is saved on disk *before* asking Orca to mutate Git.
+          // It survives a crashed window or missing host acknowledgement.
+          const intent = await window.api.piCompose.beginWorktreeCreation(cwd, mainId, role)
+          setPendingIntent(intent)
+          creationIntentId = intent.operationId
+          // Orca createWorktree's 19th positional argument is creationId.
+          // It links the host lifecycle to this persisted intent; no startup
+          // Agent or automatic prompt is requested.
+          const created = await useAppStore.getState().createWorktree(
+            source.repoId, intent.name, branch, 'inherit',
+            undefined, undefined, undefined, undefined, undefined,
+            undefined, undefined, undefined, undefined, undefined,
+            undefined, undefined, undefined, undefined, intent.operationId
+          )
+          if (!created.worktree?.id || !created.worktree?.path) {
+            throw new Error('Orca의 Worktree 생성 영수증을 받지 못했습니다.')
+          }
+          managedWorktree = { id: created.worktree.id, path: created.worktree.path }
+          const confirmed = await window.api.piCompose.recordWorktreeCreation(
+            cwd, mainId, intent.operationId, managedWorktree
+          )
+          setPendingIntent(confirmed)
         }
-        managedWorktree = { id: created.worktree.id, path: created.worktree.path }
-        setUnresolvedWorktree({ mainId, name: createdName, ...managedWorktree })
       }
       const result: PiComposeResult = await window.api.piCompose.create(role === 'main' && mainMode === 'existing' ? 'import' : role, {
         cwd,
@@ -249,7 +279,7 @@ export function PiComposeMenu(): React.JSX.Element {
           : { mainId, title: task.trim(), workspace: workspace as 'shared' | 'worktree',
               ...(forkPreview ? { expectedSourceEntryId: forkPreview.sourceEntryId } : {}),
               ...(liveLeaf ? { activeLeafId: liveLeaf.activeLeafId } : {}),
-              ...(managedWorktree ? { managedWorktree } : {}),
+              ...(managedWorktree ? { managedWorktree, creationIntentId } : {}),
               ...(role === 'support' && relatedWorkId ? { relatedWorkId } : {}) }),
       })
       // The bridge may have committed a Pi session and an Orca worktree
@@ -258,7 +288,7 @@ export function PiComposeMenu(): React.JSX.Element {
       setPreparedId(result.record.id)
       // Once a durable Compose record exists, the existing recovery list is
       // authoritative; a failed Native Chat launch must not create another Fork.
-      setUnresolvedWorktree(null)
+      setPendingIntent(null)
       window.dispatchEvent(new Event('pi-compose:changed'))
       if (role === 'work' && !result.proof?.allMatch) {
         throw new Error('Work 세션은 생성됐으나 Main 컨텍스트 복제 증거가 일치하지 않습니다. ' +
@@ -341,12 +371,12 @@ export function PiComposeMenu(): React.JSX.Element {
           <div className="text-xs text-muted-foreground">
             프로젝트: {cwd || '선택되지 않음'}
           </div>
-          {unresolvedWorktree ? (
+          {pendingIntent ? (
             <p className="rounded-md border border-border p-2 text-xs text-muted-foreground">
-              확인이 필요한 기존 Orca Worktree: {unresolvedWorktree.name}
-              {unresolvedWorktree.path ? ' · ' + unresolvedWorktree.path : ''}
-              {' '}— 생성 결과가 불확실한 상태에서는 새로운 Worktree를 자동 생성하지 않습니다.
-              Orca의 작업 공간 목록을 확인한 후 현재 Worktree 공유 방식으로 이어가세요.
+              이전 Orca 생성 요청: {pendingIntent.name} · {pendingIntent.phase}
+              {pendingIntent.workspace?.path ? ' · ' + pendingIntent.workspace.path : ''}
+              {' '}— 생성 결과가 불확실하면 새 Worktree를 만들지 않습니다.
+              기존 영수증이 Orca에 확인된 경우에만 이어서 Pi 세션을 준비합니다.
             </p>
           ) : null}
           {recoverable.length > 0 ? <details className="rounded-md border border-border px-3 py-2 text-xs">
