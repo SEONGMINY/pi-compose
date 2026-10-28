@@ -129,6 +129,28 @@ const patches = [
     secondBefore: "  return undefined\n}\n\nexport function buildAgentRowLineageTree",
     secondAfter: "  // Orca's native orchestration always wins. Pi context is presentation-only.\n  const contextParent = contextParentPaneKeys?.get(row.paneKey)\n  if (contextParent && contextParent !== row.paneKey && rowsByPaneKey.has(contextParent)) {\n    return contextParent\n  }\n  return undefined\n}\n\nexport function buildAgentRowLineageTree"
   }
+  ,{
+    path: "src/renderer/src/components/dashboard/agent-row-lineage-model.ts",
+    before: "export function buildAgentRowLineageTree<T extends AgentLineageSourceRow>(\n  rows: readonly T[]\n): AgentRowLineageTree<T> {",
+    after: "export function buildAgentRowLineageTree<T extends AgentLineageSourceRow>(\n  rows: readonly T[],\n  contextParentPaneKeys?: ReadonlyMap<string, string>\n): AgentRowLineageTree<T> {",
+    secondBefore: "const parentPaneKey = resolveAgentRowParentPaneKey(row, rowsByPaneKey, paneKeyByTerminalHandle)",
+    secondAfter: "const parentPaneKey = resolveAgentRowParentPaneKey(row, rowsByPaneKey, paneKeyByTerminalHandle, contextParentPaneKeys)"
+  }
+  ,{
+    path: "src/renderer/src/components/dashboard/agent-row-lineage.ts",
+    before: "export function applyAgentRowLineage(rows: DashboardAgentRow[]): DashboardAgentRowWithLineage[] {",
+    after: "export function applyAgentRowLineage(\n  rows: DashboardAgentRow[],\n  contextParentPaneKeys?: ReadonlyMap<string, string>\n): DashboardAgentRowWithLineage[] {",
+    secondBefore: "  const { rootRows, childrenByParentPaneKey, childPaneKeys } = buildAgentRowLineageTree(rows)",
+    secondAfter: "  const { rootRows, childrenByParentPaneKey, childPaneKeys } = buildAgentRowLineageTree(rows, contextParentPaneKeys)"
+  }
+  ,{
+    path: "src/renderer/src/components/sidebar/WorktreeCardAgents.tsx",
+    before: "  const { rootRows: rootAgents, childrenByParentPaneKey } = useMemo(\n    () => buildAgentRowLineageTree(visibleAgents),\n    [visibleAgents]\n  )",
+    after: "  const contextParents = usePiComposeNativeLineage(worktreeId, visibleAgents)\n  const presentationAgents = useMemo(\n    () => applyAgentRowLineage(visibleAgents, contextParents),\n    [visibleAgents, contextParents]\n  )\n  const { rootRows: rootAgents, childrenByParentPaneKey } = useMemo(\n    () => buildAgentRowLineageTree(presentationAgents, contextParents),\n    [presentationAgents, contextParents]\n  )",
+    secondBefore: "import { buildAgentRowLineageTree } from '@/components/dashboard/agent-row-lineage-model'",
+    secondAfter: "import { buildAgentRowLineageTree } from '@/components/dashboard/agent-row-lineage-model'\nimport { applyAgentRowLineage } from '@/components/dashboard/agent-row-lineage'\nimport { usePiComposeNativeLineage } from '../pi-compose/usePiComposeNativeLineage'"
+  }
+
 ]
 
 const additions = [
