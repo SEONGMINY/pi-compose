@@ -306,12 +306,21 @@ export class OrcaAgentStore {
       truncated: text.length > 12000
     };
   }
+  markConnectionFailed({ id, message }) {
+    const record = this.get(id);
+    if (!record || record.role !== 'work') throw new Error('Work Agent를 찾을 수 없습니다.');
+    if (record.state === 'ready') return record;
+    record.state = 'connection-error';
+    record.connectionError = String(message || 'Native Chat 연결 실패').slice(0, 500);
+    atomicJSON(this.path(id), record);
+    return record;
+  }
   attachNativeChat({ id, orcaSessionId, worktreeId }) {
     const record = this.get(id);
     if (!record || record.role !== 'work') {
       throw new Error('검증된 Work Agent에만 기존 Pi 세션을 연결할 수 있습니다.');
     }
-    if (!/^[a-zA-Z0-9-]{8,100}$/.test(orcaSessionId) ||
+    if (!/^pi_[A-Za-z0-9_]{8,120}$/.test(orcaSessionId) ||
         typeof worktreeId !== 'string' || !worktreeId.trim() || worktreeId.length > 512) {
       throw new Error('Orca Native Chat 식별자가 올바르지 않습니다.');
     }
@@ -320,6 +329,8 @@ export class OrcaAgentStore {
     }
     record.orcaSessionId = orcaSessionId;
     record.orcaWorktreeId = worktreeId;
+    record.state = 'ready';
+    delete record.connectionError;
     atomicJSON(this.path(record.id), record);
     return record;
   }
