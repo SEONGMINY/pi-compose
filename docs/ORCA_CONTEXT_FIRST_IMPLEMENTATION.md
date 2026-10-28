@@ -1,0 +1,57 @@
+# Pi Compose × Orca — Context-first integration (WIP)
+
+> 브랜치: `feat/orca-context-first-work-support-20261028`
+>
+> 상태: **부분 구현, macOS Orca GUI 실행/타입 검사/실사용 검증 전**.
+> 이전 `feat/orca-predictable-workflows`와 `research/orca-pi-product-fit-20261028`를 변경하지 않음.
+> 사용자 승인 없는 CI·테스트 코드 추가 및 자동 머지 없음.
+
+## 구현된 코드 경로
+
+| 기능 | 변경 위치 | 현 상태 |
+| --- | --- | --- |
+| Main의 마지막 완료 응답을 기준으로 Fork | `src/orca/completed-main-fork.mjs`, `src/orca/agent-sessions.mjs` | 완료된 assistant 응답까지 활성 **단일 분기**를 스냅샷. Main JSONL 읽기 전용, 새 세션 파일·parentSession·복제 항목 비교 |
+| Work 생성 후 직접 지시 | `src/orca/agent-sessions.mjs`, `PiComposeMenu.tsx` | Task 프롬프트를 자동 실행하지 않고 준비 상태에서 대기 |
+| Work의 Orca Native Chat | `PiComposeNativeChat.ts`, `PiComposeMenu.tsx`, `PiComposeOutline.tsx` | 기존 Pi Fork의 provider session ID를 Orca `resumeFrom` 경로로 **adopt**. 새 메시지 자동 제출 없음 |
+| Work와 Support 작업 공간 | `PiComposeMenu.tsx`, `scripts/orca-native-bridge.mjs` | 현재 폴더 또는 새 Worktree를 **매번 명시 선택** |
+| Main → Work, Work → Support 생성 | `PiComposeOutline.tsx` | Main 행의 Work 만들기, Work 행의 Support 실행 진입점 |
+| Support의 Work 연결 | `src/orca/agent-sessions.mjs`, bridge/preload | Support는 독립 Pi 세션이며 `relatedWorkId`는 결과 수신 관계만 뜻함 |
+| Support 결과 → Work 초안 | `src/orca/agent-sessions.mjs`의 `supportResult`, `PiComposeOutline.tsx` | Support의 최신 완료 응답을 읽어 Orca의 Native Chat draft store에 **append** 후 Work 창 열기. **자동 전송 없음** |
+| Orca 기존 파일 보호 | `scripts/orca-upstream.mjs` | 기존 기능 브랜치의 캐시와 충돌하지 않는 `.cache/orca-upstream-context-first`에서 고정 Orca checkout |
+
+코드 검토 시 반드시 확인할 원본 Orca 경로:
+- `src/renderer/src/components/native-chat/native-chat-composer-draft-store.ts`: `appendToNativeChatComposerDraft`, `structuredAgentSessionDraftScopeKey`
+- `src/main/pi/rpc-launch-resolution.ts`: 이전 세션의 `cwd` 기준 Resume/Fork 선택
+- `src/main/runtime/session-tabs/structured-session-create-support.ts`: Pi transcript adoption과 원본 세션 소유권 제약
+- `src/renderer/src/lib/agent-session/structured-agent-session-provisional-tab.ts`: Native Chat 생성/재개
+- `src/shared/agent-status-types.ts`: 실행/대기/턴 완료와 작업 완료의 차이
+
+## 반드시 남겨야 하는 제약과 미완료 작업
+
+1. **Main과 Support가 아직 TUI 경로이다.** Work는 Orca Native Chat으로 연결했지만 새 Main/Support를 Orca Native Chat에서 기본 시작하는 경로는 이 브랜치에서 완성되지 않았다.
+2. **정확한 활성 leaf/agent_settled 동기화가 아직 필요하다.** 현재 스냅샷은 저장된 Pi assistant 메시지의 `stopReason === "stop"`를 완료 응답의 증거로 사용한다. 이는 Pi RPC `agent_settled`와 1:1 동일한 이벤트가 아니다. 소스 JSONL에 여러 대화 분기가 있으면 활성 leaf ID를 신뢰할 수 없으므로 **실패로 종료한다**. 조용히 다른 분기를 선택하지 않는다.
+3. **Worktree 등록과 관리가 아직 완전한 Orca 통합이 아니다.** 이전 브랜치의 `git worktree add`를 재사용했으나 생성된 공간이 Orca 목록에 자동 등록되지 않으면 UI는 중단한다. 기존 Git 폴더/세션은 보존한다. Orca의 정식 Worktree 생성/등록 API로 대체가 필요하다.
+4. **Work Native Chat의 실제 Pi transcript adoption, restart, 탭 복구, Pi Extension 호환성은 실기 미검증이다.** 계정 홈/세션 ID와 Orca 소유권 거부 경로를 앱에서 확인해야 한다.
+5. **Support 결과는 단순히 최신 완료 assistant 응답 텍스트**이다. 독립 검증 모델이 자동으로 테스트 로그를 요약하거나 테스트 성공 여부를 판정하지 않는다. 원본 세션 정보도 같이 전달한다. 긴 응답은 12,000자로 자르며 일부만 포함했다고 표시한다.
+6. **Support 작업 공간 동시성:** 같은 폴더에서 Work가 수정 중이면 Support 테스트 기준이 변할 수 있다. 새 Worktree 선택은 미커밋 변경을 자동 복제하지 않는다.
+7. **Support/Work 결과 UX는 초기 연결이다.** Work가 이미 초안을 작성 중일 때 덧붙이고 기존 내용은 보존하지만, 결과 미리보기·병합 확인·전송 대상 선택 UI는 더 개선할 여지가 있다.
+8. **원본 보호:** Main의 Pi 파일, 기존 브랜치, Worktree를 자동 수정·삭제·병합하지 않는 규칙을 유지한다. Git 변경을 복제하는 기능은 없다.
+9. **Pi TUI 호환성 경계:** 사용자 Pi Extension에 RPC에서 지원되지 않는 TUI 전용 UI가 있을 수 있다. Native Chat 기본값을 강제하여 Extension을 무력화해서는 안 되며, TUI 접근 경로를 보존한다.
+
+## 남은 구현 순서
+
+1. 고정 Orca 소스를 실제 macOS에서 준비하고 변경된 overlay의 빌드/타입 오류 확인. 실패 시 검증 없이 완료 선언하지 않음.
+2. Orca의 Pi 세션 소유권/활성 leaf/턴 종료 신호를 수집할 최소한의 Host 연동. Work의 명확한 완료 지점 Fork와 동일 cwd에서 원본 Resume 방지 확인.
+3. 새 Main·Support의 Native Chat 기본 생성 및 기존 Pi 세션 출처 연결.
+4. Orca의 기존 Worktree 생성·등록·재사용 흐름으로 이관. 별도 Git 관리 로직과 자체 workspace 트리 제거 검토.
+5. Support 결과 초안 전달의 실제 UI 확인, 다른 Worktree, 기존 초안 보존/재시도/실패 복구 확인.
+6. 앱 실사용 재검증 후 기존 TUI 및 Extension 기능을 유지한 채 제품 수준 마무리.
+
+## 실행 환경
+
+- Orca 기준: `stablyai/orca@4a39d186da72a496b29a9ec5c523bbbf0a3460d8`
+- Pi 기준: `@earendil-works/pi-coding-agent@1.4.0`
+- 브랜치를 별도 체크아웃하고 macOS Node 24 + pnpm + Pi 인증 환경에서 `npm run orca:prepare`, `npm run orca:dev` 사용.
+- 본 변경은 컨테이너에서 Orca GUI 및 Pi 모델 로그인을 실제 실행하지 않았다. 실행·검증 성공을 주장하지 않는다.
+
+[승인된 정책](./research/ORCA_PI_COMPOSE_PRODUCT_DECISIONS_20261028.md)
