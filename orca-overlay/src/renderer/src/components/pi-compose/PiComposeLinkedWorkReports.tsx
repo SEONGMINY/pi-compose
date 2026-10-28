@@ -28,7 +28,7 @@ export function PiComposeLinkedWorkReports({
     items: PiComposeLinkedWorkResult[]
   }>({ sessionId: '', items: [] })
   const refresh = useCallback(async (alive: () => boolean) => {
-    if (!cwd || !orcaSessionId || !isVisible || !orcaSessionId.startsWith('pi_')) return
+    if (!cwd || !orcaSessionId || !isVisible) return
     try {
       const records = await window.api.piCompose.list(cwd)
       const main = records.find(record =>
