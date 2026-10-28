@@ -122,7 +122,13 @@ const patches = [
     secondBefore: "import React",
     secondAfter: "import React"
   }
-
+  ,{
+    path: "src/renderer/src/components/dashboard/agent-row-lineage-model.ts",
+    before: "  paneKeyByTerminalHandle: ReadonlyMap<string, string>\n): string | undefined {",
+    after: "  paneKeyByTerminalHandle: ReadonlyMap<string, string>,\n  contextParentPaneKeys?: ReadonlyMap<string, string>\n): string | undefined {",
+    secondBefore: "  return undefined\n}\n\nexport function buildAgentRowLineageTree",
+    secondAfter: "  // Orca's native orchestration always wins. Pi context is presentation-only.\n  const contextParent = contextParentPaneKeys?.get(row.paneKey)\n  if (contextParent && contextParent !== row.paneKey && rowsByPaneKey.has(contextParent)) {\n    return contextParent\n  }\n  return undefined\n}\n\nexport function buildAgentRowLineageTree"
+  }
 ]
 
 const additions = [
@@ -130,6 +136,7 @@ const additions = [
   'src/preload/api/pi-compose-bridge.ts',
   'src/renderer/src/components/pi-compose/PiComposeMenu.tsx',
   'src/renderer/src/components/pi-compose/PiComposeNativeChat.ts',
+  'src/renderer/src/components/pi-compose/usePiComposeNativeLineage.ts',
 ]
 const original = (root, relative) => join(root,'orca-overlay',relative)
 
