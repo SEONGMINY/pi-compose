@@ -68,7 +68,7 @@ async function run(command,args) {
   if (command==='connection-failed') {
     const id=requiredText(args.id,'Work ID',48);
     const target=store.get(id);
-    if (!target || target.role!=='work' || gitRoot(args.cwd)!==target.projectRoot) {
+    if (!target || gitRoot(args.cwd)!==target.projectRoot) {
       throw new Error('선택한 Work의 상태를 변경할 수 없습니다.');
     }
     return store.markConnectionFailed({
@@ -78,13 +78,14 @@ async function run(command,args) {
   if (command==='attach-chat') {
     const id = requiredText(args.id,'Agent ID',48);
     const existing = store.get(id);
-    if (!existing || gitRoot(args.cwd)!==existing.projectRoot || existing.role!=='work') {
+    if (!existing || gitRoot(args.cwd)!==existing.projectRoot) {
       throw new Error('선택한 Work 대화를 연결할 수 없습니다.');
     }
     return store.attachNativeChat({
       id,
       orcaSessionId:requiredText(args.orcaSessionId,'Orca 세션 ID',100),
       worktreeId:requiredText(args.worktreeId,'작업 공간 ID',512),
+      replaceClosed: args.replaceClosed === true,
     });
   }
   if (command==='attach') {
@@ -128,6 +129,7 @@ async function run(command,args) {
     const result=store.createMain({
       cwd,title:requiredText(args.title,'Main 이름',200),
       launcherPath:{extension,piBinary:process.env.PI_COMPOSE_PI_BINARY||'pi'},
+      SessionManager,
     });
     return {record:result,launcher:result.launcher};
   }
