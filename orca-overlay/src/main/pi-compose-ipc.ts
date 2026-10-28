@@ -74,6 +74,32 @@ export function registerPiComposeIpc(): void {
       return { activeLeafId, orcaSessionId }
     }
 
+    if (command === 'attach-chat') {
+      // Admission must prove the *actual* Orca host record owns the selected
+      // Pi transcript, not merely trust a renderer-supplied session label.
+      const { orcaSessionId, worktreeId, sessionId } = data
+      if (!orcaSessionId || !worktreeId || !sessionId) {
+        throw new Error('Pi/Orca 세션과 작업 공간 ID가 필요합니다.')
+      }
+      const { getStructuredAgentSessionHost } = await import('./native-chat/agent-session-wire/structured-agent-session-registry')
+      const host = getStructuredAgentSessionHost()
+      const conversation = host?.deps.store.getConversation(orcaSessionId)
+      if (!conversation || conversation.provider !== 'pi' ||
+          conversation.location.workspaceId !== worktreeId) {
+        throw new Error('이 Orca 호스트가 해당 Pi 대화를 소유하지 않습니다.')
+      }
+      const handle = conversation.providerHandleChain.at(-1)?.handle
+      if (handle?.agent !== 'pi' || handle.transport !== 'jsonl-rpc' ||
+          !handle.nativeId) {
+        throw new Error('Orca의 Pi 원본 파일을 확인할 수 없습니다.')
+      }
+      const { readPiSessionHeader } = await import('./pi/rpc-launch-resolution')
+      const header = await readPiSessionHeader(handle.nativeId)
+      if (header?.id !== sessionId) {
+        throw new Error('Orca 세션과 준비된 Pi 파일의 원본 ID가 다릅니다. 연결을 보류합니다.')
+      }
+    }
+
     const root = process.env.PI_COMPOSE_ROOT
     if (!root) throw new Error('Pi Compose bridge unavailable: start with npm run orca:dev')
     const script = resolve(root, 'scripts/orca-native-bridge.mjs')
