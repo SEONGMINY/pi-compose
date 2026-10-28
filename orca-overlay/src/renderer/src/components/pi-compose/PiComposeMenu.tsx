@@ -140,6 +140,34 @@ export function PiComposeMenu(): React.JSX.Element {
     }
   }
 
+  // An interrupted host reply may still have created the Orca Worktree.
+  // Only an EXPLICIT user action can reconcile it from Orca's own registered
+  // workspace inventory; never infer Git state and silently retry creation.
+  const reconcileRequestedWorktree = async () => {
+    if (!pendingIntent || pendingIntent.phase !== 'requested' || !cwd || !mainId) return
+    setBusy(true)
+    setError('')
+    try {
+      const candidates = useAppStore.getState().allWorktrees().filter(candidate =>
+        candidate.branch?.replace(/^refs\/heads\//, '') === pendingIntent.name
+      )
+      if (candidates.length !== 1 || !candidates[0].id || !candidates[0].path) {
+        throw new Error('Orca 목록에서 해당 생성 이름의 Worktree를 하나로 확인할 수 없습니다. ' +
+          '중복 생성하지 않으며 원본 Git/Orca 상태를 유지합니다.')
+      }
+      const receipt = await window.api.piCompose.recordWorktreeCreation(
+        cwd, mainId, pendingIntent.operationId,
+        { id:candidates[0].id, path:candidates[0].path }
+      )
+      setPendingIntent(receipt)
+      toast.info('기존 Orca Worktree를 확인했습니다. 같은 생성 요청으로 Pi 대화를 이어갈 수 있습니다.')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const onLaunch = async () => {
     if (preparedId) {
       setError('이미 Agent가 준비됐습니다. 사이드바에서 해당 Agent를 선택해 기존 세션을 열어주세요.')
@@ -377,6 +405,12 @@ export function PiComposeMenu(): React.JSX.Element {
               {pendingIntent.workspace?.path ? ' · ' + pendingIntent.workspace.path : ''}
               {' '}— 생성 결과가 불확실하면 새 Worktree를 만들지 않습니다.
               기존 영수증이 Orca에 확인된 경우에만 이어서 Pi 세션을 준비합니다.
+              {pendingIntent.phase === 'requested' && (
+                <Button type="button" className="mt-2" size="sm" variant="outline"
+                  disabled={busy} onClick={() => void reconcileRequestedWorktree()}>
+                  Orca에 생성된 기존 작업 공간 확인
+                </Button>
+              )}
             </p>
           ) : null}
           {recoverable.length > 0 ? <details className="rounded-md border border-border px-3 py-2 text-xs">
