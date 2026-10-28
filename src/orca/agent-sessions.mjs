@@ -259,6 +259,53 @@ export class OrcaAgentStore {
     return { ...intent, phase:'prepared', agentId };
   }
   /**
+   * Explicit recovery after the bridge process was killed mid-Pi preparation.
+   * Recover ONLY a dead PID's lock belonging to the same durable intent;
+   * the .recovery guard serializes multiple windows trying to reconcile it.
+   * Never infer from a timeout that a still-running writer has exited.
+   */
+  recoverStoppedPreparation({ mainId, operationId }) {
+    const intent = this.pendingCreation(mainId);
+    if (!intent || intent.operationId !== operationId ||
+        intent.phase !== 'workspace-created') {
+      throw new Error('복구할 Orca 작업 공간 생성 영수증을 확인할 수 없습니다.');
+    }
+    const lock = this.creationIntentPath(mainId) + '.preparing.lock';
+    if (!existsSync(lock)) return { recovered: false, message: '진행 중인 Pi 준비 잠금이 없습니다.' };
+    const guard = lock + '.recovery.lock';
+    try {
+      writeFileSync(guard, operationId + '\n', { flag:'wx', mode:0o600 });
+    } catch (error) {
+      if (error?.code === 'EEXIST') {
+        throw new Error('다른 복구 작업이 진행 중이거나 중단됐습니다. 자동으로 다시 실행하지 않습니다.');
+      }
+      throw error;
+    }
+    try {
+      const owner = JSON.parse(readFileSync(lock, 'utf8'));
+      if (owner.operationId !== operationId ||
+          !Number.isSafeInteger(owner.pid) || owner.pid <= 0) {
+        throw new Error('현재 Pi 준비 잠금이 이 생성 의도에 속하는지 확인할 수 없습니다.');
+      }
+      try {
+        process.kill(owner.pid, 0);
+        throw new Error('원래 Pi 준비 프로세스가 아직 실행 중입니다. 중복 Fork를 시작하지 않습니다.');
+      } catch (error) {
+        // Only ESRCH proves that the original PID no longer exists.
+        // EPERM and PID reuse remain blocked (fail closed).
+        if (error?.code !== 'ESRCH') throw error;
+      }
+      // We now know the original writer is gone. A new attempt can reuse its
+      // Pi session only after checking all inherited source entries, or fail
+      // without modifying anything if the old file is damaged.
+      unlinkSync(lock);
+      return { recovered: true, message: '종료된 Pi 준비 프로세스의 잠금을 해제했습니다. 원본 파일은 그대로입니다.' };
+    } finally {
+      if (existsSync(guard)) unlinkSync(guard);
+    }
+  }
+
+  /**
    * Native Orca action can open a Main without requiring /compose-main.
    * Pi creates the actual JSONL after the first conversation message.
    * The UUID is pinned BEFORE launch so an arbitrary recent session is never used.
