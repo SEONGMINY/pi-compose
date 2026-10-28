@@ -1,5 +1,7 @@
 # Pi Compose × Orca — Native-first 리팩터링 실행 계약
 
+> **후속 구현의 상세 실행 계획 정본:** [ORCA_CONTEXT_FIRST_EXECUTION_PLAN.md](./ORCA_CONTEXT_FIRST_EXECUTION_PLAN.md). 현재 파일은 이전 진단·구현 이력과 당시 검토 기준을 보존하는 문서이며, 이후 구현 순서/단계별 재사용 소스/완료 기준은 상세 실행 계획서를 따른다. 제품 정책 변경은 [사용자 합의 문서](./research/ORCA_PI_COMPOSE_PRODUCT_DECISIONS_20261028.md)가 우선한다.
+
 > 작성일: 2026-10-28 · 기준 Orca `stablyai/orca@4a39d186da72a496b29a9ec5c523bbbf0a3460d8` · Pi `v1.4.0`
 >
 > **상태: 설계 및 1차 위험 제거. 전체 리팩터링/실사용 완료 아님.**
