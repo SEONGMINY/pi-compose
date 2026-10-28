@@ -45,6 +45,26 @@ function belonging(mainId, cwd) {
 }
 const gitRootSafe = cwd => {try{return gitRoot(cwd)}catch{return null}};
 async function run(command,args) {
+  if (command==='begin-worktree-creation') {
+    const cwd=resolve(requiredText(args.cwd,'프로젝트 경로',2000));
+    const main=belonging(args.mainId,cwd);
+    const role=requiredText(args.role,'역할',20);
+    return store.beginCreation({ mainId:main.id, role, cwd });
+  }
+  if (command==='pending-worktree-creation') {
+    const cwd=resolve(requiredText(args.cwd,'프로젝트 경로',2000));
+    const main=belonging(args.mainId,cwd);
+    return store.pendingCreation(main.id);
+  }
+  if (command==='record-worktree-creation') {
+    const cwd=resolve(requiredText(args.cwd,'프로젝트 경로',2000));
+    const main=belonging(args.mainId,cwd);
+    return store.recordCreatedWorkspace({
+      mainId:main.id,
+      operationId:requiredText(args.creationIntentId,'생성 의도 ID',48),
+      workspace:args.managedWorktree
+    });
+  }
   if (command==='preview-work-fork') {
     const cwd=resolve(requiredText(args.cwd,'프로젝트 경로',2000));
     const main=belonging(args.mainId,cwd);
@@ -180,6 +200,13 @@ async function run(command,args) {
       executionCwd=linked.cwd;
     }
     const managedWorktree = workspace === 'worktree' ? args.managedWorktree : undefined;
+    const creationIntentId = workspace === 'worktree'
+      ? requiredText(args.creationIntentId,'Orca Worktree 생성 의도 ID',48) : null;
+    if (creationIntentId) {
+      store.assertCreationReceipt({
+        mainId:main.id, operationId:creationIntentId, role:command, managedWorktree
+      });
+    }
     if (managedWorktree && (
       typeof managedWorktree.id !== 'string' ||
       typeof managedWorktree.path !== 'string' ||
@@ -190,7 +217,7 @@ async function run(command,args) {
     const result=store.prepareForMain({
       mainId:main.id,role:command,workspace,title,
       relatedWorkId,projectCwd:executionCwd,
-      managedWorktree,
+      managedWorktree, creationIntentId,
       ...(typeof args.activeLeafId === 'string' && args.activeLeafId
         ? { activeLeafId: args.activeLeafId } : {}),
       ...(typeof args.expectedSourceEntryId === 'string' && args.expectedSourceEntryId
@@ -198,6 +225,9 @@ async function run(command,args) {
       SessionManager,
       launcherPath:{extension,piBinary:process.env.PI_COMPOSE_PI_BINARY||'pi'},
     });
+    if (creationIntentId) {
+      store.finishCreation({ mainId:main.id, operationId:creationIntentId, agentId:result.id });
+    }
     return {record:result,launcher:result.launcher,
       ...(command==='work'?{proof:store.inspect(result.id).fork}:{})};
   }
