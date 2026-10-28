@@ -70,3 +70,39 @@ npm run orca:dev
 소스 정합성만으로는 제품 수준 사용 가능 여부를 확정할 수 없다. **실제 Orca 화면에서 Main → Work → 완료 보고/원본 확인 → Support 전달 흐름을 재현하는 통합 검증이 남았다.**
 
 [기존 구현/제약 문서](./ORCA_CONTEXT_FIRST_IMPLEMENTATION.md)
+
+
+## 원본 1,052줄 실행 계획서 재대조 및 보완 (2026-10-28)
+
+**정본:** [ORCA_CONTEXT_FIRST_EXECUTION_PLAN.md](./ORCA_CONTEXT_FIRST_EXECUTION_PLAN.md) 및 [사용자 합의 제품 정책](./research/ORCA_PI_COMPOSE_PRODUCT_DECISIONS_20261028.md). 이 문서의 구현 현황이 정본의 P0~P6, T00~T20, U01~U24 완료 기준을 대체하지 않는다.
+
+### 이번 재대조에서 확인하고 수정한 사항
+
+| 정본 작업 | 실제 코드/문제 | 이번 수정 | 검증 수준 |
+| --- | --- | --- | --- |
+| T01/T02 · 정확한 활성 leaf/원본 Fork | `previewMainFork`와 `prepare`가 호출자 누락 시 단일 leaf를 추측할 수 있음 | Orca Work 생성·사전 검증에서는 활성 Pi RPC leaf ID를 반드시 요구. 모르면 중단 | JS 구문 파싱. 실제 RPC 실기 미검증 |
+| T02 · Fork 증거 지속성 | 이전 `verifyCopiedEntries`는 Work가 자체 대화를 추가하면 전체 길이/마지막 ID 비교로 오탐 | Main에서 상속한 ID/내용의 **접두 구간**만 비교하며, 원본/대상 Pi ID와 원본 branch entry chain을 함께 검사 | JS 구문 파싱. 다중 분기/실시간 실기 미검증 |
+| T02 · 기록 중 원본 읽기 | `readEntries`는 쓰기 진행 중 마지막 JSONL 부분 행을 무조건 파싱 | 기존 `readCompleteJsonl`을 공유해 **마지막 미완성 행만 읽기에서 제외**. 파일 수정 없음 | JS 구문 파싱. 실제 동시 writer 미검증 |
+| T03/T07 · 실패/중복/복구 | Work Fork 증명 실패 시 저장된 session/Worktree는 남는데 UI가 준비 ID를 잃을 수 있었음 | 반환된 기존 record ID를 즉시 표시하고, 증거 불일치 Work는 재열기 UI에서도 실행 차단. 원본과 중간 자산 보존 | 코드 대조. 크래시·재시작 미검증 |
+| T12/T13 · Work 결과 보고 | `linkedWorkResults`가 Work별 마지막 응답 하나만 표시하여 여러 완료 턴을 누락 | 최근 완료된 Work 턴 **각각을 실제 entry ID로 별도 반환**(Work별 최신 3개까지). Main 모델에 자동 주입하지 않고 출력은 IPC 범위로 제한 | JS 구문 파싱. 실제 UI/IPC 검증 전 |
+| T13 · 원본 증거 확인 | Main의 접는 항목에 원본 Work 대화를 여는 명시적 액션이 없음 | Orca 기존 `activateAndRevealWorkspace`, `activateStructuredAgentSessionById`로 **원본 Work 세션 활성화** 연결 | TSX 소스 대조. macOS GUI 미검증 |
+
+**경계와 이유:** Work 결과 3개 제한은 현재 UI/IPC 응답을 제한하기 위한 표시 범위일 뿐 원본 Work의 실제 턴을 삭제하거나 통합하지 않는다. 오래된 턴은 Orca 원본 세션에서 조회한다. 이 임시 상한의 장기 사용성 및 페이지네이션은 P3의 실사용 검증 후 결정한다.
+
+### 완료 판정 불가 — 계획서의 잔여 blocking 항목
+
+- **P0/T01~T03:** 활성 leaf를 돌려주는 Orca 호스트 어댑터는 코드에 있지만, 실행 중 Main 및 다중 branch, writer 소유권·호스트-실제 provider session ID 일치 검증은 미완료.
+- **P1/T04~T07:** Orca `createWorktree`를 호출하도록 변경했으나, Worktree 생성 후 IPC/세션 등록 실패와 앱 강제 종료에 대한 **stable operation ID 기반 중복 방지/재개**는 완성되지 않았다. 같은 요청의 재시도 시 새 Worktree를 만들 위험을 제품 검증에서 반드시 확인.
+- **P2/T08~T11:** 같은/다른 Worktree 관계·포커스·기존 Orca 행 dismiss/Compose 연결 숨김의 분리·History에서의 재열기 실제 시나리오 미검증. 새 가짜 pane/Agent를 만들지 않는다.
+- **P3/T12~T14:** Work별 다중 응답을 표시하도록 보완했지만 전체 Journal 투영, 같은 턴 중복/전환, Main 모델의 on-demand read tool, 원격 host 연결 상태와 UI 복구는 실사용 검증 전.
+- **P4/T15~T16:** Native draft store 재사용은 코드에 있음. 기존 초안·첨부·늦은 hydration·다중 창 편집·중복 클릭·서로 다른 호스트 검증 미완료.
+- **P5/T17:** Extension RPC에서 가능한 UI API와 TUI만 되는 API를 기능별 검증한 표·실행 검증 미완료. 확인 전 기능을 제거하거나 지원한다고 단정하지 않는다.
+- **P6/T18~T20:** 고정 Orca pin과 overlay 적용 문자열 검사 외 Node 24/pnpm 실제 설치·typecheck·Electron 빌드·macOS UX·U01~U24·레거시 inventory/cleanup 회귀 결과 없음. **GO 판정 불가.**
+
+### 변경 범위 / 검증·보존 기록
+
+- 변경: `src/orca/completed-main-fork.mjs`, `src/orca/agent-sessions.mjs`, `orca-overlay/src/renderer/src/components/pi-compose/PiComposeMenu.tsx`, `orca-overlay/src/renderer/src/components/pi-compose/PiComposeLinkedWorkReports.tsx`.
+- 불변: 원본 Main Pi JSONL, 사용자 Git Worktree, 실제 Work/Support 대화, Orca 생성/종료/포커스/원본 Session lifecycle, Pi의 기존 Extension 설정은 개발 중 **수정·삭제하지 않았다**. GitHub 코드 변경만 수행했다.
+- 수행: 실제 GitHub 소스 조회, 계획서와 함수별 비교, 변경된 두 `.mjs` 파일을 JS 파서로 구문 검사 **PASS**.
+- 미수행: 코드 실행, 기존 테스트 실행, Node/pnpm 타입 검사, Electron 빌드, 실제 Orca GUI, U01~U24 제품 QA. 따라서 **정적 수준의 수정 코드 반영**이며 제품 통합 완료가 아니다.
+- 후속은 기존 계획서의 **go/no-go gate**를 따르며, 남은 blocking을 새 자작 UI/Agent/Worktree 관리자로 우회하지 않는다. 사용자가 요청한 대로 별도 CI/테스트 코드를 추가하지 않는다.
