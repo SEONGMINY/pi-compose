@@ -6,6 +6,17 @@
 > 이전 `feat/orca-predictable-workflows`와 `research/orca-pi-product-fit-20261028`를 변경하지 않음.
 > 사용자 승인 없는 CI·테스트 코드 추가 및 자동 머지 없음.
 
+## 2026-10-28 실사용 피드백 후 변경 (컨텍스트 중심 사이드바)
+
+- **정보 구조:** 별도 `Pi Compose` 사이드바 패널을 제거하고 Orca 기본 프로젝트의 **메인 Worktree 카드 내부**에 `Main → Work → Support` 트리를 표시한다. 별도 Git Worktree에서도 Work·Support의 논리적 소속은 Main 기준으로 유지한다.
+- **진입점:** Main·Work 행에 특정 Agent 역할만 암시하는 버튼 대신 **`+ Agent`**를 표시한다. 기존 생성창에서 Main/Work/Support 선택 가능. 메뉴는 호출한 프로젝트의 cwd/Worktree ID를 유지한다.
+- **입력:** Agent 이름을 한 줄 입력창으로 변경하고 타이핑하면 오래된 검증 오류를 지운다.
+- **Work 연결 오류:** Pi Native Chat ID는 `pi_` 접두어와 밑줄을 포함하므로 기존 거부 정규식을 교정했다. 연결 실패는 `connection-error` 상태로 남기고 사용자 오류를 보존한다. 성공적으로 연결한 Work는 `ready`로 변경한다.
+- **안전:** 원본 Pi Fork는 연결 실패와 관계없이 보존한다. Main 대화·Support 결과를 Work에 자동 전송하지 않는다. 중복 Orca Chat이 이미 생성된 경우의 완전한 자동 복구는 아직 미구현.
+- **빌드 환경:** 이전 Orca overlay 파일을 덮어쓰지 않도록 새로운 `.cache/orca-upstream-context-tree` 체크아웃 사용. `npm run orca:prepare` / `npm run orca:dev`.
+
+**현재 미검증:** macOS 실제 UI, Orca 프로젝트/Worktree 가상화 행의 크기 측정·클릭 이벤트, 이전에 실패한 세션 연결 복구, Orca Native Chat 실제 세션 복원. 새 CI/테스트 코드를 추가하지 않았다.
+
 ## 구현된 코드 경로
 
 | 기능 | 변경 위치 | 현 상태 |
