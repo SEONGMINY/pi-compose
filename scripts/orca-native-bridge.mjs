@@ -56,6 +56,15 @@ async function run(command,args) {
         messageCount:session.messageCount, path:session.path,
       }));
   }
+  if (command==='support-result') {
+    const id=requiredText(args.id,'Support ID',48);
+    const support=store.get(id);
+    if (!support || support.role!=='support' ||
+        gitRoot(args.cwd)!==support.projectRoot) {
+      throw new Error('이 프로젝트의 Support 결과만 조회할 수 있습니다.');
+    }
+    return store.supportResult({id,SessionManager});
+  }
   if (command==='attach-chat') {
     const id = requiredText(args.id,'Agent ID',48);
     const existing = store.get(id);
