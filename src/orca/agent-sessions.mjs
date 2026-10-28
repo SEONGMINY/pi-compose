@@ -183,6 +183,12 @@ export class OrcaAgentStore {
         projectRootOf(cwd) !== main.projectRoot) {
       throw new Error('동일 프로젝트의 Main에서만 별도 작업 공간을 만들 수 있습니다.');
     }
+    // P1 ownership gate: the native owner must already have adopted Main.
+    // Without a real Orca worktree ID, a fabricated downstream receipt could
+    // appear to belong to the same Git repo without any Orca ownership.
+    if (!main.orcaWorktreeId || main.orcaWorktreeId.indexOf('::') <= 0) {
+      throw new Error('Main이 Orca Native Chat의 실제 작업 공간에 연결된 뒤 Worktree를 생성할 수 있습니다.');
+    }
     const label = typeof title === 'string' ? title.trim() : '';
     if (!label || label.length > 200 ||
         (role === 'work' && (!activeLeafId || !expectedSourceEntryId)) ||
