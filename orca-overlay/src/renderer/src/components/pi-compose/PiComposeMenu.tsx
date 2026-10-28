@@ -158,14 +158,17 @@ export function PiComposeMenu(): React.JSX.Element {
       if (role === 'support' && relatedWorkId && !linkedSupportWork) {
         throw new Error('Support에 연결한 Work가 선택한 Main에 속하지 않습니다.')
       }
+      if (linkedSupportWork && !linkedSupportWork.orcaWorktreeId) {
+        throw new Error('연결한 Work의 Orca 작업 공간을 아직 확인할 수 없습니다. 먼저 Work 대화를 복구해 주세요.')
+      }
       const executionSourceWorktreeId = linkedSupportWork?.orcaWorktreeId || selectedWorktreeId
       // All three roles use the same native chat transport.
       if (role === 'main' || workspace === 'shared') {
         const owner = structuredLaunchOwner(
           { route: 'structured-native-chat' }, executionSourceWorktreeId
         )
-        if (!owner) {
-          throw new Error('Orca에서 이 작업 공간의 Native Chat 실행 호스트를 확인할 수 없습니다.')
+        if (!owner || owner.target.kind !== 'local') {
+          throw new Error('현재 Pi Compose 세션 브리지는 로컬 Orca 실행 호스트만 지원합니다.')
         }
         const admission = await admitStructuredLaunchOnHost(
           owner.target, toRuntimeWorktreeSelector(executionSourceWorktreeId), 'pi'
