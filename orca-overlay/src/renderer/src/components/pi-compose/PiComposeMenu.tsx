@@ -98,6 +98,11 @@ export function PiComposeMenu(): React.JSX.Element {
     setBusy(true)
     setError('')
     try {
+      // A prepared Pi session is not proof of a valid Main Fork. Preserve
+      // incomplete assets, but never launch an unverified Work as successful.
+      if (record.role === 'work' && !record.proof?.allMatch) {
+        throw new Error('원본 Main의 Fork 증거가 일치하지 않습니다. 기존 기록은 보존되지만 자동 실행하거나 재-Fork하지 않습니다.')
+      }
       const targetId = record.orcaWorktreeId ||
         useAppStore.getState().allWorktrees().find(candidate => candidate.path === record.cwd)?.id
       if (!targetId) throw new Error('이 Agent의 Orca 작업 공간이 등록되지 않았습니다. 기존 데이터는 보존됩니다.')
@@ -229,8 +234,14 @@ export function PiComposeMenu(): React.JSX.Element {
               ...(managedWorktree ? { managedWorktree } : {}),
               ...(role === 'support' && relatedWorkId ? { relatedWorkId } : {}) }),
       })
+      // The bridge may have committed a Pi session and an Orca worktree
+      // before a proof or launch fails. Surface that exact saved record for
+      // recovery, rather than leaving an invisible orphan or retrying Fork.
+      setPreparedId(result.record.id)
+      window.dispatchEvent(new Event('pi-compose:changed'))
       if (role === 'work' && !result.proof?.allMatch) {
-        throw new Error('원본 Main 컨텍스트 복제가 검증되지 않아 실행을 차단했습니다.')
+        throw new Error('Work 세션은 생성됐으나 Main 컨텍스트 복제 증거가 일치하지 않습니다. ' +
+          '기록 ' + result.record.id + '은 보존했습니다. 실행과 자동 재-Fork를 차단합니다.')
       }
       if (role === 'work' && result.record.excludedInProgress) {
         toast.info('Main의 진행 중인 응답은 Work에 포함하지 않았습니다.', {
@@ -239,8 +250,6 @@ export function PiComposeMenu(): React.JSX.Element {
       }
       // Preparation and terminal launch are different outcomes. Always reveal a
       // prepared record in the sidebar, even if Orca fails to open its tab.
-      setPreparedId(result.record.id)
-      window.dispatchEvent(new Event('pi-compose:changed'))
       let targetWorktreeId = executionSourceWorktreeId
       if (result.record.workspace === 'worktree') {
         if (!managedWorktree ||
