@@ -29,12 +29,14 @@ export function PiComposeMenu(): React.JSX.Element {
   const [role, setRole] = useState<Role>('main')
   const [agents, setAgents] = useState<PiComposeListRecord[]>([])
   const mains = agents.filter((record) => record.role === 'main')
+  const linkedWorks = agents.filter((record) => record.role === 'work' && record.parentMainId === mainId)
   const [mainId, setMainId] = useState('')
   const [title, setTitle] = useState('')
   const [mainMode, setMainMode] = useState<'new'|'existing'>('new')
   const [saved, setSaved] = useState<{id:string;title:string;messageCount:number;path:string}[]>([])
   const [savedId, setSavedId] = useState('')
   const [task, setTask] = useState('')
+  const [relatedWorkId, setRelatedWorkId] = useState('')
   const [workspace, setWorkspace] = useState<'shared'|'worktree'>('worktree')
   const [busy, setBusy] = useState(false)
   const [preparedId, setPreparedId] = useState<string | null>(null)
@@ -42,7 +44,13 @@ export function PiComposeMenu(): React.JSX.Element {
   const cwd = activeWorktree?.path ?? ''
   // The native Orca + button and project tree both open this same creation flow.
   useEffect(() => {
-    const openMenu = () => { setOpen(true); setError(''); setPreparedId(null) };
+    const openMenu = (event: Event) => {
+      const picked = (event as CustomEvent<{ role?: Role; mainId?: string; relatedWorkId?: string }>).detail
+      if (picked?.role) setRole(picked.role)
+      if (picked?.mainId) setMainId(picked.mainId)
+      setRelatedWorkId(picked?.relatedWorkId || '')
+      setOpen(true); setError(''); setPreparedId(null)
+    };
     window.addEventListener('pi-compose:new',openMenu);
     return () => window.removeEventListener('pi-compose:new',openMenu);
   }, [])
@@ -109,7 +117,7 @@ export function PiComposeMenu(): React.JSX.Element {
       return
     }
     if (role !== 'main' && !task.trim()) {
-      setError('실제로 수행할 작업을 입력하세요.')
+      setError('Work 또는 Support 이름을 입력하세요.')
       return
     }
     setBusy(true)
@@ -118,7 +126,8 @@ export function PiComposeMenu(): React.JSX.Element {
       const result: PiComposeResult = await window.api.piCompose.create(role === 'main' && mainMode === 'existing' ? 'import' : role, {
         cwd,
         ...(role === 'main' ? { title: title.trim(), ...(mainMode === 'existing' ? { sessionId: savedId } : {}) }
-          : { mainId, task: task.trim(), workspace }),
+          : { mainId, title: task.trim(), workspace,
+              ...(role === 'support' && relatedWorkId ? { relatedWorkId } : {}) }),
       })
       if (role === 'work' && !result.proof?.allMatch) {
         throw new Error('원본 Main 컨텍스트 복제가 검증되지 않아 실행을 차단했습니다.')
@@ -187,7 +196,7 @@ export function PiComposeMenu(): React.JSX.Element {
         <DialogHeader>
           <DialogTitle>Pi Compose Agent</DialogTitle>
           <DialogDescription>
-            Orca 터미널에서 실제 Pi를 실행합니다. Main의 원본 설계 맥락은 보존됩니다.
+            Main의 설계 컨텍스트를 보존합니다. Work와 Support는 먼저 대화만 준비하고 작업 지시는 직접 입력합니다.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -237,16 +246,24 @@ export function PiComposeMenu(): React.JSX.Element {
             <label className="block text-xs font-medium">
               이어받을 Main (Support는 작업 관계만 연결)
               <select className="mt-2 h-9 w-full rounded-md border border-input bg-background px-2"
-                value={mainId} onChange={(event) => setMainId(event.target.value)} disabled={busy}>
+                value={mainId} onChange={(event) => { setMainId(event.target.value); setRelatedWorkId('') }} disabled={busy}>
                 {!mains.length && <option value="">등록된 Main이 없습니다</option>}
                 {mains.map((main) => <option key={main.id} value={main.id}>{main.title}</option>)}
               </select>
             </label>
+            {role === 'support' && <label className="block text-xs font-medium">
+              결과를 전달할 Work (선택 사항)
+              <select className="mt-2 h-9 w-full rounded-md border border-input bg-background px-2"
+                value={relatedWorkId} onChange={event => setRelatedWorkId(event.target.value)} disabled={busy}>
+                <option value="">아직 연결하지 않음</option>
+                {linkedWorks.map(work => <option value={work.id} key={work.id}>{work.title}</option>)}
+              </select>
+            </label>}
             <label className="block text-xs font-medium">
-              작업 지시
+              Agent 이름
               <textarea className="mt-2 min-h-24 w-full rounded-md border border-input bg-background p-3"
                 value={task} onChange={(event) => setTask(event.target.value)} disabled={busy}
-                maxLength={5000} placeholder="구체적인 작업을 입력하세요."/>
+                maxLength={200} placeholder={role === 'work' ? '예: 로그인 구현' : '예: 테스트 검증'}/>
             </label>
             <label className="block text-xs font-medium">
               Git 작업 폴더
@@ -262,7 +279,7 @@ export function PiComposeMenu(): React.JSX.Element {
               자동으로 새 Worktree로 전환되지 않으므로 코드 변경은 해당 작업 폴더에서 확인하세요.
             </p>}
             {role === 'work' && <p className="text-xs leading-relaxed text-muted-foreground">
-              Main의 실제 Pi 대화 전체를 복제하고 일치 여부를 검증한 후 실행합니다.
+              Main의 마지막 완료된 응답까지 Fork합니다. 진행 중인 응답은 제외되며, Work는 작업 지시를 기다립니다.
               Main의 이후 대화나 Work의 실행 로그는 자동 전달되지 않습니다.
             </p>}
           </>}
@@ -295,7 +312,7 @@ export function PiComposeMenu(): React.JSX.Element {
             <Button variant="outline" onClick={() => setOpen(false)} disabled={busy}>취소</Button>
             <Button onClick={() => void onLaunch()}
               disabled={busy || Boolean(preparedId) || !cwd || (role !== 'main' && !mainId)}>
-              {busy ? '세션 검증·준비 중…' : preparedId ? '기존 Agent에서 다시 열기' : 'Agent 생성하고 실행'}
+              {busy ? '세션 검증·준비 중…' : preparedId ? '기존 Agent에서 다시 열기' : role === 'main' ? 'Main 대화 열기' : 'Agent 준비하고 대화 열기'}
             </Button>
           </div>
         </div>
