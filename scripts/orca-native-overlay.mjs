@@ -158,6 +158,13 @@ const patches = [
     secondBefore: "                <NativeChatWaitingTranscriptItems slots={waitingSlots} context={rowContext} />",
     secondAfter: "                <NativeChatWaitingTranscriptItems slots={waitingSlots} context={rowContext} />\n                <PiComposeLinkedWorkReports orcaSessionId={session.sessionId} isVisible={isVisible} />"
   }
+  ,{
+    path: 'src/renderer/src/components/native-chat/use-native-chat-context-menu.tsx',
+    before: "import { NativeChatPaneMenuItems } from './NativeChatPaneMenuItems'",
+    after: "import { NativeChatPaneMenuItems } from './NativeChatPaneMenuItems'\nimport { PiComposeSupportDraftMenu } from '../pi-compose/PiComposeSupportDraftMenu'",
+    secondBefore: "          {chatPane ? (",
+    secondAfter: "          {composeChat?.entityId && composeWorktree?.path ? (\n            <PiComposeSupportDraftMenu cwd={composeWorktree.path} orcaSessionId={composeChat.entityId} />\n          ) : null}\n          {chatPane ? ("
+  }
 ]
 
 const additions = [
@@ -167,6 +174,7 @@ const additions = [
   'src/renderer/src/components/pi-compose/PiComposeNativeChat.ts',
   'src/renderer/src/components/pi-compose/usePiComposeNativeLineage.ts',
   'src/renderer/src/components/pi-compose/PiComposeLinkedWorkReports.tsx',
+  'src/renderer/src/components/pi-compose/PiComposeSupportDraftMenu.tsx',
 ]
 const original = (root, relative) => join(root,'orca-overlay',relative)
 
