@@ -44,7 +44,7 @@ export function PiComposeMenu(): React.JSX.Element {
   const [sourceWorkspace, setSourceWorkspace] = useState<{ cwd: string; worktreeId: string } | null>(null)
   const cwd = sourceWorkspace?.cwd ?? activeWorktree?.path ?? ''
   const selectedWorktreeId = sourceWorkspace?.worktreeId ?? activeWorktreeId
-  // The native Orca + button and project tree both open this same creation flow.
+  // Pi Compose creation is explicit; Orca's native New Workspace button is untouched.
   useEffect(() => {
     const openMenu = (event: Event) => {
       const picked = (event as CustomEvent<{ role?: Role; mainId?: string; relatedWorkId?: string; projectCwd?: string; projectWorktreeId?: string }>).detail
@@ -60,21 +60,6 @@ export function PiComposeMenu(): React.JSX.Element {
     window.addEventListener('pi-compose:new',openMenu);
     return () => window.removeEventListener('pi-compose:new',openMenu);
   }, [])
-
-  useEffect(() => {
-    if (!cwd) return
-    const key = 'pi-compose.first-open.' + cwd
-    try { if (window.localStorage.getItem(key) === 'shown') return }
-    catch { return }
-    let cancelled = false
-    void window.api.piCompose.list(cwd).then(items => {
-      if (cancelled || items.some(item => item.role === 'main')) return
-      try { window.localStorage.setItem(key, 'shown') } catch { return }
-      setRole('main')
-      setOpen(true)
-    }).catch(() => { /* the visible sidebar supplies a retry path */ })
-    return () => { cancelled = true }
-  }, [cwd])
 
   const refresh = async () => {
     if (!cwd) return
@@ -301,27 +286,6 @@ export function PiComposeMenu(): React.JSX.Element {
               Main의 이후 대화나 Work의 실행 로그는 자동 전달되지 않습니다.
             </p>}
           </>}
-          {agents.length > 0 && <details className="rounded-lg border border-border bg-muted/20 p-3 text-xs">
-            <summary className="cursor-pointer font-medium">이 프로젝트의 Agent · Context 출처</summary>
-            <div className="mt-3 space-y-3">
-              {mains.map((main) => <div key={main.id} className="space-y-1 rounded-md border border-border/60 p-2">
-                <div className="font-semibold">Main Agent · {main.title}</div>
-                <p className="text-muted-foreground">독립 Pi 설계 세션 · {main.sessionId}</p>
-                {agents.filter((agent) => agent.parentMainId === main.id).map((agent) =>
-                  <div key={agent.id} className="ml-2 border-l border-border pl-3 py-1">
-                    <div>{agent.role === 'work' ? 'Work Agent' : 'Support Agent'} · {agent.title}</div>
-                    <div className="text-muted-foreground">
-                      {agent.role === 'work'
-                        ? agent.proof?.allMatch
-                          ? '원본 Pi 기록 일치 ' + agent.proof.copied + '/' + agent.proof.expected
-                          : 'Fork 기록을 다시 확인해야 합니다'
-                        : '독립 세션 · Main 대화 상속 없음'}
-                    </div>
-                  </div>)}
-              </div>)}
-            </div>
-            <p className="mt-2 text-muted-foreground">기록의 일치는 모델의 의미 이해나 구현 완료를 뜻하지 않습니다.</p>
-          </details>}
           {error && <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
             {error}
           </div>}
