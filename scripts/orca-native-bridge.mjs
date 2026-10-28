@@ -65,6 +65,16 @@ async function run(command,args) {
     }
     return store.supportResult({id,SessionManager});
   }
+  if (command==='connection-failed') {
+    const id=requiredText(args.id,'Work ID',48);
+    const target=store.get(id);
+    if (!target || target.role!=='work' || gitRoot(args.cwd)!==target.projectRoot) {
+      throw new Error('선택한 Work의 상태를 변경할 수 없습니다.');
+    }
+    return store.markConnectionFailed({
+      id, message: requiredText(args.message, '연결 오류', 500)
+    });
+  }
   if (command==='attach-chat') {
     const id = requiredText(args.id,'Agent ID',48);
     const existing = store.get(id);
