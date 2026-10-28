@@ -166,8 +166,16 @@ export function PiComposeMenu(): React.JSX.Element {
       if (role === 'work') {
         // Adopt the prepared Pi session into Orca's original Native Chat.
         // There is no initial prompt: the user sends the first Work instruction.
-        const chatSessionId = await openPreparedWorkNativeChat(targetWorktreeId, result.record.sessionId)
-        await window.api.piCompose.attachChat(cwd, result.record.id, chatSessionId, targetWorktreeId)
+        try {
+          const chatSessionId = await openPreparedWorkNativeChat(targetWorktreeId, result.record.sessionId)
+          await window.api.piCompose.attachChat(cwd, result.record.id, chatSessionId, targetWorktreeId)
+        } catch (cause) {
+          const message = cause instanceof Error ? cause.message : String(cause)
+          await window.api.piCompose.connectionFailed(cwd, result.record.id, message)
+            .catch(() => { /* original launch failure is the important error */ })
+          window.dispatchEvent(new Event('pi-compose:changed'))
+          throw cause
+        }
         window.dispatchEvent(new Event('pi-compose:changed'))
         setOpen(false)
         setTitle('')
@@ -284,9 +292,9 @@ export function PiComposeMenu(): React.JSX.Element {
             </label>}
             <label className="block text-xs font-medium">
               Agent 이름
-              <textarea className="mt-2 min-h-24 w-full rounded-md border border-input bg-background p-3"
+              <input className="mt-2 h-9 w-full rounded-md border border-input bg-background px-3"
                 value={task} onChange={(event) => setTask(event.target.value)} disabled={busy}
-                maxLength={200} placeholder={role === 'work' ? '예: 로그인 구현' : '예: 테스트 검증'}/>
+                maxLength={100} placeholder={role === 'work' ? '예: 로그인 구현' : '예: 테스트 검증'}/>
             </label>
             <label className="block text-xs font-medium">
               Git 작업 폴더
