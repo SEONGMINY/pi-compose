@@ -147,6 +147,9 @@ export class OrcaAgentStore {
     }
     const file = this.creationIntentPath(mainId);
     mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+    // Finish archival of an already-proven completed intent after a crash,
+    // then still use O_EXCL for concurrent windows.
+    this.pendingCreation(mainId);
     const operationId = randomUUID();
     const intent = {
       operationId, mainId, role, projectRoot: main.projectRoot,
@@ -171,11 +174,20 @@ export class OrcaAgentStore {
   recordCreatedWorkspace({ mainId, operationId, workspace }) {
     const intent = this.pendingCreation(mainId);
     if (!intent || intent.operationId !== operationId ||
-        intent.phase !== 'requested' ||
         typeof workspace?.id !== 'string' || !workspace.id ||
         typeof workspace?.path !== 'string' ||
         projectRootOf(workspace.path) !== intent.projectRoot) {
       throw new Error('Orca 작업 공간 생성 영수증이 기존 요청과 일치하지 않습니다.');
+    }
+    if (intent.phase === 'workspace-created') {
+      if (intent.workspace?.id !== workspace.id ||
+          resolve(intent.workspace?.path || '') !== resolve(workspace.path)) {
+        throw new Error('이미 저장된 Orca 영수증과 다른 작업 공간을 연결할 수 없습니다.');
+      }
+      return intent;
+    }
+    if (intent.phase !== 'requested') {
+      throw new Error('이미 완료된 생성 의도의 영수증을 변경할 수 없습니다.');
     }
     const next = { ...intent, phase: 'workspace-created', workspace: {
       id: workspace.id, path: resolve(workspace.path)
