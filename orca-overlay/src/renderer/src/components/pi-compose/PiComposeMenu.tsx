@@ -325,9 +325,13 @@ export function PiComposeMenu(): React.JSX.Element {
             <div className="mt-3 space-y-2">
               {recoverable.map(record => <div key={record.id} className="flex items-center justify-between gap-2">
                 <span className="min-w-0 truncate">{record.title} · {record.role}</span>
-                <Button size="sm" variant="outline" disabled={busy} onClick={() => void reopenPrepared(record)}>
-                  기존 대화 재열기
-                </Button>
+                {record.role === 'work' && !record.proof?.allMatch
+                  ? <span className="text-muted-foreground" title="원본과 복제 구간이 일치하는지 확인할 수 없습니다. 원본 기록은 보존됩니다.">
+                      Fork 검증 불일치 · 실행 차단
+                    </span>
+                  : <Button size="sm" variant="outline" disabled={busy} onClick={() => void reopenPrepared(record)}>
+                      기존 대화 재열기
+                    </Button>}
               </div>)}
             </div>
           </details> : null}
