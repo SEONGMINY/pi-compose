@@ -271,6 +271,37 @@ export class OrcaAgentStore {
       leafMatches && copied === expected && target.length === expected;
     return { allMatch, copied, expected, leafMatches };
   }
+  supportResult({ id, SessionManager }) {
+    const support = this.get(id);
+    if (!support || support.role !== 'support') {
+      throw new Error('결과를 확인할 Support Agent가 없습니다.');
+    }
+    const file = support.sessionFile && existsSync(support.sessionFile)
+      ? support.sessionFile
+      : SessionManager.findById(support.cwd, support.sessionId);
+    if (!file || !existsSync(file) || headerOf(file).id !== support.sessionId) {
+      throw new Error('Support 대화가 아직 저장되지 않았습니다. 실제 작업을 수행한 뒤 결과를 확인하세요.');
+    }
+    const branch = SessionManager.open(file).getBranch();
+    const finished = branch.filter(entry =>
+      entry.type === 'message' &&
+      entry.message?.role === 'assistant' &&
+      entry.message?.stopReason === 'stop' &&
+      entry.message?.endTurn !== false).at(-1);
+    if (!finished) throw new Error('Support의 완료된 응답을 아직 찾지 못했습니다.');
+    const text = (finished.message.content || [])
+      .filter(block => block.type === 'text')
+      .map(block => block.text).join('\n').trim();
+    if (!text) throw new Error('Support의 최신 완료 응답에 전달할 텍스트가 없습니다.');
+    return {
+      supportId: support.id, supportTitle: support.title,
+      relatedWorkId: support.relatedWorkId || null,
+      sessionId: support.sessionId, sessionFile: resolve(file),
+      observedAt: finished.timestamp, entryId: finished.id,
+      text: text.slice(0, 12000),
+      truncated: text.length > 12000
+    };
+  }
   attachNativeChat({ id, orcaSessionId, worktreeId }) {
     const record = this.get(id);
     if (!record || record.role !== 'work') {
