@@ -203,12 +203,13 @@ export function PiComposeMenu(): React.JSX.Element {
         ? agents.find(record => record.id === mainId && record.role === 'main')
         : null
       if (role === 'work' &&
-          (!sourceMain?.orcaSessionId || !sourceMain.orcaWorktreeId)) {
+          (!sourceMain?.orcaSessionId || !sourceMain.orcaWorktreeId || !sourceMain.sessionFile)) {
         throw new Error('Fork할 Main의 Orca Pi 세션이 없습니다. Main 대화를 먼저 열어 주세요.')
       }
       const liveLeaf = sourceMain?.orcaSessionId && sourceMain.orcaWorktreeId
         ? await window.api.piCompose.liveMainLeaf(
-            cwd, sourceMain.orcaSessionId, sourceMain.orcaWorktreeId, sourceMain.sessionId
+            cwd, sourceMain.orcaSessionId, sourceMain.orcaWorktreeId, sourceMain.sessionId,
+            sourceMain.sessionFile
           ) : null
       const forkPreview = role === 'work'
         ? await window.api.piCompose.previewWorkFork(cwd, mainId, liveLeaf!.activeLeafId)
