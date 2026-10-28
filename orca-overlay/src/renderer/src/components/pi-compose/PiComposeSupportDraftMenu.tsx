@@ -46,7 +46,7 @@ export function PiComposeSupportDraftMenu({
         record.parentMainId === found.parentMainId &&
         !record.hiddenFromMainAt && record.proof?.allMatch === true &&
         Boolean(record.orcaSessionId && record.orcaWorktreeId)
-      ) : [])
+      ).sort((a, b) => Number(b.id === found.relatedWorkId) - Number(a.id === found.relatedWorkId)) : [])
     }).catch(() => {
       if (current) { setSupport(null); setWorks([]) }
     })
