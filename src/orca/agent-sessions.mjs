@@ -121,7 +121,23 @@ export class OrcaAgentStore {
   }
   pendingCreation(mainId) {
     const path = this.creationIntentPath(mainId);
-    return existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null;
+    if (!existsSync(path)) return null;
+    const intent = JSON.parse(readFileSync(path, 'utf8'));
+    // Crash after writing the completed receipt but before its archival
+    // rename: verify that a durable Pi record really owns the same Orca
+    // workspace, then finish archival. A broken record remains unresolved.
+    if (intent.phase === 'prepared' && intent.agentId) {
+      const record = this.get(intent.agentId);
+      if (record?.creationIntentId === intent.operationId &&
+          record.parentMainId === mainId &&
+          record.orcaWorktreeId === intent.workspace?.id &&
+          resolve(record.cwd) === resolve(intent.workspace?.path || '')) {
+        const archived = join(dirname(path), intent.operationId + '.completed.json');
+        if (!existsSync(archived)) renameSync(path, archived);
+        return null;
+      }
+    }
+    return intent;
   }
   beginCreation({ mainId, role, cwd }) {
     const main = this.get(mainId);
