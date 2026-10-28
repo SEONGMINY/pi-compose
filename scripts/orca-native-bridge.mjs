@@ -49,7 +49,13 @@ async function run(command,args) {
     const cwd=resolve(requiredText(args.cwd,'프로젝트 경로',2000));
     const main=belonging(args.mainId,cwd);
     const role=requiredText(args.role,'역할',20);
-    return store.beginCreation({ mainId:main.id, role, cwd });
+    return store.beginCreation({
+      mainId:main.id, role, cwd,
+      title:requiredText(args.title,'작업 이름',200),
+      relatedWorkId: args.relatedWorkId || null,
+      activeLeafId: args.activeLeafId || null,
+      expectedSourceEntryId: args.expectedSourceEntryId || null
+    });
   }
   if (command==='pending-worktree-creation') {
     const cwd=resolve(requiredText(args.cwd,'프로젝트 경로',2000));
@@ -204,7 +210,10 @@ async function run(command,args) {
       ? requiredText(args.creationIntentId,'Orca Worktree 생성 의도 ID',48) : null;
     if (creationIntentId) {
       store.assertCreationReceipt({
-        mainId:main.id, operationId:creationIntentId, role:command, managedWorktree
+        mainId:main.id, operationId:creationIntentId, role:command, managedWorktree,
+        title, relatedWorkId:relatedWorkId || null,
+        activeLeafId: args.activeLeafId || null,
+        expectedSourceEntryId: args.expectedSourceEntryId || null
       });
     }
     if (managedWorktree && (
