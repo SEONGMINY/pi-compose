@@ -10,6 +10,7 @@ export type PiComposeRequest = {
   worktreeId?: string
   orcaSessionId?: string
   message?: string
+  replaceClosed?: boolean
   mainId?: string
   relatedWorkId?: string
   task?: string
@@ -56,7 +57,7 @@ export type PiComposeSupportResult = {
 export type PiComposeApi = {
   list: (cwd: string) => Promise<PiComposeListRecord[]>
   attach: (cwd: string, id: string, tabId: string, worktreeId: string) => Promise<PiComposeRecord>
-  attachChat: (cwd: string, id: string, orcaSessionId: string, worktreeId: string) => Promise<PiComposeRecord>
+  attachChat: (cwd: string, id: string, orcaSessionId: string, worktreeId: string, replaceClosed?: boolean) => Promise<PiComposeRecord>
   supportResult: (cwd: string, id: string) => Promise<PiComposeSupportResult>
   connectionFailed: (cwd: string, id: string, message: string) => Promise<PiComposeRecord>
   sessions: (cwd: string) => Promise<{id:string;title:string;messageCount:number;path:string}[]>
@@ -65,7 +66,7 @@ export type PiComposeApi = {
 export const piComposeApi: PiComposeApi = {
   list: (cwd) => ipcRenderer.invoke('pi-compose:execute', 'list', { cwd }),
   attach: (cwd,id,tabId,worktreeId) => ipcRenderer.invoke('pi-compose:execute','attach',{cwd,id,tabId,worktreeId}),
-  attachChat: (cwd,id,orcaSessionId,worktreeId) => ipcRenderer.invoke('pi-compose:execute','attach-chat',{cwd,id,orcaSessionId,worktreeId}),
+  attachChat: (cwd,id,orcaSessionId,worktreeId,replaceClosed) => ipcRenderer.invoke('pi-compose:execute','attach-chat',{cwd,id,orcaSessionId,worktreeId,replaceClosed}),
   supportResult: (cwd,id) => ipcRenderer.invoke('pi-compose:execute','support-result',{cwd,id}),
   connectionFailed: (cwd,id,message) => ipcRenderer.invoke('pi-compose:execute','connection-failed',{cwd,id,message}),
   sessions: (cwd) => ipcRenderer.invoke('pi-compose:execute', 'sessions', { cwd }),
