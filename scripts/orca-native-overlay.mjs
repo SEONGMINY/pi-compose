@@ -151,6 +151,13 @@ const patches = [
     secondAfter: "import { buildAgentRowLineageTree } from '@/components/dashboard/agent-row-lineage-model'\nimport { applyAgentRowLineage } from '@/components/dashboard/agent-row-lineage'\nimport { usePiComposeNativeLineage } from '../pi-compose/usePiComposeNativeLineage'"
   }
 
+  ,{
+    path: 'src/renderer/src/components/native-chat/NativeChatMessageList.tsx',
+    before: "import { NativeChatMessageRail } from './NativeChatMessageRail'",
+    after: "import { NativeChatMessageRail } from './NativeChatMessageRail'\nimport { PiComposeLinkedWorkReports } from '../pi-compose/PiComposeLinkedWorkReports'",
+    secondBefore: "                <NativeChatWaitingTranscriptItems slots={waitingSlots} context={rowContext} />",
+    secondAfter: "                <NativeChatWaitingTranscriptItems slots={waitingSlots} context={rowContext} />\n                <PiComposeLinkedWorkReports orcaSessionId={session.sessionId} isVisible={isVisible} />"
+  }
 ]
 
 const additions = [
@@ -159,6 +166,7 @@ const additions = [
   'src/renderer/src/components/pi-compose/PiComposeMenu.tsx',
   'src/renderer/src/components/pi-compose/PiComposeNativeChat.ts',
   'src/renderer/src/components/pi-compose/usePiComposeNativeLineage.ts',
+  'src/renderer/src/components/pi-compose/PiComposeLinkedWorkReports.tsx',
 ]
 const original = (root, relative) => join(root,'orca-overlay',relative)
 
