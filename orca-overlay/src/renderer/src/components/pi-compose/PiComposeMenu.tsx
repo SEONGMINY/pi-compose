@@ -266,7 +266,7 @@ export function PiComposeMenu(): React.JSX.Element {
           setPendingIntent(previous)
           if (previous.role !== role || previous.phase !== 'workspace-created' ||
               previous.title !== task.trim() ||
-              (previous.relatedWorkId || null) !== (relatedWorkId || null) ||
+              (previous.relatedWorkId || null) !== (role === 'support' ? relatedWorkId || null : null) ||
               (previous.activeLeafId || null) !== (liveLeaf?.activeLeafId || null) ||
               (previous.expectedSourceEntryId || null) !== (forkPreview?.sourceEntryId || null) ||
               !previous.workspace?.id || !previous.workspace.path) {
@@ -285,7 +285,7 @@ export function PiComposeMenu(): React.JSX.Element {
           // This intent is saved on disk *before* asking Orca to mutate Git.
           // It survives a crashed window or missing host acknowledgement.
           const intent = await window.api.piCompose.beginWorktreeCreation(
-            cwd, mainId, role, task.trim(), relatedWorkId || null,
+            cwd, mainId, role, task.trim(), role === 'support' ? relatedWorkId || null : null,
             liveLeaf?.activeLeafId || null, forkPreview?.sourceEntryId || null
           )
           setPendingIntent(intent)
