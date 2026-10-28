@@ -10,6 +10,8 @@ import { openPreparedPiNativeChat } from './PiComposeNativeChat'
 import { structuredLaunchOwner } from '@/lib/agent-session/structured-agent-session-provisional-tab'
 import { admitStructuredLaunchOnHost } from '@/lib/structured-agent-session-host-admission'
 import { toRuntimeWorktreeSelector } from '@/runtime/runtime-worktree-selector'
+import { callRuntimeRpc } from '@/runtime/runtime-rpc-client'
+import { supportsStructuredAgentSessionRename } from '@/runtime/structured-agent-session-client'
 
 type Role = 'main' | 'work' | 'support'
 const ROLES: ReadonlyArray<{ id: Role; title: string; description: string }> = [
@@ -173,6 +175,23 @@ export function PiComposeMenu(): React.JSX.Element {
       try {
         const chatSessionId = await openPreparedPiNativeChat(targetWorktreeId, result.record.sessionId)
         await window.api.piCompose.attachChat(cwd, result.record.id, chatSessionId, targetWorktreeId)
+        // Orca's host-owned conversation name is the single source used by
+        // tabs, Agent rows, session history and other connected clients.
+        // Do not add a second Pi Compose label renderer.
+        try {
+          const owner = structuredLaunchOwner(
+            { route: 'structured-native-chat' }, targetWorktreeId
+          )
+          if (owner && await supportsStructuredAgentSessionRename(owner.target)) {
+            const roleName = role === 'main' ? 'Main' : role === 'work' ? 'Work' : 'Support'
+            await callRuntimeRpc(owner.target, 'agentSession.rename', {
+              sessionId: chatSessionId,
+              name: roleName + ' · ' + result.record.title
+            })
+          }
+        } catch (renameError) {
+          console.warn('[Pi Compose] Orca 원본 대화 이름 적용 실패', renameError)
+        }
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : String(cause)
         await window.api.piCompose.connectionFailed(cwd, result.record.id, message)
