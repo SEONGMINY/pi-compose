@@ -208,3 +208,37 @@ npm run orca:dev
 **제약:** 파일 잠금의 PID가 재사용됐거나 권한 오류(EPERM)로 생사를 확인할 수 없으면 자동 복구하지 않는다. 별도 잠금 복구자가 비정상 종료해 `.recovery.lock`이 남아도 자동 해제하지 않는다. 운영자 수동 정합성 점검이 필요하며, 원본 데이터를 임의로 삭제하거나 Git 리셋하는 방식으로 우회하지 않는다.
 
 기존 GitHub macOS `upstream-integration`은 **이번 변경 이전 커밋**에서 통과했다. 현재 커밋의 macOS TypeScript/GUI 및 P0/P1 크래시·다중창은 미검증이다. `contract-check`는 구형 구현을 전제로 한 fixture와 불일치하여 실패하며 변경된 코드에 대한 추가 테스트는 사용자 요청에 따라 작성하지 않았다. 이 기록은 P0/P1 **GO 판정이 아니다**.
+
+
+## P0/P1 후속 재감사: Pi Compaction 컨텍스트 보존 및 Orca Worktree 영수증 식별
+
+**이번 확인의 출처:** Pi SDK `earendil-works/pi@v1.4.0`의 `packages/coding-agent/src/core/session-manager.ts`, Orca `stablyai/orca@4a39d186`의 `src/shared/worktree/id.ts`, `src/main/ipc/worktree-branch-name.ts`, `src/shared/new-workspace/worktree-create-retry-policy.ts`.
+
+### P0 — 마지막 완료 응답 뒤의 Main 컨텍스트 누락 수정
+
+실제 Pi SessionEntry는 일반 `message` 이외에도 `compaction`, `context_edit`, `model_change`, `custom`, `session_info`, `usage`, `branch_summary`, `custom_message` 등을 가질 수 있다. 이전 `captureCompletedMain`은 마지막 완료 assistant 응답 위치에서 무조건 잘라, **그 응답 뒤에 활성 분기의 Compaction/ContextEdit가 기록되면 Work의 차후 모델 컨텍스트가 Main과 달라지는 결함**이 있었다.
+
+수정: 완료된 assistant를 기준으로 후속 `message` 또는 `custom_message`(아직 답을 받지 않은 새 입력)가 나오기 전의 **상태·컨텍스트 항목만** 보존한다. 이후 사용자 입력과 그 하위 항목은 복제하지 않는다. `sourceEntryId`는 **실제로 복제한 분기의 마지막 Pi entry**로, `completedAssistantEntryId`는 별도로 **마지막 완료 assistant message**를 나타낸다. Pi SDK가 제공하는 Compaction, ContextEdit, Extension 상태 기록도 손실 없이 전달한다.
+
+**직접 코드 로직 실행 검증(저장소 테스트 파일 추가 없음):** 현재 GitHub `completed-main-fork.mjs`에서 `branchFrom`/`captureCompletedMain`의 실제 함수를 가져와 세 경우를 검증했다.
+- 완료 assistant → Compaction → ContextEdit → 새 User: 새 User는 제외하고 앞 세션 항목 포함.
+- 완료 assistant → Compaction → ContextEdit: 끝까지 포함, `excludedInProgress=false`.
+- 완료 assistant → 미완료 Extension `custom_message`: 해당 Extension 입력 제외.
+
+세 경우 모두 통과했다. **실제 Pi macOS RPC 다중분기/Fork·후속 모델 입력 검증을 대신하지 않는다.**
+
+### P1 — 호스트 영수증의 경로·브랜치 일치 검증
+
+고정 Orca는 `composeWorktreeId(repoId, worktreePath)`로 `repoId::worktreePath`를 만들고, 브랜치명에는 사용자 설정 prefix 및 충돌 시 `-2`, `-3` 등 suffix를 적용할 수 있다.
+
+`OrcaAgentStore.recordCreatedWorkspace`는 이제 `workspace.id`에 들어 있는 경로와 수신 `workspace.path`, 원본 Main의 Orca repo ID가 일치하는지 확인한다. **최초 영수증**은 `git branch --show-current`(읽기 전용)로 생성 의도의 이름 또는 Orca의 숫자 충돌 suffix와 일치해야 한다. 불일치하면 기존 인텐트와 Git/Orca 자산을 보존한 채 중단한다. `beginCreation`도 원본 Main이 Orca 실제 Worktree owner와 연결돼 있어야 진행한다.
+
+이는 **브라우저가 전송한 임의 문자열만 믿지 않기 위한 방어**다. 실제 Orca 영속 registry의 등록 여부까지 완전히 증명하는 것은 아니며, 해당 주장은 하지 않는다.
+
+### 현재 Go/No-Go
+
+- **P0 NO-GO:** 수정된 Compaction/Fork 소스 로직 세 경우는 통과했으나, 실제 Pi 다중 분기, 비동기 실행 중 메시지 append, 세션 reopen/restart, Extension 컨텍스트로 모델 호출까지 실사용 증거 없음.
+- **P1 NO-GO:** 경로/브랜치/Orca repo ID 검증 추가. 실제 강제 종료·원본 Worktree 복구·다중 창/경합·변경된 repo/branch 예외의 GUI 검증 없음.
+- **CI:** `f3fdf8b` macOS pinned Orca `upstream-integration` **PASS**, `contract-check`는 구형 Fork/Worktree fixture를 기대해 실패. 이번 P0 컨텍스트 변경까지 포함한 최신 커밋의 macOS 타입 검사 결과는 별도 확인 필요.
+
+새 테스트 코드/CI는 추가하지 않았으며, 기존 세션·작업 공간·Git 브랜치를 삭제하거나 재작성하지 않았다.
