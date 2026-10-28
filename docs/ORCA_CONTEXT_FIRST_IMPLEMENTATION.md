@@ -50,7 +50,7 @@
 
 ## 반드시 남겨야 하는 제약과 미완료 작업
 
-1. **Main과 Support가 아직 TUI 경로이다.** Work는 Orca Native Chat으로 연결했지만 새 Main/Support를 Orca Native Chat에서 기본 시작하는 경로는 이 브랜치에서 완성되지 않았다.
+1. **Main/Work/Support는 Native Chat 기본 실행 경로를 연결했다.** 기존 TUI 세션 전환 시 소유권 충돌이 없는지 확인해야 하며, macOS GUI 실사용 검증은 아직 완료되지 않았다.
 2. **정확한 활성 leaf/agent_settled 동기화가 아직 필요하다.** 현재 스냅샷은 저장된 Pi assistant 메시지의 `stopReason === "stop"`를 완료 응답의 증거로 사용한다. 이는 Pi RPC `agent_settled`와 1:1 동일한 이벤트가 아니다. 소스 JSONL에 여러 대화 분기가 있으면 활성 leaf ID를 신뢰할 수 없으므로 **실패로 종료한다**. 조용히 다른 분기를 선택하지 않는다.
 3. **Worktree 등록과 관리가 아직 완전한 Orca 통합이 아니다.** 이전 브랜치의 `git worktree add`를 재사용했으나 생성된 공간이 Orca 목록에 자동 등록되지 않으면 UI는 중단한다. 기존 Git 폴더/세션은 보존한다. Orca의 정식 Worktree 생성/등록 API로 대체가 필요하다.
 4. **Work Native Chat의 실제 Pi transcript adoption, restart, 탭 복구, Pi Extension 호환성은 실기 미검증이다.** 계정 홈/세션 ID와 Orca 소유권 거부 경로를 앱에서 확인해야 한다.
