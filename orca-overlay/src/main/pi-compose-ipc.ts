@@ -128,8 +128,8 @@ export function registerPiComposeIpc(): void {
     if (command === 'attach-chat') {
       // Admission must prove the *actual* Orca host record owns the selected
       // Pi transcript, not merely trust a renderer-supplied session label.
-      const { orcaSessionId, worktreeId, sessionId } = data
-      if (!orcaSessionId || !worktreeId || !sessionId) {
+      const { orcaSessionId, worktreeId, sessionId, sessionFile } = data
+      if (!orcaSessionId || !worktreeId || !sessionId || !sessionFile) {
         throw new Error('Pi/Orca 세션과 작업 공간 ID가 필요합니다.')
       }
       const { getStructuredAgentSessionHost } = await import('./native-chat/agent-session-wire/structured-agent-session-registry')
@@ -143,6 +143,9 @@ export function registerPiComposeIpc(): void {
       if (handle?.agent !== 'pi' || handle.transport !== 'jsonl-rpc' ||
           !handle.nativeId) {
         throw new Error('Orca의 Pi 원본 파일을 확인할 수 없습니다.')
+      }
+      if (realpathSync(handle.nativeId) !== realpathSync(sessionFile)) {
+        throw new Error('Orca가 연 Pi 파일이 선택한 Compose 세션 원본 파일과 다릅니다. 연결을 중단합니다.')
       }
       const { readPiSessionHeader } = await import('./pi/rpc-launch-resolution')
       const header = await readPiSessionHeader(handle.nativeId)
