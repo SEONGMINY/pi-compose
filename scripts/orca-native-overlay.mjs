@@ -78,7 +78,7 @@ const patches = [
     before: "  const { rootRows: rootAgents, childrenByParentPaneKey } = useMemo(\n    () => buildAgentRowLineageTree(agents),\n    [agents]\n  )",
     after: "  const visibleAgents = useMemo(() => agents.filter(agent =>\n    agent.rowSource !== 'subagent' || !hiddenSubagentPaneKeys.has(agent.paneKey)\n  ), [agents, hiddenSubagentPaneKeys])\n  const { rootRows: rootAgents, childrenByParentPaneKey } = useMemo(\n    () => buildAgentRowLineageTree(visibleAgents),\n    [visibleAgents]\n  )",
     secondBefore: "  const {\n    collapsedLineageParents,\n    compactRootListExpanded,\n    toggleLineageParent: toggleLineageParentState,\n    toggleCompactRootList\n  } = useWorktreeAgentExpansionState(worktreeId)\n",
-    secondAfter: ""
+    secondAfter: "  // Parent lineage controls are initialized above before row callbacks."
   }
   ,{
     path: "src/renderer/src/components/sidebar/WorktreeCardAgents.tsx",
