@@ -164,6 +164,9 @@ export function PiComposeOutline(): React.JSX.Element | null {
               onClick={()=>void showAgent(main,false)}>
               {main.title}
             </button>
+            <button type="button" className="shrink-0 rounded border border-worktree-sidebar-border px-1.5 py-0.5 text-[10px] hover:bg-worktree-sidebar-foreground/10"
+              title="이 Main의 컨텍스트로 Work 준비"
+              onClick={() => window.dispatchEvent(new CustomEvent('pi-compose:new', { detail: { role: 'work', mainId: main.id } }))}>Work 만들기</button>
             <span className="text-[10px] text-muted-foreground">Main</span>
           </div>
           {expanded && <div className="pb-1 pl-4 pr-1">
@@ -171,11 +174,17 @@ export function PiComposeOutline(): React.JSX.Element | null {
               <span title={child.role==='work'?'정확한 Main Fork':'독립 Pi 세션'} className="shrink-0 text-[10px] text-muted-foreground">
                 {child.role==='work'?<GitFork className="size-3"/>:'S'}
               </span>
-              <button type="button" title={child.title}
+              <button type="button" title={child.relatedWorkId ? child.title + ' · Work 연결됨' : child.title}
                 className="min-w-0 flex-1 truncate text-left text-[11px]"
                 onClick={()=>void showAgent(child,false)}>
                 {child.title}
               </button>
+              {child.role === 'work' && <button type="button"
+                className="shrink-0 rounded border border-worktree-sidebar-border px-1.5 py-0.5 text-[10px] hover:bg-worktree-sidebar-foreground/10"
+                title="이 Work를 돕는 독립 Support 준비"
+                onClick={() => window.dispatchEvent(new CustomEvent('pi-compose:new', {
+                  detail: { role: 'support', mainId: main.id, relatedWorkId: child.id }
+                }))}>Support</button>}
               <button type="button" className="shrink-0 rounded border border-worktree-sidebar-border px-1.5 py-0.5 text-[10px] opacity-80 hover:opacity-100 disabled:opacity-30"
                 title={child.orcaWorktreeId===worktreeId && existingTab(child) &&
                   canMoveTabToNewPaneColumn(child.orcaTabId!, existingTab(child)!.groupId)
@@ -192,7 +201,7 @@ export function PiComposeOutline(): React.JSX.Element | null {
       })}
     </div>
     <p className="px-2 pb-2 text-[10px] leading-relaxed text-muted-foreground">
-      Main은 원본 대화 · Work는 정확한 Fork · Support는 독립 세션
+      Main은 원본 대화 · Work는 완료 지점 Fork · Support는 독립 세션
     </p>
   </section>
 }
