@@ -64,6 +64,14 @@ export function PiComposeSupportDraftMenu({
       // Reconcile the saved relation immediately before writing. A stale
       // dropdown entry cannot redirect the result to a replaced Orca session.
       const records = await window.api.piCompose.list(cwd)
+      const source = records.find(record =>
+        record.id === support.id && record.role === 'support' &&
+        record.orcaSessionId === orcaSessionId &&
+        record.sessionId === support.sessionId &&
+        record.parentMainId === support.parentMainId)
+      if (!source) {
+        throw new Error('Support 원본 세션 연결이 변경됐습니다. 결과를 다시 확인하세요.')
+      }
       const target = records.find(record =>
         record.id === work.id && record.role === 'work' &&
         record.parentMainId === support.parentMainId &&
@@ -79,6 +87,10 @@ export function PiComposeSupportDraftMenu({
         throw new Error('대상 Work의 실제 Orca Native Chat을 찾을 수 없습니다. 원본 세션을 다시 연 뒤 시도하세요.')
       }
       const result = await window.api.piCompose.supportResult(cwd, support.id)
+      if (result.supportId !== source.id || result.sessionId !== source.sessionId ||
+          result.relatedWorkId !== (source.relatedWorkId || null)) {
+        throw new Error('Support 결과의 출처가 변경됐습니다. 전달하지 않았습니다.')
+      }
       if (result.truncated) {
         toast.error('Support 결과가 길어 일부가 잘렸습니다. 전체 원본을 확인한 뒤 보내주세요.')
         return
@@ -88,6 +100,16 @@ export function PiComposeSupportDraftMenu({
       if (pendingDraftDeliveries.has(deliveryKey)) return
       pendingDraftDeliveries.add(deliveryKey)
       await waitForNativeChatComposerDrafts(2500)
+      // Hydration is asynchronous. A different chat may have replaced the
+      // selected tab while the draft store was loading; never append to it.
+      const currentTab = findStructuredAgentSessionTab(
+        useAppStore.getState().unifiedTabsByWorktree, {
+          workspaceId: work.orcaWorktreeId, sessionId: work.orcaSessionId
+        }
+      )
+      if (!currentTab || currentTab.agentSessionAgent !== 'pi') {
+        throw new Error('초안을 준비하는 동안 Work의 Native Chat이 닫혔습니다. 저장하지 않았습니다.')
+      }
       // Use immutable origin IDs. An editable title cannot be a delivery ID.
       const sourceTag = '[Pi Compose Support ' + result.supportId + ':' + result.entryId + ']'
       if (readNativeChatComposerDraft(scope).text.includes(sourceTag)) {
