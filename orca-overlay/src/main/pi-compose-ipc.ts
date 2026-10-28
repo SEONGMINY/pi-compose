@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 import { realpathSync } from 'node:fs'
 
 type NativeRole = 'main' | 'work' | 'support'
-type NativeCommand = 'begin-worktree-creation' | 'pending-worktree-creation' | 'record-worktree-creation' | 'recover-pi-preparation' | 'list' | 'sessions' | 'import' | 'attach' | 'attach-chat' | 'connection-failed' | 'support-result' | 'preview-work-fork' | 'live-main-leaf' | 'linked-work-results' | 'set-work-main-visibility' | NativeRole
+type NativeCommand = 'begin-worktree-creation' | 'pending-worktree-creation' | 'record-worktree-creation' | 'recover-pi-preparation' | 'list' | 'sessions' | 'import' | 'attach' | 'attach-chat' | 'connection-failed' | 'support-result' | 'preview-work-fork' | 'live-main-leaf' | 'linked-work-results' | 'set-work-main-visibility' | 'native-chat-owner' | NativeRole
 export type NativeComposeRequest = {
   cwd: string
   title?: string
@@ -14,6 +14,7 @@ export type NativeComposeRequest = {
   tabId?: string
   worktreeId?: string
   orcaSessionId?: string
+  sessionFile?: string
   message?: string
   mainId?: string
   relatedWorkId?: string
@@ -26,7 +27,7 @@ export type NativeComposeRequest = {
   role?: 'work' | 'support'
   managedWorktree?: { id: string; path: string }
 }
-const VALID_COMMANDS = new Set<NativeCommand>(['begin-worktree-creation', 'pending-worktree-creation', 'record-worktree-creation', 'recover-pi-preparation', 'list', 'sessions', 'import', 'attach', 'attach-chat', 'connection-failed', 'support-result', 'preview-work-fork', 'live-main-leaf', 'linked-work-results', 'set-work-main-visibility', 'main', 'work', 'support'])
+const VALID_COMMANDS = new Set<NativeCommand>(['begin-worktree-creation', 'pending-worktree-creation', 'record-worktree-creation', 'recover-pi-preparation', 'list', 'sessions', 'import', 'attach', 'attach-chat', 'connection-failed', 'support-result', 'preview-work-fork', 'live-main-leaf', 'linked-work-results', 'set-work-main-visibility', 'native-chat-owner', 'main', 'work', 'support'])
 const TIMEOUT_MS = 90_000
 
 /**
@@ -97,6 +98,32 @@ export function registerPiComposeIpc(): void {
         throw new Error('Main Pi 호스트 소유권이 활성 분기 조회 중 변경됐습니다. Fork를 중단합니다.')
       }
       return { activeLeafId, orcaSessionId }
+    }
+
+    if (command === 'native-chat-owner') {
+      // A visible tab is not proof that the local Orca host still owns this
+      // Pi writer. Read only: never adopt, resume, close, or create sessions.
+      const { orcaSessionId, worktreeId, sessionId, sessionFile } = data
+      if (!orcaSessionId || !worktreeId || !sessionId || !sessionFile) {
+        throw new Error('Work 원본 Orca/Pi 세션 주소가 불완전합니다.')
+      }
+      const { getStructuredAgentSessionHost } = await import('./native-chat/agent-session-wire/structured-agent-session-registry')
+      const host = getStructuredAgentSessionHost()
+      const record = host?.deps.store.getConversation(orcaSessionId)
+      if (!host?.hasSession(orcaSessionId) || !record || record.provider !== 'pi' ||
+          record.location.workspaceId !== worktreeId) {
+        throw new Error('대상 Work의 Pi 대화를 현재 로컬 Orca 호스트에서 확인할 수 없습니다. 원본 대화를 다시 연 뒤 시도하세요.')
+      }
+      const handle = record.providerHandleChain.at(-1)?.handle
+      if (handle?.agent !== 'pi' || handle.transport !== 'jsonl-rpc' ||
+          !handle.nativeId || realpathSync(handle.nativeId) !== realpathSync(sessionFile)) {
+        throw new Error('Work의 실제 Pi 세션 파일 소유권이 일치하지 않습니다. 초안을 수정하지 않습니다.')
+      }
+      const { readPiSessionHeader } = await import('./pi/rpc-launch-resolution')
+      if ((await readPiSessionHeader(handle.nativeId))?.id !== sessionId) {
+        throw new Error('Work의 Pi 세션 ID가 Orca 호스트 기록과 다릅니다.')
+      }
+      return { orcaSessionId, worktreeId, sessionId }
     }
 
     if (command === 'attach-chat') {
