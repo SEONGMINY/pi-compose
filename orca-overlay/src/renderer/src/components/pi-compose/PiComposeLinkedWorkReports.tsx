@@ -29,6 +29,7 @@ export function PiComposeLinkedWorkReports({
   const cwd = useAppStore(s => worktreeId
     ? s.getKnownWorktreeById(worktreeId)?.path ?? '' : '')
   const [mainId, setMainId] = useState<string | null>(null)
+  const [unavailableSessionId, setUnavailableSessionId] = useState<string | null>(null)
   const [reports, setReports] = useState<{
     sessionId: string
     items: PiComposeLinkedWorkResult[]
@@ -43,13 +44,18 @@ export function PiComposeLinkedWorkReports({
       setMainId(main?.id ?? null)
       if (!main) {
         setReports({sessionId:orcaSessionId,items:[]})
+        setUnavailableSessionId(null)
         return
       }
       const items = await window.api.piCompose.linkedWorkResults(cwd, main.id)
-      if (alive()) setReports({sessionId:orcaSessionId,items})
+      if (alive()) {
+        setReports({sessionId:orcaSessionId,items})
+        setUnavailableSessionId(null)
+      }
     } catch {
-      // Inaccessible hosts must not manufacture completion or corrupt Main.
-      if (alive()) setReports({sessionId:orcaSessionId,items:[]})
+      // Keep the last *verified* report and distinguish a failed read from
+      // genuinely no completed Work result. Never invent a newer status.
+      if (alive()) setUnavailableSessionId(orcaSessionId)
     }
   }, [cwd, orcaSessionId, isVisible])
 
@@ -75,15 +81,32 @@ export function PiComposeLinkedWorkReports({
     let alive = true
     const timer = setInterval(() => {
       void window.api.piCompose.linkedWorkResults(cwd, mainId).then(items => {
-        if (alive) setReports({sessionId:orcaSessionId,items})
-      }).catch(() => { /* preserve previously verified reports */ })
+        if (alive) {
+          setReports({sessionId:orcaSessionId,items})
+          setUnavailableSessionId(null)
+        }
+      }).catch(() => {
+        if (alive) setUnavailableSessionId(orcaSessionId)
+      })
     }, 10_000)
     return () => { alive = false; clearInterval(timer) }
   }, [mainId, cwd, orcaSessionId, isVisible])
 
-  if (reports.sessionId !== orcaSessionId || reports.items.length === 0) return null
+  if (reports.sessionId !== orcaSessionId) {
+    return unavailableSessionId === orcaSessionId ? (
+      <p className="mt-5 text-xs text-chat-foreground-faint">
+        연결된 Work 기록을 현재 확인할 수 없습니다. 원본 Orca Work 대화에서 상태를 확인해 주세요.
+      </p>
+    ) : null
+  }
+  if (reports.items.length === 0 && unavailableSessionId !== orcaSessionId) return null
   return (
     <section aria-label="연결된 Work 결과" className="mt-5 space-y-3">
+      {unavailableSessionId === orcaSessionId ? (
+        <p className="text-xs text-chat-foreground-faint">
+          현재 Work 기록 재조회에 실패했습니다. 아래 내용은 마지막으로 확인된 결과이며 최신 상태가 아닐 수 있습니다.
+        </p>
+      ) : null}
       {reports.items.map(work => <WorkReport key={work.workId + ':' + work.entryId} work={work} />)}
     </section>
   )
