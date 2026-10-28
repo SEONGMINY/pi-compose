@@ -150,6 +150,27 @@ Main 대화
 
 **검증 상태:** 코드와 고정 Orca 원본에 대한 overlay patch 적용 문자열을 정적으로 확인했다. macOS 앱/타입 검사/실제 클릭은 아직 검증하지 못했다. CI 및 테스트 코드는 추가하지 않았다.
 
+## 4.3 Pi Compose 컨텍스트 관계의 Orca 네이티브 투영 (2026-10-28)
+
+**범위: 같은 Orca Worktree에 실제로 표시된 Native Pi Agent 행.**
+
+- Pi Compose 레코드의 `orcaSessionId`, `orcaWorktreeId`, `parentMainId`, `relatedWorkId`를 **기존 Orca의 `unifiedTabsByWorktree`와 Agent 행에 연결**한다. 관계가 없는 일반 Orca Agent는 변경하지 않는다.
+- `usePiComposeNativeLineage.ts`는 기존 Pi Compose `list` 읽기만 사용하고, `pi-compose:changed` 시 다시 읽는다. 실제 Pi 세션 및 Orca Native Chat이 둘 다 확인된 행에서만 한시적인 **화면용 parentPaneKey 맵**을 만든다.
+- Orca의 `buildAgentRowLineageTree`와 `applyAgentRowLineage`에 선택적 context 맵 인자를 추가했다. 원래 Orca `orchestration.parentPaneKey` / terminal handle의 관계는 우선되고, Pi Compose 맵은 원본 관계가 없을 때만 적용한다.
+- `WorktreeCardAgents`는 동일한 Orca `DashboardAgentRow` / `CompactAgentRow`, 기존 Pi 종류 아이콘, 실제 status, pane 활성화, dismissal, 중첩 행, disclosure를 유지한다. 별도 Compose Agent 목록이나 상태 시스템을 만들지 않는다.
+- Support가 특정 Work에 연결됐다면 그 Work 아래에 표시하고, 연결된 Work가 없는 Support는 Main 아래에 표시한다. Main/Work가 동일 Worktree에서 표시되지 않으면 **가짜 부모나 자식 행을 생성하지 않는다**.
+- 앞서 결정된 `hiddenFromMainAt`가 있는 Work는 Main 관계 투영에 포함하지 않는다. 데이터 삭제 또는 실제 Orca Agent 행 삭제를 의미하지 않는다.
+
+**아이콘 정책:** Orca의 일반 Agent는 `AgentTypeIcon` 및 `AgentStateDot`를 표시한다. 원본 Orca가 합성 subagent에서 종류 아이콘을 생략하는 로직은 그대로 유지한다. `Main` 전용 말풍선/역할별 장식 아이콘을 만들거나 기존 Pi Agent 아이콘을 제거하지 않는다.
+
+**남은 제품 요구사항 (이번 변경으로 완료 아님):**
+
+1. **서로 다른 Worktree에 있는 Work/Support의 컨텍스트 관계:** Orca의 기존 작업 공간 목록/Agent 행이 각 실행 공간을 소유한다. status/activation/삭제 주체를 유지하면서 Main 아래에서 연결할 네이티브 호스트 경로를 추가로 확인해야 한다. 오케스트레이션의 `parentPaneKey`를 가짜로 만들거나 Worktree Git lineage에 Pi Context lineage를 넣지 않는다.
+2. **지속되는 Main 컨텍스트 목록:** Orca Agent activity 행은 세션의 실제 활동/상태 기록이며 모든 저장된 Main을 영구 표시하는 인덱스가 아니다. Main의 Agent 행이 보이지 않는 상태에서는 자동으로 가짜 행을 생성하지 않는다. 이 경우 저장된 세션을 Orca 기존 History 및 Native Chat에서 열 수 있는 경로를 활용해야 한다.
+3. **결과 보고와 자동 handoff:** 이번 단계에는 포함하지 않았다. Main 모델 메시지에 Work 실행 로그를 자동 추가하지 않는다.
+
+**반복 준비 안전:** 이전 `orca-native-overlay.mjs`는 앞선 패치 내용을 뒤의 패치가 다시 고치는 경우 두 번째 `orca:prepare`에서 중간 문자열을 찾지 못했다. Overlay manifest v2에는 패치 파일의 전체 SHA256과 patch-set signature를 보존한다. 둘 다 같을 때 이미 적용한 파일의 전체 patch-set을 건너뛰며, 기존 패치 파일이 외부에서 변경됐으면 덮어쓰지 않고 중단한다. 원본 Orca에 대한 새로운 패치들의 문자열 대조 및 기존 브랜치의 패치 상태에서 변경 경로를 검증했다. macOS 앱 실행/타입 검사/클릭 검증은 아직 진행하지 못했다.
+
 ## 5. 실제 검증 게이트 (테스트 코드/CI 추가 없음)
 
 - 기본 Orca: 원본 `+`/shortcut/tour, 프로젝트·Worktree 생성·우클릭·정리·선택, 상태/Agents feed/탭 close/reveal.
