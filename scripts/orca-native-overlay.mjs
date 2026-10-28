@@ -156,7 +156,7 @@ const patches = [
     before: "import { NativeChatMessageRail } from './NativeChatMessageRail'",
     after: "import { NativeChatMessageRail } from './NativeChatMessageRail'\nimport { PiComposeLinkedWorkReports } from '../pi-compose/PiComposeLinkedWorkReports'",
     secondBefore: "                <NativeChatWaitingTranscriptItems slots={waitingSlots} context={rowContext} />",
-    secondAfter: "                <NativeChatWaitingTranscriptItems slots={waitingSlots} context={rowContext} />\n                <PiComposeLinkedWorkReports orcaSessionId={session.sessionId} isVisible={isVisible} />"
+    secondAfter: "                <NativeChatWaitingTranscriptItems slots={waitingSlots} context={rowContext} />\n                <PiComposeLinkedWorkReports orcaSessionId={composeOrcaSessionId ?? null} isVisible={isVisible} />"
   }
   ,{
     path: 'src/renderer/src/components/native-chat/use-native-chat-context-menu.tsx',
@@ -206,6 +206,20 @@ const patches = [
     after: "import { ORCA_AGENT_SESSION_SPAWN_TOKEN_ENV } from '../../shared/agent-session-caller-env'\nimport { existsSync } from 'node:fs'\nimport { join } from 'node:path'",
     secondBefore: "  const args = [...(options.extraArgs ?? [])]",
     secondAfter: "  // Extend the normal Pi CLI args; never disable the user's own Extensions.\n  // PI_COMPOSE_ROOT is set only in the opt-in Pi Compose Orca launch environment.\n  const composeRoot = options.env?.PI_COMPOSE_ROOT\n  const composeExtension = composeRoot ? join(composeRoot, 'extensions/orca-compose.ts') : null\n  const args = [...(options.extraArgs ?? [])]\n  if (composeExtension && existsSync(composeExtension) && !args.includes(composeExtension)) {\n    args.push('--extension', composeExtension)\n  }"
+  }
+  ,{
+    path: "src/renderer/src/components/native-chat/NativeChatMessageList.tsx",
+    before: "  isVisible = true,\n  isWorking,",
+    after: "  isVisible = true,\n  composeOrcaSessionId,\n  isWorking,",
+    secondBefore: "  isVisible?: boolean\n  isWorking: boolean",
+    secondAfter: "  isVisible?: boolean\n  /** Orca host conversation identity, not the provider's Pi session UUID. */\n  composeOrcaSessionId?: string | null\n  isWorking: boolean"
+  }
+  ,{
+    path: "src/renderer/src/components/native-chat/NativeChatStructuredSession.tsx",
+    before: "                <NativeChatMessageList\n",
+    after: "                <NativeChatMessageList\n                  composeOrcaSessionId={props.sessionId}\n",
+    secondBefore: "import { NativeChatMessageList } from './NativeChatMessageList'",
+    secondAfter: "import { NativeChatMessageList } from './NativeChatMessageList'"
   }
 ]
 
