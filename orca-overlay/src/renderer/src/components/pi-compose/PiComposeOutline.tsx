@@ -65,6 +65,9 @@ export function PiComposeOutline({ projectCwd, projectWorktreeId }: {
         throw new Error('작업 공간을 열지 못했습니다. 기존 Pi 기록은 그대로 보존됩니다.')
       }
 
+      if (!agent.sessionFile) {
+        throw new Error('Pi 원본 파일을 확인할 수 없어 Native Chat을 연결할 수 없습니다.')
+      }
       let orcaSessionId = agent.orcaSessionId
       if (orcaSessionId) {
         // A closed tab is not proof that its Orca host record is gone.
@@ -72,7 +75,7 @@ export function PiComposeOutline({ projectCwd, projectWorktreeId }: {
         const reopened = await reopenPiNativeChat(targetId, agent.sessionId, orcaSessionId)
         orcaSessionId = reopened.sessionId
         if (reopened.replacedClosed) {
-          await window.api.piCompose.attachChat(cwd, agent.id, orcaSessionId, targetId, true)
+          await window.api.piCompose.attachChat(cwd, agent.id, orcaSessionId, targetId, agent.sessionId, agent.sessionFile, true)
           window.dispatchEvent(new Event('pi-compose:changed'))
         }
       } else {
@@ -85,7 +88,7 @@ export function PiComposeOutline({ projectCwd, projectWorktreeId }: {
         // Existing legacy TUI Main/Support is never launched a second time
         // behind the user's back. Pi/Orca will refuse a second active writer.
         orcaSessionId = await openPreparedPiNativeChat(targetId, agent.sessionId)
-        await window.api.piCompose.attachChat(cwd, agent.id, orcaSessionId, targetId)
+        await window.api.piCompose.attachChat(cwd, agent.id, orcaSessionId, targetId, agent.sessionId, agent.sessionFile)
         window.dispatchEvent(new Event('pi-compose:changed'))
       }
 
