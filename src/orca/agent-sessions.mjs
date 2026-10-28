@@ -731,17 +731,29 @@ export class OrcaAgentStore {
    * Return genuine completed assistant reports and their actual tool calls.
    */
   linkedWorkResults({ mainId, SessionManager }) {
+    // Keep the existing model-tool caller's array shape unchanged. The native
+    // Main UI additionally needs the read-status of each linked Work.
+    return this.linkedWorkSnapshot({ mainId, SessionManager }).items;
+  }
+  linkedWorkSnapshot({ mainId, SessionManager }) {
     const main = this.get(mainId);
     if (!main || main.role !== 'main') throw new Error('등록된 Main 세션을 찾을 수 없습니다.');
-    const works = this.list().filter(record =>
+    const linked = this.list().filter(record =>
       record.role === 'work' && record.parentMainId === main.id &&
       record.projectRoot === main.projectRoot && !record.hiddenFromMainAt
-    ).slice(-12);
-    return works.flatMap(work => {
+    ).sort((a,b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')) ||
+      a.id.localeCompare(b.id));
+    const works = linked.slice(-12);
+    const unavailable = [];
+    const items = works.flatMap(work => {
+      const unavailableWork = reason => {
+        unavailable.push({ workId:work.id, workTitle:work.title, reason });
+        return [];
+      };
       try {
         // Every displayed Work must be an exact Pi branch Fork, not merely a
         // saved parentMainId. Older or damaged records remain untouched.
-        if (!work.orcaSessionId || !work.sourceEntryId ||
+        if (!work.sourceEntryId ||
             !this.verifyCopiedEntries({
               sourceFile:work.sourceSessionFile, sessionFile:work.sessionFile,
               sourceSessionId:work.sourceSessionId,
@@ -750,17 +762,22 @@ export class OrcaAgentStore {
               sourceEntryIds:work.sourceEntryIds,
               sourceEntryId:work.sourceEntryId
             }).allMatch) return [];
+        if (!work.orcaSessionId || !work.orcaWorktreeId) {
+          return unavailableWork('orca-unlinked');
+        }
         const sessionFile = work.sessionFile && existsSync(work.sessionFile)
           ? work.sessionFile
           : SessionManager.findById(work.cwd, work.sessionId);
         if (!sessionFile || !existsSync(sessionFile) ||
-            headerOf(sessionFile).id !== work.sessionId) return [];
+            headerOf(sessionFile).id !== work.sessionId) {
+          return unavailableWork('pi-file-unavailable');
+        }
         const branch = readUnambiguousStoredBranch(sessionFile, SessionManager);
         // The Work file contains copied Main messages. None of those is
         // evidence that this Work executed or completed a task.
         if (!work.sourceEntryId) return [];
         const inheritedEnd = branch.findIndex(entry => entry.id === work.sourceEntryId);
-        if (inheritedEnd < 0) return [];
+        if (inheritedEnd < 0) return unavailableWork('pi-read-unavailable');
         const originalWork = branch.slice(inheritedEnd + 1);
         const firstWorkUser = originalWork.findIndex(entry =>
           entry.type === 'message' && entry.message?.role === 'user');
@@ -832,10 +849,11 @@ export class OrcaAgentStore {
           };
         }).filter(Boolean);
       } catch {
-        // No fabricated completion when the source host or file is unreadable.
-        return [];
+        // Never turn an unreadable Pi transcript into a completed report.
+        return unavailableWork('pi-read-unavailable');
       }
     });
+    return { items, unavailable, omittedWorkCount: linked.length - works.length };
   }
   supportResult({ id, SessionManager }) {
     const support = this.get(id);
