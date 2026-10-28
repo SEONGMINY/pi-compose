@@ -265,9 +265,14 @@ export function PiComposeMenu(): React.JSX.Element {
         if (previous) {
           setPendingIntent(previous)
           if (previous.role !== role || previous.phase !== 'workspace-created' ||
+              previous.title !== task.trim() ||
+              (previous.relatedWorkId || null) !== (relatedWorkId || null) ||
+              (previous.activeLeafId || null) !== (liveLeaf?.activeLeafId || null) ||
+              (previous.expectedSourceEntryId || null) !== (forkPreview?.sourceEntryId || null) ||
               !previous.workspace?.id || !previous.workspace.path) {
-            throw new Error('이 Main에 이전 Orca Worktree 생성 의도가 남아 있습니다: ' +
-              previous.name + '. 원본 Orca 작업 공간을 확인하기 전 새로 생성하지 않습니다.')
+            throw new Error('이전 Orca 생성 요청(' + previous.name + ')의 작업 이름·연결 Work 또는 ' +
+              'Main의 Fork 지점이 현재 선택과 다릅니다. 기존 작업의 원본과 ' +
+              '저장된 기준점을 확인한 뒤 같은 생성 의도로 이어가세요. 중복 생성하지 않습니다.')
           }
           const known = useAppStore.getState().getKnownWorktreeById(previous.workspace.id)
           if (!known || known.path !== previous.workspace.path) {
@@ -279,7 +284,10 @@ export function PiComposeMenu(): React.JSX.Element {
         } else {
           // This intent is saved on disk *before* asking Orca to mutate Git.
           // It survives a crashed window or missing host acknowledgement.
-          const intent = await window.api.piCompose.beginWorktreeCreation(cwd, mainId, role)
+          const intent = await window.api.piCompose.beginWorktreeCreation(
+            cwd, mainId, role, task.trim(), relatedWorkId || null,
+            liveLeaf?.activeLeafId || null, forkPreview?.sourceEntryId || null
+          )
           setPendingIntent(intent)
           creationIntentId = intent.operationId
           // Orca createWorktree's 19th positional argument is creationId.
