@@ -197,7 +197,7 @@ const patches = [
     path: "src/renderer/src/components/sidebar/WorktreeCardAgents.tsx",
     before: "childAgentCount={hasChildAgents ? childAgents.length : undefined}",
     after: "childAgentCount={hasChildAgents ? childAgents.length + crossRefs.length : undefined}",
-    secondBefore: "                  )\n                )}\n              </div>",
+    secondBefore: "                )\n              )}\n            </div>",
     secondAfter: "                  )\n                )}\n                {crossRefs.map(refRecord => (\n                  <PiComposeCrossWorktreeAgentRef\n                    key={refRecord.id}\n                    refRecord={refRecord}\n                    mainId={refRecord.parentMainId!}\n                    cwd={useAppStore.getState().getKnownWorktreeById(worktreeId)?.path ?? ''}\n                    compact\n                  />\n                ))}\n              </div>"
   }
 ]
