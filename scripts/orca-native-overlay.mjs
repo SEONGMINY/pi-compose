@@ -44,11 +44,11 @@ const patches = [
   }
 
   ,{
-    path: 'src/renderer/src/components/sidebar/index.tsx',
-    before: "import WorktreeList from './WorktreeList'",
-    after: "import WorktreeList from './WorktreeList'\nimport { PiComposeOutline } from '../pi-compose/PiComposeOutline'",
-    secondBefore: '                <StartupWorktreeRefreshStatus />',
-    secondAfter: '                <StartupWorktreeRefreshStatus />\n                <PiComposeOutline />'
+    path: 'src/renderer/src/components/sidebar/worktree-list/rows/item-row.tsx',
+    before: "import WorktreeCard, { type ActiveSurfaceVariant } from '../../WorktreeCard'",
+    after: "import WorktreeCard, { type ActiveSurfaceVariant } from '../../WorktreeCard'\nimport { PiComposeOutline } from '../../../pi-compose/PiComposeOutline'",
+    secondBefore: "      />\n    </div>\n  )\n}\n\n// Rebuild the visible lineage subtree",
+    secondAfter: "      />\n      {itemRow.worktree.isMainWorktree && !nested ? (\n        <PiComposeOutline projectCwd={itemRow.worktree.path} projectWorktreeId={itemRow.worktree.id} />\n      ) : null}\n    </div>\n  )\n}\n\n// Rebuild the visible lineage subtree"
   }
 
   ,{
@@ -84,6 +84,15 @@ export function applyOrcaOverlay(orca, piComposeRoot) {
   }
   // Read and validate the entire patch before writing ANY upstream code.
   const staged = new Map()
+  // The previous version mounted a duplicate Pi Compose panel above WorktreeList.
+  // Remove only that exact former overlay, preserving all other upstream edits.
+  const sidebarIndex = join(orca, 'src/renderer/src/components/sidebar/index.tsx')
+  const oldSidebar = readFileSync(sidebarIndex, 'utf8')
+  const cleanedSidebar = oldSidebar
+    .replace("import { PiComposeOutline } from '../pi-compose/PiComposeOutline'\\n", '')
+    .replace("                <StartupWorktreeRefreshStatus />\\n                <PiComposeOutline />",
+      "                <StartupWorktreeRefreshStatus />")
+  if (cleanedSidebar !== oldSidebar) staged.set(sidebarIndex, cleanedSidebar)
   for (const patch of patches) {
     const path = join(orca,patch.path)
     const source = staged.get(path) ?? readFileSync(path,'utf8')
