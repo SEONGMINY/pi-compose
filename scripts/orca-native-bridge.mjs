@@ -129,9 +129,18 @@ async function run(command,args) {
     if (relatedWorkId!==undefined && (command!=='support'||typeof relatedWorkId!=='string')) {
       throw new Error('Support Agent에만 Work 연결을 지정할 수 있습니다.');
     }
+    let executionCwd=cwd;
+    if (command==='support' && relatedWorkId) {
+      const linked=store.get(relatedWorkId);
+      if (!linked || linked.role!=='work' || linked.parentMainId!==main.id ||
+          linked.projectRoot!==main.projectRoot) {
+        throw new Error('이 Support가 연결된 Work를 확인할 수 없습니다.');
+      }
+      executionCwd=linked.cwd;
+    }
     const result=store.prepareForMain({
       mainId:main.id,role:command,workspace,title,
-      relatedWorkId,projectCwd:cwd,
+      relatedWorkId,projectCwd:executionCwd,
       SessionManager,
       launcherPath:{extension,piBinary:process.env.PI_COMPOSE_PI_BINARY||'pi'},
     });
