@@ -43,11 +43,16 @@ export function PiComposeMenu(): React.JSX.Element {
   const [busy, setBusy] = useState(false)
   const [preparedId, setPreparedId] = useState<string | null>(null)
   const [error, setError] = useState('')
-  const cwd = activeWorktree?.path ?? ''
+  const [sourceWorkspace, setSourceWorkspace] = useState<{ cwd: string; worktreeId: string } | null>(null)
+  const cwd = sourceWorkspace?.cwd ?? activeWorktree?.path ?? ''
+  const selectedWorktreeId = sourceWorkspace?.worktreeId ?? activeWorktreeId
   // The native Orca + button and project tree both open this same creation flow.
   useEffect(() => {
     const openMenu = (event: Event) => {
-      const picked = (event as CustomEvent<{ role?: Role; mainId?: string; relatedWorkId?: string }>).detail
+      const picked = (event as CustomEvent<{ role?: Role; mainId?: string; relatedWorkId?: string; projectCwd?: string; projectWorktreeId?: string }>).detail
+      setSourceWorkspace(picked?.projectCwd && picked.projectWorktreeId
+        ? { cwd: picked.projectCwd, worktreeId: picked.projectWorktreeId }
+        : null)
       if (picked?.role) setRole(picked.role)
       if (picked?.mainId) setMainId(picked.mainId)
       setRelatedWorkId(picked?.relatedWorkId || '')
@@ -104,7 +109,7 @@ export function PiComposeMenu(): React.JSX.Element {
       setError('이미 Agent가 준비됐습니다. 사이드바에서 해당 Agent를 선택해 기존 세션을 열어주세요.')
       return
     }
-    if (!cwd || !activeWorktreeId) {
+    if (!cwd || !selectedWorktreeId) {
       setError('먼저 로컬 Git 작업 공간을 선택하세요.')
       return
     }
@@ -148,7 +153,7 @@ export function PiComposeMenu(): React.JSX.Element {
       // prepared record in the sidebar, even if Orca fails to open its tab.
       setPreparedId(result.record.id)
       window.dispatchEvent(new Event('pi-compose:changed'))
-      let targetWorktreeId = activeWorktreeId
+      let targetWorktreeId = selectedWorktreeId
       if (result.record.workspace === 'worktree') {
         // Orca, not Pi Compose, must own the resulting Git workspace and Git UI.
         await useAppStore.getState().fetchAllWorktrees({ hydrationPurge: 'defer' })
