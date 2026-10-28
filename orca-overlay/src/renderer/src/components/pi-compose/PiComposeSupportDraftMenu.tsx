@@ -83,9 +83,12 @@ export function PiComposeSupportDraftMenu({
           workspaceId: work.orcaWorktreeId, sessionId: work.orcaSessionId
         }
       )
-      if (!target || !tab || tab.agentSessionAgent !== 'pi') {
-        throw new Error('대상 Work의 실제 Orca Native Chat을 찾을 수 없습니다. 원본 세션을 다시 연 뒤 시도하세요.')
+      if (!target || !tab || tab.agentSessionAgent !== 'pi' || !target.sessionFile) {
+        throw new Error('대상 Work의 실제 Orca Native Chat과 Pi 파일을 확인할 수 없습니다. 원본 세션을 다시 연 뒤 시도하세요.')
       }
+      await window.api.piCompose.verifyNativeChatOwner(
+        cwd, work.orcaSessionId, work.orcaWorktreeId, target.sessionId, target.sessionFile
+      )
       const result = await window.api.piCompose.supportResult(cwd, support.id)
       if (result.supportId !== source.id || result.sessionId !== source.sessionId ||
           result.relatedWorkId !== (source.relatedWorkId || null)) {
@@ -110,6 +113,9 @@ export function PiComposeSupportDraftMenu({
       if (!currentTab || currentTab.agentSessionAgent !== 'pi') {
         throw new Error('초안을 준비하는 동안 Work의 Native Chat이 닫혔습니다. 저장하지 않았습니다.')
       }
+      await window.api.piCompose.verifyNativeChatOwner(
+        cwd, work.orcaSessionId, work.orcaWorktreeId, target.sessionId, target.sessionFile
+      )
       // Use immutable origin IDs. An editable title cannot be a delivery ID.
       const sourceTag = '[Pi Compose Support ' + result.supportId + ':' + result.entryId + ']'
       if (readNativeChatComposerDraft(scope).text.includes(sourceTag)) {
