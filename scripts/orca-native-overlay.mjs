@@ -39,18 +39,11 @@ const patches = [
     secondAfter: '      <PiComposeMenu />\n      <NewWorkspaceButton preserveWorkspaceBoardOpen />'
   }
   ,{
-    path: 'src/renderer/src/components/sidebar/worktree-list/rows/item-row.tsx',
-    before: "      onClickCapture={ctx.onRowClickCapture}",
-    after: "      onClickCapture={(event) => {\n        if ((event.target as HTMLElement).closest('[data-pi-compose-context]')) return\n        ctx.onRowClickCapture(event)\n      }}",
-    secondBefore: "      onClick={(event) => {\n        forwardOptionPressToCardSurface(event)",
-    secondAfter: "      onClick={(event) => {\n        if ((event.target as HTMLElement).closest('[data-pi-compose-context]')) return\n        forwardOptionPressToCardSurface(event)"
-  }
-  ,{
-    path: 'src/renderer/src/components/sidebar/worktree-list/rows/item-row.tsx',
-    before: "import WorktreeCard, { type ActiveSurfaceVariant } from '../../WorktreeCard'",
-    after: "import WorktreeCard, { type ActiveSurfaceVariant } from '../../WorktreeCard'\nimport { PiComposeOutline } from '../../../pi-compose/PiComposeOutline'",
-    secondBefore: "      />\n    </div>\n  )\n}\n\n// Rebuild the visible lineage subtree",
-    secondAfter: "      />\n      {itemRow.worktree.isMainWorktree && !nested ? (\n        <PiComposeOutline projectCwd={itemRow.worktree.path} projectWorktreeId={itemRow.worktree.id} />\n      ) : null}\n    </div>\n  )\n}\n\n// Rebuild the visible lineage subtree"
+    path: 'src/renderer/src/components/sidebar/WorktreeContextMenuView.tsx',
+    before: "          <WorktreeStatusMenuItems",
+    after: "          {!isMultiContext && !isDeleting ? (\n            <DropdownMenuItem onSelect={() => {\n              window.dispatchEvent(new CustomEvent('pi-compose:new', {\n                detail: { projectCwd: worktree.path, projectWorktreeId: worktree.id }\n              }))\n            }}>\n              <Workflow className=\"size-3.5\" />\n              Pi Compose Agent 만들기…\n            </DropdownMenuItem>\n          ) : null}\n          <WorktreeStatusMenuItems",
+    secondBefore: "  const deleteShortcut = useOptionalShortcutLabel('workspace.delete')",
+    secondAfter: "  const deleteShortcut = useOptionalShortcutLabel('workspace.delete')\n  // Native Workspace menu owns lifecycle; Compose only adds creation context."
   }
 
 ]
@@ -59,7 +52,6 @@ const additions = [
   'src/main/pi-compose-ipc.ts',
   'src/preload/api/pi-compose-bridge.ts',
   'src/renderer/src/components/pi-compose/PiComposeMenu.tsx',
-  'src/renderer/src/components/pi-compose/PiComposeOutline.tsx',
   'src/renderer/src/components/pi-compose/PiComposeNativeChat.ts',
 ]
 const original = (root, relative) => join(root,'orca-overlay',relative)
@@ -78,15 +70,6 @@ export function applyOrcaOverlay(orca, piComposeRoot) {
   const hash = text => createHash('sha256').update(text).digest('hex')
   const nextFiles = {}
   const staged = new Map()
-  // The previous version mounted a duplicate Pi Compose panel above WorktreeList.
-  // Remove only that exact former overlay, preserving all other upstream edits.
-  const sidebarIndex = join(orca, 'src/renderer/src/components/sidebar/index.tsx')
-  const oldSidebar = readFileSync(sidebarIndex, 'utf8')
-  const cleanedSidebar = oldSidebar
-    .replace("import { PiComposeOutline } from '../pi-compose/PiComposeOutline'" + String.fromCharCode(10), '')
-    .replace("                <StartupWorktreeRefreshStatus />" + String.fromCharCode(10) + "                <PiComposeOutline />",
-      "                <StartupWorktreeRefreshStatus />")
-  if (cleanedSidebar !== oldSidebar) staged.set(sidebarIndex, cleanedSidebar)
   for (const patch of patches) {
     const path = join(orca,patch.path)
     const source = staged.get(path) ?? readFileSync(path,'utf8')
