@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import { spawn } from 'node:child_process'
 import { resolve } from 'node:path'
+import { realpathSync } from 'node:fs'
 
 type NativeRole = 'main' | 'work' | 'support'
 type NativeCommand = 'list' | 'sessions' | 'import' | 'attach' | 'attach-chat' | 'connection-failed' | 'support-result' | 'preview-work-fork' | 'live-main-leaf' | 'linked-work-results' | 'set-work-main-visibility' | NativeRole
@@ -8,6 +9,7 @@ export type NativeComposeRequest = {
   cwd: string
   title?: string
   sessionId?: string
+  sessionFile?: string
   id?: string
   tabId?: string
   worktreeId?: string
@@ -41,7 +43,8 @@ export function registerPiComposeIpc(): void {
       const orcaSessionId = data.orcaSessionId
       const worktreeId = data.worktreeId
       const expectedPiSessionId = data.sessionId
-      if (!orcaSessionId || !worktreeId || !expectedPiSessionId) {
+      const expectedPiFile = data.sessionFile
+      if (!orcaSessionId || !worktreeId || !expectedPiSessionId || !expectedPiFile) {
         throw new Error('Main Orca 세션/Worktree ID 또는 Pi 원본 세션 ID가 없습니다.')
       }
       const { getStructuredAgentSessionHost } = await import('./native-chat/agent-session-wire/structured-agent-session-registry')
@@ -58,6 +61,11 @@ export function registerPiComposeIpc(): void {
       if (handle?.agent !== 'pi' || handle.transport !== 'jsonl-rpc' ||
           !handle.nativeId) {
         throw new Error('Main의 Pi 원본 파일 소유권을 확인할 수 없습니다.')
+      }
+      // A copied Pi JSONL may retain the same Pi UUID. The actual Orca host
+      // must own the exact Main file selected by the user, not its copy.
+      if (realpathSync(handle.nativeId) !== realpathSync(expectedPiFile)) {
+        throw new Error('Orca가 연 Pi 파일과 선택한 Main 원본 파일이 다릅니다. Fork를 중단했습니다.')
       }
       const { readPiSessionHeader } = await import('./pi/rpc-launch-resolution')
       const header = await readPiSessionHeader(handle.nativeId)
