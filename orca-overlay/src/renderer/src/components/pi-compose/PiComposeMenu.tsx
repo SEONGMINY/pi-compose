@@ -166,8 +166,19 @@ export function PiComposeMenu(): React.JSX.Element {
       }
       // Validate the exact source branch BEFORE asking Orca to create a checkout.
       // Invalid/stale/multi-branch sources must not strand a Git Worktree.
+      const sourceMain = role === 'work'
+        ? agents.find(record => record.id === mainId && record.role === 'main')
+        : null
+      if (role === 'work' &&
+          (!sourceMain?.orcaSessionId || !sourceMain.orcaWorktreeId)) {
+        throw new Error('Fork할 Main의 Orca Pi 세션이 없습니다. Main 대화를 먼저 열어 주세요.')
+      }
+      const liveLeaf = sourceMain?.orcaSessionId && sourceMain.orcaWorktreeId
+        ? await window.api.piCompose.liveMainLeaf(
+            cwd, sourceMain.orcaSessionId, sourceMain.orcaWorktreeId
+          ) : null
       const forkPreview = role === 'work'
-        ? await window.api.piCompose.previewWorkFork(cwd, mainId)
+        ? await window.api.piCompose.previewWorkFork(cwd, mainId, liveLeaf!.activeLeafId)
         : null
       let managedWorktree: { id: string; path: string } | undefined
       if (role !== 'main' && workspace === 'worktree') {
@@ -198,6 +209,7 @@ export function PiComposeMenu(): React.JSX.Element {
         ...(role === 'main' ? { title: title.trim(), ...(mainMode === 'existing' ? { sessionId: savedId } : {}) }
           : { mainId, title: task.trim(), workspace: workspace as 'shared' | 'worktree',
               ...(forkPreview ? { expectedSourceEntryId: forkPreview.sourceEntryId } : {}),
+              ...(liveLeaf ? { activeLeafId: liveLeaf.activeLeafId } : {}),
               ...(managedWorktree ? { managedWorktree } : {}),
               ...(role === 'support' && relatedWorkId ? { relatedWorkId } : {}) }),
       })
