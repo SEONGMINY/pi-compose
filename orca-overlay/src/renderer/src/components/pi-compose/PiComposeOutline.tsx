@@ -160,7 +160,7 @@ export function PiComposeOutline({ projectCwd, projectWorktreeId }: {
     ))
     const isWork = agent.role === 'work'
     const isSupport = agent.role === 'support'
-    const connectionFailed = isWork && agent.state === 'connection-error'
+    const connectionFailed = agent.state === 'connection-error'
     const title = [
       agent.role === 'main' ? 'Main' : isWork ? 'Work' : 'Support',
       agent.title,
