@@ -18,6 +18,8 @@ export type NativeComposeRequest = {
   hidden?: boolean
   task?: string
   workspace?: 'shared' | 'worktree'
+  activeLeafId?: string
+  managedWorktree?: { id: string; path: string }
 }
 const VALID_COMMANDS = new Set<NativeCommand>(['list', 'sessions', 'import', 'attach', 'attach-chat', 'connection-failed', 'support-result', 'set-work-main-visibility', 'main', 'work', 'support'])
 const TIMEOUT_MS = 90_000
