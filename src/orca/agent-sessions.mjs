@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync, chmodSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
-import { captureCompletedMain, forkCompletedMain } from './completed-main-fork.mjs';
+import { captureCompletedMain, forkCompletedMain, readCompleteJsonl } from './completed-main-fork.mjs';
 
 const STATE_DIR = join(process.env.XDG_STATE_HOME || join(homedir(), '.local', 'state'), 'pi-compose', 'orca');
 const q = value => "'" + String(value).replaceAll("'", "'\\''") + "'";
@@ -19,7 +19,9 @@ function projectRootOf(cwd) {
 }
 
 function readEntries(path) {
-  return readFileSync(path, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line));
+  // Main and Work can be writing their final JSONL record. Never interpret
+  // an incomplete trailing line as corruption or modify the source file.
+  return readCompleteJsonl(path);
 }
 function headerOf(path) {
   const header = readEntries(path)[0];
@@ -312,29 +314,37 @@ export class OrcaAgentStore {
       SessionManager, projectCwd: projectCwd || main.cwd,
       launcherPath });
   }
-  verifyCopiedEntries({ sourceFile, sessionFile, sourceEntryCount,
-    sourceEntryIds, sourceEntryId }) {
-    if (!sourceFile || !sessionFile || !existsSync(sessionFile) || !existsSync(sourceFile)) {
-      return { allMatch: false, copied: 0, expected: sourceEntryCount || 0 };
+  verifyCopiedEntries({ sourceFile, sessionFile, sourceSessionId, targetSessionId,
+    sourceEntryCount, sourceEntryIds, sourceEntryId }) {
+    const expected = sourceEntryIds?.length || sourceEntryCount || 0;
+    if (!sourceFile || !sessionFile || !existsSync(sessionFile) ||
+        !existsSync(sourceFile) || resolve(sourceFile) === resolve(sessionFile)) {
+      return { allMatch: false, copied: 0, expected, leafMatches: false };
     }
-    const original = readEntries(sourceFile).filter(entry => entry.type !== 'session');
-    const selected = sourceEntryIds?.length
-      ? sourceEntryIds.map(id => original.find(entry => entry.id === id))
-      : original.slice(0, sourceEntryCount);
+    // Old records without a selected-branch ID chain cannot prove which Pi
+    // branch was inherited. Preserve those sessions, but never label them as
+    // verified forks by guessing the first N JSONL entries.
+    if (!sourceEntryIds?.length || !sourceEntryId ||
+        sourceEntryIds.length !== sourceEntryCount ||
+        sourceEntryIds.at(-1) !== sourceEntryId ||
+        new Set(sourceEntryIds).size !== sourceEntryIds.length) {
+      return { allMatch: false, copied: 0, expected, leafMatches: false };
+    }
+    const originalRows = readEntries(sourceFile);
     const targetRows = readEntries(sessionFile);
+    const original = new Map(originalRows.slice(1).map(entry => [entry.id, entry]));
+    const selected = sourceEntryIds.map(id => original.get(id));
     const header = targetRows[0];
-    const target = targetRows.filter(entry => entry.type !== 'session');
-    const expected = selected.length;
-    // A Work continues appending its own conversation after the inherited
-    // Main prefix. Verify that immutable prefix, not the entire live child:
-    // comparing the last entry or requiring equal lengths marks a healthy
-    // running Work as a broken Fork.
+    const target = targetRows.slice(1);
+    // An active Work may append new turns: the inherited Main prefix must
+    // remain byte-equivalent as JSON records, but need not be the last entry.
     const copied = selected.filter((entry, index) =>
       entry && JSON.stringify(entry) === JSON.stringify(target[index])).length;
-    const leafMatches = !sourceEntryId ||
-      (expected > 0 && target[expected - 1]?.id === sourceEntryId);
-    const allMatch = header?.type === 'session' &&
-      resolve(header?.parentSession || '') === resolve(sourceFile) &&
+    const leafMatches = target[expected - 1]?.id === sourceEntryId;
+    const allMatch = originalRows[0]?.type === 'session' &&
+      originalRows[0]?.id === sourceSessionId &&
+      header?.type === 'session' && header.id === targetSessionId &&
+      resolve(header.parentSession || '') === resolve(sourceFile) &&
       leafMatches && copied === expected && target.length >= expected;
     return { allMatch, copied, expected, leafMatches };
   }
@@ -535,6 +545,8 @@ export class OrcaAgentStore {
       sourceEntryCount: record.sourceEntryCount,
       sourceEntryIds: record.sourceEntryIds,
       sourceEntryId: record.sourceEntryId,
+      sourceSessionId: record.sourceSessionId,
+      targetSessionId: record.sessionId,
     }) };
   }
 }
