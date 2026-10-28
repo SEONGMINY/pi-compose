@@ -115,6 +115,9 @@ export function PiComposeMenu(): React.JSX.Element {
     try {
       // A prepared Pi session is not proof of a valid Main Fork. Preserve
       // incomplete assets, but never launch an unverified Work as successful.
+      if (!record.sessionFile) {
+        throw new Error('Pi 원본 대화 파일을 확인할 수 없어 Orca Native Chat에 연결하지 않습니다.')
+      }
       if (record.role === 'work' && !record.proof?.allMatch) {
         throw new Error('원본 Main의 Fork 증거가 일치하지 않습니다. 기존 기록은 보존되지만 자동 실행하거나 재-Fork하지 않습니다.')
       }
@@ -129,7 +132,7 @@ export function PiComposeMenu(): React.JSX.Element {
         : { sessionId: await openPreparedPiNativeChat(targetId, record.sessionId),
             replacedClosed: false }
       await window.api.piCompose.attachChat(
-        cwd, record.id, opened.sessionId, targetId, record.sessionId, opened.replacedClosed
+        cwd, record.id, opened.sessionId, targetId, record.sessionId, record.sessionFile, opened.replacedClosed
       )
       window.dispatchEvent(new Event('pi-compose:changed'))
       setOpen(false)
@@ -390,8 +393,11 @@ export function PiComposeMenu(): React.JSX.Element {
       // Adopt the exact prepared Pi session, with no implicit prompt. For an
       // already-running TUI import Orca may refuse a second writer; preserve it.
       try {
+        if (!result.record.sessionFile) {
+          throw new Error('준비된 Pi 세션의 실제 파일을 확인할 수 없어 Native Chat에 연결하지 않습니다.')
+        }
         const chatSessionId = await openPreparedPiNativeChat(targetWorktreeId, result.record.sessionId)
-        await window.api.piCompose.attachChat(cwd, result.record.id, chatSessionId, targetWorktreeId, result.record.sessionId)
+        await window.api.piCompose.attachChat(cwd, result.record.id, chatSessionId, targetWorktreeId, result.record.sessionId, result.record.sessionFile)
         // Orca's host-owned conversation name is the single source used by
         // tabs, Agent rows, session history and other connected clients.
         // Do not add a second Pi Compose label renderer.
