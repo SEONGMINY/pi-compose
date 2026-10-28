@@ -297,3 +297,13 @@ npm run orca:dev
 - `extensions/orca-compose.ts`에는 `compose_work_results` 모델 조회 Tool이 **이미 등록**돼 있음. Main Pi 세션을 제한해 실제 Work 답변을 명시적으로 조회하며 자동 주입은 아님. 그러나 사용자가 D5 입력/출력/권한 범위를 확정하기 전이므로 **승인된 최종 계약으로 간주하지 않고 확장하지 않음**.
 
 이 조사로 별도 Extension UI/Chat renderer/Agent 상태 관리자를 신설할 근거는 없음. 테스트·CI·GUI 실행은 사용자 담당.
+
+
+## 2026-10-29 · Support 결과 최신성 및 전달 대상 우선순위
+
+- **T15/T16 로직 수정:** `OrcaAgentStore.supportResult`는 완료된 마지막 assistant 응답 이후에 미완료 user/assistant/toolResult/custom_message가 있으면 과거 응답을 최신 Support 결과로 제공하지 않고 명시적으로 중단한다. Compaction/ContextEdit 등 대화 상태 항목은 차단 조건에 포함하지 않는다. 원본 JSONL이나 Orca Session을 수정하지 않는다.
+- **T16 메뉴 수정:** 연결된 `relatedWorkId`가 검증된 대상 Work 목록에 존재하면 그 Work를 가장 먼저 제시한다. 자동 선택·전송하지 않고 사용자의 명시적 메뉴 선택과 Orca 원본 draft append를 계속 사용한다.
+- **Orca 재사용 확인:** 고정 Orca `WorktreeCardAgents.tsx`의 원본 owner 기반 행 활성화/해제, `structured-agent-session-tab-activation.ts`의 세션 탭 선택, `native-chat-composer-draft-store.ts`의 초안 영속화 기능을 유지한다.
+- **D1 미확정:** 교차 Worktree는 A(원래 Worktree에서 표시하고 Main에서 이동) 권장, B(두 위치의 읽기 전용 행 참조) 미승인. `PiComposeCrossWorktreeAgentRefs.tsx`는 활성화하지 않는다.
+- **미완료:** T12 실제 Orca host turn/journal ID 및 Work별 unreadable 상태, T14 모델 조회 Tool 최종 계약(D5), T17 TUI writer 인계(D6), T18/T20 전체 중복 정리. 사용자 결정 없이 범위를 확대하지 않는다.
+- 이번 변경에서는 테스트·CI·GUI 실행, Worktree/브랜치/세션 삭제, 업스트림 버전 변경을 수행하지 않았다.
