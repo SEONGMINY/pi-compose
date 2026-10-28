@@ -75,6 +75,7 @@ export type PiComposeLinkedWorkResult = {
     { type: 'tool-call'; name: string; input: unknown; callId?: string } |
     { type: 'tool-result'; output: string; isError?: boolean; callId?: string }
   >
+  toolActivityTruncated: boolean
 }
 export type PiComposeApi = {
   list: (cwd: string) => Promise<PiComposeListRecord[]>
