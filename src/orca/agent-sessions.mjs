@@ -317,6 +317,68 @@ export class OrcaAgentStore {
       leafMatches && copied === expected && target.length === expected;
     return { allMatch, copied, expected, leafMatches };
   }
+  /**
+   * Read-only Work turn references for a Main conversation. This does NOT
+   * append a message to Main or change any Work's active session.
+   * Return genuine completed assistant reports and their actual tool calls.
+   */
+  linkedWorkResults({ mainId, SessionManager }) {
+    const main = this.get(mainId);
+    if (!main || main.role !== 'main') throw new Error('등록된 Main 세션을 찾을 수 없습니다.');
+    const works = this.list().filter(record =>
+      record.role === 'work' && record.parentMainId === main.id &&
+      record.projectRoot === main.projectRoot && !record.hiddenFromMainAt
+    ).slice(0, 30);
+    return works.flatMap(work => {
+      try {
+        const sessionFile = work.sessionFile && existsSync(work.sessionFile)
+          ? work.sessionFile
+          : SessionManager.findById(work.cwd, work.sessionId);
+        if (!sessionFile || !existsSync(sessionFile) ||
+            headerOf(sessionFile).id !== work.sessionId) return [];
+        const branch = SessionManager.open(sessionFile).getBranch();
+        const last = branch.findLastIndex(entry =>
+          entry.type === 'message' && entry.message?.role === 'assistant' &&
+          entry.message?.stopReason === 'stop' && entry.message?.endTurn !== false);
+        if (last < 0) return [];
+        const message = branch[last].message;
+        const report = (message.content || []).filter(block => block.type === 'text')
+          .map(block => block.text).join('\n').trim();
+        const previousUser = branch.slice(0, last).findLastIndex(entry =>
+          entry.type === 'message' && entry.message?.role === 'user');
+        const turn = branch.slice(previousUser + 1, last + 1);
+        const blocks = [];
+        for (const entry of turn) {
+          if (blocks.length >= 60) break;
+          if (entry.type !== 'message') continue;
+          for (const part of entry.message?.content || []) {
+            if (blocks.length >= 60) break;
+            if (entry.message.role === 'assistant' && part.type === 'toolCall') {
+              blocks.push({ type:'tool-call', name:part.name || 'tool',
+                input:part.arguments ?? {}, ...(part.id ? {callId:part.id} : {}) });
+            } else if (entry.message.role === 'toolResult' && part.type === 'text') {
+              blocks.push({ type:'tool-result',
+                output:String(part.text || '').slice(0, 6000),
+                isError:Boolean(entry.message.isError),
+                ...(entry.message.toolCallId ? {callId:entry.message.toolCallId} : {}) });
+            }
+          }
+        }
+        return [{
+          workId:work.id, workTitle:work.title,
+          mainId:main.id, mainOrcaSessionId:main.orcaSessionId ?? null,
+          workOrcaSessionId:work.orcaSessionId ?? null,
+          workPiSessionId:work.sessionId, worktreeId:work.orcaWorktreeId ?? null,
+          entryId:branch[last].id, observedAt:branch[last].timestamp ?? null,
+          reportText:report.slice(0, 12000), truncated:report.length > 12000,
+          toolBlocks:blocks
+        }];
+      } catch {
+        // No fabricated completion when the source host or file is unreadable.
+        return [];
+      }
+    });
+  }
   supportResult({ id, SessionManager }) {
     const support = this.get(id);
     if (!support || support.role !== 'support') {
