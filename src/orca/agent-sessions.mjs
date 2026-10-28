@@ -324,12 +324,19 @@ export class OrcaAgentStore {
     const targetRows = readEntries(sessionFile);
     const header = targetRows[0];
     const target = targetRows.filter(entry => entry.type !== 'session');
+    const expected = selected.length;
+    // A Work continues appending its own conversation after the inherited
+    // Main prefix. Verify that immutable prefix, not the entire live child:
+    // comparing the last entry or requiring equal lengths marks a healthy
+    // running Work as a broken Fork.
     const copied = selected.filter((entry, index) =>
       entry && JSON.stringify(entry) === JSON.stringify(target[index])).length;
-    const expected = selected.length;
-    const leafMatches = !sourceEntryId || target.at(-1)?.id === sourceEntryId;
-    const allMatch = resolve(header?.parentSession || '') === resolve(sourceFile) &&
-      leafMatches && copied === expected && target.length === expected;
+    const leafMatches = !sourceEntryId ||
+      (expected > 0 && target[expected - 1]?.id === sourceEntryId);
+    const allMatch = header?.type === 'session' &&
+      header.id === targetRows[0]?.id &&
+      resolve(header?.parentSession || '') === resolve(sourceFile) &&
+      leafMatches && copied === expected && target.length >= expected;
     return { allMatch, copied, expected, leafMatches };
   }
   /**
