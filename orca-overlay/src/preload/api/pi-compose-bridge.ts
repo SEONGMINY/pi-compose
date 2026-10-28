@@ -9,6 +9,7 @@ export type PiComposeRequest = {
   tabId?: string
   worktreeId?: string
   mainId?: string
+  relatedWorkId?: string
   task?: string
   workspace?: 'shared' | 'worktree'
 }
@@ -17,6 +18,9 @@ export type PiComposeRecord = {
   title: string
   role: 'main' | 'work' | 'support'
   parentMainId?: string | null
+  relatedWorkId?: string | null
+  sourceEntryId?: string | null
+  excludedInProgress?: boolean
   projectRoot: string
   cwd: string
   workspace?: 'shared' | 'worktree'
@@ -26,8 +30,8 @@ export type PiComposeRecord = {
   orcaTabId?: string | null
   orcaWorktreeId?: string | null
 }
-export type PiComposeListRecord = Pick<PiComposeRecord, 'id'|'role'|'title'|'parentMainId'|'state'|'sessionId'|'cwd'|'launcher'|'orcaTabId'|'orcaWorktreeId'> & {
-  proof?: { allMatch: boolean; copied: number; expected: number }
+export type PiComposeListRecord = Pick<PiComposeRecord, 'id'|'role'|'title'|'parentMainId'|'relatedWorkId'|'sourceEntryId'|'excludedInProgress'|'state'|'sessionId'|'cwd'|'launcher'|'orcaTabId'|'orcaWorktreeId'> & {
+  proof?: { allMatch: boolean; copied: number; expected: number; leafMatches?: boolean }
 }
 export type PiComposeResult = {
   record: PiComposeRecord
