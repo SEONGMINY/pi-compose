@@ -31,6 +31,21 @@ function atomicJSON(path, data) {
   writeFileSync(tmp, JSON.stringify(data, null, 2) + '\n', { mode: 0o600, flag: 'wx' });
   renameSync(tmp, path);
 }
+/**
+ * Keep Node IPC replies bounded; Git write/read tool arguments can be much
+ * larger than the entire native Chat transcript projection budget.
+ */
+function boundedComposeToolInput(value) {
+  if (value === undefined || value === null) return {};
+  try {
+    const serialized = JSON.stringify(value);
+    return serialized && serialized.length <= 2500
+      ? value : { preview: String(serialized).slice(0, 1800), truncated: true };
+  } catch {
+    return { preview: 'Tool arguments could not be serialized', truncated: true };
+  }
+}
+
 export function stateDir() { return process.env.PI_COMPOSE_STATE_DIR || STATE_DIR; }
 
 export class OrcaAgentStore {
@@ -328,7 +343,7 @@ export class OrcaAgentStore {
     const works = this.list().filter(record =>
       record.role === 'work' && record.parentMainId === main.id &&
       record.projectRoot === main.projectRoot && !record.hiddenFromMainAt
-    ).slice(0, 30);
+    ).slice(-12);
     return works.flatMap(work => {
       try {
         const sessionFile = work.sessionFile && existsSync(work.sessionFile)
@@ -337,28 +352,38 @@ export class OrcaAgentStore {
         if (!sessionFile || !existsSync(sessionFile) ||
             headerOf(sessionFile).id !== work.sessionId) return [];
         const branch = SessionManager.open(sessionFile).getBranch();
-        const last = branch.findLastIndex(entry =>
+        // The Work file contains copied Main messages. None of those is
+        // evidence that this Work executed or completed a task.
+        if (!work.sourceEntryId) return [];
+        const inheritedEnd = branch.findIndex(entry => entry.id === work.sourceEntryId);
+        if (inheritedEnd < 0) return [];
+        const originalWork = branch.slice(inheritedEnd + 1);
+        const firstWorkUser = originalWork.findIndex(entry =>
+          entry.type === 'message' && entry.message?.role === 'user');
+        if (firstWorkUser < 0) return [];
+        const workEntries = originalWork.slice(firstWorkUser);
+        const last = workEntries.findLastIndex(entry =>
           entry.type === 'message' && entry.message?.role === 'assistant' &&
           entry.message?.stopReason === 'stop' && entry.message?.endTurn !== false);
         if (last < 0) return [];
-        const message = branch[last].message;
+        const message = workEntries[last].message;
         const report = (message.content || []).filter(block => block.type === 'text')
           .map(block => block.text).join('\n').trim();
-        const previousUser = branch.slice(0, last).findLastIndex(entry =>
+        const previousUser = workEntries.slice(0, last).findLastIndex(entry =>
           entry.type === 'message' && entry.message?.role === 'user');
-        const turn = branch.slice(previousUser + 1, last + 1);
+        const turn = workEntries.slice(previousUser + 1, last + 1);
         const blocks = [];
         for (const entry of turn) {
-          if (blocks.length >= 60) break;
+          if (blocks.length >= 24) break;
           if (entry.type !== 'message') continue;
           for (const part of entry.message?.content || []) {
-            if (blocks.length >= 60) break;
+            if (blocks.length >= 24) break;
             if (entry.message.role === 'assistant' && part.type === 'toolCall') {
               blocks.push({ type:'tool-call', name:part.name || 'tool',
-                input:part.arguments ?? {}, ...(part.id ? {callId:part.id} : {}) });
+                input:boundedComposeToolInput(part.arguments), ...(part.id ? {callId:part.id} : {}) });
             } else if (entry.message.role === 'toolResult' && part.type === 'text') {
               blocks.push({ type:'tool-result',
-                output:String(part.text || '').slice(0, 6000),
+                output:String(part.text || '').slice(0, 1800),
                 isError:Boolean(entry.message.isError),
                 ...(entry.message.toolCallId ? {callId:entry.message.toolCallId} : {}) });
             }
@@ -369,7 +394,7 @@ export class OrcaAgentStore {
           mainId:main.id, mainOrcaSessionId:main.orcaSessionId ?? null,
           workOrcaSessionId:work.orcaSessionId ?? null,
           workPiSessionId:work.sessionId, worktreeId:work.orcaWorktreeId ?? null,
-          entryId:branch[last].id, observedAt:branch[last].timestamp ?? null,
+          entryId:workEntries[last].id, observedAt:workEntries[last].timestamp ?? null,
           reportText:report.slice(0, 12000), truncated:report.length > 12000,
           toolBlocks:blocks
         }];
