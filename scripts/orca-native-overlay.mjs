@@ -74,6 +74,7 @@ const additions = [
   'src/preload/api/pi-compose-bridge.ts',
   'src/renderer/src/components/pi-compose/PiComposeMenu.tsx',
   'src/renderer/src/components/pi-compose/PiComposeOutline.tsx',
+  'src/renderer/src/components/pi-compose/PiComposeNativeChat.ts',
 ]
 const original = (root, relative) => join(root,'orca-overlay',relative)
 
