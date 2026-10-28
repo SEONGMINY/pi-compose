@@ -176,21 +176,48 @@ export function applyOrcaOverlay(orca, piComposeRoot) {
   const hash = text => createHash('sha256').update(text).digest('hex')
   const nextFiles = {}
   const staged = new Map()
+  // Later patches may intentionally refine earlier patches in the SAME file.
+  // Compare the whole applied patch set, not individual intermediate strings:
+  // a second prepare must not reapply an intermediate transformation.
+  const patchInputs = new Map()
   for (const patch of patches) {
-    const path = join(orca,patch.path)
-    const source = staged.get(path) ?? readFileSync(path,'utf8')
+    const inputs = patchInputs.get(patch.path) ?? []
+    inputs.push([patch.before, patch.after, patch.secondBefore, patch.secondAfter])
+    patchInputs.set(patch.path, inputs)
+  }
+  const patchSignatures = new Map(
+    [...patchInputs].map(([relative, inputs]) => [relative, hash(JSON.stringify(inputs))])
+  )
+  const nextPatchedFiles = {}
+  for (const patch of patches) {
+    const path = join(orca, patch.path)
+    const source = staged.get(path) ?? readFileSync(path, 'utf8')
+    const previousPatch = previous.patchedFiles?.[patch.path]
+    if (previousPatch && hash(source) !== previousPatch.hash && !staged.has(path)) {
+      throw new Error('기존 Orca 패치 파일이 변경됐습니다. 사용자 변경을 덮어쓰지 않습니다: ' + patch.path)
+    }
+    if (previousPatch?.signature === patchSignatures.get(patch.path) &&
+        hash(source) === previousPatch.hash && !staged.has(path)) {
+      staged.set(path, source)
+      continue
+    }
     let result = source
-    for (const pair of [
-      [patch.before,patch.after],[patch.secondBefore,patch.secondAfter]
+    for (const [from, to] of [
+      [patch.before, patch.after], [patch.secondBefore, patch.secondAfter]
     ]) {
-      const [from,to] = pair
-      if (result.includes(to)) continue // already applied exactly
+      if (result.includes(to)) continue
       if (!result.includes(from)) {
         throw new Error('Orca upstream이 변경되어 통합을 멈췄습니다: ' + patch.path)
       }
-      result=result.replace(from,to)
+      result = result.replace(from, to)
     }
-    staged.set(path,result)
+    staged.set(path, result)
+  }
+  for (const relative of patchInputs.keys()) {
+    nextPatchedFiles[relative] = {
+      hash: hash(staged.get(join(orca, relative))),
+      signature: patchSignatures.get(relative)
+    }
   }
   for (const relative of additions) {
     const path=join(orca,relative)
@@ -213,7 +240,7 @@ export function applyOrcaOverlay(orca, piComposeRoot) {
   // Persist last applied bytes after completing the staged writes. An
   // interrupted run can be recovered by choosing a clean Orca checkout.
   const tempManifestPath = manifestPath + '.tmp'
-  writeFileSync(tempManifestPath, JSON.stringify({ version: 1, files: nextFiles }, null, 2) + '\n')
+  writeFileSync(tempManifestPath, JSON.stringify({ version: 2, files: nextFiles, patchedFiles: nextPatchedFiles }, null, 2) + '\n')
   renameSync(tempManifestPath, manifestPath)
   console.log('Pi Compose native Orca integration:',patches.length,'upstream hooks,',additions.length,'overlay files')
 }
