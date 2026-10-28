@@ -1,6 +1,6 @@
 import { ipcRenderer } from 'electron'
 
-export type PiComposeCommand = 'list' | 'sessions' | 'import' | 'attach' | 'attach-chat' | 'connection-failed' | 'support-result' | 'preview-work-fork' | 'set-work-main-visibility' | 'main' | 'work' | 'support'
+export type PiComposeCommand = 'list' | 'sessions' | 'import' | 'attach' | 'attach-chat' | 'connection-failed' | 'support-result' | 'preview-work-fork' | 'linked-work-results' | 'set-work-main-visibility' | 'main' | 'work' | 'support'
 export type PiComposeRequest = {
   cwd: string
   title?: string
@@ -59,12 +59,30 @@ export type PiComposeSupportResult = {
   text: string
   truncated: boolean
 }
+export type PiComposeLinkedWorkResult = {
+  workId: string
+  workTitle: string
+  mainId: string
+  mainOrcaSessionId: string | null
+  workOrcaSessionId: string | null
+  workPiSessionId: string
+  worktreeId: string | null
+  entryId: string
+  observedAt: string | null
+  reportText: string
+  truncated: boolean
+  toolBlocks: Array<
+    { type: 'tool-call'; name: string; input: unknown; callId?: string } |
+    { type: 'tool-result'; output: string; isError?: boolean; callId?: string }
+  >
+}
 export type PiComposeApi = {
   list: (cwd: string) => Promise<PiComposeListRecord[]>
   attach: (cwd: string, id: string, tabId: string, worktreeId: string) => Promise<PiComposeRecord>
   attachChat: (cwd: string, id: string, orcaSessionId: string, worktreeId: string, replaceClosed?: boolean) => Promise<PiComposeRecord>
   supportResult: (cwd: string, id: string) => Promise<PiComposeSupportResult>
   previewWorkFork: (cwd: string, mainId: string, activeLeafId?: string) => Promise<{mainId:string;sourceEntryId:string;sourceEntryCount:number;excludedInProgress:boolean}>
+  linkedWorkResults: (cwd: string, mainId: string) => Promise<PiComposeLinkedWorkResult[]>
   setWorkMainVisibility: (cwd: string, mainId: string, id: string, hidden: boolean) => Promise<PiComposeRecord>
   connectionFailed: (cwd: string, id: string, message: string) => Promise<PiComposeRecord>
   sessions: (cwd: string) => Promise<{id:string;title:string;messageCount:number;path:string}[]>
@@ -76,6 +94,7 @@ export const piComposeApi: PiComposeApi = {
   attachChat: (cwd,id,orcaSessionId,worktreeId,replaceClosed) => ipcRenderer.invoke('pi-compose:execute','attach-chat',{cwd,id,orcaSessionId,worktreeId,replaceClosed}),
   supportResult: (cwd,id) => ipcRenderer.invoke('pi-compose:execute','support-result',{cwd,id}),
   previewWorkFork: (cwd,mainId,activeLeafId) => ipcRenderer.invoke('pi-compose:execute','preview-work-fork',{cwd,mainId,activeLeafId}),
+  linkedWorkResults: (cwd,mainId) => ipcRenderer.invoke('pi-compose:execute','linked-work-results',{cwd,mainId}),
   setWorkMainVisibility: (cwd,mainId,id,hidden) => ipcRenderer.invoke('pi-compose:execute','set-work-main-visibility',{cwd,mainId,id,hidden}),
   connectionFailed: (cwd,id,message) => ipcRenderer.invoke('pi-compose:execute','connection-failed',{cwd,id,message}),
   sessions: (cwd) => ipcRenderer.invoke('pi-compose:execute', 'sessions', { cwd }),
