@@ -74,16 +74,29 @@ export function captureCompletedMain({ sessionFile, sessionId, activeLeafId }) {
   if (lastDone < 0) {
     throw new Error('Main에 아직 완료된 Pi 응답이 없습니다. 응답 완료 후 다시 시도하세요.')
   }
-  const completed = branch.slice(0, lastDone + 1)
+  // Pi's active branch can append compaction/context edits/model selection
+  // AFTER the final finished assistant response. These entries affect the
+  // next model context, so dropping them silently loses Main's decisions.
+  // Stop at the first uncompleted input (ordinary or extension message);
+  // do not inherit that pending turn, or later entries attached to it.
+  const afterCompleted = branch.slice(lastDone + 1)
+  const pendingIndex = afterCompleted.findIndex(entry =>
+    entry.type === 'message' || entry.type === 'custom_message')
+  const safeTail = pendingIndex === -1
+    ? afterCompleted : afterCompleted.slice(0, pendingIndex)
+  const completed = branch.slice(0, lastDone + 1).concat(safeTail)
   return {
     sourceFile,
     sourceSessionId: sessionId,
+    // The copied leaf may be a Compaction, ContextEdit, or Extension state
+    // entry; it is the exact inherited branch tip, not necessarily the last
+    // assistant message ID.
     sourceEntryId: completed.at(-1).id,
+    completedAssistantEntryId: branch[lastDone].id,
     sourceEntryIds: completed.map(entry => entry.id),
     entries: completed,
     header,
-    excludedInProgress: branch.slice(lastDone + 1).some(entry =>
-      entry.type === 'message' && ['user', 'assistant', 'toolResult'].includes(entry.message?.role))
+    excludedInProgress: pendingIndex !== -1
   }
 }
 
