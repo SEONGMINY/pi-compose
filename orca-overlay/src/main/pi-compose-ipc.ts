@@ -81,6 +81,21 @@ export function registerPiComposeIpc(): void {
       }
       const activeLeafId = await adapter.readComposeActiveLeaf(orcaSessionId)
       if (!activeLeafId) throw new Error('Main의 Pi 대화에 완료된 분기가 없습니다.')
+      // The RPC read is asynchronous. The user may close/reopen the pane or
+      // Orca may change its provider handle while the read is in flight.
+      // Verify this is STILL the same host-owned source immediately before
+      // exporting the leaf; a stale reply must never authorize a Fork.
+      const current = host.deps.store.getConversation(orcaSessionId)
+      const currentHandle = current?.providerHandleChain.at(-1)?.handle
+      if (current?.provider !== 'pi' ||
+          current.location.workspaceId !== worktreeId ||
+          currentHandle?.agent !== 'pi' ||
+          currentHandle.transport !== 'jsonl-rpc' ||
+          !currentHandle.nativeId ||
+          realpathSync(currentHandle.nativeId) !== realpathSync(expectedPiFile) ||
+          (await readPiSessionHeader(currentHandle.nativeId))?.id !== expectedPiSessionId) {
+        throw new Error('Main Pi 호스트 소유권이 활성 분기 조회 중 변경됐습니다. Fork를 중단합니다.')
+      }
       return { activeLeafId, orcaSessionId }
     }
 
