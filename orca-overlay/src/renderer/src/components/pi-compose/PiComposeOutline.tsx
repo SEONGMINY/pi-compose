@@ -10,6 +10,8 @@ import {
 } from '@/components/tab-bar/tab-move-to-pane-column'
 import type { PiComposeListRecord } from '../../../../preload/api/pi-compose-bridge'
 import { openPreparedWorkNativeChat } from './PiComposeNativeChat'
+import { appendToNativeChatComposerDraft, structuredAgentSessionDraftScopeKey,
+  nativeChatComposerDraftWriteSettled } from '@/components/native-chat/native-chat-composer-draft-store'
 
 function quote(value: string): string {
   return "'" + value.replaceAll("'", "'\\''") + "'"
@@ -160,6 +162,47 @@ export function PiComposeOutline(): React.JSX.Element | null {
       setBusyId(null)
     }
   }
+  const prepareSupportDraftForWork = async (support: PiComposeListRecord) => {
+    if (!cwd || busyId || !support.relatedWorkId) return
+    setBusyId(support.id)
+    setError('')
+    try {
+      // Read an actual completed Pi response. Do not infer test pass/fail from
+      // terminal status, or automatically summarize unseen output.
+      const result = await window.api.piCompose.supportResult(cwd, support.id)
+      const work = agents.find(agent =>
+        agent.id === result.relatedWorkId && agent.role === 'work')
+      if (!work || !work.orcaSessionId || !work.orcaWorktreeId) {
+        throw new Error('먼저 연결된 Work를 Orca Native Chat에서 열어 주세요. Support 결과는 보존됩니다.')
+      }
+      const text = [
+        '[Support 결과 · ' + result.supportTitle + ']',
+        result.text,
+        result.truncated ? '(긴 응답의 일부만 포함됨. Support 원본 대화에서 전체 내용 확인)' : '',
+        'Support 세션: ' + result.sessionId,
+        '필요한 부분을 검토하고 수정 지시를 작성해 주세요.'
+      ].filter(Boolean).join('\n\n')
+      const scope = structuredAgentSessionDraftScopeKey(work.orcaSessionId)
+      const appended = appendToNativeChatComposerDraft(scope, { text })
+      const persisted = await nativeChatComposerDraftWriteSettled(scope)
+      if (!appended || !persisted) {
+        throw new Error('Work 입력 초안을 저장하지 못했습니다. 결과를 복사해 직접 전달해 주세요.')
+      }
+      if (activateAndRevealWorkspace(work.orcaWorktreeId) === false) {
+        throw new Error('Work 초안은 저장됐지만 작업 공간을 열 수 없습니다. 해당 Work에서 직접 확인해 주세요.')
+      }
+      const tab = (useAppStore.getState().unifiedTabsByWorktree[work.orcaWorktreeId] ?? [])
+        .find(item => item.contentType === 'agent-session' &&
+          item.entityId === work.orcaSessionId)
+      if (!tab) throw new Error('Work 초안은 저장됐지만 Native Chat 탭을 찾지 못했습니다.')
+      useAppStore.getState().activateTab(tab.id, { worktreeId: work.orcaWorktreeId })
+      // No agentSession.send, terminal.send or prompt submission. The user owns Send.
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusyId(null)
+    }
+  }
   if (!cwd) return null
   return <section className="mx-2 mb-2 rounded-lg border border-worktree-sidebar-border bg-worktree-sidebar-foreground/4"
     aria-label="Pi Compose 프로젝트 Agent">
@@ -210,6 +253,11 @@ export function PiComposeOutline(): React.JSX.Element | null {
                 onClick={()=>void showAgent(child,false)}>
                 {child.title}
               </button>
+              {child.role === 'support' && child.relatedWorkId && <button type="button"
+                className="shrink-0 rounded border border-worktree-sidebar-border px-1.5 py-0.5 text-[10px] hover:bg-worktree-sidebar-foreground/10 disabled:opacity-30"
+                title="Support의 완료된 결과를 연결된 Work 입력창에 초안으로 넣기 (전송 안 함)"
+                disabled={busyId!==null}
+                onClick={() => void prepareSupportDraftForWork(child)}>Work에 보내기</button>}
               {child.role === 'work' && <button type="button"
                 className="shrink-0 rounded border border-worktree-sidebar-border px-1.5 py-0.5 text-[10px] hover:bg-worktree-sidebar-foreground/10"
                 title="이 Work를 돕는 독립 Support 준비"
