@@ -67,10 +67,28 @@ export class OrcaAgentStore {
    * Pi creates the actual JSONL after the first conversation message.
    * The UUID is pinned BEFORE launch so an arbitrary recent session is never used.
    */
-  createMain({ cwd, title, launcherPath }) {
+  /**
+   * Pi's new sessions are not written until the first user message. Native
+   * Chat needs an existing transcript to adopt without changing its Pi ID.
+   * Materialize only Pi's own canonical v3 header (no synthetic messages);
+   * Main/Support still start with a genuinely empty model conversation.
+   */
+  materializeEmptyNativePiSession({ cwd, sessionId, SessionManager }) {
+    const manager = SessionManager.create(cwd, undefined, { id: sessionId });
+    const file = manager.getSessionFile();
+    if (!file || existsSync(file)) throw new Error('새 Pi 세션 경로를 안전하게 준비할 수 없습니다.');
+    const header = manager.getEntries().find(entry => entry.type === 'session');
+    if (!header || header.id !== sessionId) throw new Error('Pi 세션 헤더 ID가 일치하지 않습니다.');
+    writeFileSync(file, JSON.stringify(header) + '\n', { flag: 'wx', mode: 0o600 });
+    return file;
+  }
+  createMain({ cwd, title, launcherPath, SessionManager }) {
     const projectRoot = projectRootOf(cwd);
     const sessionId = randomUUID();
     const id = 'main-' + sessionId;
+    const sessionFile = SessionManager
+      ? this.materializeEmptyNativePiSession({ cwd: resolve(cwd), sessionId, SessionManager })
+      : null;
     const scriptPath = join(this.launchersDir, sessionId + '.sh');
     const command = [
       q(launcherPath.piBinary || 'pi'), '--extension', q(resolve(launcherPath.extension)),
@@ -80,7 +98,7 @@ export class OrcaAgentStore {
       { mode: 0o700, flag: 'wx' });
     return this.put({
       id, role: 'main', title: (title || '').trim() || basename(projectRoot),
-      projectRoot, cwd: resolve(cwd), sessionId, sessionFile: null,
+      projectRoot, cwd: resolve(cwd), sessionId, sessionFile,
       launcher: scriptPath, state: 'prepared', createdAt: new Date().toISOString(),
     });
   }
@@ -219,7 +237,8 @@ export class OrcaAgentStore {
           (error instanceof Error ? error.message : String(error)));
       }
     } else {
-      sessionId = id; // Pi creates its independent session on the first real message.
+      sessionId = id;
+      sessionFile = this.materializeEmptyNativePiSession({ cwd, sessionId, SessionManager });
     }
     const scriptPath = join(this.launchersDir, id + '.sh');
     const args = ['--extension', resolve(launcherPath.extension),
@@ -308,24 +327,24 @@ export class OrcaAgentStore {
   }
   markConnectionFailed({ id, message }) {
     const record = this.get(id);
-    if (!record || record.role !== 'work') throw new Error('Work Agent를 찾을 수 없습니다.');
+    if (!record) throw new Error('Agent를 찾을 수 없습니다.');
     if (record.state === 'ready') return record;
     record.state = 'connection-error';
     record.connectionError = String(message || 'Native Chat 연결 실패').slice(0, 500);
     atomicJSON(this.path(id), record);
     return record;
   }
-  attachNativeChat({ id, orcaSessionId, worktreeId }) {
+  attachNativeChat({ id, orcaSessionId, worktreeId, replaceClosed = false }) {
     const record = this.get(id);
-    if (!record || record.role !== 'work') {
-      throw new Error('검증된 Work Agent에만 기존 Pi 세션을 연결할 수 있습니다.');
+    if (!record || !['main','work','support'].includes(record.role)) {
+      throw new Error('등록된 Pi Agent 세션만 Native Chat과 연결할 수 있습니다.');
     }
     if (!/^pi_[A-Za-z0-9_]{8,120}$/.test(orcaSessionId) ||
         typeof worktreeId !== 'string' || !worktreeId.trim() || worktreeId.length > 512) {
       throw new Error('Orca Native Chat 식별자가 올바르지 않습니다.');
     }
-    if (record.orcaSessionId && record.orcaSessionId !== orcaSessionId) {
-      throw new Error('이미 연결된 Native Chat을 중복 생성하지 않습니다.');
+    if (record.orcaSessionId && record.orcaSessionId !== orcaSessionId && !replaceClosed) {
+      throw new Error('기존 Native Chat 소유권을 먼저 확인해야 합니다.');
     }
     record.orcaSessionId = orcaSessionId;
     record.orcaWorktreeId = worktreeId;
