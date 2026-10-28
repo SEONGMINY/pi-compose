@@ -95,6 +95,9 @@ async function run(command,args) {
     if (!existing || gitRoot(args.cwd)!==existing.projectRoot) {
       throw new Error('선택한 Work 대화를 연결할 수 없습니다.');
     }
+    if (existing.sessionId !== requiredText(args.sessionId,'Pi 원본 세션 ID',120)) {
+      throw new Error('연결하려는 Orca Chat과 등록된 Agent의 Pi 세션 ID가 다릅니다.');
+    }
     return store.attachNativeChat({
       id,
       orcaSessionId:requiredText(args.orcaSessionId,'Orca 세션 ID',100),
