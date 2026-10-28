@@ -105,6 +105,29 @@ Main 대화
 
 여기까지는 **Orca 원본 회복을 위한 제한된 변경**이다. 현재 별도 Pi Compose sidebar outline과 자체 Agent 저장소, 직접 Worktree 생성 등 더 큰 중복은 아직 남아 있으며, 기능을 완성했다고 표현하지 않는다.
 
+## 4.1 진행 결과 — Orca 기존 Agent 행으로 교체한 2차 변경
+
+**코드에 반영 (macOS 미검증)**
+
+1. `PiComposeOutline.tsx`를 Orca 실제 사이드바에서 **마운트하지 않는다**. 해당 소스는 레거시/마이그레이션 참고로 저장소에 남겨두지만 Orca 번들로 복사하지 않는다. `item-row.tsx`에 가했던 별도 리스트 삽입과 pointer/click 가로채기를 제거한다.
+2. Orca `WorktreeCardAgents` / `DashboardAgentRow`의 원본 상태·선택·계층 표시·Dismiss를 기본 그대로 쓴다. Worktree 우클릭 메뉴 `WorktreeContextMenuView`에 **Pi Compose Agent 만들기…** 한 항목만 추가한다.
+3. `use-native-chat-context-menu.tsx`가 현재 열린 Pi Native Chat과 등록된 Pi Compose Main의 **Orca session ID**를 검증할 때만 **이 Main에서 Work 만들기…**를 기존 채팅 우클릭 메뉴에 추가한다. Main을 자동 추측/신규 등록하지 않는다.
+4. Work/Main/Support의 새 Native Chat은 `agentSession.rename` 기존 호스트 기능으로 **Main · 이름 / Work · 이름 / Support · 이름**을 설정한다. 별도의 Agent 행 타이틀 UI를 만들지 않는다. 이름 저장이 실패해도 실제 Pi 세션과 Orca Chat을 삭제하지 않는다.
+5. Pi Compose 생성 Dialog에서 기존 Orca 생성으로 이동하는 중복 메뉴를 제거한다. Orca 기본 `+`/단축키/투어/일반 Worktree 생성 및 우클릭 메뉴는 바꾸지 않는다.
+6. 신규 체크아웃 `.cache/orca-upstream-native-first` 사용. 변경된 upstream patch의 원본 문자열 일치 여부를 확인했지만 GUI/typecheck/실사용 검증은 아직 아니다.
+
+**아직 미완료이며 이번 결과로 완료됐다고 주장하지 않는 것**
+
+- Main → Work → Support를 **서로 다른 Orca Worktree에서도 하나의 컨텍스트 트리로 투영**하는 기능. 지금은 원본 Orca Worktree 안의 Agent 행과 상태가 정본이며, Main/Work 관계 데이터는 Pi Compose에 보존된다. 이 부분이 없는 상태를 최종 제품 UI로 간주하지 않는다.
+- Orca의 정식 Worktree 생성·등록 경로로 이전. 기존 Pi Compose 백엔드는 별도 Worktree를 `git worktree add`로 만들기 때문에 미등록/복구 문제가 남는다.
+- Main에 Work 결과의 접힌 보고를 표기하는 교차 Pi 세션 저널 연결.
+- 기존에 이미 이름이 있는 Agent 자동 이름 변경/이전. 사용자 지정 이름과 세션 원본을 보존하기 위해 재명명하지 않았다.
+- Agent를 **종료**하는 것, 목록에서 **숨기는 것**, 채팅 탭을 **닫는 것**, Pi 파일을 **삭제하는 것**, Git Worktree를 **삭제하는 것**의 차이를 현재 새 메뉴로 통합하지 않았다. 각각 Orca 원본 메뉴와 효과를 확인해야 한다.
+- Main에서 여러 Pi Extension을 사용할 때 RPC Native Chat의 미지원 UI 경계 확인.
+- 현재 Orca 출처의 native Agent rows가 프로젝트 전체 Main 아래 컨텍스트별로 선택·계층 표시되는지는 아직 미확인.
+
+**마이그레이션 안전:** 이전 `OrcaAgentStore` 및 `PiComposeOutline` 레코드를 자동 삭제하거나 Orca 세션을 새로 Fork하지 않는다. 레거시 목록이 더 이상 그려지지 않으므로 실제 Orca가 열려 있지 않은 `prepared` 기록은 새 UI에서 즉시 보이지 않을 수 있다. 재복원·대상 확인 경로가 추가될 때까지 원본 보존이 우선이다.
+
 ## 5. 실제 검증 게이트 (테스트 코드/CI 추가 없음)
 
 - 기본 Orca: 원본 `+`/shortcut/tour, 프로젝트·Worktree 생성·우클릭·정리·선택, 상태/Agents feed/탭 close/reveal.
