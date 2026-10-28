@@ -206,7 +206,7 @@ export function PiComposeMenu(): React.JSX.Element {
           (!sourceMain?.orcaSessionId || !sourceMain.orcaWorktreeId || !sourceMain.sessionFile)) {
         throw new Error('Fork할 Main의 Orca Pi 세션이 없습니다. Main 대화를 먼저 열어 주세요.')
       }
-      const liveLeaf = sourceMain?.orcaSessionId && sourceMain.orcaWorktreeId
+      const liveLeaf = sourceMain?.orcaSessionId && sourceMain.orcaWorktreeId && sourceMain.sessionFile
         ? await window.api.piCompose.liveMainLeaf(
             cwd, sourceMain.orcaSessionId, sourceMain.orcaWorktreeId, sourceMain.sessionId,
             sourceMain.sessionFile
