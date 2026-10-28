@@ -172,34 +172,9 @@ const patches = [
     secondBefore: "import { PiRpcSession, type PiRpcSessionDeps, type PiRpcConnection } from './rpc-session'",
     secondAfter: "import { PiRpcSession, type PiRpcSessionDeps, type PiRpcConnection } from './rpc-session'\nimport { readPiEntries } from './rpc-history-catch-up'"
   }
-  ,{
-    path: "src/renderer/src/components/sidebar/WorktreeCardAgents.tsx",
-    before: "import { buildAgentRowLineageTree } from '@/components/dashboard/agent-row-lineage-model'",
-    after: "import { buildAgentRowLineageTree } from '@/components/dashboard/agent-row-lineage-model'\nimport { PiComposeCrossWorktreeAgentRef, usePiComposeCrossWorktreeAgentRefs } from '../pi-compose/PiComposeCrossWorktreeAgentRefs'",
-    secondBefore: "  const hasLineage = childrenByParentPaneKey.size > 0",
-    secondAfter: "  const crossWorktreeRefs = usePiComposeCrossWorktreeAgentRefs(worktreeId, visibleAgents)\n  const hasLineage = childrenByParentPaneKey.size > 0 || crossWorktreeRefs.size > 0"
-  }
-  ,{
-    path: "src/renderer/src/components/sidebar/WorktreeCardAgents.tsx",
-    before: "  const renderAgentBranch = (\n    agent: DashboardAgentRowData,\n    ancestorPaneKeys: ReadonlySet<string> = new Set()\n  ): React.ReactNode => {\n    if (ancestorPaneKeys.has(agent.paneKey)) {\n      // External lineage metadata may cycle; reject repeated ancestors before recursion.\n      return null\n    }\n    const childAgents = childrenByParentPaneKey.get(agent.paneKey) ?? []\n    const hasChildAgents = childAgents.length > 0",
-    after: "  const renderAgentBranch = (\n    agent: DashboardAgentRowData,\n    ancestorPaneKeys: ReadonlySet<string> = new Set()\n  ): React.ReactNode => {\n    if (ancestorPaneKeys.has(agent.paneKey)) {\n      // External lineage metadata may cycle; reject repeated ancestors before recursion.\n      return null\n    }\n    const childAgents = childrenByParentPaneKey.get(agent.paneKey) ?? []\n    const crossRefs = crossWorktreeRefs.get(agent.paneKey) ?? []\n    const hasChildAgents = childAgents.length + crossRefs.length > 0",
-    secondBefore: "  const renderCompactAgentBranch = (\n    agent: DashboardAgentRowData,\n    ancestorPaneKeys: ReadonlySet<string> = new Set(),\n    cacheTimerActive = true\n  ): React.ReactNode => {\n    if (ancestorPaneKeys.has(agent.paneKey)) {\n      return null\n    }\n    const childAgents = childrenByParentPaneKey.get(agent.paneKey) ?? []\n    const hasChildAgents = childAgents.length > 0",
-    secondAfter: "  const renderCompactAgentBranch = (\n    agent: DashboardAgentRowData,\n    ancestorPaneKeys: ReadonlySet<string> = new Set(),\n    cacheTimerActive = true\n  ): React.ReactNode => {\n    if (ancestorPaneKeys.has(agent.paneKey)) {\n      return null\n    }\n    const childAgents = childrenByParentPaneKey.get(agent.paneKey) ?? []\n    const crossRefs = crossWorktreeRefs.get(agent.paneKey) ?? []\n    const hasChildAgents = childAgents.length + crossRefs.length > 0"
-  }
-  ,{
-    path: "src/renderer/src/components/sidebar/WorktreeCardAgents.tsx",
-    before: "childAgentCount={hasChildAgents ? childAgents.length : undefined}",
-    after: "childAgentCount={hasChildAgents ? childAgents.length + crossRefs.length : undefined}",
-    secondBefore: "              renderAgentBranch(childAgent, descendantAncestorPaneKeys)\n            )}",
-    secondAfter: "              renderAgentBranch(childAgent, descendantAncestorPaneKeys)\n            )}\n            {crossRefs.map(refRecord => (\n              <PiComposeCrossWorktreeAgentRef\n                key={refRecord.id}\n                refRecord={refRecord}\n                mainId={refRecord.parentMainId!}\n                cwd={useAppStore.getState().getKnownWorktreeById(worktreeId)?.path ?? ''}\n                compact={false}\n              />\n            ))}"
-  }
-  ,{
-    path: "src/renderer/src/components/sidebar/WorktreeCardAgents.tsx",
-    before: "childAgentCount={hasChildAgents ? childAgents.length : undefined}",
-    after: "childAgentCount={hasChildAgents ? childAgents.length + crossRefs.length : undefined}",
-    secondBefore: "                )\n              )}\n            </div>",
-    secondAfter: "                  )\n                )}\n                {crossRefs.map(refRecord => (\n                  <PiComposeCrossWorktreeAgentRef\n                    key={refRecord.id}\n                    refRecord={refRecord}\n                    mainId={refRecord.parentMainId!}\n                    cwd={useAppStore.getState().getKnownWorktreeById(worktreeId)?.path ?? ''}\n                    compact\n                  />\n                ))}\n              </div>"
-  }
+  // P2 DECISION GATE: cross-worktree duplicate native rows have been
+  // disabled until Orca owner routing and the A/B UX policy are confirmed.
+  // Keep source as an unmounted experiment; do not alter native row dismissal.
   ,{
     path: 'src/main/pi/rpc-launch.ts',
     before: "import { ORCA_AGENT_SESSION_SPAWN_TOKEN_ENV } from '../../shared/agent-session-caller-env'",
