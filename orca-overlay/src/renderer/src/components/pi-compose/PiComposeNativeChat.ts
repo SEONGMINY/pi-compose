@@ -1,10 +1,9 @@
 import { adoptAgentSessionLaunchVerdict } from '@/lib/agent-session-launch-plan'
 import { newAgentLaunchRequestId } from '@/lib/agent-launch-request-id'
 import {
-  beginStructuredAgentSessionProvisionalLaunch,
-  structuredLaunchOwner
+  beginStructuredAgentSessionProvisionalLaunch
 } from '@/lib/agent-session/structured-agent-session-provisional-tab'
-import { callStructuredAgentSession } from '@/runtime/structured-agent-session-client'
+import { revealStructuredSession } from '@/lib/activate-ai-vault-structured-session'
 import { useAppStore } from '@/store'
 
 export async function openPreparedPiNativeChat(
@@ -49,22 +48,14 @@ export async function reopenPiNativeChat(
     tab.entityId === orcaSessionId)) {
     return { sessionId: orcaSessionId, replacedClosed: false }
   }
-  const owner = structuredLaunchOwner({ route: 'structured-native-chat' }, worktreeId)
-  if (!owner) throw new Error('Orca Native Chat 소유 호스트가 확인되지 않았습니다.')
-  const reply = await callStructuredAgentSession<
-    { ok: true; sessionId: string } | { ok: false; refusal?: { code?: string } }
-  >(owner.target, 'agentSession.reveal', { sessionId: orcaSessionId })
-  if (reply?.ok === true) {
+  const outcome = await revealStructuredSession({ worktreeId, sessionId: orcaSessionId })
+  if (outcome === 'revealed') {
     return { sessionId: orcaSessionId, replacedClosed: false }
   }
-  if (reply?.ok !== false || !reply.refusal) {
-    throw new Error('기존 Orca Chat 상태를 확인할 수 없습니다. 중복 생성하지 않았습니다.')
-  }
-  const reason = reply.refusal.code
-  // Only an explicitly closed/missing record can be replaced. Ownership,
-  // timeout and transport faults must not become accidental second writers.
-  if (!['agent_session_ownership_unknown', 'agent_session_identity_required'].includes(reason ?? '')) {
-    throw new Error('Orca Chat을 다시 열 수 없습니다: ' + (reason || '알 수 없는 응답'))
+  if (outcome !== 'gone') {
+    throw new Error(outcome === 'host-cannot-open'
+      ? 'Orca가 이 Chat을 다시 열 수 없습니다. 기존 Pi 기록은 보존됩니다.'
+      : 'Orca 호스트에서 세션 상태를 확인하지 못했습니다. 중복 생성하지 않았습니다.')
   }
   const sessionId = await openPreparedPiNativeChat(worktreeId, providerSessionId)
   return { sessionId, replacedClosed: true }
