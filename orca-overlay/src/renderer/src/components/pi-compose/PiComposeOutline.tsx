@@ -76,6 +76,12 @@ export function PiComposeOutline({ projectCwd, projectWorktreeId }: {
           window.dispatchEvent(new Event('pi-compose:changed'))
         }
       } else {
+        const legacyTerminal = agent.orcaTabId &&
+          (useAppStore.getState().unifiedTabsByWorktree[targetId] ?? []).some(tab =>
+            tab.id === agent.orcaTabId && tab.contentType === 'terminal')
+        if (legacyTerminal) {
+          throw new Error('기존 Pi TUI가 아직 Orca 터미널에 열려 있습니다. 해당 Pi에서 /exit 후 탭을 닫고 다시 선택하면 Native Chat으로 전환합니다.')
+        }
         // Existing legacy TUI Main/Support is never launched a second time
         // behind the user's back. Pi/Orca will refuse a second active writer.
         orcaSessionId = await openPreparedPiNativeChat(targetId, agent.sessionId)
