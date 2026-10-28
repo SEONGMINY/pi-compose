@@ -89,8 +89,8 @@ export function applyOrcaOverlay(orca, piComposeRoot) {
   const sidebarIndex = join(orca, 'src/renderer/src/components/sidebar/index.tsx')
   const oldSidebar = readFileSync(sidebarIndex, 'utf8')
   const cleanedSidebar = oldSidebar
-    .replace("import { PiComposeOutline } from '../pi-compose/PiComposeOutline'\\n", '')
-    .replace("                <StartupWorktreeRefreshStatus />\\n                <PiComposeOutline />",
+    .replace("import { PiComposeOutline } from '../pi-compose/PiComposeOutline'" + String.fromCharCode(10), '')
+    .replace("                <StartupWorktreeRefreshStatus />" + String.fromCharCode(10) + "                <PiComposeOutline />",
       "                <StartupWorktreeRefreshStatus />")
   if (cleanedSidebar !== oldSidebar) staged.set(sidebarIndex, cleanedSidebar)
   for (const patch of patches) {
