@@ -855,6 +855,17 @@ export class OrcaAgentStore {
       entry.message?.stopReason === 'stop' &&
       entry.message?.endTurn !== false).at(-1);
     if (!finished) throw new Error('Support의 완료된 응답을 아직 찾지 못했습니다.');
+    // Do not deliver an older result while a newer Support request or tool
+    // exchange is still in progress. Context-only entries after a settled
+    // response are safe; pending conversational messages are not.
+    const finishedIndex = branch.findIndex(entry => entry.id === finished.id);
+    const hasPendingConversation = branch.slice(finishedIndex + 1).some(entry =>
+      entry.type === 'custom_message' ||
+      (entry.type === 'message' && ['user', 'assistant', 'toolResult'].includes(entry.message?.role))
+    );
+    if (hasPendingConversation) {
+      throw new Error('Support에 이후 진행 중인 대화가 있습니다. 최신 응답이 완료된 뒤 결과를 확인하세요.');
+    }
     const text = (finished.message.content || [])
       .filter(block => block.type === 'text')
       .map(block => block.text).join('\n').trim();
