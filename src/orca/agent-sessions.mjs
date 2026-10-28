@@ -378,66 +378,71 @@ export class OrcaAgentStore {
           entry.type === 'message' && entry.message?.role === 'user');
         if (firstWorkUser < 0) return [];
         const workEntries = originalWork.slice(firstWorkUser);
-        const last = workEntries.findLastIndex(entry =>
+        const completedIndices = workEntries.map((entry, index) =>
           entry.type === 'message' && entry.message?.role === 'assistant' &&
-          entry.message?.stopReason === 'stop' && entry.message?.endTurn !== false);
-        if (last < 0) return [];
-        const message = workEntries[last].message;
-        const report = (message.content || []).filter(block => block.type === 'text')
-          .map(block => block.text).join('\n').trim();
-        const previousUser = workEntries.slice(0, last).findLastIndex(entry =>
-          entry.type === 'message' && entry.message?.role === 'user');
-        const turn = workEntries.slice(previousUser + 1, last + 1);
-        const beganAt = previousUser < 0 ? null : workEntries[previousUser]?.timestamp ?? null;
-        const endedAt = workEntries[last].timestamp ?? null;
-        const startMs = typeof beganAt === 'string' ? Date.parse(beganAt) : NaN;
-        const endMs = typeof endedAt === 'string' ? Date.parse(endedAt) : NaN;
-        const workedSeconds = Number.isFinite(startMs) && Number.isFinite(endMs) &&
-          endMs >= startMs ? (endMs - startMs) / 1000 : null;
-        const reasoning = [];
-        for (const entry of turn) {
-          if (reasoning.length >= 8 || entry.type !== 'message' ||
-              entry.message?.role !== 'assistant') continue;
-          for (const part of entry.message.content || []) {
-            if (reasoning.length >= 8) break;
-            if (part.type !== 'thinking' || typeof part.thinking !== 'string' ||
-                !part.thinking.trim()) continue;
-            reasoning.push({
-              id:work.id + ':' + entry.id + ':reasoning:' + reasoning.length,
-              text:part.thinking.slice(0, 2500),
-              timestamp:entry.timestamp ?? null
-            });
-          }
-        }
-        const blocks = [];
-        for (const entry of turn) {
-          if (blocks.length >= 20) break;
-          if (entry.type !== 'message') continue;
-          for (const part of entry.message?.content || []) {
-            if (blocks.length >= 20) break;
-            if (entry.message.role === 'assistant' && part.type === 'toolCall') {
-              blocks.push({ type:'tool-call', name:part.name || 'tool',
-                input:boundedComposeToolInput(part.arguments), ...(part.id ? {callId:part.id} : {}) });
-            } else if (entry.message.role === 'toolResult' && part.type === 'text') {
-              blocks.push({ type:'tool-result',
-                output:String(part.text || '').slice(0, 1000),
-                isError:Boolean(entry.message.isError),
-                ...(entry.message.toolCallId ? {callId:entry.message.toolCallId} : {}) });
+          entry.message?.stopReason === 'stop' && entry.message?.endTurn !== false
+            ? index : -1).filter(index => index >= 0);
+        // Distinct Work turns remain distinct. Keep this read-only projection
+        // bounded for IPC; the complete transcript stays in Orca Native Chat.
+        return completedIndices.slice(-3).map(last => {
+          const message = workEntries[last].message;
+          const report = (message.content || []).filter(block => block.type === 'text')
+            .map(block => block.text).join('\n').trim();
+          const previousUser = workEntries.slice(0, last).findLastIndex(entry =>
+            entry.type === 'message' && entry.message?.role === 'user');
+          if (previousUser < 0) return null;
+          const turn = workEntries.slice(previousUser + 1, last + 1);
+          const beganAt = workEntries[previousUser]?.timestamp ?? null;
+          const endedAt = workEntries[last].timestamp ?? null;
+          const startMs = typeof beganAt === 'string' ? Date.parse(beganAt) : NaN;
+          const endMs = typeof endedAt === 'string' ? Date.parse(endedAt) : NaN;
+          const workedSeconds = Number.isFinite(startMs) && Number.isFinite(endMs) &&
+            endMs >= startMs ? (endMs - startMs) / 1000 : null;
+          const reasoning = [];
+          for (const entry of turn) {
+            if (reasoning.length >= 4 || entry.type !== 'message' ||
+                entry.message?.role !== 'assistant') continue;
+            for (const part of entry.message.content || []) {
+              if (reasoning.length >= 4) break;
+              if (part.type !== 'thinking' || typeof part.thinking !== 'string' ||
+                  !part.thinking.trim()) continue;
+              reasoning.push({
+                id:work.id + ':' + entry.id + ':reasoning:' + reasoning.length,
+                text:part.thinking.slice(0, 1200),
+                timestamp:entry.timestamp ?? null
+              });
             }
           }
-        }
-        return [{
-          workId:work.id, workTitle:work.title,
-          mainId:main.id, mainOrcaSessionId:main.orcaSessionId ?? null,
-          workOrcaSessionId:work.orcaSessionId ?? null,
-          workPiSessionId:work.sessionId, worktreeId:work.orcaWorktreeId ?? null,
-          entryId:workEntries[last].id, observedAt:endedAt, workedSeconds,
-          reasoning,
-          reportText:report.slice(0, 12000), truncated:report.length > 12000,
-          toolBlocks:blocks,
-          // The full execution history remains in Orca's own Work Chat.
-          toolActivityTruncated:blocks.length >= 20
-        }];
+          const blocks = [];
+          for (const entry of turn) {
+            if (blocks.length >= 12) break;
+            if (entry.type !== 'message') continue;
+            for (const part of entry.message?.content || []) {
+              if (blocks.length >= 12) break;
+              if (entry.message.role === 'assistant' && part.type === 'toolCall') {
+                blocks.push({ type:'tool-call', name:part.name || 'tool',
+                  input:boundedComposeToolInput(part.arguments),
+                  ...(part.id ? {callId:part.id} : {}) });
+              } else if (entry.message.role === 'toolResult' && part.type === 'text') {
+                blocks.push({ type:'tool-result',
+                  output:String(part.text || '').slice(0, 1000),
+                  isError:Boolean(entry.message.isError),
+                  ...(entry.message.toolCallId ? {callId:entry.message.toolCallId} : {}) });
+              }
+            }
+          }
+          return {
+            workId:work.id, workTitle:work.title,
+            mainId:main.id, mainOrcaSessionId:main.orcaSessionId ?? null,
+            workOrcaSessionId:work.orcaSessionId ?? null,
+            workPiSessionId:work.sessionId, worktreeId:work.orcaWorktreeId ?? null,
+            entryId:workEntries[last].id, observedAt:endedAt, workedSeconds,
+            reasoning,
+            reportText:report.slice(0, 4000), truncated:report.length > 4000,
+            toolBlocks:blocks,
+            toolActivityTruncated:blocks.length >= 12
+          };
+        }).filter(Boolean);
       } catch {
         // No fabricated completion when the source host or file is unreadable.
         return [];
