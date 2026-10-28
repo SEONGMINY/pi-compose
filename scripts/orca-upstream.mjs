@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { applyOrcaOverlay } from './orca-native-overlay.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const orcaDir = resolve(process.env.PI_COMPOSE_ORCA_DIR || join(root, '.cache', 'orca-upstream-context-first'));
+const orcaDir = resolve(process.env.PI_COMPOSE_ORCA_DIR || join(root, '.cache', 'orca-upstream-context-tree'));
 const binDir = join(root, '.cache', 'orca-bin');
 // Pin real Orca upstream: 2026-10-27, rather than accidentally following breaking changes.
 const pinned = '4a39d186da72a496b29a9ec5c523bbbf0a3460d8';
