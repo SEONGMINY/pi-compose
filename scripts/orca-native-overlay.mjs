@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { dirname, join } from 'node:path'
 
 /**
@@ -90,6 +91,14 @@ export function applyOrcaOverlay(orca, piComposeRoot) {
     throw new Error('정상적인 Orca 원본 체크아웃이 아닙니다.')
   }
   // Read and validate the entire patch before writing ANY upstream code.
+  // A prior Compose-generated file is safe to update only while its current
+  // hash still matches the last Compose-applied bytes. Hand edits fail closed.
+  const manifestPath = join(orca, '.pi-compose-overlay-state.json')
+  const previous = existsSync(manifestPath)
+    ? JSON.parse(readFileSync(manifestPath, 'utf8'))
+    : { files: {} }
+  const hash = text => createHash('sha256').update(text).digest('hex')
+  const nextFiles = {}
   const staged = new Map()
   // The previous version mounted a duplicate Pi Compose panel above WorktreeList.
   // Remove only that exact former overlay, preserving all other upstream edits.
@@ -120,14 +129,24 @@ export function applyOrcaOverlay(orca, piComposeRoot) {
     const path=join(orca,relative)
     const overlay=original(piComposeRoot,relative)
     const content=readFileSync(overlay,'utf8')
-    if (existsSync(path) && readFileSync(path,'utf8')!==content) {
-      throw new Error('Orca 원본의 사용자 변경 파일을 덮어쓸 수 없습니다: ' + relative)
+    if (existsSync(path)) {
+      const current = readFileSync(path, 'utf8')
+      const previouslyAppliedHash = previous.files?.[relative]
+      if (current !== content && hash(current) !== previouslyAppliedHash) {
+        throw new Error('Orca 원본 또는 사용자 변경 파일을 덮어쓸 수 없습니다: ' + relative)
+      }
     }
+    nextFiles[relative] = hash(content)
     staged.set(path,content)
   }
   for (const [path,content] of staged) {
     mkdirSync(dirname(path),{recursive:true})
     if (!existsSync(path) || readFileSync(path,'utf8')!==content) writeFileSync(path,content)
   }
+  // Persist last applied bytes after completing the staged writes. An
+  // interrupted run can be recovered by choosing a clean Orca checkout.
+  const tempManifestPath = manifestPath + '.tmp'
+  writeFileSync(tempManifestPath, JSON.stringify({ version: 1, files: nextFiles }, null, 2) + '\n')
+  renameSync(tempManifestPath, manifestPath)
   console.log('Pi Compose native Orca integration:',patches.length,'upstream hooks,',additions.length,'overlay files')
 }
