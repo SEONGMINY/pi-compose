@@ -106,7 +106,7 @@ const patches = [
     before: "  onActivate,\n  sendTargetStatus,",
     after: "  onActivate,\n  onDismiss,\n  hasParentAgent = false,\n  sendTargetStatus,",
     secondBefore: "      {hasChildDisclosure ? (\n        <DashboardAgentChildDisclosure",
-    secondAfter: "      {onDismiss && isLineageChild && !hasChildDisclosure ? (\n        <button type=\"button\" aria-label=\"목록에서 이 Agent만 제거\"\n          className=\"shrink-0 rounded-sm p-1 text-muted-foreground/70 hover:text-foreground\"\n          onClick={e => { e.stopPropagation(); onDismiss(agent.paneKey) }}\n          onMouseDown={e => e.stopPropagation()}\n          onPointerDown={e => e.stopPropagation()}>\n          <X className=\"size-3\" />\n        </button>\n      ) : null}\n      {hasChildDisclosure ? (\n        <DashboardAgentChildDisclosure"
+    secondAfter: "      {onDismiss && !hasChildDisclosure ? (\n        <button type=\"button\" aria-label=\"목록에서 이 Agent만 제거\"\n          className=\"shrink-0 rounded-sm p-1 text-muted-foreground/70 hover:text-foreground\"\n          onClick={e => { e.stopPropagation(); onDismiss(agent.paneKey) }}\n          onMouseDown={e => e.stopPropagation()}\n          onPointerDown={e => e.stopPropagation()}>\n          <X className=\"size-3\" />\n        </button>\n      ) : null}\n      {hasChildDisclosure ? (\n        <DashboardAgentChildDisclosure"
   }
   ,{
     path: 'src/renderer/src/components/native-chat/use-native-chat-context-menu.tsx',
