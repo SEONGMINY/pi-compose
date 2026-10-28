@@ -480,6 +480,7 @@ export class OrcaAgentStore {
       mainId: main.id,
       sourceSessionId: snapshot.sourceSessionId,
       sourceEntryId: snapshot.sourceEntryId,
+      completedAssistantEntryId: snapshot.completedAssistantEntryId,
       sourceEntryCount: snapshot.entries.length,
       excludedInProgress: snapshot.excludedInProgress
     };
@@ -645,6 +646,7 @@ export class OrcaAgentStore {
       ...(creationIntentId ? { creationIntentId } : {}),
       sourceSessionFile: sourceFile, sourceSessionId: snapshot?.sourceSessionId || null,
       sourceEntryId: snapshot?.sourceEntryId || null,
+      completedAssistantEntryId: snapshot?.completedAssistantEntryId || null,
       sourceEntryIds: snapshot?.sourceEntryIds || [],
       sourceEntryCount: snapshot?.entries.length || 0,
       excludedInProgress: snapshot?.excludedInProgress || false,
