@@ -65,6 +65,11 @@ async function run(command,args) {
         messageCount:session.messageCount, path:session.path,
       }));
   }
+  if (command==='linked-work-results') {
+    const cwd=resolve(requiredText(args.cwd,'프로젝트 경로',2000));
+    const main=belonging(args.mainId,cwd);
+    return store.linkedWorkResults({mainId:main.id,SessionManager});
+  }
   if (command==='support-result') {
     const id=requiredText(args.id,'Support ID',48);
     const support=store.get(id);
