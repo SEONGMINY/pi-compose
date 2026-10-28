@@ -62,6 +62,14 @@ async function run(command,args) {
     const main=belonging(args.mainId,cwd);
     return store.pendingCreation(main.id);
   }
+  if (command==='recover-pi-preparation') {
+    const cwd=resolve(requiredText(args.cwd,'프로젝트 경로',2000));
+    const main=belonging(args.mainId,cwd);
+    return store.recoverStoppedPreparation({
+      mainId:main.id,
+      operationId:requiredText(args.creationIntentId,'Pi 세션 생성 의도 ID',48)
+    });
+  }
   if (command==='record-worktree-creation') {
     const cwd=resolve(requiredText(args.cwd,'프로젝트 경로',2000));
     const main=belonging(args.mainId,cwd);
