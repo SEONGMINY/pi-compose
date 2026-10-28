@@ -156,7 +156,7 @@ const patches = [
     before: "import { NativeChatMessageRail } from './NativeChatMessageRail'",
     after: "import { NativeChatMessageRail } from './NativeChatMessageRail'\nimport { PiComposeLinkedWorkReports } from '../pi-compose/PiComposeLinkedWorkReports'",
     secondBefore: "                <NativeChatWaitingTranscriptItems slots={waitingSlots} context={rowContext} />",
-    secondAfter: "                <NativeChatWaitingTranscriptItems slots={waitingSlots} context={rowContext} />\n                <PiComposeLinkedWorkReports orcaSessionId={composeOrcaSessionId ?? null} isVisible={isVisible} />"
+    secondAfter: "                <NativeChatWaitingTranscriptItems slots={waitingSlots} context={rowContext} />\n                <PiComposeLinkedWorkReports orcaSessionId={composeOrcaSessionId ?? null} worktreeId={composeWorktreeId ?? null} isVisible={isVisible} />"
   }
   ,{
     path: 'src/renderer/src/components/native-chat/use-native-chat-context-menu.tsx',
@@ -210,14 +210,14 @@ const patches = [
   ,{
     path: "src/renderer/src/components/native-chat/NativeChatMessageList.tsx",
     before: "  isVisible = true,\n  isWorking,",
-    after: "  isVisible = true,\n  composeOrcaSessionId,\n  isWorking,",
+    after: "  isVisible = true,\n  composeOrcaSessionId,\n  composeWorktreeId,\n  isWorking,",
     secondBefore: "  isVisible?: boolean\n  isWorking: boolean",
-    secondAfter: "  isVisible?: boolean\n  /** Orca host conversation identity, not the provider's Pi session UUID. */\n  composeOrcaSessionId?: string | null\n  isWorking: boolean"
+    secondAfter: "  isVisible?: boolean\n  /** Orca host conversation identity, not the provider's Pi session UUID. */\n  composeOrcaSessionId?: string | null\n  composeWorktreeId?: string | null\n  isWorking: boolean"
   }
   ,{
     path: "src/renderer/src/components/native-chat/NativeChatStructuredSession.tsx",
     before: "                <NativeChatMessageList\n",
-    after: "                <NativeChatMessageList\n                  composeOrcaSessionId={props.sessionId}\n",
+    after: "                <NativeChatMessageList\n                  composeOrcaSessionId={props.sessionId}\n                  composeWorktreeId={ownerWorktreeId}\n",
     secondBefore: "import { NativeChatMessageList } from './NativeChatMessageList'",
     secondAfter: "import { NativeChatMessageList } from './NativeChatMessageList'"
   }
