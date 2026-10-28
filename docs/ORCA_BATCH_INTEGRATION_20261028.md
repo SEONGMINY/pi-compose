@@ -348,3 +348,15 @@ npm run orca:dev
 **변경하지 않은 자산:** Main/Work/Support JSONL, 기존 Compose 관계 레코드와 Fork 증거, Orca Session/History, Orca Worktree·Git 브랜치·미커밋 파일, draft store 영속화 정책. 기존 파일 데이터 마이그레이션/삭제 없음. `PiComposeCrossWorktreeAgentRefs.tsx` 미활성. Orca/Pi 고정 커밋·버전 및 overlay 설치 정책 변경 없음.
 
 **남은 일:** T10/T11의 사용자 결정과 History 세부 계약, T12/T13의 host journal Turn 연결, T14의 D5 승인, T15 실행 당시 Git HEAD 수집 계약, T17의 D6 승인과 Extension 전환, T18/T20의 실사용 중인 참조 보존을 전제로 한 레거시 정리. T19는 사용자 직접 수행 범위이므로 이번 변경에 포함하지 않는다. 테스트·CI·GUI 실행은 수행하지 않았다.
+
+### P0/P1 국소 결함 보완 — Native Chat에 동일 Pi UUID의 다른 파일 연결 금지
+
+현재 Orca `attach-chat` 경계는 provider `Pi sessionId`만 비교하고 실제 원본 파일을 비교하지 않았다. 다른 JSONL에 같은 Pi 세션 ID가 보존된 경우, **ID 일치만으로 Main/Work/Support의 정확한 원본을 증명하지 못한다.**
+
+- `PiComposeMenu.tsx`와 기존에 마운트되지 않는 `PiComposeOutline.tsx`의 연결 호출은 저장된 `sessionFile`을 명시적으로 넘긴다. 원본 경로가 없으면 연결을 시도하지 않는다.
+- `pi-compose-bridge.ts` 및 `scripts/orca-native-bridge.mjs`의 기존 `attach-chat` 계약에서 선택한 파일을 Compose 영속 관계의 `sessionFile`과 대조한다.
+- `pi-compose-ipc.ts`의 기존 Orca host admission은 `providerHandleChain`이 가리키는 **실제 Pi 파일 realpath**와 선택된 `sessionFile`의 realpath가 같은지, 그리고 Pi header ID까지 일치하는지 확인한다. 성공한 경우에만 기존 `attachNativeChat`으로 연결한다.
+- 이 체크는 기존 `live-main-leaf`에서 원본 Main을 정확한 파일로 식별하는 원칙과 일치한다. 이미 잘못 연결된 데이터를 자동으로 재작성하거나 Pi 세션을 Fork/Resume하지 않는다.
+- 원본을 확인할 수 없는 기존 레코드는 보존하고 Native Chat 연결을 거부한다. 사용자가 추후 원본 경로를 직접 확인해야 하며 이 과정은 새 마이그레이션 정책이 아니다.
+
+**완료 범위:** 정확한 파일 비교 로직 반영. 실제 Orca 호스트에서의 연결·재열기 동작과 실행 검증은 사용자가 담당한다. 기존 세션 기록과 코드 작업 공간에는 변경 없음.
