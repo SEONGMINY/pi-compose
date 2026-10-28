@@ -14,7 +14,6 @@ export type NativeComposeRequest = {
   tabId?: string
   worktreeId?: string
   orcaSessionId?: string
-  sessionFile?: string
   message?: string
   mainId?: string
   relatedWorkId?: string
