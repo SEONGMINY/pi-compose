@@ -94,9 +94,9 @@ export class OrcaAgentStore {
       throw new Error('이 Main에서 먼저 Pi와 설계를 논의해 저장한 뒤 Work Agent를 만드세요.');
     }
     if (headerOf(file).id !== main.sessionId) throw new Error('Pi 세션 정본 식별자가 다릅니다.');
-    if (!readEntries(file).some(entry => entry.type === 'message')) {
-      throw new Error('Main에 아직 실제 대화가 없습니다. 설계를 먼저 논의하세요.');
-    }
+    // The Main may still be writing its last JSONL entry. Its completed
+    // conversation is validated by captureCompletedMain(), which tolerates
+    // only an unfinished trailing line without changing the source file.
     if (main.sessionFile !== resolve(file)) {
       main.sessionFile = resolve(file);
       atomicJSON(this.path(main.id), main);
