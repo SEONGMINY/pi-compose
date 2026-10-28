@@ -16,6 +16,8 @@ export type PiComposeRequest = {
   hidden?: boolean
   task?: string
   workspace?: 'shared' | 'worktree'
+  activeLeafId?: string
+  managedWorktree?: { id: string; path: string }
 }
 export type PiComposeRecord = {
   id: string
