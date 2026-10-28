@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
+import { toast } from 'sonner'
+import { activateAndRevealWorkspace } from '@/lib/worktree-activation'
+import { activateStructuredAgentSessionById } from '@/lib/agent-session/structured-agent-session-tab-activation'
 import { useAppStore } from '@/store'
 import { cn } from '@/lib/utils'
 import type { PiComposeLinkedWorkResult } from '../../../../preload/api/pi-compose-bridge'
@@ -89,6 +92,15 @@ export function PiComposeLinkedWorkReports({
 /** The toggle is the same disclosure mechanism used by Orca Native Chat. */
 function WorkReport({work}: {work:PiComposeLinkedWorkResult}): React.JSX.Element {
   const [open,setOpen] = useState(false)
+  const openSource = () => {
+    if (!work.worktreeId || !work.workOrcaSessionId ||
+        activateAndRevealWorkspace(work.worktreeId) === false ||
+        !activateStructuredAgentSessionById({
+          worktreeId: work.worktreeId, sessionId: work.workOrcaSessionId
+        })) {
+      toast.error('원본 Work 대화를 열지 못했습니다. 기록은 변경하지 않았습니다.')
+    }
+  }
   const firstLine = work.reportText.split('\n').find(line => line.trim())?.trim() ||
     'Work 응답이 종료됐습니다.'
   const reportMessage = {
@@ -102,6 +114,12 @@ function WorkReport({work}: {work:PiComposeLinkedWorkResult}): React.JSX.Element
     <div className="min-w-0 px-1 text-sm">
       <span className="block text-chat-foreground-faint">연결된 Work · {work.workTitle}</span>
       <span className="block truncate text-chat-foreground">{firstLine}</span>
+      {work.worktreeId && work.workOrcaSessionId ? (
+        <button type="button" onClick={openSource}
+          className="mt-1 text-xs text-chat-foreground-faint underline underline-offset-2 hover:text-chat-foreground">
+          Orca에서 원본 Work 대화 열기
+        </button>
+      ) : null}
     </div>
     {work.workedSeconds !== null ? (
       <NativeChatWorkingStatus
