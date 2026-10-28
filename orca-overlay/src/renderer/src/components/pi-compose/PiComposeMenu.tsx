@@ -88,6 +88,33 @@ export function PiComposeMenu(): React.JSX.Element {
       if(items.length) setTitle(previous=>previous||items[0].title);
     }).catch(cause=>setError(String(cause)));
   }, [open, cwd, role, mainMode]);
+  const recoverable = agents.filter(record =>
+    record.state !== 'ready' && record.sessionId &&
+    (!record.orcaWorktreeId ||
+      Boolean(useAppStore.getState().getKnownWorktreeById(record.orcaWorktreeId)))
+  )
+  const reopenPrepared = async (record: PiComposeListRecord) => {
+    if (busy) return
+    setBusy(true)
+    setError('')
+    try {
+      const targetId = record.orcaWorktreeId ||
+        useAppStore.getState().allWorktrees().find(candidate => candidate.path === record.cwd)?.id
+      if (!targetId) throw new Error('이 Agent의 Orca 작업 공간이 등록되지 않았습니다. 기존 데이터는 보존됩니다.')
+      const owner = structuredLaunchOwner({ route: 'structured-native-chat' }, targetId)
+      if (!owner) throw new Error('Orca 실행 호스트를 찾을 수 없습니다.')
+      if (activateAndRevealWorkspace(targetId) === false) throw new Error('원래 Orca 작업 공간을 열지 못했습니다.')
+      const sessionId = await openPreparedPiNativeChat(targetId, record.sessionId)
+      await window.api.piCompose.attachChat(cwd, record.id, sessionId, targetId)
+      window.dispatchEvent(new Event('pi-compose:changed'))
+      setOpen(false)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const onLaunch = async () => {
     if (preparedId) {
       setError('이미 Agent가 준비됐습니다. 사이드바에서 해당 Agent를 선택해 기존 세션을 열어주세요.')
@@ -256,6 +283,17 @@ export function PiComposeMenu(): React.JSX.Element {
           <div className="text-xs text-muted-foreground">
             프로젝트: {cwd || '선택되지 않음'}
           </div>
+          {recoverable.length > 0 ? <details className="rounded-md border border-border px-3 py-2 text-xs">
+            <summary className="cursor-pointer">연결되지 않은 기존 Pi 세션 복구 · {recoverable.length}개</summary>
+            <div className="mt-3 space-y-2">
+              {recoverable.map(record => <div key={record.id} className="flex items-center justify-between gap-2">
+                <span className="min-w-0 truncate">{record.title} · {record.role}</span>
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => void reopenPrepared(record)}>
+                  기존 대화 재열기
+                </Button>
+              </div>)}
+            </div>
+          </details> : null}
           <div className="grid grid-cols-3 gap-2" role="group" aria-label="Agent 역할">
             {ROLES.map((item) => <button key={item.id} type="button"
               className={'rounded-lg border p-2.5 text-left text-xs ' +
@@ -325,8 +363,8 @@ export function PiComposeMenu(): React.JSX.Element {
               </select>
             </label>
             {workspace === 'worktree' && <p className="text-xs leading-relaxed text-amber-500">
-              별도 Git Worktree에서 Pi가 실행됩니다. 현재 Orca 작업 공간·Git 패널은
-              자동으로 새 Worktree로 전환되지 않으므로 코드 변경은 해당 작업 폴더에서 확인하세요.
+              Orca가 Git Worktree를 생성·등록하고 기존 Git 패널로 관리합니다.
+              생성 후 Pi의 새 세션이 해당 작업 폴더에서 열립니다. 현재 폴더의 미커밋 변경은 자동 복사되지 않습니다.
             </p>}
             {role === 'work' && <p className="text-xs leading-relaxed text-muted-foreground">
               Main의 마지막 완료된 응답까지 Fork합니다. 진행 중인 응답은 제외되며, Work는 작업 지시를 기다립니다.
