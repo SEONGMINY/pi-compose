@@ -307,3 +307,44 @@ npm run orca:dev
 - **D1 미확정:** 교차 Worktree는 A(원래 Worktree에서 표시하고 Main에서 이동) 권장, B(두 위치의 읽기 전용 행 참조) 미승인. `PiComposeCrossWorktreeAgentRefs.tsx`는 활성화하지 않는다.
 - **미완료:** T12 실제 Orca host turn/journal ID 및 Work별 unreadable 상태, T14 모델 조회 Tool 최종 계약(D5), T17 TUI writer 인계(D6), T18/T20 전체 중복 정리. 사용자 결정 없이 범위를 확대하지 않는다.
 - 이번 변경에서는 테스트·CI·GUI 실행, Worktree/브랜치/세션 삭제, 업스트림 버전 변경을 수행하지 않았다.
+
+## 2026-10-29 · T08/T12/T13/T16 독립 구현 후속 (제품 정책 유지)
+
+이번 변경은 **기존 확정 계약의 구현 보완**이다. D1/D2/D3/D4/D5/D6/D7을 새로 결정하지 않는다. 실행 소유권과 Native Chat transcript/draft의 정본은 고정 Orca, 대화 컨텍스트와 Extension의 정본은 Pi, 관계와 provenance의 정본만 Compose다.
+
+### T08 — Support의 교차 Main 잘못된 부모 표시 방지
+
+- `usePiComposeNativeLineage.ts`에서 `relatedWorkId`가 가리키는 Work의 `parentMainId`를 현재 Support의 `parentMainId`와 대조한다. 같은 Git Worktree에 있어도 다른 Main의 Work라면 Support의 부모로 사용하지 않고 **자신의 Main**으로 돌아간다.
+- 여전히 실재하는 Orca Pi Native Agent 행과 실제 pane/session ID를 사용한다. Orca의 오케스트레이션 부모, Agent 상태, 클릭, Dismiss, 아이콘은 변조하지 않는다.
+- **T09/T10 / D1 보류:** 교차 Worktree에 중복 Agent 행을 활성화하지 않는다. A/B 비교는 이전 절 참고.
+
+### T12/T13 — Work 결과 조회 실패와 결과 부재 구분
+
+- `OrcaAgentStore.linkedWorkSnapshot`은 기존 Pi JSONL 기반의 읽기 전용 bounded projection에 `unavailable`과 `omittedWorkCount`를 더해 반환한다. Work별 원본 Orca Session 연결 부재, Pi 파일 부재, Pi 분기·기록 조회 불능을 결과 없음과 구분한다.
+- 저장된 Work의 `createdAt`과 ID로 읽기 대상을 정렬한 다음 최근 최대 12개의 Work를 읽으며, 그 이전 Work가 화면 범위에서 제외된 개수를 표시한다. 각 Work의 실제 assistant 완료 응답은 종전처럼 최대 최근 3개를 개별 entry ID로 반환한다.
+- `scripts/orca-native-bridge.mjs`의 기존 `linked-work-results` 반환에 조회 상태를 추가했고 `pi-compose-bridge.ts`와 `PiComposeLinkedWorkReports.tsx`를 연결했다. 새 결과 렌더러/영속 상태 저장소는 만들지 않는다.
+- `extensions/orca-compose.ts`의 기존 `compose_work_results` Tool은 `linkedWorkResults()` 배열 계약을 계속 사용한다. 이는 **D5 승인/확장**이 아니다.
+- Main UI는 Pi 실제 assistant entry ID와 Orca Session ID를 구분해 표시 및 중복 key로 사용한다. 원본 응답/도구 내용을 Main Pi JSONL에 붙이지 않으며 Work로 자동 전환하지 않는다.
+- **남음:** Orca `agentSession.history`의 실제 Host Turn ID/저널 근거와 Pi entry ID 매핑, Host의 정확한 완료·연결·복원 상태. 현재 `unavailable`은 **로컬 저장된 Pi 기록의 조회 상태**로, Orca host의 실행 중/종료 판정이 아니다. 사용자 검증 없이 완료 GO 판정을 하지 않는다.
+
+### T16 — Support → Work 초안 출처·호스트 소유권
+
+- `PiComposeSupportDraftMenu.tsx`: 대상 선택 직전 읽은 최신 Compose 목록에서 Support 원본 Orca Session ID, Pi Session ID, Main 소속을 다시 확인한다. `supportResult`의 실제 원본 ID와 연결 정보도 대조해 출처가 바뀌었다면 기존 초안을 수정하지 않는다.
+- Orca 초안 hydration 전후 Work 원본 Native Chat 탭을 확인한다. 고정 Orca의 `getStructuredAgentSessionHost`, `hasSession`, `deps.store.getConversation`, `providerHandleChain`, `readPiSessionHeader`를 사용하는 **읽기 전용 IPC `native-chat-owner`**로 실제 로컬 Orca writer가 동일한 Worktree·Pi 파일(realpath)·Pi ID를 소유하는지 확인한다. 불명확하면 보수적으로 초안 추가를 거부하며 자동 재열기/Resume/새 세션 생성은 하지 않는다.
+- Native Chat 초안 변경은 여전히 원본 Orca `appendToNativeChatComposerDraft`와 `nativeChatComposerDraftWriteSettled`에만 위임한다. Main/Work 모델 자동 입력 또는 `agentSession.send` 호출 없음. 기존 초안 및 첨부를 삭제하지 않는다.
+- 원격 host/기록만 남은 닫힌 세션의 초안 전달은 **D7 결정 전까지 지원을 선언하지 않는다**. 사용자는 Orca 원본 대화를 다시 열고 전달할 수 있다. 여러 렌더러 사이의 완전 원자적 중복 클릭 방지는 보장하지 않는다.
+
+### 변경 파일 및 보존 계약
+
+| 변경 영역 | 파일 | 근거/역할 |
+| --- | --- | --- |
+| 같은 Worktree 관계 | `orca-overlay/src/renderer/src/components/pi-compose/usePiComposeNativeLineage.ts` | Main ID 소속 검증만 추가 |
+| Work 결과 데이터 | `src/orca/agent-sessions.mjs` | 로컬 Pi 원본 조회 상태·범위 |
+| Work 결과 IPC | `scripts/orca-native-bridge.mjs`, `orca-overlay/src/preload/api/pi-compose-bridge.ts` | 기존 IPC 응답 타입 확장 |
+| Main 읽기 전용 UI | `orca-overlay/src/renderer/src/components/pi-compose/PiComposeLinkedWorkReports.tsx` | 기존 Orca Native Chat disclosure 활용 |
+| Support 초안 | `orca-overlay/src/renderer/src/components/pi-compose/PiComposeSupportDraftMenu.tsx` | 전달 전 출처/소유권 방어 |
+| 로컬 Orca host 확인 | `orca-overlay/src/main/pi-compose-ipc.ts` | 새로운 상태 저장 없이 소유권 읽기 |
+
+**변경하지 않은 자산:** Main/Work/Support JSONL, 기존 Compose 관계 레코드와 Fork 증거, Orca Session/History, Orca Worktree·Git 브랜치·미커밋 파일, draft store 영속화 정책. 기존 파일 데이터 마이그레이션/삭제 없음. `PiComposeCrossWorktreeAgentRefs.tsx` 미활성. Orca/Pi 고정 커밋·버전 및 overlay 설치 정책 변경 없음.
+
+**남은 일:** T10/T11의 사용자 결정과 History 세부 계약, T12/T13의 host journal Turn 연결, T14의 D5 승인, T15 실행 당시 Git HEAD 수집 계약, T17의 D6 승인과 Extension 전환, T18/T20의 실사용 중인 참조 보존을 전제로 한 레거시 정리. T19는 사용자 직접 수행 범위이므로 이번 변경에 포함하지 않는다. 테스트·CI·GUI 실행은 수행하지 않았다.
