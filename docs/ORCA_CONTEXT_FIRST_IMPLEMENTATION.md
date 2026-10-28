@@ -13,7 +13,7 @@
 - **입력:** Agent 이름을 한 줄 입력창으로 변경하고 타이핑하면 오래된 검증 오류를 지운다.
 - **Work 연결 오류:** Pi Native Chat ID는 `pi_` 접두어와 밑줄을 포함하므로 기존 거부 정규식을 교정했다. 연결 실패는 `connection-error` 상태로 남기고 사용자 오류를 보존한다. 성공적으로 연결한 Work는 `ready`로 변경한다.
 - **안전:** 원본 Pi Fork는 연결 실패와 관계없이 보존한다. Main 대화·Support 결과를 Work에 자동 전송하지 않는다. 중복 Orca Chat이 이미 생성된 경우의 완전한 자동 복구는 아직 미구현.
-- **빌드 환경:** 이전 Orca overlay 파일을 덮어쓰지 않도록 새로운 `.cache/orca-upstream-context-tree` 체크아웃 사용. `npm run orca:prepare` / `npm run orca:dev`.
+- **빌드 환경:** 이전 Orca overlay 파일을 덮어쓰지 않도록 새로운 `.cache/orca-upstream-native-unified` 체크아웃 사용. `npm run orca:prepare` / `npm run orca:dev`.
 
 **현재 미검증:** macOS 실제 UI, Orca 프로젝트/Worktree 가상화 행의 크기 측정·클릭 이벤트, 이전에 실패한 세션 연결 복구, Orca Native Chat 실제 세션 복원. 새 CI/테스트 코드를 추가하지 않았다.
 
@@ -25,6 +25,8 @@
 - **탭 재열기:** 저장된 Orca Native Chat ID를 `agentSession.reveal`로 우선 재발행. 호스트가 확정적으로 세션이 사라졌다고 답한 경우에만 **동일 Pi transcript**를 새 Orca 세션으로 채택한다. 응답 불명확/호스트 오류는 중복 실행하지 않고 중단. 새 Pi Fork는 생성하지 않는다.
 - **기존 Main TUI의 이전:** 실행 중인 Pi TUI가 소유한 동일 세션을 Native Chat으로 동시에 여는 것은 Orca가 의도적으로 금지한다. 이 경우 사용자가 기존 TUI에서 대화를 끝내고 종료한 뒤 같은 Main을 Native Chat에서 열어야 한다. 기존 세션은 삭제하지 않는다.
 - **Git Worktree 목록:** 사용자의 별도 노이즈 지적은 확인했다. Orca의 `그룹화 기준`은 정렬·그룹 변경이며, Git Worktree 보기/숨기기 설정이 아니다. 기존 Git Worktree UI의 숨김 정책은 **미결정**으로 두고 이번 변경에서 별도의 Orca 설정을 임의로 추가하지 않았다.
+
+**재실행 주의:** 이전 `.cache/orca-upstream-context-tree` 체크아웃과 분리했고, 처음 적용한 Pi Compose 관리 파일의 SHA-256을 별도 manifest에 기록해 재적용 시 사용자 변경과 자동 생성 변경을 구분한다.
 
 **검증 상태:** GitHub 소스 정적 대조 및 코드 커밋. macOS Orca 실제 실행, Native Chat 빈 Pi transcript 채택, 기존 Main/TUI 소유권 이전, Work tab reveal/재채택, UI 하이라이트 재현은 **미검증**. CI나 테스트 코드는 추가하지 않았다.
 
