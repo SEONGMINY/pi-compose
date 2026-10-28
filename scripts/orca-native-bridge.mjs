@@ -99,11 +99,21 @@ async function run(command,args) {
       worktreeId:requiredText(args.worktreeId,'작업 공간 ID',512),
     });
   }
+  if (command==='set-work-main-visibility') {
+    const cwd=resolve(requiredText(args.cwd,'프로젝트 경로',2000));
+    const main=belonging(args.mainId,cwd);
+    const workId=requiredText(args.id,'Work ID',48);
+    if (typeof args.hidden!=='boolean') throw new Error('목록 표시 설정이 올바르지 않습니다.');
+    return store.setWorkMainVisibility({
+      mainId:main.id, workId, hidden:args.hidden
+    });
+  }
   if (command==='list') {
     const projectRoot=gitRoot(requiredText(args.cwd,'프로젝트 경로',2000));
     return store.list().filter(item=>item.projectRoot===projectRoot)
       .map(item=>({id:item.id,title:item.title,role:item.role,
         parentMainId:item.parentMainId||null,relatedWorkId:item.relatedWorkId||null,
+        hiddenFromMainAt:item.hiddenFromMainAt||null,
         cwd:item.cwd,workspace:item.workspace||'shared',
         sessionId:item.sessionId,cwd:item.cwd,launcher:item.launcher||null,
         orcaSessionId:item.orcaSessionId||null,
