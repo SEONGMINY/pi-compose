@@ -83,6 +83,15 @@ export type PiComposeLinkedWorkResult = {
   >
   toolActivityTruncated: boolean
 }
+export type PiComposeLinkedWorkSnapshot = {
+  items: PiComposeLinkedWorkResult[]
+  unavailable: Array<{
+    workId: string
+    workTitle: string
+    reason: 'orca-unlinked' | 'pi-file-unavailable' | 'pi-read-unavailable'
+  }>
+  omittedWorkCount: number
+}
 export type PiComposeCreationIntent = {
   operationId: string
   mainId: string
@@ -109,7 +118,7 @@ export type PiComposeApi = {
   supportResult: (cwd: string, id: string) => Promise<PiComposeSupportResult>
   previewWorkFork: (cwd: string, mainId: string, activeLeafId?: string) => Promise<{mainId:string;sourceEntryId:string;completedAssistantEntryId:string;sourceEntryCount:number;excludedInProgress:boolean}>
   liveMainLeaf: (cwd: string, orcaSessionId: string, worktreeId: string, piSessionId: string, piSessionFile: string) => Promise<{activeLeafId:string;orcaSessionId:string}>
-  linkedWorkResults: (cwd: string, mainId: string) => Promise<PiComposeLinkedWorkResult[]>
+  linkedWorkResults: (cwd: string, mainId: string) => Promise<PiComposeLinkedWorkSnapshot>
   setWorkMainVisibility: (cwd: string, mainId: string, id: string, hidden: boolean) => Promise<PiComposeRecord>
   connectionFailed: (cwd: string, id: string, message: string) => Promise<PiComposeRecord>
   sessions: (cwd: string) => Promise<{id:string;title:string;messageCount:number;path:string}[]>
