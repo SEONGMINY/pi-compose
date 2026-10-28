@@ -55,7 +55,7 @@ UI를 위해 원래 Orca 세션/Worktree 이외의 가짜 실행 상태나 가�
 ### 현재 확인된 것과 확인되지 않은 것
 
 - 확인된 것: 고정 Orca 소스와 패치 구문을 대조하는 정적 검사, 핵심 호출 계약에 대한 소스 대조, GitHub 브랜치에 코드 저장.
-- **미확인:** Node 24 + pnpm 실제 타입 검사/빌드, macOS Electron GUI 실행, Orca의 런타임 Pi RPC 소유권·새로운 Worktree 등록·탭 재개·초안 저장 및 동시 수정·실사용 상호작용. 현재 실행 환경에는 GitHub 저장소 체크아웃/외부 네트워크 및 macOS Orca GUI가 없어 이 부분을 통과로 주장하지 않는다.
+- **확인된 일부:** 기존 GitHub macOS Actions에서 Node 24/pnpm 설치 및 고정 Orca TypeScript 검사 통과(이전 커밋). **미확인:** 최신 HEAD의 전체 타입 검사·Electron GUI 실행, 런타임 Pi RPC 소유권, Worktree 등록·재시작, 탭 재개, 초안 동시 수정, U01~U24 실사용. GitHub 소스 대조만으로 이를 통과했다고 주장하지 않는다.
 - UI 표시로부터 워크플로 성공, 코드 수정 성공, 테스트 통과를 자동으로 판정하지 않는다.
 
 ## 실행 및 이어서 검증
@@ -97,14 +97,14 @@ npm run orca:dev
 - **P3/T12~T14:** Work별 다중 응답을 표시하도록 보완했지만 전체 Journal 투영, 같은 턴 중복/전환, Main 모델의 on-demand read tool, 원격 host 연결 상태와 UI 복구는 실사용 검증 전.
 - **P4/T15~T16:** Native draft store 재사용은 코드에 있음. 기존 초안·첨부·늦은 hydration·다중 창 편집·중복 클릭·서로 다른 호스트 검증 미완료.
 - **P5/T17:** Extension RPC에서 가능한 UI API와 TUI만 되는 API를 기능별 검증한 표·실행 검증 미완료. 확인 전 기능을 제거하거나 지원한다고 단정하지 않는다.
-- **P6/T18~T20:** 고정 Orca pin과 overlay 적용 문자열 검사 외 Node 24/pnpm 실제 설치·typecheck·Electron 빌드·macOS UX·U01~U24·레거시 inventory/cleanup 회귀 결과 없음. **GO 판정 불가.**
+- **P6/T18~T20:** macOS Node 24/pnpm 설치와 고정 Orca 타입 검사는 중간 커밋에서 성공했으나 최신 HEAD·Electron GUI·U01~U24·레거시 inventory/cleanup 검증은 미완료. **GO 판정 불가.**
 
 ### 변경 범위 / 검증·보존 기록
 
 - 변경: `src/orca/completed-main-fork.mjs`, `src/orca/agent-sessions.mjs`, `orca-overlay/src/renderer/src/components/pi-compose/PiComposeMenu.tsx`, `orca-overlay/src/renderer/src/components/pi-compose/PiComposeLinkedWorkReports.tsx`.
 - 불변: 원본 Main Pi JSONL, 사용자 Git Worktree, 실제 Work/Support 대화, Orca 생성/종료/포커스/원본 Session lifecycle, Pi의 기존 Extension 설정은 개발 중 **수정·삭제하지 않았다**. GitHub 코드 변경만 수행했다.
 - 수행: 실제 GitHub 소스 조회, 계획서와 함수별 비교, 변경된 두 `.mjs` 파일을 JS 파서로 구문 검사 **PASS**.
-- 미수행: 코드 실행, 기존 테스트 실행, Node/pnpm 타입 검사, Electron 빌드, 실제 Orca GUI, U01~U24 제품 QA. 따라서 **정적 수준의 수정 코드 반영**이며 제품 통합 완료가 아니다.
+- 당시 수정 묶음의 기록: 실제 GUI/제품 QA 미수행. 이후 기존 GitHub Actions는 Node/pnpm 및 Orca 타입 검사 성공 기록이 있고, **기존 contract-check는 구형 검증 조건 때문에 실패**한다. 최신 HEAD 및 U01~U24 제품 QA 성공 증거는 없다.
 - 후속은 기존 계획서의 **go/no-go gate**를 따르며, 남은 blocking을 새 자작 UI/Agent/Worktree 관리자로 우회하지 않는다. 사용자가 요청한 대로 별도 CI/테스트 코드를 추가하지 않는다.
 
 
@@ -139,7 +139,7 @@ npm run orca:dev
 ### P0·P1 Go/No-Go
 
 - **P0: 아직 NO-GO.** Orca 실제 Pi host registry 및 provider handle 파일의 Pi 세션 ID와 RPC의 `get_entries.leafId` 연결은 소스·타입 수준에서 확인. macOS 실제 다중 branch, 실행 중 writer, 재시작/호스트 불일치에서 한 번의 정확한 Fork 증거 및 부작용 없음은 미검증.
-- **P1: 아직 NO-GO.** 생성 경로는 Orca `createWorktree`를 사용하고 원래 Git/Orca 자산을 삭제하지 않지만, **크래시/재시작을 넘어 동일 사용자 의도를 구분하는 durable operation ID/중복 방지/부분 성공 재개는 미구현**. 현재 in-dialog 중복 차단을 완료로 오인하지 않는다.
+- **P1: 아직 NO-GO.** 아래 후속 작업에서 영속 생성 의도와 Orca 영수증 복구 및 Pi 파일 재사용을 구현했으나, 다중 창·실제 강제 종료·Orca host 응답 불확실·인텐트 복구 전체 실기를 검증하지 못했다. 인텐트 저장만으로 Orca host 자체의 영속 idempotency가 생긴 것은 아니다.
 - **P2: 아직 NO-GO.** 동일 Worktree의 read-only lineage는 남김. **다른 Worktree B안 중복 행을 비활성화**했으므로 Main의 전체 cross-Worktree 그룹핑은 제품 기능으로 완료되지 않았다. A/B안은 실사용 및 사용자 결정 후 선택한다.
 - **P3~P6:** 이전 코드가 존재하는 것과 단계별 제품 완료는 다르다. 상위 게이트를 통과하기 전 완료라고 선언하지 않는다.
 
