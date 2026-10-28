@@ -261,3 +261,39 @@ npm run orca:dev
 **미확정 / 보류:** D1 교차 Worktree A/B UI, D2 기본 작업 공간, D3 파괴적 삭제 UI, D4 미커밋 변경 복제, D5 모델 읽기 Tool, D6 Native↔TUI 전환, D7 원격 초안 전달. T09는 Orca 원본 근거로 별도 비교. B안의 비활성 `PiComposeCrossWorktreeAgentRefs.tsx`는 활성화하지 않음. P5/P6 전체 완료로 분류하지 않음.
 
 **기술적 제한:** Work 결과는 아직 로컬 Pi JSONL의 단일 분기에서 읽는 bounded projection이며 host journal의 진짜 Orca Turn ID를 제공하지 않는다. 이것을 호스트 근거를 갖춘 완료 상태라고 주장하지 않는다. Source Git HEAD를 관찰하지 않은 Support 결과에 저장된 생성 당시 HEAD를 실행 시점 HEAD로 표기하지 않는다.
+
+
+## 2026-10-29 · P2 의사결정 근거 / P3 읽기 경합 / P5 확장성 조사
+
+### T09 — 교차 Worktree A/B 후보 (선택 전, 코드 미활성)
+
+| 비교 | A: Orca 원본 Worktree에 한 행 | B: Main에도 native Agent 참조 행 |
+| --- | --- | --- |
+| 원본 행 위치 | `WorktreeCardAgents.tsx` → `useWorktreeAgentRows(realWorktreeId)` 그대로 유지 | 원본 행 + Main 소속 Worktree에 두 번째 read-only 투영 |
+| Main의 탐색 | 관계 참조를 통해 `activateAndRevealWorkspace`, `activateStructuredAgentSessionById` 호출 | 원본의 `DashboardAgentRow` / compact row를 참조 위치에도 렌더링 |
+| Agent 상태·아이콘·시간 | 원본 소유자 그대로 | 다른 Worktree 원본 `useWorktreeAgentRows` 조회값을 참조 행에도 동기화 |
+| 클릭·포커스 | Orca 원본 tab/worktree owner로 라우팅 | 참조 행에서 원본 owner로 별도 정확한 전달 필요 |
+| Dismiss `×` | 원본 `DashboardAgentRowTrailingControls` → Orca `dropAgentStatus` / `dismissRetainedAgent` | 실험 코드의 `setWorkMainVisibility`는 **다른 의미**이며 기존 원본 `×`와 불일치 |
+| Orca parent/child | `WorktreeContextMenuView`의 parent는 Git Worktree 관계이며 Pi 대화 Fork가 아님 | Worktree parent를 Pi 소속으로 오용할 수 없음 |
+| History | Orca `AiVaultSessionHistoryDialog`, `revealStructuredSession` 및 기존 재열기 경로 | 두 표시 위치에서 원본 Session History/retained 상태를 별도 반영해야 함 |
+| 코드 범위·비용 | Main의 최소 참조 메뉴/관계 연결만 추가, 유지보수 부담 낮음 | `WorktreeCardAgents`, native row owner/dismiss/focus, compact/expanded, virtualization까지 변경 범위 확대 |
+| 핵심 가치 | Main 연결과 정확한 Pi Fork 증거는 유지, Agent 실행 행 복제 없음 | 근거의 정확성은 유지할 수 있지만 조작 의미와 UI 중복 위험 큼 |
+
+**권장: A**, Orca 소유권/행 동작을 변경하지 않고 Main의 관계 및 원본 이동 경로를 제공. **사용자 선택 이전에 A나 B 구현 확정 금지.** `PiComposeCrossWorktreeAgentRefs.tsx`는 실험 파일로만 남기고 사이드바에 연결하지 않는다.
+
+### T12/T13 — Main의 표시 경합 및 미검증 Work 표시 보완
+
+- `PiComposeLinkedWorkReports.tsx`: Main Orca Session ID와 선택된 Compose Main ID를 함께 고정하여 이전 Main의 타이머가 현재 대화에 결과를 표시하지 못하도록 제한.
+- Focus/Compose 변경/주기적 조회의 비동기 응답을 단일 read epoch으로 구분. 느린 오래된 결과가 최신 결과를 덮지 않도록 보완.
+- Compose 목록에서 Fork 증거 `proof.allMatch`가 없는 Work가 확인되면 결과가 없다고 조용히 처리하지 않고 미검증 Work 수를 안내. Pi 원본 세션은 수정하지 않음.
+- 범위 한계: 정상 Fork이지만 Pi JSONL을 읽지 못하거나 여러 활성 leaf가 불명확한 Work는 bridge가 현재 `[]`로 합쳐 반환한다. 이 세부 상태 구분 및 **실제 Orca host Turn ID/journal 출처**는 추가 계약 필요. 이 UI 수정으로 해결됐다고 판단하지 않음.
+
+### T14 / T17 — 고정 Pi v1.4.0 및 Orca 4a39d186 RPC 경계
+
+- Pi `packages/coding-agent/docs/rpc-extension-ui.md`: `ctx.ui.select`, `confirm`, `input`, `editor` RPC 요청/응답 지원. `notify` 등 fire-and-forget 이벤트도 프로토콜에 존재. `ctx.mode === 'rpc'`, `ctx.hasUI === true`.
+- Orca `src/main/pi/rpc-session.ts` → `rpc-dialog-callbacks.ts` → `rpc-extension-dialogs.ts`: 실제 native question/approval에 위 네 가지 dialog를 변환하는 코드 존재.
+- Orca `PiRpcDialogCallbacks`의 DECORATION 집합(`notify`, `setStatus`, `setWidget`, `setTitle`, `setEditorText`)은 현재 렌더링하지 않고 무시. Native UI에서 모두 동작한다고 표시하지 않음.
+- Pi RPC의 `ctx.ui.custom()`은 지원하지 않음. TUI 세션과 Native Chat의 동시 writer 금지 및 안전한 인계 절차는 **D6** 결정 전까지 새 전환 동작을 추가하지 않음.
+- `extensions/orca-compose.ts`에는 `compose_work_results` 모델 조회 Tool이 **이미 등록**돼 있음. Main Pi 세션을 제한해 실제 Work 답변을 명시적으로 조회하며 자동 주입은 아님. 그러나 사용자가 D5 입력/출력/권한 범위를 확정하기 전이므로 **승인된 최종 계약으로 간주하지 않고 확장하지 않음**.
+
+이 조사로 별도 Extension UI/Chat renderer/Agent 상태 관리자를 신설할 근거는 없음. 테스트·CI·GUI 실행은 사용자 담당.

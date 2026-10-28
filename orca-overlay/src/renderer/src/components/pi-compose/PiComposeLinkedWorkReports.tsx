@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { activateAndRevealWorkspace } from '@/lib/worktree-activation'
@@ -28,34 +28,51 @@ export function PiComposeLinkedWorkReports({
 }): React.JSX.Element | null {
   const cwd = useAppStore(s => worktreeId
     ? s.getKnownWorktreeById(worktreeId)?.path ?? '' : '')
-  const [mainId, setMainId] = useState<string | null>(null)
+  const [main, setMain] = useState<{ sessionId: string; id: string | null }>({
+    sessionId: '', id: null
+  })
+  const [unverified, setUnverified] = useState<{
+    sessionId: string
+    titles: string[]
+  }>({ sessionId: '', titles: [] })
   const [unavailableSessionId, setUnavailableSessionId] = useState<string | null>(null)
   const [reports, setReports] = useState<{
     sessionId: string
     items: PiComposeLinkedWorkResult[]
   }>({ sessionId: '', items: [] })
+  // A late Work read from a previously selected Main must not be displayed
+  // under a different Main. Focus, Compose changes and polling share this fence.
+  const readEpoch = useRef(0)
   const refresh = useCallback(async (alive: () => boolean) => {
     if (!cwd || !orcaSessionId || !isVisible) return
+    const epoch = ++readEpoch.current
+    const current = () => alive() && epoch === readEpoch.current
     try {
       const records = await window.api.piCompose.list(cwd)
-      const main = records.find(record =>
+      const selected = records.find(record =>
         record.role === 'main' && record.orcaSessionId === orcaSessionId)
-      if (!alive()) return
-      setMainId(main?.id ?? null)
-      if (!main) {
+      if (!current()) return
+      setMain({ sessionId: orcaSessionId, id: selected?.id ?? null })
+      setUnverified({
+        sessionId: orcaSessionId,
+        titles: selected ? records.filter(record =>
+          record.role === 'work' && record.parentMainId === selected.id &&
+          !record.hiddenFromMainAt && record.proof?.allMatch !== true
+        ).map(record => record.title) : []
+      })
+      if (!selected) {
         setReports({sessionId:orcaSessionId,items:[]})
         setUnavailableSessionId(null)
         return
       }
-      const items = await window.api.piCompose.linkedWorkResults(cwd, main.id)
-      if (alive()) {
+      const items = await window.api.piCompose.linkedWorkResults(cwd, selected.id)
+      if (current()) {
         setReports({sessionId:orcaSessionId,items})
         setUnavailableSessionId(null)
       }
     } catch {
-      // Keep the last *verified* report and distinguish a failed read from
-      // genuinely no completed Work result. Never invent a newer status.
-      if (alive()) setUnavailableSessionId(orcaSessionId)
+      // Preserve the last confirmed report; never present failure as "no Work".
+      if (current()) setUnavailableSessionId(orcaSessionId)
     }
   }, [cwd, orcaSessionId, isVisible])
 
@@ -68,29 +85,33 @@ export function PiComposeLinkedWorkReports({
     window.addEventListener('pi-compose:changed', update)
     return () => {
       alive = false
+      readEpoch.current += 1
       window.removeEventListener('focus', update)
       window.removeEventListener('pi-compose:changed', update)
     }
   }, [isVisible, orcaSessionId, refresh])
 
-  // The Orca host provides the actual Work's execution status; this read-only
-  // interval discovers newly settled Pi responses without fabricating a task-done
-  // event. Poll only while a confirmed Main chat is visible.
+  // Read-only discovery of newly settled Pi replies while THIS Main is
+  // visible. A finished response is not proof of completed development.
   useEffect(() => {
-    if (!mainId || !orcaSessionId || !cwd || !isVisible) return
+    if (!main.id || main.sessionId !== orcaSessionId ||
+        !orcaSessionId || !cwd || !isVisible) return
     let alive = true
+    const currentMainId = main.id
     const timer = setInterval(() => {
-      void window.api.piCompose.linkedWorkResults(cwd, mainId).then(items => {
-        if (alive) {
+      const epoch = ++readEpoch.current
+      void window.api.piCompose.linkedWorkResults(cwd, currentMainId).then(items => {
+        if (alive && epoch === readEpoch.current) {
           setReports({sessionId:orcaSessionId,items})
           setUnavailableSessionId(null)
         }
       }).catch(() => {
-        if (alive) setUnavailableSessionId(orcaSessionId)
+        if (alive && epoch === readEpoch.current) setUnavailableSessionId(orcaSessionId)
       })
     }, 10_000)
     return () => { alive = false; clearInterval(timer) }
-  }, [mainId, cwd, orcaSessionId, isVisible])
+  }, [main.id, main.sessionId, cwd, orcaSessionId, isVisible])
+  const unverifiedTitles = unverified.sessionId === orcaSessionId ? unverified.titles : []
 
   if (reports.sessionId !== orcaSessionId) {
     return unavailableSessionId === orcaSessionId ? (
@@ -99,12 +120,18 @@ export function PiComposeLinkedWorkReports({
       </p>
     ) : null
   }
-  if (reports.items.length === 0 && unavailableSessionId !== orcaSessionId) return null
+  if (reports.items.length === 0 && unavailableSessionId !== orcaSessionId && unverifiedTitles.length === 0) return null
   return (
     <section aria-label="연결된 Work 결과" className="mt-5 space-y-3">
       {unavailableSessionId === orcaSessionId ? (
         <p className="text-xs text-chat-foreground-faint">
           현재 Work 기록 재조회에 실패했습니다. 아래 내용은 마지막으로 확인된 결과이며 최신 상태가 아닐 수 있습니다.
+        </p>
+      ) : null}
+      {unverifiedTitles.length > 0 ? (
+        <p className="text-xs text-chat-foreground-faint">
+          {unverifiedTitles.length}개 Work의 Main Fork 출처를 확인할 수 없어 결과를 표시하지 않았습니다.
+          원본 Pi 대화는 그대로 보존됩니다.
         </p>
       ) : null}
       {reports.items.map(work => <WorkReport key={work.workId + ':' + work.entryId} work={work} />)}
