@@ -1,30 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChevronDown, ChevronRight, GitFork, MessageSquare, Plus, RefreshCcw } from 'lucide-react'
 import { useAppStore } from '@/store'
-import { createNewTerminalTab } from '@/components/terminal/terminal-tab-create'
 import { activateAndRevealWorkspace } from '@/lib/worktree-activation'
-import {
-  canMoveTabToNewPaneColumn,
-  moveTabToNewPaneColumn
-} from '@/components/tab-bar/tab-move-to-pane-column'
 import type { PiComposeListRecord } from '../../../../preload/api/pi-compose-bridge'
-import { openPreparedWorkNativeChat } from './PiComposeNativeChat'
+import { openPreparedPiNativeChat, reopenPiNativeChat } from './PiComposeNativeChat'
+import { activateStructuredAgentSessionById } from '@/lib/agent-session/structured-agent-session-tab-activation'
+import { refreshLocalStructuredSessionWorktreeTabs } from '@/runtime/local-structured-session-tabs-sync/inventory-refresh'
 import { appendToNativeChatComposerDraft, structuredAgentSessionDraftScopeKey,
   nativeChatComposerDraftWriteSettled } from '@/components/native-chat/native-chat-composer-draft-store'
-
-function quote(value: string): string {
-  return "'" + value.replaceAll("'", "'\\''") + "'"
-}
-function label(agent: PiComposeListRecord): string {
-  return (agent.role === 'main' ? 'Main' : agent.role === 'work' ? 'Work' : 'Support') +
-    ' · ' + agent.title.slice(0, 70)
-}
-function existingTab(agent: PiComposeListRecord) {
-  if (!agent.orcaWorktreeId || !agent.orcaTabId) return null
-  const state = useAppStore.getState()
-  return (state.unifiedTabsByWorktree[agent.orcaWorktreeId] ?? [])
-    .find(tab => tab.id === agent.orcaTabId && tab.contentType === 'terminal') ?? null
-}
 
 /**
  * An additional project-context section in Orca's EXISTING workspace sidebar.
@@ -37,7 +20,8 @@ export function PiComposeOutline({ projectCwd, projectWorktreeId }: {
 }): React.JSX.Element | null {
   const worktreeId = projectWorktreeId
   // React to Orca tab moves/closes without restarting the underlying Pi process.
-  useAppStore(s => s.unifiedTabsByWorktree)
+  const tabCatalog = useAppStore(s => s.unifiedTabsByWorktree)
+  const activeWorktreeId = useAppStore(s => s.activeWorktreeId)
   const [agents, setAgents] = useState<PiComposeListRecord[]>([])
   const [busyId, setBusyId] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -47,7 +31,6 @@ export function PiComposeOutline({ projectCwd, projectWorktreeId }: {
   const refresh = useCallback(async () => {
     if (!cwd) { setAgents([]); return }
     setLoading(true)
-    setAgents([])
     try {
       setAgents(await window.api.piCompose.list(cwd))
       setError('')
@@ -65,100 +48,55 @@ export function PiComposeOutline({ projectCwd, projectWorktreeId }: {
   }, [refresh])
 
   const mains = useMemo(() => agents.filter(a => a.role === 'main'), [agents])
-  const showAgent = async (agent: PiComposeListRecord, split: boolean) => {
+  const showAgent = async (agent: PiComposeListRecord) => {
     if (!cwd || !worktreeId || busyId) return
     setBusyId(agent.id)
     setError('')
     try {
-      if (agent.role === 'work') {
-        let targetId = agent.orcaWorktreeId || worktreeId
-        if (agent.workspace === 'worktree') {
-          await useAppStore.getState().fetchAllWorktrees({ hydrationPurge: 'defer' })
-          const target = useAppStore.getState().allWorktrees().find(item => item.path === agent.cwd)
-          if (!target) throw new Error('Work의 Git Worktree가 Orca에 등록되지 않았습니다. 해당 폴더를 등록한 뒤 다시 열어주세요.')
-          targetId = target.id
-        }
-        if (split && targetId !== worktreeId) throw new Error('다른 Worktree의 Native Chat을 현재 화면으로 분할할 수 없습니다.')
-        if (activateAndRevealWorkspace(targetId) === false) throw new Error('Orca 작업 공간을 열 수 없습니다.')
-        let orcaSessionId = agent.orcaSessionId
-        if (!orcaSessionId) {
-          // A failed prior Native Chat launch preserves the prepared Pi fork.
-          // Recover by adopting it, never creating another Pi fork.
-          orcaSessionId = await openPreparedWorkNativeChat(targetId, agent.sessionId)
-          await window.api.piCompose.attachChat(cwd, agent.id, orcaSessionId, targetId)
-          await refresh()
-        }
-        const chat = (useAppStore.getState().unifiedTabsByWorktree[targetId] ?? []).find(item =>
-          item.contentType === 'agent-session' && item.entityId === orcaSessionId)
-        if (!chat) throw new Error('연결된 Native Chat 탭이 보이지 않습니다. 중복 세션을 만들지 않고 Orca 세션 복원을 확인해 주세요.')
-        useAppStore.getState().activateTab(chat.id, { worktreeId: targetId })
-        if (split) {
-          if (!canMoveTabToNewPaneColumn(chat.id, chat.groupId) ||
-              !moveTabToNewPaneColumn({unifiedTabId: chat.id, groupId: chat.groupId, direction:'right'})) {
-            throw new Error('이 Native Chat을 현재 레이아웃에서 분할할 수 없습니다.')
-          }
-        }
-        return
+      let targetId = agent.orcaWorktreeId || worktreeId
+      if (agent.workspace === 'worktree') {
+        await useAppStore.getState().fetchAllWorktrees({ hydrationPurge: 'defer' })
+        const target = useAppStore.getState().allWorktrees().find(item => item.path === agent.cwd)
+        if (!target) throw new Error('Agent의 Git 작업 폴더가 Orca에 등록되지 않았습니다. Pi 대화는 보존됩니다.')
+        targetId = target.id
       }
-      let tab = existingTab(agent)
-      let owningWorktree = agent.orcaWorktreeId
-      if (!tab) {
-        if (!agent.launcher || !agent.cwd) {
-          throw new Error('이 Agent의 실행 정보가 없습니다. 기존 세션을 삭제하지 않았습니다.')
-        }
-        let targetId = worktreeId
-        if (agent.workspace === 'worktree') {
-          await useAppStore.getState().fetchAllWorktrees({ hydrationPurge: 'defer' })
-          const target = useAppStore.getState().allWorktrees().find(item => item.path === agent.cwd)
-          if (!target) {
-            throw new Error('이 Agent의 실제 Git Worktree가 Orca 목록에 없습니다. 프로젝트에서 해당 폴더를 가져온 뒤 다시 열어주세요. 세션은 그대로 보존됩니다.')
-          }
-          targetId = target.id
-        }
-        if (activateAndRevealWorkspace(targetId) === false) {
-          throw new Error('Orca 작업 공간을 열 수 없습니다. Pi 세션은 보존됩니다.')
-        }
-        // Launch the SAME Pi session (with the prepared script's one-shot guard),
-        // never fork a second time when opening a row from the sidebar.
-        const started = await new Promise<boolean>(resolve => {
-          createNewTerminalTab(targetId,undefined,{
-            startupCwd:agent.cwd,
-            command:'sh ' + quote(agent.launcher!),
-            onSettled:resolve
-          })
-        })
-        if (!started) throw new Error('Orca 탭을 열지 못했습니다. Pi 세션은 보존됩니다.')
-        owningWorktree=targetId
-        tab=useAppStore.getState().getActiveTab(targetId)
-        if (!tab || tab.contentType !== 'terminal') {
-          throw new Error('열린 터미널의 식별자를 확인할 수 없습니다.')
-        }
-        useAppStore.getState().setTabCustomLabel(tab.id,label(agent))
-        await window.api.piCompose.attach(cwd,agent.id,tab.id,targetId)
-        await refresh()
+      if (activateAndRevealWorkspace(targetId) === false) {
+        throw new Error('작업 공간을 열지 못했습니다. 기존 Pi 기록은 그대로 보존됩니다.')
       }
-      if (!owningWorktree || !tab) throw new Error('기존 터미널 연결을 확인할 수 없습니다.')
-      if (agent.workspace === 'worktree' &&
-          !useAppStore.getState().allWorktrees().some(item =>
-            item.id === owningWorktree && item.path === agent.cwd)) {
-        throw new Error('이전 버전에서 Agent 탭이 다른 작업 공간에 연결됐습니다. 기존 탭은 유지하되 새 Pi 프로세스를 중복 시작하지 않습니다.')
+
+      let orcaSessionId = agent.orcaSessionId
+      if (orcaSessionId) {
+        // A closed tab is not proof that its Orca host record is gone.
+        // Reveal first; re-adopt only when that host confirms it is gone.
+        const reopened = await reopenPiNativeChat(targetId, agent.sessionId, orcaSessionId)
+        orcaSessionId = reopened.sessionId
+        if (reopened.replacedClosed) {
+          await window.api.piCompose.attachChat(cwd, agent.id, orcaSessionId, targetId, true)
+          window.dispatchEvent(new Event('pi-compose:changed'))
+        }
+      } else {
+        // Existing legacy TUI Main/Support is never launched a second time
+        // behind the user's back. Pi/Orca will refuse a second active writer.
+        orcaSessionId = await openPreparedPiNativeChat(targetId, agent.sessionId)
+        await window.api.piCompose.attachChat(cwd, agent.id, orcaSessionId, targetId)
+        window.dispatchEvent(new Event('pi-compose:changed'))
       }
-      if (split && owningWorktree !== worktreeId) {
-        throw new Error('다른 Orca Worktree의 탭은 현재 화면으로 직접 옮길 수 없습니다. 먼저 해당 작업 공간으로 이동하세요.')
-      }
-      if (activateAndRevealWorkspace(owningWorktree) === false) {
-        throw new Error('Orca 작업 공간을 열 수 없습니다. Pi 세션은 보존됩니다.')
-      }
-      useAppStore.getState().activateTab(tab.id,{worktreeId:owningWorktree})
-      if (split) {
-        const groupId=tab.groupId
-        if (!canMoveTabToNewPaneColumn(tab.id,groupId) ||
-            !moveTabToNewPaneColumn({unifiedTabId:tab.id,groupId,direction:'right'})) {
-          throw new Error('이 탭은 현재 레이아웃에서 바로 분할할 수 없습니다. 다른 터미널을 연 뒤 탭 메뉴의 Move Tab to Split을 사용하세요.')
+
+      // A session's host owns its tab. Let Orca synchronize the host-published
+      // tab rather than creating our own tab or another Pi session.
+      if (!activateStructuredAgentSessionById({ worktreeId: targetId, sessionId: orcaSessionId })) {
+        await refreshLocalStructuredSessionWorktreeTabs(targetId)
+        if (!activateStructuredAgentSessionById({ worktreeId: targetId, sessionId: orcaSessionId })) {
+          throw new Error('기존 Chat은 보존됐지만 탭 표시를 복원하지 못했습니다. Orca 세션 목록을 새로고침해 주세요.')
         }
       }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause))
+      const message = cause instanceof Error ? cause.message : String(cause)
+      setError(message)
+      if (!agent.orcaSessionId) {
+        await window.api.piCompose.connectionFailed(cwd, agent.id, message).catch(() => {})
+        window.dispatchEvent(new Event('pi-compose:changed'))
+      }
     } finally {
       setBusyId(null)
     }
@@ -210,6 +148,12 @@ export function PiComposeOutline({ projectCwd, projectWorktreeId }: {
     }))
   }
   const renderRow = (agent: PiComposeListRecord, depth: number): React.JSX.Element => {
+    const owner = agent.orcaWorktreeId || worktreeId
+    const activeTab = activeWorktreeId === owner ? useAppStore.getState().getActiveTab(owner) : null
+    const selected = Boolean(activeTab && (
+      (agent.orcaSessionId && activeTab.contentType === 'agent-session' && activeTab.entityId === agent.orcaSessionId) ||
+      (agent.orcaTabId && activeTab.id === agent.orcaTabId)
+    ))
     const isWork = agent.role === 'work'
     const isSupport = agent.role === 'support'
     const connectionFailed = isWork && agent.state === 'connection-error'
@@ -218,7 +162,9 @@ export function PiComposeOutline({ projectCwd, projectWorktreeId }: {
       agent.title,
       ...(agent.workspace === 'worktree' ? ['별도 Worktree'] : [])
     ].join(' · ')
-    return <div key={agent.id} className="group flex min-w-0 items-center gap-1 rounded-md py-1 hover:bg-worktree-sidebar-foreground/10"
+    return <div key={agent.id} aria-current={selected ? 'page' : undefined}
+      className={'group flex min-w-0 items-center gap-1 rounded-md py-1 hover:bg-worktree-sidebar-foreground/10 ' +
+        (selected ? 'bg-worktree-sidebar-accent font-medium text-worktree-sidebar-accent-foreground ring-1 ring-worktree-sidebar-ring/40' : '')}
       style={{ paddingLeft: depth * 14 }}>
       {agent.role === 'main' ? <MessageSquare className="size-3 shrink-0 text-muted-foreground"/>
         : isWork ? <GitFork className="size-3 shrink-0 text-muted-foreground"/>
@@ -226,7 +172,7 @@ export function PiComposeOutline({ projectCwd, projectWorktreeId }: {
       <button type="button"
         className="min-w-0 flex-1 truncate text-left text-[11px] hover:underline"
         title={title}
-        onClick={() => void showAgent(agent,false)}>
+        onClick={() => void showAgent(agent)}>
         {agent.title}
         {connectionFailed ? <span className="ml-1 text-destructive">(연결 실패)</span> : null}
       </button>
