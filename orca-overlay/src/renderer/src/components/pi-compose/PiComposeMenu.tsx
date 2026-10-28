@@ -9,6 +9,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { openWorkspaceCreationComposerWithTourHandoff } from '../contextual-tours/workspace-creation-tour-handoff'
 import type { PiComposeListRecord, PiComposeResult } from '../../../../preload/api/pi-compose-bridge'
 import { openPreparedWorkNativeChat } from './PiComposeNativeChat'
+import { structuredLaunchOwner } from '@/lib/agent-session/structured-agent-session-provisional-tab'
+import { admitStructuredLaunchOnHost } from '@/lib/structured-agent-session-host-admission'
+import { toRuntimeWorktreeSelector } from '@/runtime/runtime-worktree-selector'
 
 type Role = 'main' | 'work' | 'support'
 const ROLES: ReadonlyArray<{ id: Role; title: string; description: string }> = [
@@ -135,6 +138,25 @@ export function PiComposeMenu(): React.JSX.Element {
     setBusy(true)
     setError('')
     try {
+      // Check Pi Native Chat support BEFORE creating a persistent Work in a
+      // shared workspace. A definitive refusal must not leave an unusable fork.
+      if (role === 'work' && workspace === 'shared') {
+        const owner = structuredLaunchOwner(
+          { route: 'structured-native-chat' }, selectedWorktreeId
+        )
+        if (!owner) {
+          throw new Error('Orca에서 이 작업 공간의 Native Chat 실행 호스트를 확인할 수 없습니다.')
+        }
+        const admission = await admitStructuredLaunchOnHost(
+          owner.target, toRuntimeWorktreeSelector(selectedWorktreeId), 'pi'
+        )
+        if (admission.kind !== 'admitted') {
+          const reason = admission.kind === 'declined'
+            ? (admission.reason || 'Pi Native Chat 미지원')
+            : 'Orca 실행 호스트를 확인할 수 없음'
+          throw new Error('Work를 생성하지 않았습니다. Native Chat 준비 불가: ' + reason)
+        }
+      }
       const result: PiComposeResult = await window.api.piCompose.create(role === 'main' && mainMode === 'existing' ? 'import' : role, {
         cwd,
         ...(role === 'main' ? { title: title.trim(), ...(mainMode === 'existing' ? { sessionId: savedId } : {}) }
