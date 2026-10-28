@@ -99,12 +99,12 @@ const patches = [
     before: "import { DashboardAgentChildDisclosure } from '@/components/dashboard/DashboardAgentChildDisclosure'",
     after: "import { DashboardAgentChildDisclosure } from '@/components/dashboard/DashboardAgentChildDisclosure'\nimport { X } from 'lucide-react'",
     secondBefore: "  onActivate: (tabId: string, paneKey: string) => void\n  // Send-target mode",
-    secondAfter: "  onActivate: (tabId: string, paneKey: string) => void\n  onDismiss?: (paneKey: string) => void\n  // Send-target mode"
+    secondAfter: "  onActivate: (tabId: string, paneKey: string) => void\n  onDismiss?: (paneKey: string) => void\n  hasParentAgent?: boolean\n  // Send-target mode"
   }
   ,{
     path: "src/renderer/src/components/sidebar/worktree-card-compact-agent-row.tsx",
     before: "  onActivate,\n  sendTargetStatus,",
-    after: "  onActivate,\n  onDismiss,\n  sendTargetStatus,",
+    after: "  onActivate,\n  onDismiss,\n  hasParentAgent = false,\n  sendTargetStatus,",
     secondBefore: "      {hasChildDisclosure ? (\n        <DashboardAgentChildDisclosure",
     secondAfter: "      {onDismiss && isLineageChild && !hasChildDisclosure ? (\n        <button type=\"button\" aria-label=\"목록에서 이 Agent만 제거\"\n          className=\"shrink-0 rounded-sm p-1 text-muted-foreground/70 hover:text-foreground\"\n          onClick={e => { e.stopPropagation(); onDismiss(agent.paneKey) }}\n          onMouseDown={e => e.stopPropagation()}\n          onPointerDown={e => e.stopPropagation()}>\n          <X className=\"size-3\" />\n        </button>\n      ) : null}\n      {hasChildDisclosure ? (\n        <DashboardAgentChildDisclosure"
   }
@@ -113,14 +113,7 @@ const patches = [
     before: "import { translate } from '@/i18n/i18n'",
     after: "import { translate } from '@/i18n/i18n'\nimport { toast } from 'sonner'",
     secondBefore: "  DropdownMenuItem,\n  DropdownMenuSeparator,",
-    secondAfter: "  DropdownMenuItem,\n  DropdownMenuSub,\n  DropdownMenuSubTrigger,\n  DropdownMenuSubContent,\n  DropdownMenuSeparator,"
-  }
-  ,{
-    path: 'src/renderer/src/components/sidebar/worktree-card-compact-agent-row.tsx',
-    before: "  onDismiss?: (paneKey: string) => void\n  // Send-target mode",
-    after: "  onDismiss?: (paneKey: string) => void\n  hasParentAgent?: boolean\n  // Send-target mode",
-    secondBefore: "  onDismiss,\n  sendTargetStatus,",
-    secondAfter: "  onDismiss,\n  hasParentAgent = false,\n  sendTargetStatus,"
+    secondAfter: "  DropdownMenuItem,\n  DropdownMenuSub,\n  DropdownMenuSubTrigger,\n  ,\n  hasParentAgent = false,\n  sendTargetStatus,"
   }
   ,{
     path: 'src/renderer/src/components/sidebar/worktree-card-compact-agent-row.tsx',
