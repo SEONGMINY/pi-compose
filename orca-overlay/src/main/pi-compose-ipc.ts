@@ -47,7 +47,7 @@ export function registerPiComposeIpc(): void {
       const { getStructuredAgentSessionHost } = await import('./native-chat/agent-session-wire/structured-agent-session-registry')
       const host = getStructuredAgentSessionHost()
       const record = host?.deps.store.getConversation(orcaSessionId)
-      if (!record || record.provider !== 'pi' ||
+      if (!host || !record || record.provider !== 'pi' ||
           record.location.workspaceId !== worktreeId) {
         throw new Error('선택한 Main은 이 Orca 호스트의 Pi 대화가 아닙니다.')
       }
