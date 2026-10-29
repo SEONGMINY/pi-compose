@@ -1,123 +1,42 @@
-# 사용 가이드
+# 사용 흐름 — 목표 경험과 현재 상태
 
-[← README](../README.md)
+[← README](../README.md) · [확정 정책](PRD.md)
 
-이 문서는 Pi Compose를 실제 작업에 사용할 때 필요한 선택과 명령을 정리합니다. Pi Runtime, 세션, 모델 인증, Extension 로딩은 기본적으로 [Pi](https://github.com/earendil-works/pi)가 담당합니다.
+> **새 Ghostty 중심 흐름은 설계 단계입니다.** 이 문서의 예시는 개념적 사용자 흐름이며, 아직 존재하지 않는 CLI 명령이나 동작을 실행할 수 있다고 주장하지 않습니다. 저장소의 오래된 tmux/workmux 기반 CLI는 이전 구현입니다.
 
-## 시작하기
+## 1. Main에서 설계를 논의합니다
 
-macOS에서는 [설치 스크립트](../scripts/install.sh)를 사용합니다.
+Main에서는 서비스의 목적·사용자 흐름·도메인 정책·API·데이터 구조·아키텍처·금지 조건·선택 이유를 논의합니다. 어떤 결정을 명확히 승인했다면 기존 관련 `docs/*` 문서에 즉시 반영하는 방향입니다. 새 문서가 필요하면 사용자에게 먼저 확인합니다.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/SEONGMINY/pi-compose/main/scripts/install.sh | bash
-cd ~/projects/my-app
-pic
-```
+Main의 맥락이 불충분할 때는 사용자가 명시적으로 요청해 `AGENTS.md`의 안내에서 관련 문서만 선택적으로 읽습니다. 이 명령/Skill의 이름은 아직 정해지지 않았습니다.
 
-첫 실행에는 Pi TUI에서 `/login`으로 제공자를 인증하고 `/model`로 모델을 선택합니다. Azure를 사용하지 않는다면 Azure 설정은 필요하지 않습니다. 기존 `pi`의 설정·인증·세션·Skill·Theme가 공유됩니다.
+## 2. 필요할 때만 Work나 Support를 만듭니다
 
-## 새 에이전트를 실행할 때
+- **Work:** 실제 Main의 활성 완료 Pi 대화 지점을 Fork해 구현하거나 테스트 코드를 작성합니다. Main과 Work는 별도 대화입니다.
+- **Support:** 맥락이 불필요한 코드 탐색, 웹 조사, 테스트 실행·검증 등에 사용합니다.
+- 실행 공간은 현재 디렉터리 또는 별도 Git Worktree로 작업에 맞게 선택합니다. Fork와 Worktree는 서로 다른 개념입니다.
+- Agent를 생성·실행할지 사용자가 명시적으로 결정합니다. Main이 임의로 개발 작업을 시작하지 않습니다.
 
-```text
-/compose preview 회원 API 구현
-/compose launch 회원 API 구현
-```
+예: Main에서 복약 정책을 결정하고 Work에서 알림 기능을 개발합니다. 테스트 코드는 그 이유를 아는 Work에서 작성할 수 있고, 별도 Support가 실행 결과를 확인해 오류를 Work에 보고할 수 있습니다.
 
-Pi 선택 UI에서 **컨텍스트**와 **작업 공간**을 각각 정합니다.
+## 3. 실행 중인 작업을 확인합니다
 
-| 선택 | 의미 | 사용하기 좋은 경우 |
-| --- | --- | --- |
-| Fork | 사용자가 지정한 Pi 대화에서 새 대화를 분기 | Main에서 합의한 요구사항·선택 근거·강한 제약을 이어서 개발할 때 |
-| Independent | 이전 대화를 상속하지 않는 새 세션 | 별개의 조사나 코드 탐색처럼 대화 맥락이 필요하지 않을 때 |
-| Shared Directory | 현재 작업 디렉터리 사용 | 같은 체크아웃에서 작업할 때. 다른 에이전트의 동시 수정에 주의 |
-| Git Worktree | 별도 브랜치·체크아웃 | 변경 파일을 분리해 개발할 때. workmux가 필요 |
+Ghostty에서 Main은 계속 보이고, 현재 실행 중인 Work/Support는 별도 터미널 영역에서 확인할 수 있어야 합니다.
 
-이 둘은 독립적인 선택이므로 네 가지 조합이 가능합니다.
+Work의 작업 결과/중요 결정 **공유 후보는 Summary Overlay에 자동 표시**합니다. 사용자가 선택하면 원래 Pi 대화 화면을 확인할 수 있어야 합니다. 표시할 상세 필드·완료 판정·재열기 UX는 아직 논의 중입니다.
 
-Fork는 **어느 Pi 세션을 원본으로 삼을지 직접 선택**해야 합니다. Pi Compose가 최근 세션이나 현재 세션을 자동으로 Main이라고 간주하지 않습니다. Worktree를 선택하면 새 브랜치 이름을 입력합니다. workmux Fork에는 원본 세션의 작업 디렉터리와 저장소 루트가 일치해야 하는 제약이 있습니다.
+## 4. Main에 반영할 때는 사용자가 요청합니다
 
-`/compose preview`는 실행 계획만 표시합니다. `/compose launch`는 사용자가 명시적으로 선택한 옵션으로 실행합니다. 자연어로 에이전트 생성을 요청하면 `compose_launch` Tool이 **실행 전 승인을 요청**합니다.
+Work의 중요한 발견이나 승인 결정이 있어도 Main에는 자동 전송되지 않습니다. 사용자가 Main 반영을 요청하면 해당 내용의 **결정·이유·영향 범위·원본 근거**를 전달합니다. 긴 실행 로그와 전체 Diff는 Work/Support에 둡니다.
 
-시작 명령이 성공했다는 결과가 곧 모델이 정상 응답 중이라는 뜻은 아닙니다. 실제 Agent 상태는 해당 Pi/tmux/workmux 환경에서 확인해야 합니다.
+새 Work를 Fork할 때 이전 Work의 미반영 결정을 자동 경고하거나 동기화하지 않습니다. 문서를 다시 읽는 경우도 **현재 작업 공간에 있는 문서만** 알 수 있으며, 다른 Worktree에서 아직 통합하지 않은 결정은 자동으로 공유되지 않습니다.
 
-## 이전 작업으로 돌아갈 때
+## 5. 종료하고 다시 실행합니다
 
-```text
-/compose back
-/compose back 회원 API
-```
+Ghostty 앱을 종료하면 실행 중인 Agent도 종료한다는 요구사항입니다. 저장된 Pi 대화와 이미 작성한 Git 파일을 지우지는 않습니다.
 
-현재 프로젝트의 Pi 저장 세션과 workmux 작업 후보를 Pi 선택 UI에서 보여줍니다.
+다음 실행에서 사용자가 **특정 Main 세션을 선택**하면 Main만 재개합니다. 관련 Work/Support는 자동 실행하지 않습니다. 중단된 외부 명령도 자동 재실행하지 않습니다. 오래된 대화 기록이나 문서 파일을 되돌리는 행동은 사용자가 별도로 수행합니다.
 
-- **저장된 Pi 대화:** Pi의 공식 세션 전환 API로 현재 프로세스에서 대화를 전환합니다. 일반적인 Pi 저장 대화 선택은 기본 `/resume`도 사용할 수 있습니다.
-- **열린 Worktree:** 선택한 workmux 대상을 사용자 확인 후 엽니다. workmux 창의 열림 상태는 해당 Pi 대화가 실제 실행 중이라는 증거가 아닙니다.
-- **닫힌 Worktree:** 해당 Worktree의 저장된 Pi 대화 중 정확한 세션을 직접 선택하고, 새로운 Pi 프로세스 생성에 동의한 경우에만 재개합니다.
-- **새 tmux에서 명시적으로 재개:** `/compose resume`. 저장된 대화의 단순 전환과는 다른 동작입니다.
+## 6. 현재 구현과의 차이
 
-자연어로 **“회원 API 작업을 찾아줘”**라고 요청하면 `compose_find_work`가 읽기 전용 목록을 제공합니다. **“회원 API 작업으로 돌아가고 싶어”**라고 요청하면 `compose_return_work`가 선택 UI를 열 수 있습니다.
-
-자연어로 저장된 Pi 대화를 선택했을 때는 정확한 `/compose back id:<세션ID>` 명령이 입력창에 준비됩니다. **사용자가 Enter를 눌러야** 실제로 전환됩니다. 입력 중인 초안이 있다면 덮어쓰지 않습니다. 이는 Pi Tool에서 세션 직접 전환 API를 사용할 수 없는 제약에 따른 방식입니다.
-
-검색은 현재 프로젝트 범위입니다. 다른 프로젝트의 모든 대화나 tmux 프로세스를 자동 탐색하지 않습니다.
-
-## Handoff와 독립 검증 (선택형)
-
-```bash
-pic features
-```
-
-Pi의 별도 선택형 Package를 설치한 뒤 `pi config` UI가 열립니다. **최초 설치 때 Dashboard·Handoff·Verify 세 기능이 모두 켜지므로**, 사용하지 않는 항목은 해당 UI에서 해제합니다. 현재 프로젝트에만 설치하려면 `pic features --local`을 사용합니다. 선택한 기능의 설정은 일반 `pi`와 `pic`가 공유합니다. 이미 열려 있는 Pi TUI에는 `/reload`로 변경된 Extension 구성을 다시 불러오거나 `pic`을 재실행해 적용합니다.
-
-### 작업 결과 인계
-
-```text
-/compose-handoff
-/compose-handoff <workmux-agent-handle>
-```
-
-현재 세션의 Pi 모델에 Handoff 작성을 요청합니다. `compose_handoff` Tool이 Git 변경 파일, HEAD, 작업 중인 변경, `git diff --check` 등을 확인하고 **구현 결과·WHY/원래 제약·실제로 수행한 검사·남은 일**을 모읍니다.
-
-수신자를 지정한 경우에만 사용자 승인 후 `workmux send`를 호출합니다. **전송 성공은 수신·읽음·정확성을 보증하지 않습니다.** 자동 병합·Worktree 삭제도 수행하지 않습니다.
-
-### 필요한 경우 별도 검증
-
-```text
-/compose-verify
-/compose-verify main
-```
-
-사용자 승인 후 별도의 Pi `--print` 호출에서 변경 사항과 관련 근거를 읽기 전용으로 검토합니다. `main` 같은 기준 Ref를 지정하면 그 기준 이후의 변경을 포함해 검토합니다. 기준을 생략하면 검사 범위가 제한됩니다. 긴 Diff와 변경 파일 목록은 일부 잘릴 수 있고, 개발자가 작성한 Handoff도 **검증 전 주장**으로 취급합니다.
-
-검증 결과는 자동 승인이나 Git 병합이 아닙니다.
-
-### 작업 View
-
-Pi가 tmux 안에서 실행 중이고 Dashboard Extension을 켠 경우:
-
-```text
-/compose-workmux
-/compose-workmux worktrees
-```
-
-workmux의 Dashboard를 tmux 팝업으로 엽니다. Pi Compose가 별도 Dashboard나 에이전트 상태 저장소를 만들지는 않습니다.
-
-## 그 밖의 직접 제어
-
-| 명령 | 용도 |
-| --- | --- |
-| `pic config` | Pi 리소스 설정 TUI |
-| `pic config --local` | 프로젝트 범위 Pi 리소스 설정 |
-| `pic --resume` | Pi 기본 저장 세션 선택 |
-| `pic --model <모델>` | 이번 실행에서 사용할 Pi 모델 선택 |
-| `pic -e <extension-path>` | Pi Extension 추가 로드 |
-| `pi-compose --help` | 고급 CLI: 실행 계획, 명시적 재개, Git Worktree 조회 등 |
-
-`pic`은 Pi Runtime 위에 기본 Compose Extension을 더하는 진입점입니다. 사용자 정의 Extension·Skill·Theme를 계속 사용할 수 있으며, 일반 `pi`도 독립적으로 실행할 수 있습니다. `pic update`는 Pi의 기존 update 명령으로 전달되므로 **Pi Compose 업데이트는 설치 명령을 다시 실행**하세요.
-
-## 더 자세한 자료
-
-- [아키텍처와 책임 경계](ARCHITECTURE.md)
-- [요구사항과 선택 원칙](PRD.md)
-- [구현 계획 및 남은 검증 범위](IMPLEMENTATION_PLAN.md)
-- [실제 도구 연동 검증 기록](validation/phase6-integration.md)
-- [설치·업데이트의 설계 결정](adr/0006-github-installer.md)
+새로운 Ghostty 분할/세션 제어·Summary Overlay·선택적 문서 맥락 로드·정확한 Handoff 경험은 아직 제품으로 완성되지 않았습니다. 이 저장소의 이전 CLI/설치 스크립트를 새 방향의 실행 방법으로 사용하지 마세요. 개발 순서와 남은 기술 검증은 [Implementation Plan](IMPLEMENTATION_PLAN.md)과 [TRD](TRD.md)에서 확인할 수 있습니다.
