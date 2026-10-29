@@ -33,19 +33,20 @@ Support · 탐색 / 자료 조사 / 테스트 실행 / 독립 검증
 | 항목 | 방향 |
 | --- | --- |
 | Agent 런타임 | [Pi](https://github.com/earendil-works/pi)와 기존 Extension 활용 |
-| 터미널 | Ghostty 단독 사용; Main은 계속 보이고 실행 중인 Work/Support를 분할 표시 |
+| 터미널 | Ghostty 기반; Main을 계속 보면서 실행 중인 Work/Support 분할 표시 (기술 검증 필요) |
+| 사이드바 | **프로덕트별 보기 / 전체 Agent 보기 / 별도 메시지 관리**. 프로덕트 아래 여러 Main을 표시하고 Main 이름에는 `Main ·` 접두어를 붙이지 않음 |
 | 작업 공간 | Shared Directory 또는 Git Worktree를 작업에 맞게 선택 |
 | 시작/재접속 | 사용자가 명시적으로 Agent 실행 및 이전 Main 세션 선택 |
 | Main 재접속 | 선택한 Main만 실행; 과거 Work/Support는 자동 시작하지 않음 |
-| 종료 | Ghostty 앱 종료 시 실행 중인 Agent도 종료; 저장된 대화·코드 삭제 아님 |
+| 종료 요청 | **백그라운드로 유지(최소화) / 실행 중인 Agent 종료** 중 사용자가 선택하는 확인 UX. Ghostty 앱 종료·창 닫기와의 실제 연동은 검증 필요 |
 | 맥락 보존 | 원본 Pi 대화 + 기존 `docs/*` 문서; 작은 `AGENTS.md`는 문서 안내 |
 | 문서화 | 명확하게 승인한 중요한 결정은 기존 문서에 즉시 반영; 새 문서는 사용자 확인 |
-| Handoff | 사용자 요청 전에는 Work의 메시지·로그·결정을 Main 모델에 자동 입력하지 않음 |
+| Handoff | 사용자 요청 전에는 Work의 메시지·로그·결정을 Main 모델에 자동 입력하지 않음. 메시지 대기·전달·실패 등은 별도 사이드바에서 확인·관리하는 방향 |
 
 **Orca 통합 및 tmux/workmux 도입은 중단했습니다.** 별도 데스크톱 GUI도 현재 개발하지 않습니다. 복잡성이나 시각적 비교의 필요성이 실제로 생길 때 다시 검토합니다.
 
 ## 구현 상태
 
-**이 README는 새 제품 방향을 설명하는 설계 문서입니다.** 기존 코드에는 이전 tmux/workmux 기반 CLI와 Orca 실험이 남아 있고, 위 Ghostty 중심 흐름과 Summary Overlay가 실제로 완성·검증됐다는 뜻은 아닙니다. 과거 설치·명령을 새 제품의 사용법처럼 안내하지 않습니다.
+**이 README는 새 제품 방향을 설명하는 설계 문서입니다.** 기존 코드에는 이전 tmux/workmux 기반 CLI와 Orca 실험이 남아 있고, 위 Ghostty 중심 흐름, 제품/Agent 사이드바, 메시지 관리, 종료 선택 UX와 Summary Overlay가 실제로 완성·검증됐다는 뜻은 아닙니다. 과거 설치·명령을 새 제품의 사용법처럼 안내하지 않습니다.
 
 현재 확정된 계약과 결정하지 않은 항목은 [PRD](docs/PRD.md)를 기준으로 확인해 주세요. 기술적 책임과 검증 범위는 [Architecture](docs/ARCHITECTURE.md)와 [TRD](docs/TRD.md), 앞으로의 구현 순서는 [Implementation Plan](docs/IMPLEMENTATION_PLAN.md)에 정리했습니다. 기존 CLI 구현과 기록은 Git 이력에 보존합니다.
