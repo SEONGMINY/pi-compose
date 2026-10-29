@@ -4,6 +4,25 @@
 - 작성일: 2026-10-25
 - 제품 계약: [PRD](PRD.md), 기술 후보 및 검증: [TRD](TRD.md)
 
+## 0. 최신 구조 (2026-10-30) — 현재 결정 우선
+
+> 아래 2026-10-25 tmux/workmux 및 Dashboard 구조도는 **과거 구현 기록**이다. 최신 제품 정책은 [PRD §0](PRD.md#0-최신-사용자-결정--2026-10-30)를 따른다. 새 아키텍처의 실사용 검증은 수행되지 않았다.
+
+| 책임 | 현재 방향 | 경계 |
+| --- | --- | --- |
+| Pi | 원본 대화 트리, Fork/Resume, Compaction, Extension, TUI | 실제 Pi 세션을 요약으로 대체하지 않음 |
+| Ghostty | Main 상시 표시와 실행 중 Work/Support 터미널 배치·종료 | 정확한 Split/Overlay/프로세스 계약은 검증 필요 |
+| Pi Compose | 사용자가 고른 Main의 정확한 Fork, 관계·명시적 실행 연결, 최소한의 Summary/Handoff 연결 | 새 런타임·상시 계약 DB·자체 대시보드 구축 금지 |
+| Git | Shared Directory/Worktree, 브랜치·변경 이력·통합 | 세션 대화 이동과 파일 롤백/통합은 별개 |
+| 프로젝트 문서 | 확정된 중요 계약과 WHY를 보존, AGENTS.md는 길잡이 | 각 계약의 원본 하나, 신규 문서는 사용자 확인 |
+
+- Main 모델은 Work의 로그와 결정을 자동 수신하지 않는다. Summary Overlay는 사용자용 화면이며 명시적 Main 반영 요청과 분리한다.
+- 명시적으로 선택한 Main만 재접속 시 복원한다. 관련 Work의 자동 재실행이나 Fork 전 미반영 경고는 하지 않는다.
+- 승인된 중요한 Main 결정은 관련 기존 문서에 즉시 갱신한다. 구현은 짧은 프로젝트 지침 우선, 추가 Extension은 실사용 누락이 확인된 후 검토한다.
+- Work의 문서 수정 권한·Handoff 전달 세부, 문서 동기화, Summary 상태 모델은 아직 미확정이다.
+
+---
+
 ## 1. 아키텍처 목표
 
 **Pi Compose는 Pi의 Runtime 위에 실행 선택과 반복 작업을 연결하는 경량 Harness**다.
