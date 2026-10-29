@@ -2,17 +2,13 @@
 
 **설계를 논의하던 대화는 남겨두고, 구현은 다른 [Pi](https://github.com/earendil-works/pi) 에이전트에게 맡길 수 있어요.**
 
-> **Orca 기반 Pi Compose (새 작업 브랜치)**: Orca의 기존 `+` 버튼으로 Main/Work/Support를 만들고, 왼쪽 프로젝트 영역에서 관계와 터미널을 다시 엽니다. [현재 사용법과 미완료 범위](docs/ORCA_PREDICTABLE_WORKFLOWS.md)
+> **현재 제품 방향 (2026-10-30, 설계 확정 범위 / 구현 미완료):** Pi + Ghostty에서 Main은 계속 보이고, 정확히 Fork된 Work 및 독립 Support는 별도 Pi 터미널에서 작업합니다. 완료 결과 Summary Overlay는 필수 요구사항이며, Work의 중요 결정은 사용자 요청 시에만 Main 컨텍스트로 인계합니다. 기존 `docs/*`와 `AGENTS.md`를 활용해 중요한 승인 결정을 보존합니다.
 >
-> ```bash
-> git switch feat/orca-predictable-workflows
-> pnpm install
-> pnpm orca:dev
-> ```
+> **Orca 통합은 중단**, tmux/workmux는 신규 방향에서 사용하지 않습니다. 아래의 Orca·tmux·workmux 명령, 스크린샷, 설치 안내는 **기존 구현의 사용 기록**이며 현행 제품의 실행 방법으로 오인하면 안 됩니다. 기존 코드·세션·Worktree는 보존합니다.
 >
-> Main의 원본 Pi 대화, Work의 정확한 Fork, Support의 독립 컨텍스트를 유지합니다. 기존 세션과 Git Worktree는 삭제하지 않습니다.
->
-> 아래 설명 중 `/compose`, tmux·workmux 부분은 **기존 TUI 사용법**입니다. 현재 Orca 화면에서 Agent를 생성할 때는 해당 CLI 명령을 따로 실행하지 않습니다.
+> [현재 확정 정책 및 미확정 사항](docs/PRD.md#0-최신-사용자-결정--2026-10-30) · [문서 안내](docs/README.md)
+
+## 아래 내용은 이전 구현 안내 (역사적 자료)
 
 AI와 요구사항을 논의할 때는 구현할 기능뿐 아니라 **왜 그렇게 결정했는지, 어떤 대안을 제외했고 무엇을 바꾸면 안 되는지**도 함께 정합니다. 새 에이전트에게 결과만 짧게 전달하면 이런 배경이나 강한 제약이 빠질 수 있어요.
 
