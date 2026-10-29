@@ -1,5 +1,7 @@
 # Pi Compose × Orca — Native-first 통합 구현
 
+> **역사적 구현 기록 — Orca 통합 중단(2026-10-30).** 이 기록은 코드·검증 이력으로 보존하며 현재의 구현 방향을 지시하지 않습니다. [최신 PRD §0](PRD.md#0-최신-사용자-결정--2026-10-30)를 우선하세요.
+>
 > 작업 브랜치: `feat/orca-batch-integration-20261028`  
 > 기준: `stablyai/orca@4a39d186da72a496b29a9ec5c523bbbf0a3460d8`, Pi SDK `1.4.0`  
 > 상태: **계획서 P0/P1/P2 재감사 중 · 기존 macOS TypeScript 타입 검사 1회 성공, 실제 GUI 실기 동작은 미검증. 최종 GO 불가.**  
