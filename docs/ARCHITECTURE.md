@@ -1,263 +1,79 @@
 # Architecture — Pi Compose
 
-- 상태: **논의된 책임·경계 확정 / 구현 상세와 패키지 연결 방식 미확정**
-- 작성일: 2026-10-25
-- 제품 계약: [PRD](PRD.md), 기술 후보 및 검증: [TRD](TRD.md)
+- 기준: [PRD](PRD.md) (2026-10-30 합의)
+- 상태: **책임 경계 설계 / Ghostty 중심 구현·실사용 검증 전**
 
-## 1. 아키텍처 목표
+## 1. 설계 원칙
 
-**Pi Compose는 Pi의 Runtime 위에 실행 선택과 반복 작업을 연결하는 경량 Harness**다.
+Pi Compose는 **Pi 위에 얇게 얹는 Harness**입니다. 새로운 대화 엔진·터미널 관리자·독립 Git 엔진·상시 문서 동기화 서비스를 만들지 않습니다.
 
-- Main Agent: 오래 논의한 요구사항, 원인, 거절된 대안, 강한 금지, 다음 제품 결정을 담당.
-- 실행 계층: **사용자가 승인·선택한** 컨텍스트와 작업 공간 조합을 기존 CLI로 실현.
-- 개발 세션: Pi의 세션·모델·도구·Compaction을 그대로 사용.
-- 검증 세션: 변경 분석·테스트 로그·계약 확인을 Main에서 격리.
-- Git 통합: 사용자가 요청한 시점에 기존 Git 도구로 진행.
-- **View는 선택 사항:** Dashboard를 설치하지 않아도 기본 Launch는 동작해야 한다. 사용자가 Pi의 Extension·Package 방식으로 View를 선택·교체한다.
+Main의 실제 Pi 대화에 요구사항, 도메인 정책, 설계와 결정 이유를 축적합니다. Work는 그 **활성 완료 분기를 정확히 Fork**하고 개발 기록을 별도 세션에 둡니다. 맥락이 불필요한 작업은 Support 독립 세션에 위임합니다.
 
-## 2. 논리적 구성도
+## 2. 책임과 소유권
 
-```mermaid
-flowchart TD
-    U["개발자"]
-    M["Main Pi Session\n설계·계약·작업 제안"]
-    CMD["실행 진입점\n명령 / 명시적 자연어 / 가능한 Dashboard 액션"]
-    L["Pi Compose Launch\n옵션 검증·외부 도구 조합"]
-    PI["Pi Sessions\nFork / Independent / Resume"]
-    GIT["Git / workmux\nShared Directory / Worktree"]
-    TMUX["tmux\nPane / Window / Session"]
-    UI["Dashboard\n상태·전환·분할"]
-    HAND["Handoff\n구현·WHY·검사·참조"]
-    BASIC["Git 기본 검사\n기계적 사실"]
-    REVIEW["Independent Verification\nDiff·계약·테스트·근거"]
-    I["Git Integration\n사용자 시점 선택"]
-
-    U <--> M
-    U --> CMD
-    M -. "작업·의존성 제안" .-> U
-    CMD --> L
-    L --> PI
-    L --> GIT
-    L --> TMUX
-    PI --> UI
-    TMUX --> UI
-    PI --> HAND --> BASIC
-    BASIC -. "위험·불확실성·요청 시" .-> REVIEW
-    BASIC -. "검증 범위와 간결한 결과" .-> M
-    REVIEW -. "결정에 필요한 이유·근거만" .-> M
-    U --> I
-    GIT --> I
-```
-
-그림은 **논리적 책임**이다. `Launch`, `Handoff`, `Verification`이 각각 별도 서버·프로세스·상태 머신이라는 뜻은 아니다.
-
-## Pi 기본 Package와 선택형 View (ADR 0004)
-
-```mermaid
-flowchart TD
-    P["Pi의 Package / Extension 로딩"]
-    L["기본 pi-compose Extension\n/compose launch, preview, compose_launch"]
-    V["선택형 workmux View Extension\n/compose-workmux"]
-    C["공통 Launch 실행 로직"]
-    W["기존 workmux Dashboard"]
-    X["사용자가 제작한 다른 Extension / View"]
-
-    P --> L
-    P -. "사용자 opt-in" .-> V
-    P -. "사용자 추가" .-> X
-    L --> C
-    V --> W
-```
-
-- `package.json`의 `pi.extensions`는 **Launch Extension만 등록**한다.
-- 선택형 workmux View는 자동 탐색 대상에서 벗어난
-  `extensions/optional/workmux-dashboard.ts` 파일로 제공한다.
-  필요한 사용자는 `pi -e <파일>` 또는 `settings.json`의 `extensions`로 로드한다.
-- Pi Compose 고유의 `View Provider`, `Plugin Registry`를 만들지 않는다.
-- `src/launch.ts`는 Dashboard 모듈을 import하지 않으며,
-  View 교체를 위해 Launch를 수정하지 않는다.
-- `src/dashboard.ts`와 기존 `pi-compose dashboard` CLI는 workmux 전용 구현으로 남아
-  **사용자가 명시적으로 사용할 때만** 호출된다.
-- **Worktree Launch는 여전히 `workmux add`를 사용한다.** View와 실행 백엔드는 별개 책임이며,
-  현재 불필요한 범용 실행 백엔드 어댑터를 만들지 않는다.
-- [ADR 0004](adr/0004-pi-native-optional-views.md)에 이 결정의 이유와 대안을 기록한다.
-
-## 3. 책임과 의존 관계
-
-| 구성 요소 | Owns | Does not own |
+| 담당 | 소유하는 것 | 소유하지 않는 것 |
 | --- | --- | --- |
-| 사용자 | 중요한 제품 계약 결정, 개발 세션 명시적 실행, 통합 시점 | 매번 Pi/Git/tmux 명령 조립 |
-| Main | 요구사항·작업 계획과 근거·다음 결정 | 모든 실제 Diff·로그 분석, 자동 개발 스케줄링 |
-| Pi Compose Launch | 명시적 입력, 유효성 검사, 기존 CLI 조합, 실패 보고, 생성 결과 연결 | Pi Session 원본 기록, Git history, LLM Runtime |
-| Pi | 세션 Fork/Resume/New, 컨텍스트·Compaction, 도구 | Worktree 내용 복제, Git 자동 병합 |
-| Git/workmux | Git 변경·브랜치·Worktree, 기존 자동 준비와 대시보드 후보 | 사용자 승인·제품 계약 판단 |
-| tmux | 실행 Pane/Window, 프로세스 지속 및 전환 | 작업의 의미적 완료 |
-| **선택형 View / Dashboard** | 사용자가 선택할 경우 관찰·직접 조작 | 기본 Launch의 필수 종속성, 모든 실행의 영구 Source of Truth |
-| Handoff | 구현 에이전트의 핵심 주장·검사·참조 | 계약 승인, 객관적 검증 완료 증거 |
-| 독립 검증 | 실제 코드 변경·원본 계약 비교, 범위·불확실성 표시 | 사용자 계약 변경 결정 |
-| 통합 Git 도구 | 사용자 지시에 따른 Merge/기존 명령 | 자율적 통합 시점 결정 |
+| 사용자 | 중요 계약 변경 승인, Work/Support 시작, Main 수신, Git 통합·문서 롤백 선택 | 반복적인 터미널·Git 명령 조합 |
+| **Pi** | 세션 트리·JSONL·Fork·Resume·모델·Extension·Compaction·TUI | Git 작업 공간 복제/병합 |
+| **Ghostty** | 터미널 영역·분할·화면 포커스·종료 | Agent의 의미적 완료·문서 정책 판단 |
+| **Pi Compose** | 정확한 Main↔Work 관계, 사용자 요청형 생성/연결, Summary Overlay/Handoff의 최소 기능 | 별도 런타임·계약 DB·상시 Agent 통신 서비스 |
+| **Git** | 파일·브랜치·Worktree·변경 이력·코드/문서 통합 | Pi 대화 분기/모델 컨텍스트 |
+| **프로젝트 문서** | 승인된 중요한 계약과 선택 이유 | 모든 대화/실행 로그의 영구 사본 |
 
-## 4. 서로 독립적인 실행 차원
-
-```text
-Execution choice
- ├─ Context: Fork(sourceSession) | Independent
- ├─ Workspace: Shared(cwd) | Worktree(repo, branch, base)
- └─ Scheduling: Execute now / user launches later; serial or parallel per dependencies
-```
-
-**Context Fork ≠ Git Worktree Fork.**
-
-| | Shared Directory | Git Worktree |
-| --- | --- | --- |
-| **Fork context** | Pi Fork + 기존 cwd | Pi Fork + 별도 cwd (workmux 우선 검증) |
-| **Independent context** | Pi 새 세션 + 기존 cwd | Pi 새 세션 + 별도 cwd |
-
-- Worktree는 격리를 제공하지만 원본의 미커밋 변경을 복제하지 않는다.
-- Shared Directory를 병렬로 쓸 경우 Git이 각 에이전트의 변경을 정확히 분리할 수 없다. 강제 사용 금지가 아니라 한계 표시가 적절하다.
-- 의존성이 높은 개발을 병렬로 시작하지 않을 수 있지만 **순차 개발 = Shared Directory**는 아니다.
-
-## 5. 실행 진입점과 세션 생명주기
-
-### 5.1 여러 진입점, 하나의 실행 동작
+## 3. 기본 컨텍스트 흐름
 
 ```mermaid
 flowchart TD
-    C1["사용자 직접 Pi 명령"]
-    C2["사용자의 명시적인 자연어 실행 요청"]
-    C3["Dashboard 액션 (지원된다면)"]
-    L["Launch 실행 동작"]
-    E{"Context / Workspace 검증"}
-    W["기존 Git/workmux CLI"]
-    P["Pi --fork / 새 세션"]
-    T["tmux 실행"]
-    R["세션 식별 정보와 성공/실패 반환"]
-    C1 --> L
-    C2 --> L
-    C3 --> L
-    L --> E --> W --> P --> T --> R
+    U["사용자 ↔ Main\n기획·도메인·API·설계·제약·결정 이유"]
+    F["선택한 Main의 활성 완료 Pi 분기 Fork"]
+    W["Work\n구현·테스트 코드 작성·반복 수정"]
+    S["Support\n독립 탐색·조사·테스트 실행"]
+    O["Summary Overlay\n작업 결과 + 공유할 중요 결정 후보"]
+    H["사용자 요청 시만 Main 모델에 Handoff"]
+    D["기존 docs/*\n승인된 중요 결정 보존"]
+    U -->|명시적 실행| F --> W --> O
+    U -->|명시적 실행| S
+    O -->|사용자 선택| H --> U
+    U -->|명확한 승인 직후 기존 문서 갱신| D
+    W -.->|Work 문서 수정 범위 미확정| D
 ```
 
-실제 구현은 **선정된 CLI의 한 명령으로 여러 단계를 수행**할 수 있다. 위 세 단계가 Pi Compose의 자체 엔진이라는 뜻이 아니다.
+- **Summary는 사람에게 표시하는 화면**입니다. 자동으로 Main의 Pi 대화에 메시지를 추가하지 않습니다.
+- 중요 결정의 공유 후보는 Work Summary에서 **자동 표시**하지만 'Main에 미반영' 여부를 정확한 근거 없이 확정 표시하지 않습니다.
+- Pi 대화 롤백과 Git 파일 롤백은 별개입니다. 서로를 자동으로 되돌리지 않습니다.
 
-### 5.2 New / Fork / Resume는 다른 행위
+## 4. Fork / Independent / Workspace
 
-| 동작 | 필요한 근거 |
-| --- | --- |
-| New independent | 새 독립 세션, 지정된 cwd |
-| Fork | 사용자가 명시한 원본 세션/경로를 보존해 새 세션 생성 |
-| Resume | 이미 생성된 **해당** 세션을 이어받음; 새 Fork 자동 생성 금지 |
-| Close/Stop | 실행 프로세스를 종료하거나 대시보드에서 숨기는 동작 |
-| Handoff | 작업의 완료 주장과 참조를 전달하는 **의미적 신호** |
-| Integrate | 기존 Git 명령으로 코드 병합 또는 동일 디렉터리 결과 반영 |
-| Cleanup | Worktree·tmux 자원 정리; Integrate와 동일하지 않음 |
+| 컨텍스트 | Shared Directory | Git Worktree |
+| --- | --- | --- |
+| Main Fork (Work) | 원본 완료 분기 Fork, 같은 체크아웃 | 원본 완료 분기 Fork, 별도 체크아웃 |
+| Independent (Support) | 새 Pi 세션, 같은 체크아웃 | 새 Pi 세션, 별도 체크아웃 |
 
-동일 명령 재실행 시 기존 세션·Worktree를 찾고, 새 생성을 해야 하는지 재개해야 하는지 구분한다.
+- 원본 Main 세션 ID·활성 완료 leaf·새 Work 세션 ID는 정확히 식별해야 합니다. 미완성 응답이나 임의의 최근 세션을 원본으로 추측하지 않습니다.
+- Fork는 프로젝트 파일/미커밋 상태를 복제하지 않습니다. Shared Directory의 동시 수정 위험과 Worktree 간 아직 통합되지 않은 변경은 Git 책임입니다.
+- Fork 후 Main의 추가 결정이나 다른 Work의 문서 변경이 Work에 자동 반영되지는 않습니다.
 
-### 5.3 기존 Pi 세션의 정확한 재개 (Phase 3)
+## 5. Ghostty 터미널과 세션 수명
 
-- Resume은 **원래 Pi Session JSONL 경로를 명시적으로 지정**한다. `pi --session <path>`를 사용하며, 가장 최근 세션을 임의로 `--continue`하지 않는다.
-- Shared Directory는 세션 헤더에 기록된 cwd와 선택한 실제 cwd가 동일해야 한다.
-- Worktree는 `git worktree list --porcelain -z`에서 선택한 브랜치의 실제 경로를 확인하고, 동일 cwd에 속한 Pi 대화만 재개한다.
-- 기존 변경의 존재 여부는 Git에서 확인할 뿐 임의로 Reset·Clean·Remove하지 않는다.
-- Pi Session 파일과 cwd에서 결정적인 tmux 대상 이름을 만들고 `tmux has-session`으로 조회한다. 실제 새 Pi 시작 직전에도 재확인한다.
-- **대상 이름을 이미 점유했으면 생성하지 않는다.** 다른 tmux Session 이름이나 일반 터미널의 중복 Pi 실행은 확인되지 않을 수 있으므로 결과에 한계를 표시한다.
-- 읽기 전용 `inspect`는 `worktree-existing`, `branch-only`, `not-found`를 구분하여 실패 후 상태를 판단하는 데 도움을 준다.
-- **사용자 작업 삭제가 수반되는 자동 Cleanup은 구현하지 않는다.** 정확한 삭제 대상과 사용자 허용 범위는 별도 판단이 필요하다.
-- 선택형 View나 Dashboard가 없어도 이 흐름은 동작하도록 구성했다.
+- 실행 중 Main은 화면에 계속 표시하고 Work/Support의 터미널을 분할해 보여줍니다. 상세 레이아웃과 Split API 적용은 **실기 검증 대상**입니다.
+- Work의 Summary Overlay는 원래 Pi TUI를 대체하지 않습니다. 사용자가 해당 영역을 선택하면 실제 Pi 화면으로 돌아갑니다. 완료 신호와 화면 조작 구현은 미확정입니다.
+- Ghostty 앱 종료 시 실행 중 Agent도 종료합니다. 디스크에 남아 있는 Pi 세션/코드를 지우지 않습니다.
+- 재실행에서는 사용자가 Main을 **명시적으로 선택**합니다. 선택한 Main만 재개하고 관련 Work/Support를 자동으로 재생성·실행하지 않습니다.
+- 중단된 외부 명령을 자동 재개하는 시스템을 만들지 않습니다.
 
-실제 코드/검증: [Phase 3](validation/phase3-resume.md).
+## 6. 문서와 맥락의 경계
 
-### 5.4 필수 식별값
+`AGENTS.md`는 짧은 프로젝트 문서 안내자이며, 실제 확정 계약은 기존 `docs/*`의 해당 원본에 유지합니다. 중요한 승인 결정은 Main의 짧은 지침과 Pi 기본 파일 도구로 **즉시 기존 문서를 갱신**하는 방향입니다. 신규 문서 생성은 사용자 확인이 필요합니다.
 
-**기존 시스템 기록을 재사용하는 연결 정보:** 원본 Pi Session ID/path, 새 Pi Session ID/path, 작업 cwd, repo/branch/base SHA(해당 시), tmux 대상, Handoff 참조. 영구 계약 DB/Workflow DSL은 만들지 않는다. 저장 방식은 구현 시 패키지의 반환값을 확인해 결정한다.
+Main이 자신의 컨텍스트에서 관련 계약과 변경 이유를 알고 있으므로 먼저 간단한 지침을 사용합니다. 누락이 실제로 확인되기 전에 별도 감지 Extension이나 계약 DB를 도입하지 않습니다.
 
-## 6. 협업 메시지 흐름
+맥락이 없는 세션이 관련 문서를 읽는 것은 사용자의 **명시적 요청**으로만 시작합니다. Skill은 가능한 구현 수단이며 모든 `docs/*`를 상시 적재하지 않습니다.
 
-```mermaid
-sequenceDiagram
-    participant A as Development A
-    participant B as Development B
-    participant U as 사용자
-    participant M as Main
-    A->>B: 발견 + WHY + 영향 + 제안/확정 여부 + 출처
-    Note over B: 전달 ≠ 수신·승인·적용
-    B-->>A: 영향 확인/질문 (필요 시)
-    alt 기존 계약 내 해결 가능
-        A->>A: 기존 계약 유지하며 구현
-    else 중요한 계약 변경 필요
-        A-->>U: 실제 판단이 필요한 대안과 이유
-        U-->>A: 명시적 결정
-        A->>B: 실제 승인된 결정과 출처
-    end
-    Note over M: Main은 상시 메시지 버스가 아님
-```
+## 7. 다음 설계 질문
 
-- 의미 없는 파일 변경은 알리지 않는다. 관련 Agent의 전제에 영향을 주는 발견에 집중.
-- 에이전트가 제시한 “사용자 승인” 주장만으로 **새 계약을 만들 수 없다**.
-- 워크트리 간 메시지는 코드 변경 자체를 동기화하지 않는다.
-- 동료 식별 방법과 메시징 패키지는 아직 미확정이다.
+- **Work A의 중요한 결정을 다른 Work/Main에 아직 반영하지 않았을 때, 발견과 선택적 전달을 어떻게 구현할 것인가?** 자동 공유 후보 표시만 확정입니다.
+- Work에서 기존 문서를 갱신하는 역할의 범위와 다른 Worktree와의 문서 통합 방식.
+- Summary 상태/필드, Handoff 대상과 명시적 수신 방식.
+- Ghostty/Pi에서 Split, Overlay, 종료, 세션 복구를 구현하는 실제 API.
 
-## 7. Handoff와 검증의 데이터 경계
-
-```mermaid
-sequenceDiagram
-    participant DEV as Development Agent
-    participant BASIC as Basic Git Check
-    participant VER as Independent Verifier
-    participant MAIN as Main Agent
-    participant U as 사용자
-    DEV->>BASIC: 명시적 Handoff + 세션/워크스페이스 참조
-    BASIC->>BASIC: base SHA / tracked+untracked / staged+unstaged 확인
-    alt 계약 영향·검사 실패·불확실성 또는 사용자 요청
-        BASIC->>VER: 범위·실제 Diff·계약 위치
-        VER->>VER: 필요한 파일·검사·원래 결정 검증
-        VER-->>MAIN: 결론·WHY·근거·검증 한계
-    else 기본 확인으로 종료
-        BASIC-->>MAIN: 기본 확인 결과 + 미검증 범위 명시
-    end
-    U->>U: 통합 시점 선택
-```
-
-검증 결과의 신뢰 계층은 다음과 같다.
-
-1. 사용자의 실제 결정과 프로젝트 기존 계약: **판단 근거**.
-2. Git/코드/테스트: **현실의 구현 상태**.
-3. Handoff: 개발 Agent가 보고한 내용(**검증 대상**).
-4. Verifier의 결론: 확인 범위가 명시된 **해석과 권고**.
-
-**중요:** 코드가 현재 그렇게 동작한다는 관찰을 새로운 사용자 요구사항으로 승격하지 않는다. 충분히 검증하지 않았으면 “확인하지 않음”을 숨기지 않는다.
-
-## 8. 기본 Git 검사 기준
-
-- `base SHA`와 현재 HEAD/Worktree 상태를 명시한다.
-- 전체 변경 **경로**를 발견한다. 실제 코드 읽기는 계약 위험/영향을 기준으로 우선순위를 정한다.
-- tracked, untracked, staged, unstaged 변경을 고려한다.
-- Shared Directory 병렬 수정에서는 어떤 변경이 누구 소유인지 **추정하지 않는다**.
-- 실행 중 코드가 수정될 수 있으므로 검사 시점/상태와 통합할 코드 상태의 일치 여부를 확인한다.
-- 병합 충돌 없음·개별 테스트 통과만으로 통합 완료를 선언하지 않는다.
-
-## 9. 실패와 안전한 복구
-
-| 실패 | 원칙 |
-| --- | --- |
-| Worktree 생성 후 Pi 실행 실패 | 생성된 Worktree와 실패 지점을 확인; 재시도 또는 안전한 정리 |
-| 이미 존재하는 branch/cwd/session | 중복 생성 대신 발견·재개 경로 고려 |
-| tmux Pane 종료 | Pi 세션 기록까지 삭제된 것으로 가정하지 않음 |
-| 원본 Pi 세션 경로 없음 | 임의의 최근 세션 Fork 금지, 정확한 식별 실패 보고 |
-| Worktree dirty 상태 | 사용자 미커밋·신규 파일 보존, 자동 삭제 금지 |
-| Hook·Dashboard 호환성 문제 | 실행은 Pi/Git/tmux로 가능해야 하며 제품 계약 축소 금지 |
-| 검증 중 코드가 추가 변경 | 기존 검증 결론을 새 코드 상태에 그대로 적용하지 않음 |
-
-## 10. 의도적으로 없는 구성
-
-- 자동 개발 에이전트 작업 Scheduler / Task Graph Engine.
-- 독립 세션 전체의 메시지를 저장·중재하는 자체 서버.
-- 저장된 계약을 코드 관찰로 자동 업데이트하는 Contract DB.
-- 전체 프로젝트에 적용되는 다단계 필수 Approval Gate.
-- 전용 Git Merge Engine / 모든 파일을 고정 깊이로 스캔하는 범용 Reviewer.
-- 외부 Dashboard를 교체하기 위한 자체 UI Runtime.
-
-실제 도구 조합에서 기능 공백이 확인되면 **좁은 Extension/Script**를 추가할 수 있다. 전체 프레임워크를 미리 만들지 않는다.
-
-→ [TRD](TRD.md) · [Implementation Plan](IMPLEMENTATION_PLAN.md) · [ADR](adr/0003-composable-execution-and-verification.md)
+긴 실행 로그와 전체 Diff는 원본 Work/Support에 두고, Main에 무단 삽입하거나 모든 세션에 방송하지 않습니다.
