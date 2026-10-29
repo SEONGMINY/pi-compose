@@ -1,5 +1,7 @@
 # Pi Compose × Orca — Native-first 구현 실행 계획서
 
+> **역사적 실행 계획 — Orca 통합 중단(2026-10-30).** 이 문서의 Orca 관련 P0–P6는 현재 구현 지침이 아닙니다. 최신 방향과 미확정 범위는 [PRD §0](PRD.md#0-최신-사용자-결정--2026-10-30)를 참조하세요. 코드는 이 문서 갱신만으로 변경되지 않았습니다.
+>
 > **2026-10-28 · 상세 구현 계획 / 구현 승인서 아님 · 필수 누락 사항 재감사 완료(부록 A)**
 >
 > 기준 저장소: [Pi Compose `refactor/orca-native-first-20261028`](https://github.com/SEONGMINY/pi-compose/tree/refactor/orca-native-first-20261028)
