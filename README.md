@@ -34,7 +34,7 @@ Support · 탐색 / 자료 조사 / 테스트 실행 / 독립 검증
 | --- | --- |
 | Agent 런타임 | [Pi](https://github.com/earendil-works/pi)와 기존 Extension 활용 |
 | 터미널 | Ghostty 기반; Main을 계속 보면서 실행 중인 Work/Support 분할 표시 (기술 검증 필요) |
-| 사이드바 | **프로덕트별 보기 / 전체 Agent 보기 / 별도 메시지 관리**. 프로덕트 아래 여러 Main을 표시하고 Main 이름에는 `Main ·` 접두어를 붙이지 않음 |
+| 사이드바 | **`pic` 실행 화면에서만 표시**. 프로덕트별 보기 / 전체 Agent 보기 / 별도 메시지 관리. Main·Work·Support를 전환해도 유지하고, 일반 Ghostty 탭에는 표시하지 않음. Main 이름에는 `Main ·` 접두어를 붙이지 않음 |
 | 작업 공간 | Shared Directory 또는 Git Worktree를 작업에 맞게 선택 |
 | 시작/재접속 | 사용자가 명시적으로 Agent 실행 및 이전 Main 세션 선택 |
 | Main 재접속 | 선택한 Main만 실행; 과거 Work/Support는 자동 시작하지 않음 |
