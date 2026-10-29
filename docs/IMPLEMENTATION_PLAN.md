@@ -15,7 +15,7 @@
 | 단계 | 필요한 결과 | 구현 전 확인할 것 |
 | --- | --- | --- |
 | **P0. 기존 구현과 원본 보존** | 현재 Main/Work/Support 세션과 Git 자산 식별; Orca와 tmux/workmux 의존 제거 범위 확인 | 오래된 코드·세션·Worktree를 무단 삭제하지 않기 |
-| **P1. Pi + Ghostty 기본 흐름** | **프로덕트별(여러 Main)/전체 Agent 보기**, Main 항목의 `Main ·` 접두어 생략, 실행 중 Work/Support 분할 연결 | Ghostty/Pi TUI의 실제 사이드바 구현과 Split 제어 가능성 |
+| **P1. `pic` 실행 화면 구성** | `pic` 화면에서만 사이드바 표시. **프로덕트별(여러 Main)/전체 Agent 보기**, Main 항목의 `Main ·` 접두어 생략, Main·Work·Support 전환 중 사이드바 유지 및 분할 연결. 일반 Ghostty 탭에는 표시하지 않음 | Pi Compose 관리 TUI와 Ghostty Split·포커스 연동, `pic` 탭 이탈/복귀 시 상태 유지 가능성 검증 |
 | **P2. 정확한 Main Fork** | 최신 완료 Pi 지점 복제, 독립 Work 생성; Support 독립 대화 | Pi 세션 분기·Compaction·ContextEdit의 원본 정확성 |
 | **P3. 종료·재접속** | 종료 요청 시 **백그라운드 유지(최소화)/Agent 종료 선택**; 종료 후 재접속 시 명시적으로 Main 선택 후 Main만 재개 | 창 닫기 vs 앱 Quit, 종료 확인 가로채기, 백그라운드 실행 주체, 자식 프로세스·실패 복구 검증 |
 | **P4. Work Summary Overlay** | 원래 Pi 터미널 위에 결과·**중요 결정 공유 후보 자동 표시**; 원본 화면 확인 | Pi TUI 이벤트와 Overlay, 완료/응답/실패 구분 |
