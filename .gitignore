@@ -1,0 +1,8 @@
+# Large upstream Orca source stays outside the Pi Compose Git history.
+.cache/
+node_modules/
+dist/
+out/
+.env
+.env.local
+.DS_Store
