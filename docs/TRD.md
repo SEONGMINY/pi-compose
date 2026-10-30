@@ -31,6 +31,8 @@
 - Summary Overlay는 **사용자용 Work 결과 표시**입니다. Work의 결과·중요 결정 공유 후보를 자동 표시하며, 해당 영역 선택으로 실제 Pi 화면을 다시 확인하도록 구현 가능한지 조사합니다.
 - **`pic` Overview Tab에만 사이드바를 표시**합니다. 프로덕트별/전체 Agent별 보기와 별도 메시지 관리를 그 안에서 전환합니다. 별도 작업 Tab에는 사이드바를 주입하지 않으며, Overview로 돌아오면 기존 관리 TUI를 확인할 수 있어야 합니다.
 - **구현 방향 확정**: `pic` Overview의 관리 TUI와, 각 Main·Work·Support의 **고유 Ghostty Surface에서 실행 중인 Pi TUI**를 분리합니다. 초기 Overview에는 여러 Pi TUI가 Split으로 표시됩니다. 사용자가 **Ghostty 기본 드래그로 기존 Surface를 다른 Tab에 이동하거나 Overview로 복귀**할 수 있습니다. Agent 선택은 현재 Surface가 속한 Tab/Window에 포커스하며, 어느 경우에도 Pi를 새로 실행하거나 Resume하여 이동을 흉내 내지 않습니다. **메뉴 한 번으로 자동 이동하는 기능·동일 TUI 미러링·별도 멀티플렉서는 초기 범위 밖**입니다.
+- **식별자 검증 주의**: Ghostty 1.4의 프로세스 환경변수 `GHOSTTY_SURFACE_ID`는 내부 `u64` 값을 16진수 문자열로 내보내지만, macOS AppleScript의 `terminal.id`는 `SurfaceView` UUID를 내보냅니다. **둘을 같은 ID로 취급하면 안 됩니다.** 실행 중 실제 Pi의 TTY와 AppleScript `terminal.tty` 등을 이용해 매핑을 검증하고, 이동 후 같은 `terminal.id`/TTY가 다른 Tab 아래 존재하는지 확인해야 합니다. `terminal.pid`는 *foreground PID*여서 영구적인 Agent 식별자로 사용하지 않습니다. Tab/Window ID도 재실행 후 유효하다고 가정하지 않습니다.
+- **수동 이동 검증 게이트**: Ghostty 1.4.x/macOS에서 Overview → 미리 생성된 대상 Tab의 터미널 영역 → Overview 왕복, 이동 전후 Pi 입력·출력·세션/프로세스 연속성, 이동 후 임시 기본 셸을 안전하게 정리하는 동작, Main만 이동해도 Overview 관리 TUI가 유지되는지, 한 Tab의 마지막 Surface 이동·Tab 자동 닫힘 여부, `drag-handle`/전체화면/타이틀바 설정 차이를 **사용자 실사용으로 확인**합니다. 드래그 중 다른 Tab의 대상 영역을 실제 선택할 수 있는지도 확인 전에는 지원 완료라고 표시하지 않습니다.
 - Pi 응답 종료, 사용자 명시 완료 보고, 작업 실패, 테스트 통과를 구분합니다. Summary가 성공을 추측하지 않게 합니다.
 - **`pic` 내부에서만 '백그라운드 유지(최소화/숨김)' 또는 '실행 Agent 종료' 선택 UI**를 제공합니다. 유지 시 Ghostty와 기존 Agent Surface를 보존하고, 종료 시 Pi 대화·Git 데이터는 삭제하지 않습니다. Ghostty의 **`Cmd+Q` 및 일반 창 닫기는 가로채지 않습니다**. 숨김·최소화 시 실제 Pi 프로세스 유지와 내부 종료 동작을 검증합니다.
 - 재접속 시 선택한 Main만 다시 열고 관련 Work/Support를 자동 재실행하지 않습니다. 무단 중복 세션·자동 새 Fork는 금지합니다.
