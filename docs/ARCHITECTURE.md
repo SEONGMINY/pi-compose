@@ -1,6 +1,6 @@
 # Architecture — Pi Compose
 
-- 기준: [PRD](PRD.md) (2026-10-30 합의)
+- 기준: [PRD](PRD.md) (2026-10-31 합의)
 - 상태: **책임 경계 설계 / Ghostty 중심 구현·실사용 검증 전**
 
 ## 1. 설계 원칙
@@ -49,7 +49,51 @@ flowchart TD
 - **메시지 관리 사이드바**: 별도 진입점에서 전달 내역·대기/수신/실패 등 사용자가 조치할 상태를 관리합니다. Summary Overlay의 중요한 결정 **공유 후보**와 실제 `pi-intercom` **전송 메시지**는 별개입니다. 화면에 표시된 메시지가 다른 Agent의 모델에 반영된 것은 아닙니다.
 - **사이드바는 `pic` Overview Tab 내부에만 표시**합니다. 별도 Ghostty 작업 Tab에는 표시하지 않습니다. Overview로 돌아오면 관리 TUI와 그 Tab에 남아 있는 실제 Pi TUI를 다시 볼 수 있어야 합니다. Main의 위치와 Overview의 수명은 독립적입니다.
 - `pic`의 관리 TUI는 Overview에 남고, 각 실행 Main·Work·Support는 **자신의 고유 Ghostty Surface에서 실제 Pi TUI**를 사용합니다. 초기에는 여러 Surface를 Overview Split으로 동시에 표시합니다. 사용자가 Ghostty 기본 드래그로 기존 Surface를 작업 Tab으로 옮기면 Overview의 해당 Split에서만 빠집니다. 사이드바에서 Agent를 선택하면 **그 Surface의 현재 위치로 포커스**합니다. Surface ID/TTY, 실제 Tab 위치와 Pi 세션 연결은 검증 대상입니다.
-- **Agent마다 기존 Surface와 Pi 프로세스를 유지**하되, 모든 Agent가 Overview의 화면 공간을 계속 차지할 필요는 없습니다. Main도 다른 작업 Tab으로 이동할 수 있습니다. 화면 이동을 Pi 재실행/Resume 또는 동일 TUI의 복제로 흉내 내지 않습니다. 첫 버전은 **Ghostty 기본 수동 드래그**를 사용하고 자동 이동 메뉴는 후속 과제로 남깁니다. **Herdr App·herdr-core·별도 멀티플렉서/프로세스 실행 계층** 및 전역 GUI는 도입하지 않습니다.
+- **Agent마다 기존 Surface와 Pi 프로세스를 유지**하며, 새 Agent는 생성 순서에 따라 마지막 생성 Agent 옆에 Split으로 추가합니다. 작업 상태가 바뀌어도 배치·Sidebar 관계를 재정렬하지 않습니다. 별도 Tab 이동은 사용자 선택이며, 인위적인 Agent 수 제한/자동 숨김·이동·정리는 하지 않습니다. Main도 다른 작업 Tab으로 이동할 수 있습니다. 화면 이동을 Pi 재실행/Resume 또는 동일 TUI의 복제로 흉내 내지 않습니다. 첫 버전은 **Ghostty 기본 수동 드래그**를 사용하고 자동 이동 메뉴는 후속 과제로 남깁니다. **Herdr App·herdr-core·별도 멀티플렉서/프로세스 실행 계층** 및 전역 GUI는 도입하지 않습니다.
+
+### 3.2 위임 입력에서 실행까지
+```mermaid
+flowchart TD
+    I["Main의 Pi 기본 입력창"]
+    Q{"사용자의 실행 경로"}
+    D["Compose 직접 위임\nMain 모델 호출·대화 기록 없음"]
+    N["Main 자연어 대화\n위임 요청은 Main 컨텍스트에 기록"]
+    R["명확한 대상/Workspace 확인\n필수 정보 부족 시에만 질문"]
+    W["Work: Main 활성 완료 분기 Fork"]
+    S["Support: 독립 Pi 세션"]
+    P["사용자 작업 지시 원문 전송"]
+    G["Overview에 새 Ghostty Surface/Split\n기존 입력 포커스 유지"]
+    I --> Q
+    Q -->|"빠른 실행 표시 / 실행 유형 단축키"| D
+    Q -->|"일반 자연어"| N
+    D --> R
+    N --> R
+    R --> W
+    R --> S
+    W --> P
+    S --> P
+    P --> G
+```
+
+- 빠른 실행과 단축키 경로는 Pi `input` 이벤트·`registerShortcut` 등 기존 Extension API를 우선 재사용합니다. 확정되지 않은 **실제 기호(`;w`/`;s`는 후보), 단축키 조합, 자동완성 표현**은 기술·IME 충돌 확인 전 계약으로 만들지 않습니다.
+- 새 Work/Support는 **별도 Pi 세션·프로세스·실제 Ghostty Surface**를 소유합니다. 실행 실패 시 동일 지시의 중복 실행을 피하고 원문을 보존합니다. Main의 원본 Pi 대화 및 진행 중 응답은 손상시키지 않습니다.
+- 개별 Agent 클릭/Overlay 포커스/Sidebar 탐색은 **같은 실행 중 Surface를 찾는 동작**입니다. Tab 이동 때 새 Pi 프로세스 또는 TUI 복제를 만들어서는 안 됩니다. Sidebar는 Overview에만 유지합니다.
+
+### 3.3 실행 상태 → Sidebar와 Summary Overlay
+```mermaid
+flowchart LR
+    E["Pi 실행 이벤트\nTool·메시지·UI Prompt·settled"] --> F["사실 이벤트·실제 프로세스 상태"]
+    F --> B["Sidebar\n위치·계층 고정 / 상태만 갱신"]
+    F --> L["의미 있는 활동 변화·응답 종료"]
+    L --> M["경량 모델\n근거 기반 핵심 문장 + 근거 1~2개"]
+    M --> O["포커스 없는 Agent의\nSummary Overlay"]
+    X["포커스 아웃 30초 또는\n비포커스 응답 종료"] --> O
+```
+
+- Pi `agent_settled`는 안정적인 응답 종료 신호로 사용하지만 구현/테스트의 실질 완료를 의미하지 않습니다. 명시적인 Pi UI Prompt는 사용자 선택 대기의 근거가 되며, 단순 질문은 자동으로 차단 상태가 되지 않습니다.
+- Overlay는 Pi TUI와 독립된 **표시 계층**입니다. Agent 포커스 시 즉시 해제하며, 포커스가 없을 때 30초 후 또는 응답 종료 시에만 보여줍니다. 30초는 **시각 표시 타이머**이며 30초 간격 LLM 호출이나 감시가 아닙니다. Ghostty가 실제 Surface 위 겹침을 허용하는지 구현 전 확인해야 합니다.
+- 요약용 모델 호출은 실제 Agent의 모델 대화에 컨텍스트를 삽입하지 않고, Tool·메시지·Git 근거가 충분할 때 제한적으로 사용합니다. 활동 의미를 가공하되 진행률/성공·공유 Directory 변경의 소유권을 추측하지 않습니다. 전체 실행 로그는 해당 Pi 세션에 둡니다.
+- Sidebar의 상태 표시와 Summary의 내용은 분리합니다. `새 응답`은 확인 시 해제할 수 있지만 실제 `확인 필요`는 포커스만으로 해제하지 않습니다. 상태에 따라 Agent 위치/크기/포커스는 바꾸지 않습니다.
 
 ## 4. Fork / Independent / Workspace
 
@@ -65,9 +109,12 @@ flowchart TD
 ## 5. Ghostty 터미널과 세션 수명
 
 - Overview 기본 화면에는 여러 Agent의 실제 Pi TUI가 Split으로 표시됩니다. 사용자가 **Main·Work·Support 중 어느 Agent든 기존 Surface를 다른 작업 Tab에 드래그**할 수 있습니다. 이동한 Agent의 Surface는 Overview에서 빠져도 실제 Pi 프로세스와 세션, 사이드바 관계는 유지해야 합니다. Overview를 보는 것과 Agent를 Overview로 다시 배치하는 것은 별개입니다. Split을 닫은 채 Pi만 별도로 유지하는 실행 계층은 만들지 않습니다. **새 Tab 준비·드래그 왕복·마지막 Surface 이동·포커스·프로세스 연속성은 실사용 검증 전**입니다.
-- Work의 Summary Overlay는 원래 Pi TUI를 대체하지 않습니다. 사용자가 해당 영역을 선택하면 실제 Pi 화면으로 돌아갑니다. 완료 신호와 화면 조작 구현은 미확정입니다.
+- Work/Support의 Summary Overlay는 원래 Pi TUI·프로세스를 대체하지 않는 **임시 가림층**입니다. 포커스 아웃 30초 또는 비포커스 응답 종료에 표시되며, 해당 Surface에 포커스하면 즉시 해제됩니다. 별도의 토글·'Pi TUI 열기' 화면을 만들지 않습니다. Overlay/Surface 결합과 포커스 이벤트 연동은 검증 전입니다.
 - **`pic` 내부 종료 UI에서만** **백그라운드로 유지(최소화/숨김)** 또는 **Agent 종료** 중 선택합니다. 유지 시 Ghostty와 기존 Surface·Agent를 살려둡니다. Agent 종료 시 Pi 기록과 Git 파일은 보존합니다. **Ghostty의 `Cmd+Q`와 일반 창 닫기는 가로채지 않으며**, Ghostty 자체 Quit 후 Agent만 별도 생존하는 구조도 범위 밖입니다. 최소화/숨김과 실제 프로세스 수명은 검증 대상입니다.
 - **완전 종료 후 재실행**에서는 사용자가 Main을 **명시적으로 선택**합니다. 선택한 Main만 재개하고 관련 Work/Support를 자동으로 재생성·실행하지 않습니다. **백그라운드로 유지한 뒤 다시 화면을 표시하는 행동은 재실행과 구분**하며, 기존 실행 중인 Agent에 복귀해야 합니다.
+- **개별 Agent의 응답 중단은 Pi의 `Esc`**를 사용하고, 프로세스 종료와 구분합니다. Sidebar의 종료는 실제 Pi 프로세스·Surface를 닫되 Pi 세션 기록·Git 파일/Worktree를 보존합니다. 실행 중 종료는 영향 확인, 유휴 상태 종료는 직접 처리합니다.
+- 종료된 Agent는 기존 Main 관계와 Sidebar 위치를 유지하며, **행 클릭 즉시 기존 Pi 세션을 새 프로세스/Surface로 재개**하고 포커스합니다. 재개는 원본 Main 재-Fork가 아니며 이전 지시도 자동 재전송하지 않습니다. Compose 목록에서 제거할 수 있는 대상은 종료된 Agent뿐이고 Pi 세션·Git 데이터 자체는 삭제하지 않습니다. 보관함 시스템은 도입하지 않습니다.
+- Pi 자체 종료·Ghostty Surface 닫기까지 실제 프로세스 상태와 연결하고 비정상 종료를 구분합니다. 개별 종료/재개와 `pic` 전체 종료 선택은 별개입니다.
 - 중단된 외부 명령을 자동 재개하는 시스템을 만들지 않습니다.
 
 ## 6. 문서와 맥락의 경계
@@ -82,7 +129,7 @@ Main이 자신의 컨텍스트에서 관련 계약과 변경 이유를 알고 �
 
 - Work A의 중요 결정 공유 후보는 Summary에 자동 표시하고, **수신 Work와 전송은 사용자가 명시적으로 선택**합니다. 전달 수단은 **`pi-intercom` + 최소 Compose Extension**으로 확정했고, 응답 중인 Work에는 **현재 Pi 턴 종료 후 모델 반영**하도록 합니다. 턴 종료를 위한 기술적 이벤트, 대기 큐·수신 상태/확인·중복 처리와 Work 간 미반영 상태 추적은 미확정입니다.
 - Work에서 기존 문서를 갱신하는 역할의 범위와 다른 Worktree와의 문서 통합 방식.
-- Summary 상태/필드, Handoff 대상과 명시적 수신 방식.
+- Summary의 **실제 Ghostty Surface Overlay 구현**, 근거 수집과 경량 모델 비용·갱신 제약, 상태 감지·비정상 종료·Resume 복구 구현 및 Handoff 대상과 명시적 수신 방식. 표시 정책·30초·정보 우선순위·종료 후 클릭 재개 자체는 확정.
 - Ghostty/Pi에서 **기존 Surface의 Split 생성·고유 식별·수동 Tab 이동/복귀·현재 위치 기반 포커스와 프로세스 연속성**, Overlay, `pic` Overview의 **프로덕트/Agent/메시지 사이드바**, `pic` 내부 종료 선택과 Ghostty 숨김·세션 복구를 구현하는 실제 API. **자동 Surface 이동은 후속 과제**입니다.
 
 긴 실행 로그와 전체 Diff는 원본 Work/Support에 두고, Main에 무단 삽입하거나 모든 세션에 방송하지 않습니다.
