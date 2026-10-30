@@ -7,7 +7,7 @@
 
 Pi Compose는 **Pi 위에 얇게 얹는 Harness**입니다. 새로운 대화 엔진·터미널 관리자·독립 Git 엔진·상시 문서 동기화 서비스를 만들지 않습니다.
 
-Main의 실제 Pi 대화에 요구사항, 도메인 정책, 설계와 결정 이유를 축적합니다. Work는 그 **활성 완료 분기를 정확히 Fork**하고 개발 기록을 별도 세션에 둡니다. 맥락이 불필요한 작업은 Support 독립 세션에 위임합니다.
+Main의 실제 Pi 대화에 요구사항, 도메인 정책, 설계와 결정 이유를 축적합니다. Work는 **명령어를 입력한 현재 Agent** 또는 **같은 프로덕트에서 `@세션`으로 선택한 Pi 세션**의 활성 완료 분기를 정확히 Fork하고 개발 기록을 별도 세션에 둡니다. 맥락이 불필요한 작업은 Support 독립 세션에 위임합니다. **컨텍스트 원본과 실제 Git 작업 디렉터리는 별개**입니다.
 
 ## 2. 책임과 소유권
 
@@ -16,7 +16,7 @@ Main의 실제 Pi 대화에 요구사항, 도메인 정책, 설계와 결정 이
 | 사용자 | 중요 계약 변경 승인, Work/Support 시작, Main 수신, **종료/백그라운드 선택**, Git 통합·문서 롤백 선택 | 반복적인 터미널·Git 명령 조합 |
 | **Pi** | 세션 트리·JSONL·Fork·Resume·모델·Extension·Compaction·TUI | Git 작업 공간 복제/병합 |
 | **Ghostty** | **Agent별 고유 터미널(Surface)과 Pi 프로세스 실행**, Overview의 Split·별도 작업 Tab 배치, 포커스·종료·최소화/숨김 | Agent의 의미적 완료·문서 정책 판단 |
-| **Pi Compose** | **프로덕트→여러 Main→관련 Agent 탐색**, 전체 Agent 보기, **별도 메시지 관리 사이드바**, 정확한 Main↔Work 관계, Summary Overlay/Handoff의 최소 기능 | 별도 LLM 런타임·계약 DB·범용 메시징 Broker |
+| **Pi Compose** | **프로덕트→여러 Main→관련 Agent 탐색**, 전체 Agent 보기, **별도 메시지 관리 사이드바**, **생성 요청 Agent·Fork 원본 세션·Workspace의 구분**, Summary Overlay/Handoff의 최소 기능 | 별도 LLM 런타임·계약 DB·범용 메시징 Broker |
 | **Git** | 파일·브랜치·Worktree·변경 이력·코드/문서 통합 | Pi 대화 분기/모델 컨텍스트 |
 | **프로젝트 문서** | 승인된 중요한 계약과 선택 이유 | 모든 대화/실행 로그의 영구 사본 |
 
@@ -25,7 +25,7 @@ Main의 실제 Pi 대화에 요구사항, 도메인 정책, 설계와 결정 이
 ```mermaid
 flowchart TD
     U["사용자 ↔ Main\n기획·도메인·API·설계·제약·결정 이유"]
-    F["선택한 Main의 활성 완료 Pi 분기 Fork"]
+    F["현재 Agent 또는 같은 프로덕트에서 선택한\nPi 세션의 활성 완료 분기 Fork"]
     W["Work\n구현·테스트 코드 작성·반복 수정"]
     S["Support\n독립 탐색·조사·테스트 실행"]
     O["Summary Overlay\n작업 결과 + 공유할 중요 결정 후보"]
@@ -54,28 +54,32 @@ flowchart TD
 ### 3.2 위임 입력에서 실행까지
 ```mermaid
 flowchart TD
-    I["Main의 Pi 기본 입력창"]
+    I["Main / Work / Support의 Pi 기본 입력창"]
     Q{"사용자의 실행 경로"}
-    D["Compose 직접 위임\nMain 모델 호출·대화 기록 없음"]
-    N["Main 자연어 대화\n위임 요청은 Main 컨텍스트에 기록"]
-    R["명확한 대상/Workspace 확인\n필수 정보 부족 시에만 질문"]
-    W["Work: Main 활성 완료 분기 Fork"]
+    D["직접 위임\n현재 Agent 모델 호출·대화 기록 없음"]
+    N["일반 자연어 위임\n현재 Agent 모델이 요청을 읽음"]
+    R{"Work 또는 Support"}
+    W["Work: 현재 Agent / 같은 프로덕트 @세션\n활성 완료 Pi 분기 Fork"]
     S["Support: 독립 Pi 세션"]
-    P["사용자 작업 지시 원문 전송"]
+    C[">: 현재 cwd 공유\n>>: 새 Git Worktree"]
+    P["작업 지시 원문 전송·즉시 실행"]
     G["Overview에 새 Ghostty Surface/Split\n기존 입력 포커스 유지"]
     I --> Q
-    Q -->|">w / >s + 자연어"| D
+    Q -->|">w, >s, >>w, >>s + 자연어"| D
     Q -->|"일반 자연어"| N
     D --> R
     N --> R
-    R --> W
-    R --> S
-    W --> P
-    S --> P
+    R -->|Work| W
+    R -->|Support| S
+    W --> C
+    S --> C
+    C --> P
     P --> G
 ```
 
-- **`>w`(Work), `>s`(Support)**는 Pi 입력 첫머리에 작성하는 **단축어 + 자연어**의 확정 문법입니다. Pi `input` 이벤트 등 기존 Extension API를 재사용하여 Main 모델 호출 전에 직접 처리합니다. 단축어를 뺀 지시 원문을 자식 Agent에 전달하며 일반 자연어로 Main 모델을 거치는 위임도 유지합니다. **Compose 전용 키보드 단축키 추가·Pi/Ghostty 기존 키 바인딩 변경은 하지 않습니다.** 기존 Pi 입력·IME 호환성은 기술 검증 대상입니다.
+- **`>w`, `>s`, `>>w`, `>>s`**는 모든 Main/Work/Support의 Pi 입력 첫머리에 작성하는 확정 위임 문법입니다. `>`는 현재 디렉터리를 공유하고 `>>`는 새 Git Worktree를 생성합니다. **역할·중첩 깊이에 인위적 생성 제한을 두지 않고**, 사용자 직접 위임과 모델의 자율 위임 권한은 구분합니다(자율 위임은 추후 결정). Pi `input` 이벤트 등 기존 Extension API로 **명령을 입력한 Agent 모델 호출 이전**에 처리하고, 단축어/선택용 세션 토큰을 제외한 원본 지시를 전달합니다. 일반 자연어 위임도 유지하며 **Compose 전용 키보드 단축키·기존 Pi/Ghostty 키 변경은 하지 않습니다.**
+- **`>w @` / `>>w @`**는 **같은 프로덕트의 Main·Work·Support 세션**만 자동완성합니다. 실행 중·종료된 저장 세션 모두 포함하고, **이름·최근 작업 한 줄·Workspace 정보**로 구분하며 **Pi 세션 ID**로 정확히 선택합니다. 이름·최근 작업 내용으로 검색하고 기존 Summary 또는 사실에 근거한 최근 지시를 사용하되 입력마다 LLM을 호출하지 않습니다. 일반 Pi `@` 파일 참조를 덮어쓰지 않으며, API 호환성과 종료 세션의 활성 leaf 식별은 검증 대상입니다.
+- `@세션`이 없는 Work 명령은 **명령 입력 Agent 자신의 완료된 Pi 컨텍스트**를 Fork합니다. `@세션`을 붙인 경우에는 해당 저장 세션의 완료 지점을 Fork하되 **Workspace는 명령 입력 Agent 기준**으로 유지합니다. 생성 요청 계층과 실제 Fork 출처는 별도 관계로 관리합니다.
 - 새 Work/Support는 **별도 Pi 세션·프로세스·실제 Ghostty Surface**를 소유합니다. 실행 실패 시 동일 지시의 중복 실행을 피하고 원문을 보존합니다. Main의 원본 Pi 대화 및 진행 중 응답은 손상시키지 않습니다.
 - 개별 Agent 클릭/Overlay 포커스/Sidebar 탐색은 **같은 실행 중 Surface를 찾는 동작**입니다. Tab 이동 때 새 Pi 프로세스 또는 TUI 복제를 만들어서는 안 됩니다. Sidebar는 Overview에만 유지합니다.
 
@@ -97,14 +101,15 @@ flowchart LR
 
 ## 4. Fork / Independent / Workspace
 
-| 컨텍스트 | Shared Directory | Git Worktree |
+| Agent | `>` — Shared Directory | `>>` — Git Worktree |
 | --- | --- | --- |
-| Main Fork (Work) | 원본 완료 분기 Fork, 같은 체크아웃 | 원본 완료 분기 Fork, 별도 체크아웃 |
-| Independent (Support) | 새 Pi 세션, 같은 체크아웃 | 새 Pi 세션, 별도 체크아웃 |
+| **Work** | 명령 입력 Agent의 cwd에서 현재 Agent/선택된 `@세션`의 완료 분기 Fork | 동일한 Pi Fork + **명령 입력 Agent의 현재 브랜치 HEAD** 기준 독립 Worktree 생성 |
+| **Support** | 명령 입력 Agent의 cwd에서 독립 Pi 세션 생성 | 독립 Pi 세션 + **명령 입력 Agent의 현재 브랜치 HEAD** 기준 독립 Worktree 생성 |
 
-- 원본 Main 세션 ID·활성 완료 leaf·새 Work 세션 ID는 정확히 식별해야 합니다. 미완성 응답이나 임의의 최근 세션을 원본으로 추측하지 않습니다.
-- Fork는 프로젝트 파일/미커밋 상태를 복제하지 않습니다. Shared Directory의 동시 수정 위험과 Worktree 간 아직 통합되지 않은 변경은 Git 책임입니다.
-- Fork 후 Main의 추가 결정이나 다른 Work의 문서 변경이 Work에 자동 반영되지는 않습니다.
+- `@세션`은 **Pi 대화의 Fork 원본만** 바꿉니다. 선택한 세션의 cwd/브랜치가 달라도 명령 입력 Agent의 cwd·HEAD가 Git Workspace 기준이며, 다른 프로덕트의 세션 Fork는 지원하지 않습니다. **Shared Directory는 입력 Agent가 실제 사용 중인 디렉터리**이므로 그 디렉터리가 이미 Worktree여도 그대로 공유합니다.
+- 새 Worktree는 독립 브랜치/체크아웃을 만들고 **기존 디렉터리·브랜치를 수정하지 않습니다**. 미커밋 변경은 새 Worktree에 자동 복사하지 않으며, 변경이 있을 때는 안내만 하고 강제 커밋·반복 승인 Gate를 두지 않습니다. 마지막 Workspace 선택 기억, Git 자동 Merge/삭제를 도입하지 않습니다. 브랜치명·detached HEAD·동시 생성/실패는 기술 검증 대상입니다.
+- **생성 요청 Agent, 실제 Fork 원본 세션 ID와 완료 leaf, 새 Work Pi 세션 ID, Workspace 경로/브랜치**를 각각 식별합니다. 미완성 응답이나 최근 세션을 임의로 원본으로 추측하지 않습니다.
+- Fork는 프로젝트 파일/미커밋 상태를 복제하지 않습니다. Shared Directory의 동시 수정 위험과 Worktree 간 아직 통합되지 않은 변경은 Git 책임입니다. 원본 세션의 후속 결정이나 다른 Work 문서 변경은 새 Work에 자동 반영되지 않습니다.
 
 ## 5. Ghostty 터미널과 세션 수명
 
@@ -130,6 +135,7 @@ Main이 자신의 컨텍스트에서 관련 계약과 변경 이유를 알고 �
 - Work A의 중요 결정 공유 후보는 Summary에 자동 표시하고, **수신 Work와 전송은 사용자가 명시적으로 선택**합니다. 전달 수단은 **`pi-intercom` + 최소 Compose Extension**으로 확정했고, 응답 중인 Work에는 **현재 Pi 턴 종료 후 모델 반영**하도록 합니다. 턴 종료를 위한 기술적 이벤트, 대기 큐·수신 상태/확인·중복 처리와 Work 간 미반영 상태 추적은 미확정입니다.
 - Work에서 기존 문서를 갱신하는 역할의 범위와 다른 Worktree와의 문서 통합 방식.
 - Summary의 **실제 Ghostty Surface Overlay 구현**, 근거 수집과 경량 모델 비용·갱신 제약, 상태 감지·비정상 종료·Resume 복구 구현 및 Handoff 대상과 명시적 수신 방식. 표시 정책·30초·정보 우선순위·종료 후 클릭 재개 자체는 확정.
+- **Pi의 `>w @` 세션 선택 자동완성·현재 프로덕트 판별·실행/종료 세션의 완료 leaf 식별**, 입력 Agent와 원본 세션/실제 Git 작업 공간의 분리, Git Worktree 생성·브랜치 충돌/실패를 안전하게 다루는 API.
 - Ghostty/Pi에서 **기존 Surface의 Split 생성·고유 식별·수동 Tab 이동/복귀·현재 위치 기반 포커스와 프로세스 연속성**, Overlay, `pic` Overview의 **프로덕트/Agent/메시지 사이드바**, `pic` 내부 종료 선택과 Ghostty 숨김·세션 복구를 구현하는 실제 API. **자동 Surface 이동은 후속 과제**입니다.
 
 긴 실행 로그와 전체 Diff는 원본 Work/Support에 두고, Main에 무단 삽입하거나 모든 세션에 방송하지 않습니다.
