@@ -15,9 +15,9 @@
 | 단계 | 필요한 결과 | 구현 전 확인할 것 |
 | --- | --- | --- |
 | **P0. 기존 구현과 원본 보존** | 현재 Main/Work/Support 세션과 Git 자산 식별; Orca와 tmux/workmux 의존 제거 범위 확인 | 오래된 코드·세션·Worktree를 무단 삭제하지 않기 |
-| **P1. `pic` 실행 화면 구성** | `pic` 화면에서만 사이드바 표시. **프로덕트별(여러 Main)/전체 Agent 보기**, Main 항목의 `Main ·` 접두어 생략. **실행 Agent마다 독립 Ghostty Split 유지**, Agent 선택 시 해당 Split 포커스, 일반 Ghostty 탭에 사이드바 미표시 | 관리 TUI와 Ghostty Split 생성·ID/TTY 매핑·포커스 연동, 다수 Split 배치와 `pic` 탭 이탈/복귀 동작 검증 |
+| **P1. `pic` Overview·Tab 이동** | Overview에만 사이드바 표시. **프로덕트별(여러 Main)/전체 Agent 보기**, Main 항목의 `Main ·` 접두어 생략. 여러 실제 Pi TUI Split을 표시하고 **Main·Work·Support의 기존 Surface를 Ghostty 기본 드래그로 작업 Tab에 이동/복귀**. Agent 선택은 실제 위치로 포커스 | 관리 TUI와 Ghostty Surface ID/TTY/Pi 세션 연결, 수동 왕복 이동·대상 Tab 준비·임시 셸 정리·마지막 Split 이동·프로세스 연속성·`pic` Tab 복귀 검증 |
 | **P2. 정확한 Main Fork** | 최신 완료 Pi 지점 복제, 독립 Work 생성; Support 독립 대화 | Pi 세션 분기·Compaction·ContextEdit의 원본 정확성 |
-| **P3. 종료·재접속** | 종료 요청 시 **Ghostty를 살려 두고 최소화/숨김 또는 Agent 종료 선택**. 완전 종료 후 재실행 시 Main을 명시 선택해 Main만 재개 | 창 닫기 vs 앱 Quit의 선택 UI 연결, Ghostty 숨김 중 Split/Agent 생존과 실제 자식 프로세스 종료 검증 |
+| **P3. 종료·재접속** | **`pic` 내부 종료 UI에서만** Ghostty를 살려 두고 최소화/숨김 또는 Agent 종료 선택. 완전 종료 후 재실행 시 Main을 명시 선택해 Main만 재개 | `Cmd+Q`·일반 창 닫기 가로채기 제외, Ghostty 숨김 중 Agent 생존·실제 프로세스 종료와 세션 기록 보존 검증 |
 | **P4. Work Summary Overlay** | 원래 Pi 터미널 위에 결과·**중요 결정 공유 후보 자동 표시**; 원본 화면 확인 | Pi TUI 이벤트와 Overlay, 완료/응답/실패 구분 |
 | **P5. 프로젝트 문서 맥락** | 중요한 승인 결정 즉시 기존 docs 갱신; 사용자 요청 시만 선택적 문서 조회 | 짧은 지침의 누락 여부, 신규 문서 확인 및 충돌 판단 |
 | **P6. 사용자 요청형 Handoff** | Main 자동 주입 금지. 사용자가 수신 Work를 지정하면 **`pi-intercom` + 작은 Compose Extension**으로 중요한 결정·WHY·출처 전송; **응답 중인 수신 Work는 현재 Pi 턴 종료 후 모델에 반영**. **별도 사이드바에서 메시지 이력·상태 확인/관리** | `pi-intercom` 1:1 라우팅/Outbox 활용, 진행 중 턴 `steer` 방지, 실제 Pi 턴 종료 이벤트, 수신/실패 구분, 사이드바 정보·조치 범위 검증 필요 |
@@ -30,7 +30,7 @@
 - Fork를 요약 프롬프트/같은 세션 Resume로 위장 금지. Main 원본 변경 금지.
 - Summary가 모델 컨텍스트에 자동 삽입되는 것 금지. **화면 표시와 정보 전달 분리**.
 - 새 Work 생성 시 미전달 중요 결정 자동 경고·동기화 금지. Work 간 전달은 **사용자가 대상과 전송을 선택할 때만** 실행하며, 수신 Work가 응답 중이면 **현재 Pi 턴 종료 후** 모델에 반영. 기능 개발 완료를 별도로 판별하거나 대기하지 않음. `pi-intercom` 재사용 범위를 넘는 범용 메시지 시스템을 만들지 않음.
-- **Ghostty의 실행 Agent별 Split을 그대로 유지**합니다. 선택한 Agent만 단일 영역에 재연결하는 UX나 Herdr App·herdr-core 도입, 별도 실행 관리 계층 구현은 이 계획에 포함하지 않습니다.
+- **Agent별 고유 Ghostty Surface·Pi 프로세스를 유지**합니다. Overview의 Split 또는 별도 작업 Tab은 **표시 위치**일 뿐입니다. 기존 Pi 실행을 재시작하거나 Resume/미러링해 이동을 흉내 내지 않습니다. **첫 버전은 Ghostty 기본 수동 드래그**를 사용하고 메뉴 한 번으로 자동 Surface 이동하는 기능은 후속 과제로 둡니다. Herdr App·herdr-core 및 별도 멀티플렉서/실행 관리 계층은 도입하지 않습니다.
 - 문서 자동 갱신은 사용자 승인과 중요한 기존 제약의 변경 여부에 근거. 새 문서 생성은 확인.
 - Work의 문서 수정 범위, Work 간 **턴 종료 이벤트 연동·수신 확인·실패 처리 세부 및 메시지 사이드바 목록·조작**은 미확정. 구현자가 임의로 선택하지 않음.
 - Git 병합·Worktree 정리·사용자 파일/세션 삭제는 자동 실행하지 않음.
@@ -38,7 +38,7 @@
 ## 4. 완료 판단의 기준
 
 1. Main/Work/Support의 원본 Pi 대화와 컨텍스트 분리가 정확함을 사용자가 확인할 수 있습니다.
-2. Main은 계속 보이고 실제 Work/Support가 **각자의 Ghostty Split에서 실행**되는 것을 확인할 수 있습니다. 사이드바에서 Agent를 선택하면 해당 Split으로 포커스합니다. **프로덕트 안 여러 Main, 전체 Agent 보기, 별도 메시지 관리 사이드바**를 탐색할 수 있어야 합니다.
+2. Overview에서는 여러 **실제 Pi TUI Split**을 볼 수 있고, **Main 포함 Agent를 기존 Surface 그대로 다른 작업 Tab으로 옮긴 뒤 다시 Overview로 배치**할 수 있어야 합니다. 이동 전후 Pi 프로세스/세션 연속성이 유지되고, 사이드바에서 실제 Tab 위치로 포커스해야 합니다. Main이 이동해도 Overview 관리 TUI가 유지되며, **프로덕트 안 여러 Main, 전체 Agent 보기, 별도 메시지 관리 사이드바**를 탐색할 수 있어야 합니다.
 3. 종료 요청에서 사용자가 **백그라운드 유지 또는 Agent 종료**를 선택할 수 있어야 하며, 각 선택의 실제 프로세스 동작·다시 열기·기존 기록 보존이 의도대로 동작해야 합니다.
 4. Work에서 여러 번 개발·수정해도 Main에 긴 실행 로그가 자동 유입되지 않습니다.
 5. Summary의 **중요 결정 후보**는 자동 표시되지만, Main 수신은 사용자 요청 없이 일어나지 않습니다.
