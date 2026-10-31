@@ -1,7 +1,7 @@
 # Implementation Plan — Pi + Ghostty 재설계
 
 - 기준: [PRD](PRD.md) · [Architecture](ARCHITECTURE.md) · [TRD](TRD.md), 최신 UX 합의 2026-10-31
-- 상태: **새 방향 구현 전 계획**. 이전 tmux/workmux/Orca Phase 0–6 계획은 현행 작업 순서가 아닙니다.
+- 상태: **새 방향의 일부 기능을 Draft PR #15에서 구현 중**. 사용자 선택형 Handoff의 Pi Extension 연결 코드는 작성됐지만 실사용·통합 검증 전입니다. Ghostty Overview/Sidebar/Summary와 현재 레거시 실행 경로는 여전히 미구현/재설계 대상입니다. 이전 tmux/workmux/Orca Phase 0–6 계획은 현행 작업 순서가 아닙니다.
 - 원칙: 사용자 검증을 위해 기능 구현과 별도로 테스트/CI/PR 병합을 자동 실행하지 않습니다. 이전 구현 코드와 사용자 세션·Worktree는 보존합니다.
 
 ## 1. 구현 목표
@@ -40,6 +40,20 @@
 | **`pic` 수명·복구** | 내부 종료에서 백그라운드 유지/실행 Agent 종료 선택, 완전 종료 후 Main 명시 선택·Main만 재개, **생성 실패 Agent를 Sidebar에 유지** | Cmd+Q/일반 창 닫기 가로채지 않음. 새 Work/Support 자동 시작 금지. **중복 생성·자동 재시도·Sidebar 복구 버튼 제외**; 가능한 오류 정보는 기존 Overview/터미널에 표시 |
 | **프로젝트 문서** | 승인한 중요한 결정만 기존 docs에 바로 기록, 사용자 요청 시 선택적 문서 조회 | 신규 문서 사전 확인, 계약 중복·자동 감시 DB 금지. Work 문서 갱신 권한은 미확정 |
 | **Summary 공유·Handoff** | 중요한 결정 후보는 Summary에 표시, Main 명시 수신, Work→Work 수신자 선택 후 `pi-intercom` 전송, 메시지 Sidebar | 응답 중 Work는 **현재 턴 종료 후** 반영. 브로커 전송과 실제 수신/모델 반영 상태 구분. 범용 메시지 버스 금지 |
+
+### Handoff 구현 진척 (2026-11-01)
+
+| 항목 | 코드 상태 | 실제 실행 검증 |
+| --- | --- | --- |
+| Pi 1.4.0 원본 Session/Leaf/Entry 참조 | 기존 Pi API 사용 | 과거 실제 Fork 기록 검토; Compose Handoff 통합 전 |
+| `/compose handoff` 사용자 선택형 전송 | **Draft PR #15 구현** | 미검증 |
+| pi-intercom Outbox 발송 및 결과 기록 | **Draft PR #15 구현** | Compose 연결 미검증 |
+| `human-first` 정상 턴 종료 후 전달 | pi-intercom 0.18.1 upstream 재사용 | 실제 Pi TUI 1회 관찰. 오류/중단 전체 미검증 |
+| Summary Overlay 공유 후보와 연결 | 미구현 | 미검증 |
+| 제품별 수신 Agent 식별·Overview 제어 연결 | 미구현 | 미검증 |
+| 메시지 Sidebar 및 상태 표시 | 미구현 | 미검증 |
+
+**다음 구현:** Pi 원본 엔트리와 Compose Handoff 발신/결과 custom entry에서 메시지 상태를 읽기 전용으로 구성하는 최소 조회 기능을 만든 뒤, Ghostty Overview에 연결 가능한 구조로 유지합니다. 이후 실제 Summary·제품별 Agent 목록이 준비되면 해당 화면에서 기존 전송 경로를 호출합니다. 모델 읽음/정책 승인/검증 성공을 추정하거나 자동 재전송·새 Broker를 만들지 않습니다. 제품이 아직 없는 UI를 구현 완료로 표시하지 않습니다.
 
 ### 이후 사용자 실사용 검증
 
