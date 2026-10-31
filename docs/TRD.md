@@ -37,6 +37,8 @@
 - **`pic` 내부에서만 '백그라운드 유지(최소화/숨김)' 또는 '실행 Agent 종료' 선택 UI**를 제공합니다. 유지 시 Ghostty와 기존 Agent Surface를 보존하고, 종료 시 Pi 대화·Git 데이터는 삭제하지 않습니다. Ghostty의 **`Cmd+Q` 및 일반 창 닫기는 가로채지 않습니다**. 숨김·최소화 시 실제 Pi 프로세스 유지와 내부 종료 동작을 검증합니다.
 - 재접속 시 선택한 Main만 다시 열고 관련 Work/Support를 자동 재실행하지 않습니다. 무단 중복 세션·자동 새 Fork는 금지합니다.
 
+**현재 구현 진척 (Draft PR #15, 실행 미검증):** Ghostty 1.3.1 AppleScript의 `terminal.id`, Window/Tab/Terminal 계층을 이용해 실제 Terminal을 조회하고 UUID로 정확히 포커스하는 `src/ghostty-native.ts` 및 임시 `/compose surfaces`를 작성했습니다. 같은 어댑터에 실제 Split 생성 API도 있으나, 확정된 Agent 생성·Fork 흐름과 아직 연결하지 않았습니다. **1.3.1에는 `terminal.tty`/`terminal.pid`가 없으며**, `GHOSTTY_SURFACE_ID`를 AppleScript UUID처럼 사용하거나 cwd/타이틀로 Agent를 매칭하지 않습니다. `src/agent-relationships.ts`는 명시적으로 기록된 본인 Pi 세션의 역할·프로덕트·생성 요청자·Fork 출처만 읽는 코드이며, 이러한 메타데이터 생성과 Overview 렌더링은 미구현입니다. Ghostty 1.4.0에서 추가된 TTY/PID로 1.3.1의 API를 가정하지 않습니다.
+
 ### 빠른 실행과 Agent 탐색
 - Pi 기본 에디터를 유지합니다. **입력 첫머리의 `>w`, `>s`, `>>w`, `>>s` + 자연어**를 직접 위임 명령으로 해석합니다. Main·Work·Support 모두 같은 Extension 동작을 사용하고 역할별 생성 금지/임의 중첩 깊이 제한을 두지 않습니다. Pi `input` 이벤트의 `handled` 처리를 통해 **입력 Agent의 모델 호출과 대화 기록 이전**에 가로챕니다. `@세션` 탐색에는 Pi 기존 자동완성 확장 API를 조사하며 **Compose `registerShortcut` 바인딩/키 설정 변경은 제외**합니다.
 - Work는 **현재 Agent 또는 `@세션`으로 지정한 같은 프로덕트의 Pi 세션**의 활성 완료 지점 Fork → 새 세션/Surface 생성 → 사용자 지시 원문 전송 및 실행합니다. Support는 `>s`/`>>s`로 새 독립 세션에서 실행합니다. **단축어·선택용 `@세션`을 제외한 지시 원문**을 전송하며, 모델 요약으로 다시 쓰거나 미완료 응답·직접 위임 입력을 원본 컨텍스트에 유입하지 않습니다.
