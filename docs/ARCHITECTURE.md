@@ -132,7 +132,7 @@ Main이 자신의 컨텍스트에서 관련 계약과 변경 이유를 알고 �
 
 ### 6.1 Handoff의 현재 구현 경계 (Draft PR #15)
 
-- Pi Extension에서 **사용자 선택→원본 엔트리 확인→pi-intercom Outbox 요청**을 연결하는 최소 명령 `/compose handoff`를 작성했습니다. Session ID + 활성 Leaf ID + Entry ID로 근거를 표시하고, 기록은 Pi의 custom entry에 남기므로 별도 데이터베이스를 만들지 않습니다. 실행·통합은 미검증입니다.
+- Pi Extension에서 **사용자 선택→원본 엔트리 확인→pi-intercom Outbox 요청**을 연결하는 최소 명령 `/compose handoff`와, Pi 세션의 기록만 투영해 읽기 전용 메시지 목록을 보여주는 `/compose messages`를 작성했습니다. Session ID + 활성 Leaf ID + Entry ID로 근거를 표시하고, 기록은 Pi의 custom entry에 남기므로 별도 데이터베이스를 만들지 않습니다. 실행·통합은 미검증입니다.
 - 현재 `main`에는 Ghostty Overview/Summary 공유 후보와 메시지 Sidebar 기반 화면이 구현돼 있지 않습니다. 임시 명령은 UX의 대체가 아니며, 사용자의 공유 선택 없이 Main에 모델 입력을 추가하지 않습니다.
 - pi-intercom Outbox `sent`/`failed` 결과와 수신 Pi가 모델에 반영한 상태는 서로 다릅니다. 수신 완료/모델 읽음은 별도 근거 없이는 표시하지 않습니다.
 
