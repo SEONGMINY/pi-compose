@@ -51,13 +51,14 @@ export function registerHandoff(pi: ExtensionAPI): (ctx: ExtensionContext) => Pr
   const pending = new Set<string>();
 
   pi.on('session_start', (_event, ctx) => {
-    channel = undefined;
     pending.clear();
     currentSessionId = ctx.sessionManager.getSessionId();
     notify = ctx.ui.notify.bind(ctx.ui);
 
-    // pi-intercom's extension channel lists connected peers in its own routing scope.
-    // Registration is optional: without pi-intercom this command fails closed.
+    // pi-intercom retains channel registrations across Pi session switches.
+    // Register once per Extension lifecycle; duplicate namespaces are rejected.
+    if (channel) return;
+    // Without pi-intercom this event has no listener and the command fails closed.
     pi.events.emit(REGISTER_EVENT, {
       namespace: 'pi-compose/handoff/v1',
       ownerEligible: false,
