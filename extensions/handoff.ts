@@ -47,12 +47,14 @@ function activeSources(ctx: ExtensionContext): Source[] {
 export function registerHandoff(pi: ExtensionAPI): (ctx: ExtensionContext) => Promise<void> {
   let channel: Channel | undefined;
   let currentSessionId: string | undefined;
+  let notify: ExtensionContext['ui']['notify'] | undefined;
   const pending = new Set<string>();
 
   pi.on('session_start', (_event, ctx) => {
     channel = undefined;
     pending.clear();
     currentSessionId = ctx.sessionManager.getSessionId();
+    notify = ctx.ui.notify.bind(ctx.ui);
 
     // pi-intercom's extension channel lists connected peers in its own routing scope.
     // Registration is optional: without pi-intercom this command fails closed.
@@ -80,6 +82,11 @@ export function registerHandoff(pi: ExtensionAPI): (ctx: ExtensionContext) => Pr
       senderSessionId: currentSessionId,
       timestamp: new Date().toISOString(),
     });
+    if (result.status === 'sent') {
+      notify?.('Handoff sent to intercom. Recipient model processing is not confirmed.', 'info');
+    } else {
+      notify?.('Handoff was not confirmed: ' + String(result.status || 'unknown') + '. ' + String(result.detail || ''), 'warning');
+    }
   });
 
   return async (ctx: ExtensionContext): Promise<void> => {
