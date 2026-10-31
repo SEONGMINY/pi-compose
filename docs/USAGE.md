@@ -43,7 +43,7 @@ Work의 중요한 발견이나 승인 결정이 있어도 Main에는 자동 전�
 
 ### 현재 Draft 구현: `/compose handoff` · `/compose messages` · `/compose surfaces`
 
-Pi TUI에서 사용자가 이 명령을 입력하면 연결된 수신 세션, 현재 Pi 활성 분기의 메시지, 전송 유형을 선택한 뒤 전달 문구를 검토·편집해 pi-intercom Outbox로 전송을 요청하도록 작성돼 있습니다. **실제 사용·설치·타입 검증 전**이며, pi-intercom이 없거나 수신 세션이 없으면 발송하지 않습니다. 이 과정에서 공유는 승인과 구분되고, `sent` 결과를 모델 읽음으로 표시하지 않습니다. `/compose messages`는 같은 Pi 세션의 기록에 남은 발송 요청·Outbox 결과·수신 intercom 메시지를 읽기 전용으로 보여줍니다. 결과가 확인되지 않은 요청은 `outcome-unknown`이며 모델 처리·승인 완료를 표시하지 않습니다. `/compose surfaces`는 Ghostty가 실제로 보유한 Terminal UUID·제목·cwd를 사용자에게 표시하고 선택한 **기존 Terminal**에 포커스하도록 작성했습니다. 이것은 Agent 목록이 아니며, cwd/제목에서 Pi 세션과 Agent 역할을 추측하지 않습니다. Ghostty Split을 만드는 API는 작성됐지만 아직 Agent 실행 경로에는 연결되지 않았습니다. Summary·Sidebar 및 프로덕트 소속 제한은 아직 없습니다.
+Pi TUI에서 사용자가 이 명령을 입력하면 연결된 수신 세션, 현재 Pi 활성 분기의 메시지, 전송 유형을 선택한 뒤 전달 문구를 검토·편집해 pi-intercom Outbox로 전송을 요청하도록 작성돼 있습니다. **실제 사용·설치·타입 검증 전**이며, pi-intercom이 없거나 수신 세션이 없으면 발송하지 않습니다. 이 과정에서 공유는 승인과 구분되고, `sent` 결과를 모델 읽음으로 표시하지 않습니다. `/compose messages`는 같은 Pi 세션의 기록에 남은 발송 요청·Outbox 결과·수신 intercom 메시지를 읽기 전용으로 보여줍니다. 결과가 확인되지 않은 요청은 `outcome-unknown`이며 모델 처리·승인 완료를 표시하지 않습니다. `/compose surfaces`는 Ghostty가 실제로 보유한 Terminal UUID·제목·cwd를 사용자에게 표시하고 선택한 **기존 Terminal**에 포커스하도록 작성했습니다. 이것은 Agent 목록이 아니며, cwd/제목에서 Pi 세션과 Agent 역할을 추측하지 않습니다. Ghostty Split을 만드는 API는 작성됐지만 아직 Agent 실행 경로에는 연결되지 않았습니다. 또한 새 세션 ID와 출처를 명시적으로 기록하는 Launch Ticket Hook, 정확한 완료 분기의 Native Work Fork 함수는 코드만 준비된 상태입니다. 이 함수들이 실제 `>w`/`>s`/`>>w`/`>>s` 사용자 입력과 Ghostty Split 실행까지 연결된 것은 아닙니다. Summary·Sidebar 및 프로덕트 소속 제한은 아직 없습니다.
 
 ## 6. 종료하고 다시 실행합니다
 
