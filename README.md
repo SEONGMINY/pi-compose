@@ -47,7 +47,7 @@ Support · 탐색 / 자료 조사 / 테스트 실행 / 독립 검증
 
 ## 구현 상태
 
-**Draft PR #15:** 사용자 지정 수신 Pi 세션과 원본 근거를 선택하고 `pi-intercom` Outbox로 전달하는 임시 `/compose handoff` 명령의 코드를 작성했습니다. **실행·통합 검증 전**이며 Summary Overlay·Ghostty Overview·메시지 Sidebar는 포함하지 않습니다. 발송 성공은 모델 읽음/결정 승인을 의미하지 않습니다.
+**Draft PR #15:** 사용자 지정 수신 Pi 세션과 원본 근거를 선택하고 `pi-intercom` Outbox로 전달하는 임시 `/compose handoff` 명령과 Pi 원본 기록 기반 읽기 전용 `/compose messages` 조회 코드를 작성했습니다. **실행·통합 검증 전**이며 Summary Overlay·Ghostty Overview·메시지 Sidebar는 포함하지 않습니다. 발송 성공은 모델 읽음/결정 승인을 의미하지 않습니다.
 
 **이 README는 새 제품 방향을 설명하는 설계 문서입니다.** 기존 코드에는 이전 tmux/workmux 기반 CLI와 Orca 실험이 남아 있고, 위 Ghostty 중심 흐름, 제품/Agent 사이드바, 메시지 관리, 종료 선택 UX와 Summary Overlay가 실제로 완성·검증됐다는 뜻은 아닙니다. 과거 설치·명령을 새 제품의 사용법처럼 안내하지 않습니다.
 
