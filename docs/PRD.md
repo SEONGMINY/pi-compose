@@ -134,10 +134,12 @@ Work는 실제 구현에 따라 필요한 설명을 보완할 수 있다는 **�
 
 자체 Pi 런타임·Compaction·Git 병합 엔진·프로젝트 계약 DB·범용 문서 동기화/주기적 Agent 감시/전체 메시지 버스·자동 Agent 스케줄러·Orca 호환 UI·새 데스크톱 GUI는 초기 범위가 아닙니다. 기존 Pi·Git·Ghostty에서 재사용 가능한 기능을 우선합니다.
 
+> **구현 현황(2026-11-01, Draft PR #15):** Pi Extension의 임시 `/compose handoff`에서 사용자가 수신 세션·활성 분기 원본 메시지·전달 내용을 선택하고 pi-intercom Outbox로 전송 요청하는 경로를 작성했습니다. 원본 Session/Leaf/Entry ID와 Outbox 결과를 Pi 엔트리에 기록합니다. **코드 작성 완료, 실행·통합 검증 전**이며 Ghostty Overview/Summary 공유 UI·제품별 대상 제한·메시지 Sidebar는 아직 구현되지 않았습니다. 현재 임시 명령이 제품의 최종 UX를 대신하지 않습니다. 사용자의 공유 선택은 내용의 정책 승인과 구분합니다.
+
 ## 7. 아직 확정되지 않은 결정
 
-1. **다음 논의:** `pi-intercom` + 작은 Compose Extension에서 **Pi 턴 종료 후 전달**을 어떻게 정확히 구현하고, 수신 메시지의 대기·주입·확인 상태를 어떻게 표현할지. **수신 기준은 현재 Pi 턴 종료로 확정**했으며, 기능 개발 완료를 별도로 판정하지 않습니다. 종료 이벤트·중단/오류 시의 구체적 처리와 성공 확인은 기술 검증/후속 논의 대상입니다.
-2. Handoff의 상세 정보·대상 선택 UI·전송 성공/실패 및 수신 확인·중복/충돌 처리와 Support→Work 흐름은 미확정. Work→Work의 **사용자 선택형 전송 + `pi-intercom` 재사용 + Compose의 최소 연결 Extension + Pi 턴 종료 후 모델 반영**, Main의 **명시적 수신**, 자동 주입 금지는 확정.
+1. **전달 경계:** `pi-intercom` 0.18.1 `human-first`는 실제 Pi TUI 정상 턴 종료 뒤 메시지를 주입한 1회 실행 근거가 있습니다. 전체 오류·중단 경계나 Compose Outbox 통합이 검증된 것은 아닙니다. **현재 Pi 턴 종료 후 전달**이라는 확정 기준은 유지하며, 수신 확인·모델 처리 완료의 의미를 구분합니다.
+2. Handoff의 최종 Summary/Overview UI·대상 Agent 식별·발송/수신 상태 집계·중복/충돌 처리와 Support→Work 흐름은 미확정. Work→Work의 **사용자 선택형 전송 + `pi-intercom` 재사용 + Compose의 최소 연결 Extension + Pi 턴 종료 후 모델 반영**, Main의 **명시적 수신**, 자동 주입 금지는 확정.
 3. Summary Overlay의 **Ghostty Surface 위 겹침 구현**, 근거 기반 경량 요약의 모델·갱신 판단·비용 제한·오류 처리, **독립 메시지 사이드바의 목록·필터·읽음/재시도/보관 정책 및 상태 집계 방식**은 기술 검증 또는 후속 UX 논의 대상입니다. Overlay 표시 조건·30초·정보 우선순위·확인 필요 원칙은 확정됐습니다.
 4. Work의 문서 자동 갱신 권한, 문서 충돌·동시 편집·문서 갱신 실패, 다른 Git Worktree의 문서 통합.
 5. 필요 시 문서 맥락을 읽는 Skill의 구체적인 명령/UX 및 로드 범위.
