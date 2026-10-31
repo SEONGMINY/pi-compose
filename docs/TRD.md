@@ -18,6 +18,8 @@
 
 ## 2. 반드시 검증할 기술 계약
 
+**2026-11-01 기술 조사·코드 진척:** Pi 1.4.0 CLI `--fork`/`SessionManager.forkFrom()`는 JSONL 전체 엔트리를 복사하므로, 이를 선택한 활성 완료 분기의 정확한 Fork로 바로 간주하지 않습니다. Native `createBranchedSession(leafId)`는 명시적으로 지정한 분기의 엔트리·Compaction·ContextEdit 등을 복제할 수 있습니다. Draft PR #15의 `src/native-work-fork.ts`는 원본을 읽기 전용으로 열고 새 대상 세션 파일을 만들며, 헤더 ID·leaf·마지막 Assistant `stop`을 확인합니다. `src/agent-bootstrap.ts` + `extensions/agent-identity.ts`는 새 세션의 ID와 launch ticket가 맞을 때만 Agent 역할/프로덕트/생성 요청자/Fork 출처를 해당 **새 Pi 세션에만** custom entry로 기록합니다. `src/agent-relationships.ts`는 명시적인 native Split 생성 영수증(request ID + 자식 세션 ID + Terminal UUID)이 있는 경우에만 Surface를 결합합니다. **각 코드의 실행·통합 검증 전이며 현재 Ghostty Split 실행 경로는 아직 연결되지 않았습니다.**
+
 ### 정확한 Pi 세션 Fork
 
 1. 직접 위임을 입력한 **현재 Agent**를 기본 Fork 원본으로 삼거나, `>w @세션`/`>>w @세션`에서 선택한 **같은 프로덕트**의 Pi 세션 ID/활성 분기를 정확히 식별합니다. 원본은 Main·Work·Support 모두 가능하며 실행 중/종료된 저장 세션 모두 후보입니다.
@@ -36,6 +38,8 @@
 - Pi 응답 종료, 사용자 명시 완료 보고, 작업 실패, 테스트 통과를 구분합니다. Summary가 성공을 추측하지 않게 합니다.
 - **`pic` 내부에서만 '백그라운드 유지(최소화/숨김)' 또는 '실행 Agent 종료' 선택 UI**를 제공합니다. 유지 시 Ghostty와 기존 Agent Surface를 보존하고, 종료 시 Pi 대화·Git 데이터는 삭제하지 않습니다. Ghostty의 **`Cmd+Q` 및 일반 창 닫기는 가로채지 않습니다**. 숨김·최소화 시 실제 Pi 프로세스 유지와 내부 종료 동작을 검증합니다.
 - 재접속 시 선택한 Main만 다시 열고 관련 Work/Support를 자동 재실행하지 않습니다. 무단 중복 세션·자동 새 Fork는 금지합니다.
+
+**현재 구현 진척 (Draft PR #15, 실행 미검증):** Ghostty 1.3.1 AppleScript의 `terminal.id`, Window/Tab/Terminal 계층을 이용해 실제 Terminal을 조회하고 UUID로 정확히 포커스하는 `src/ghostty-native.ts` 및 임시 `/compose surfaces`를 작성했습니다. 같은 어댑터에 실제 Split 생성 API도 있으나, 확정된 Agent 생성·Fork 흐름과 아직 연결하지 않았습니다. **1.3.1에는 `terminal.tty`/`terminal.pid`가 없으며**, `GHOSTTY_SURFACE_ID`를 AppleScript UUID처럼 사용하거나 cwd/타이틀로 Agent를 매칭하지 않습니다. `src/agent-relationships.ts`는 명시적으로 기록된 본인 Pi 세션의 역할·프로덕트·생성 요청자·Fork 출처만 읽는 코드이며, 이러한 메타데이터 생성과 Overview 렌더링은 미구현입니다. Ghostty 1.4.0에서 추가된 TTY/PID로 1.3.1의 API를 가정하지 않습니다.
 
 ### 빠른 실행과 Agent 탐색
 - Pi 기본 에디터를 유지합니다. **입력 첫머리의 `>w`, `>s`, `>>w`, `>>s` + 자연어**를 직접 위임 명령으로 해석합니다. Main·Work·Support 모두 같은 Extension 동작을 사용하고 역할별 생성 금지/임의 중첩 깊이 제한을 두지 않습니다. Pi `input` 이벤트의 `handled` 처리를 통해 **입력 Agent의 모델 호출과 대화 기록 이전**에 가로챕니다. `@세션` 탐색에는 Pi 기존 자동완성 확장 API를 조사하며 **Compose `registerShortcut` 바인딩/키 설정 변경은 제외**합니다.
@@ -81,8 +85,8 @@
 - Work Summary는 공유할 만한 중요한 결정의 **후보를 자동 표시**합니다. 해당 결정이 실제로 Main에 반영됐는지 자동으로 안다고 주장하지 않습니다.
 - 사용자가 명시적으로 요청한 경우에만 Main에 필요한 결정, WHY, 영향, 원본 근거를 전달합니다.
 - **Work→Work 전달은 사용자 선택형**입니다. 사용자가 Work A Summary의 공유 후보와 **수신 Work를 선택**한 경우에만 전송을 요청합니다. **`pi-intercom`의 기존 세션 간 1:1 메시징을 재사용**하며, **작은 Pi Compose Extension**은 Summary/대상 선택/메시지 생성 및 호출 연결만 담당합니다. 별도 메시징 Broker나 새 통신 시스템을 기본안으로 만들지 않습니다.
-- **수신 Work가 Pi 응답(턴)을 생성 중이면 해당 턴 종료 뒤 모델에 반영**합니다. 현재 턴 도중 `steer`로 내용을 주입하지 않습니다. 기능 개발 전체의 완료까지 기다리거나 별도 완료 신호를 요구하지 않습니다. `pi-intercom`의 `busyDelivery: "human-first"`는 기본값(`steer`)과 다른 후보지만, 이것만으로 턴 종료 후 전달이 보장되는 것은 아니므로 이벤트·큐 처리·주입 시점을 실제 코드와 macOS에서 검증해야 합니다.
-- `pi-intercom`의 Outbox 이벤트 API 및 전송 상태 보고는 **연동 후보**입니다. 기존 Broker에 보낸 시점, 수신 Work에 도착한 시점, Work 모델에 반영된 시점은 다를 수 있으므로 단일 '전송 완료'로 혼동하지 않습니다. 기존 `intercom` Tool이 허용하는 Agent 자율 전송은 Pi Compose의 사용자 선택형 Handoff와 **구분해 통제**해야 합니다.
+- **수신 Work가 Pi 응답(턴)을 생성 중이면 해당 턴 종료 뒤 모델에 반영**합니다. 현재 턴 도중 방향을 변경하지 않습니다. `pi-intercom` 0.18.1의 `busyDelivery: "human-first"`는 정상 Pi TUI 턴 종료에서 보류→주입이 작동한 1회 실사용 기록이 있습니다. 이것이 중단·오류·동시 수신 전체를 증명하지는 않습니다. 기능 개발의 전체 완료를 기다리지 않습니다.
+- **Draft PR #15 코드:** `extensions/handoff.ts`에서 사용자가 활성 Pi 분기의 근거와 수신 세션·본문을 고르고 `intercom:outbox-request`를 발행하며, `intercom:outbox-result`를 기록합니다. 임시 `/compose handoff` 명령 및 `src/handoff-history.ts` + `/compose messages` 읽기 전용 이력 표시 코드를 작성했습니다. **실행/통합 미검증**, Overview/Summary/Sidebar 연결 전입니다. 전송 결과가 없는 발신 요청은 성공이나 대기로 단정하지 않고 `outcome-unknown`으로 구분합니다. `pi-intercom`의 Outbox 이벤트 API 및 전송 상태 보고는 **연동 수단**입니다. 기존 Broker에 보낸 시점, 수신 Work에 도착한 시점, Work 모델에 반영된 시점은 다를 수 있으므로 단일 '전송 완료'로 혼동하지 않습니다. 기존 `intercom` Tool이 허용하는 Agent 자율 전송은 Pi Compose의 사용자 선택형 Handoff와 **구분해 통제**해야 합니다.
 - 독립 작업의 보고는 자체 검증 없이 실제 코드·테스트 성공의 증거로 간주하지 않습니다. Git 통합은 별개입니다.
 
 ## 3. 구현 수단 선택 기준
@@ -94,7 +98,7 @@
 
 ## 4. 아직 해결되지 않은 기술·제품 질문
 
-1. `pi-intercom`과 Compose Extension을 연결할 때 **현재 Pi 턴 종료**를 감지하고, **진행 중인 턴에는 주입하지 않으면서 턴 종료 후 전달**할 수 있는지 검증합니다. Broker 전송·큐 대기·Pi 세션 주입·모델의 실제 처리 상태를 어떻게 구분할지도 검증 필요.
+1. `pi-intercom` 0.18.1 `human-first` 정상 턴 종료 경계는 **외부 TUI 실행 1회 관찰**. **Compose Outbox와 실제 설치/설정 조합은 미검증**이며, 중단·오류의 수신 및 Broker 전송·대기·주입·실제 모델 처리의 관찰 범위는 구현 연결 시 확인합니다. Outbox `sent`는 수신 모델이 읽음/승인함을 뜻하지 않습니다.
 2. Summary의 상태·30초·우선 정보 구조는 승인됐으며, **Overlay를 실제 Ghostty Surface 위에 보여주는 방법·경량 요약 호출 정책/성능**, **프로덕트/Agent 사이드바 및 메시지 관리의 필터·전달 상태·사용자 조치**의 구현 지원 범위가 미검증입니다.
 3. Work 자체의 문서 수정 권한, 병렬 Worktree의 문서 변경 통합·충돌과 문서 갱신 실패 처리.
 4. Support→Work 전달 범위와 사용자 명시 수신 경험, Work→Work 지연 수신의 실제 UX 및 대상 식별·재전송·중복 처리.

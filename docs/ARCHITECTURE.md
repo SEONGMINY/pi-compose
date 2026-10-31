@@ -51,6 +51,10 @@ flowchart TD
 - `pic`의 관리 TUI는 Overview에 남고, 각 실행 Main·Work·Support는 **자신의 고유 Ghostty Surface에서 실제 Pi TUI**를 사용합니다. 초기에는 여러 Surface를 Overview Split으로 동시에 표시합니다. 사용자가 Ghostty 기본 드래그로 기존 Surface를 작업 Tab으로 옮기면 Overview의 해당 Split에서만 빠집니다. 사이드바에서 Agent를 선택하면 **그 Surface의 현재 위치로 포커스**합니다. Surface ID/TTY, 실제 Tab 위치와 Pi 세션 연결은 검증 대상입니다.
 - **Agent마다 기존 Surface와 Pi 프로세스를 유지**하며, 새 Agent는 생성 순서에 따라 마지막 생성 Agent 옆에 Split으로 추가합니다. 작업 상태가 바뀌어도 배치·Sidebar 관계를 재정렬하지 않습니다. 별도 Tab 이동은 사용자 선택이며, 인위적인 Agent 수 제한/자동 숨김·이동·정리는 하지 않습니다. Main도 다른 작업 Tab으로 이동할 수 있습니다. 화면 이동을 Pi 재실행/Resume 또는 동일 TUI의 복제로 흉내 내지 않습니다. 첫 버전은 **Ghostty 기본 수동 드래그**를 사용하고 자동 이동 메뉴는 후속 과제로 남깁니다. **Herdr App·herdr-core·별도 멀티플렉서/프로세스 실행 계층** 및 전역 GUI는 도입하지 않습니다.
 
+**코드 기반 (Draft PR #15):** Ghostty 1.3.1 AppleScript는 Terminal UUID를 직접 조회·포커스할 수 있습니다. `src/ghostty-native.ts`는 실제 Terminal 열거/정확한 UUID Focus/명시적인 Split 생성 기능을 분리했으며, `/compose surfaces`는 선택된 실제 Surface에만 포커스합니다. `src/agent-relationships.ts`는 명시적 Pi custom entry에 포함된 관계만 읽어, **Fork 원본과 생성 요청 Agent를 혼동하지 않도록** 구성했습니다. 생성 경로의 관계 기록과 실제 Overview Sidebar/Agent-Surface 결합은 아직 구현 전이므로 역할·프로덕트나 사용 중 Pi 세션을 Ghostty cwd/타이틀에서 추측하지 않습니다. 코드 작성 상태이지 실사용 검증 완료가 아닙니다.
+
+**실행 정체성 계약 (Draft PR #15, 검증 전):** 새 Pi 세션 ID를 포함하는 Launch Ticket를 발급해 자식 Pi가 실제로 그 ID로 시작했을 때만 `compose_agent_identity`를 남기는 Hook을 작성했습니다. 여기에는 프로덕트·Agent 역할·생성 요청 세션·실제 Fork 원본 ID/leaf·Workspace가 각각 별도로 들어갑니다. 실제 Ghostty Split 영수증을 Pi 세션과 연결하는 함수는 정확히 동일한 Launch Request ID와 자식 Session ID를 요구합니다. Work Fork는 Pi 네이티브 `createBranchedSession(leafId)`를 사용한 원본 불변 분기 추출 함수로 구성했습니다. **이것은 Agent 시작 전체, Overview 등록, 영수증 발행, 제품별 조회의 완료를 뜻하지 않습니다.**
+
 ### 3.2 위임 입력에서 실행까지
 ```mermaid
 flowchart TD
@@ -130,9 +134,15 @@ Main이 자신의 컨텍스트에서 관련 계약과 변경 이유를 알고 �
 
 맥락이 없는 세션이 관련 문서를 읽는 것은 사용자의 **명시적 요청**으로만 시작합니다. Skill은 가능한 구현 수단이며 모든 `docs/*`를 상시 적재하지 않습니다.
 
+### 6.1 Handoff의 현재 구현 경계 (Draft PR #15)
+
+- Pi Extension에서 **사용자 선택→원본 엔트리 확인→pi-intercom Outbox 요청**을 연결하는 최소 명령 `/compose handoff`와, Pi 세션의 기록만 투영해 읽기 전용 메시지 목록을 보여주는 `/compose messages`를 작성했습니다. Session ID + 활성 Leaf ID + Entry ID로 근거를 표시하고, 기록은 Pi의 custom entry에 남기므로 별도 데이터베이스를 만들지 않습니다. 실행·통합은 미검증입니다.
+- 현재 `main`에는 Ghostty Overview/Summary 공유 후보와 메시지 Sidebar 기반 화면이 구현돼 있지 않습니다. 임시 명령은 UX의 대체가 아니며, 사용자의 공유 선택 없이 Main에 모델 입력을 추가하지 않습니다.
+- pi-intercom Outbox `sent`/`failed` 결과와 수신 Pi가 모델에 반영한 상태는 서로 다릅니다. 수신 완료/모델 읽음은 별도 근거 없이는 표시하지 않습니다.
+
 ## 7. 다음 설계 질문
 
-- Work A의 중요 결정 공유 후보는 Summary에 자동 표시하고, **수신 Work와 전송은 사용자가 명시적으로 선택**합니다. 전달 수단은 **`pi-intercom` + 최소 Compose Extension**으로 확정했고, 응답 중인 Work에는 **현재 Pi 턴 종료 후 모델 반영**하도록 합니다. 턴 종료를 위한 기술적 이벤트, 대기 큐·수신 상태/확인·중복 처리와 Work 간 미반영 상태 추적은 미확정입니다.
+- Work A의 중요 결정 공유 후보는 Summary에 자동 표시하고, **수신 Work와 전송은 사용자가 명시적으로 선택**합니다. 전달은 **`pi-intercom` + Compose Extension**을 재사용합니다. `human-first` 정상 턴 경계 1회 관찰 및 사용자 선택형 Outbox 코드 작성은 확인됐지만, **Summary/Overview와의 연결, 수신 상태 조회·중복·다른 경계**는 남았습니다.
 - Work에서 기존 문서를 갱신하는 역할의 범위와 다른 Worktree와의 문서 통합 방식.
 - Summary의 **실제 Ghostty Surface Overlay 구현**, 근거 수집과 경량 모델 비용·갱신 제약, 상태 감지·비정상 종료·Resume 복구 구현 및 Handoff 대상과 명시적 수신 방식. 표시 정책·30초·정보 우선순위·종료 후 클릭 재개 자체는 확정.
 - **Pi의 `>w @` 세션 선택 자동완성·현재 프로덕트 판별·실행/종료 세션의 완료 leaf 식별**, 입력 Agent와 원본 세션/실제 Git 작업 공간의 분리, Git Worktree 생성·브랜치 충돌/실패를 안전하게 다루는 API.

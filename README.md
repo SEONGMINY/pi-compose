@@ -47,6 +47,8 @@ Support · 탐색 / 자료 조사 / 테스트 실행 / 독립 검증
 
 ## 구현 상태
 
+**Draft PR #15:** 사용자 지정 수신 Pi 세션과 원본 근거를 선택하고 `pi-intercom` Outbox로 전달하는 임시 `/compose handoff` 명령과 Pi 원본 기록 기반 읽기 전용 `/compose messages`, Ghostty 실제 Terminal을 선택·포커스하는 `/compose surfaces` 코드를 작성했습니다. Ghostty 네이티브 조회/Focus/Split 어댑터 및 명시적으로 기록된 관계만 읽는 기반 코드도 추가했습니다. Pi 1.4.0의 선택 완료 분기만 새 세션으로 만드는 네이티브 Work Fork 함수와 새 세션에만 Agent 신원 정보를 기록하는 Extension Hook도 작성했습니다. **Ghostty Split에서 새 Pi 실행·자동 연결은 아직 구현/검증 전입니다.** **실행·통합 검증 전**이며 Summary Overlay·Ghostty Overview·메시지 Sidebar는 포함하지 않습니다. 발송 성공은 모델 읽음/결정 승인을 의미하지 않습니다.
+
 **이 README는 새 제품 방향을 설명하는 설계 문서입니다.** 기존 코드에는 이전 tmux/workmux 기반 CLI와 Orca 실험이 남아 있고, 위 Ghostty 중심 흐름, 제품/Agent 사이드바, 메시지 관리, 종료 선택 UX와 Summary Overlay가 실제로 완성·검증됐다는 뜻은 아닙니다. 과거 설치·명령을 새 제품의 사용법처럼 안내하지 않습니다.
 
 현재 확정된 계약과 결정하지 않은 항목은 [PRD](docs/PRD.md)를 기준으로 확인해 주세요. 기술적 책임과 검증 범위는 [Architecture](docs/ARCHITECTURE.md)와 [TRD](docs/TRD.md), 앞으로의 구현 순서는 [Implementation Plan](docs/IMPLEMENTATION_PLAN.md)에 정리했습니다. 기존 CLI 구현과 기록은 Git 이력에 보존합니다.

@@ -2,7 +2,7 @@
 
 [← README](../README.md) · [확정 정책](PRD.md)
 
-> **새 Ghostty 중심 흐름은 설계 단계입니다.** 이 문서의 예시는 개념적 사용자 흐름이며, 아직 존재하지 않는 CLI 명령이나 동작을 실행할 수 있다고 주장하지 않습니다. 저장소의 오래된 tmux/workmux 기반 CLI는 이전 구현입니다.
+> **Ghostty 중심 Overview 경험은 아직 미구현입니다.** 아래 흐름 대부분은 목표 UX이며, Draft PR #15의 임시 Pi 명령 `/compose handoff`·`/compose messages`·`/compose surfaces`는 코드가 작성됐지만 실제 실행 검증 전입니다. 오래된 tmux/workmux CLI는 이전 구현입니다.
 
 ## 1. Main에서 설계를 논의합니다
 
@@ -41,6 +41,10 @@ Work의 중요한 발견이나 승인 결정이 있어도 Main에는 자동 전�
 
 새 Work를 Fork할 때 이전 Work의 미반영 결정을 자동 경고하거나 동기화하지 않습니다. 문서를 다시 읽는 경우도 **현재 작업 공간에 있는 문서만** 알 수 있으며, 다른 Worktree에서 아직 통합하지 않은 결정은 자동으로 공유되지 않습니다.
 
+### 현재 Draft 구현: `/compose handoff` · `/compose messages` · `/compose surfaces`
+
+Pi TUI에서 사용자가 이 명령을 입력하면 연결된 수신 세션, 현재 Pi 활성 분기의 메시지, 전송 유형을 선택한 뒤 전달 문구를 검토·편집해 pi-intercom Outbox로 전송을 요청하도록 작성돼 있습니다. **실제 사용·설치·타입 검증 전**이며, pi-intercom이 없거나 수신 세션이 없으면 발송하지 않습니다. 이 과정에서 공유는 승인과 구분되고, `sent` 결과를 모델 읽음으로 표시하지 않습니다. `/compose messages`는 같은 Pi 세션의 기록에 남은 발송 요청·Outbox 결과·수신 intercom 메시지를 읽기 전용으로 보여줍니다. 결과가 확인되지 않은 요청은 `outcome-unknown`이며 모델 처리·승인 완료를 표시하지 않습니다. `/compose surfaces`는 Ghostty가 실제로 보유한 Terminal UUID·제목·cwd를 사용자에게 표시하고 선택한 **기존 Terminal**에 포커스하도록 작성했습니다. 이것은 Agent 목록이 아니며, cwd/제목에서 Pi 세션과 Agent 역할을 추측하지 않습니다. Ghostty Split을 만드는 API는 작성됐지만 아직 Agent 실행 경로에는 연결되지 않았습니다. 또한 새 세션 ID와 출처를 명시적으로 기록하는 Launch Ticket Hook, 정확한 완료 분기의 Native Work Fork 함수는 코드만 준비된 상태입니다. 이 함수들이 실제 `>w`/`>s`/`>>w`/`>>s` 사용자 입력과 Ghostty Split 실행까지 연결된 것은 아닙니다. Summary·Sidebar 및 프로덕트 소속 제한은 아직 없습니다.
+
 ## 6. 종료하고 다시 실행합니다
 
 종료를 요청하면 **백그라운드로 유지(최소화/숨김)**하거나 **실행 중인 Agent를 종료**할지 선택할 수 있어야 합니다. 백그라운드를 선택하면 **Ghostty를 종료하지 않고 살아 있는 상태로 유지**하므로 Agent 작업이 계속 진행됩니다. 종료를 선택하면 프로세스를 중지하지만 저장된 Pi 대화와 Git 파일은 유지합니다. Ghostty 앱을 완전히 종료한 후에도 Agent가 별도 프로세스로 남는 구조는 제공하지 않습니다. 창 닫기·Cmd+Q 이벤트와 선택 UI의 연동은 아직 검증 대상입니다.
@@ -49,4 +53,4 @@ Work의 중요한 발견이나 승인 결정이 있어도 Main에는 자동 전�
 
 ## 7. 현재 구현과의 차이
 
-새로운 Ghostty 분할/세션 제어·**프로덕트/Agent 및 메시지 관리 사이드바·종료 선택 UX**·Summary Overlay·선택적 문서 맥락 로드·정확한 Handoff 경험은 아직 제품으로 완성되지 않았습니다. 이 저장소의 이전 CLI/설치 스크립트를 새 방향의 실행 방법으로 사용하지 마세요. 개발 순서와 남은 기술 검증은 [Implementation Plan](IMPLEMENTATION_PLAN.md)과 [TRD](TRD.md)에서 확인할 수 있습니다.
+새로운 Ghostty 분할/세션 제어·**프로덕트/Agent 및 메시지 관리 사이드바·종료 선택 UX**·Summary Overlay·선택적 문서 맥락 로드·전체 Handoff 경험은 아직 제품으로 완성되지 않았습니다. Draft PR #15는 Handoff 전송 경로의 일부 코드만 추가합니다. 이 저장소의 이전 CLI/설치 스크립트를 새 방향의 실행 방법으로 사용하지 마세요. 개발 순서와 남은 기술 검증은 [Implementation Plan](IMPLEMENTATION_PLAN.md)과 [TRD](TRD.md)에서 확인할 수 있습니다.
