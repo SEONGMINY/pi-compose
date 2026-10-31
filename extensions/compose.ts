@@ -4,6 +4,7 @@ import { planLaunch, executeLaunch } from '../src/launch.ts';
 import { planResume, executeResume } from '../src/resume.ts';
 import { registerWorkReturn, showWorkPicker } from './work-return.ts';
 import { registerHandoff, showHandoffHistory } from './handoff.ts';
+import { showGhosttySurfaces } from './ghostty-surfaces.ts';
 import { fileURLToPath } from 'node:url';
 
 const baseExtension = fileURLToPath(import.meta.url);
@@ -45,9 +46,17 @@ export default function composeExtension(pi: ExtensionAPI): void {
   registerWorkReturn(pi);
   const showHandoff = registerHandoff(pi);
   pi.registerCommand('compose', {
-    description: 'Pi Compose: /compose handoff, /compose messages, /compose launch [task], /compose preview [task], /compose back [query], /compose resume',
+    description: 'Pi Compose: /compose surfaces, /compose handoff, /compose messages, /compose launch [task], /compose preview [task], /compose back [query], /compose resume',
     handler: async (args, ctx) => {
       const [subcommand, ...rest] = args.trim().split(/\s+/);
+      if (subcommand === 'surfaces') {
+        if (rest.length) {
+          ctx.ui.notify('Usage: /compose surfaces', 'warning');
+          return;
+        }
+        await showGhosttySurfaces(ctx);
+        return;
+      }
       if (subcommand === 'messages') {
         if (rest.length) {
           ctx.ui.notify('Usage: /compose messages', 'warning');
@@ -105,7 +114,7 @@ export default function composeExtension(pi: ExtensionAPI): void {
         return;
       }
       if (subcommand !== 'launch' && subcommand !== 'preview') {
-        ctx.ui.notify('Usage: /compose handoff, /compose messages, /compose launch [task], /compose preview [task], /compose back [query], or /compose resume. Optional workmux View: /compose-workmux', 'info');
+        ctx.ui.notify('Usage: /compose surfaces, /compose handoff, /compose messages, /compose launch [task], /compose preview [task], /compose back [query], or /compose resume. Optional workmux View: /compose-workmux', 'info');
         return;
       }
       if (!ctx.hasUI) {
