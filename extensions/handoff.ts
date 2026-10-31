@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
+import { projectHandoffHistory } from '../src/handoff-history.ts';
 
 // Pi Compose only coordinates explicit user sharing. Pi owns the transcript and
 // pi-intercom owns routing, queuing and delivery.
@@ -48,10 +49,9 @@ export function registerHandoff(pi: ExtensionAPI): (ctx: ExtensionContext) => Pr
   let channel: Channel | undefined;
   let currentSessionId: string | undefined;
   let notify: ExtensionContext['ui']['notify'] | undefined;
-  const pending = new Set<string>();
+  const pending = new Map<string, { sessionId: string; sessionFile: string }>();
 
   pi.on('session_start', (_event, ctx) => {
-    pending.clear();
     currentSessionId = ctx.sessionManager.getSessionId();
     notify = ctx.ui.notify.bind(ctx.ui);
 
@@ -70,8 +70,13 @@ export function registerHandoff(pi: ExtensionAPI): (ctx: ExtensionContext) => Pr
   pi.events.on(OUTBOX_RESULT_EVENT, (raw: unknown) => {
     if (!raw || typeof raw !== 'object') return;
     const result = raw as OutboxResult;
-    if (typeof result.requestId !== 'string' || !pending.has(result.requestId)) return;
+    if (typeof result.requestId !== 'string') return;
+    const origin = pending.get(result.requestId);
+    if (!origin) return;
     pending.delete(result.requestId);
+    // Session switches must never append the old sender's outcome to the new session.
+    // The original request remains 'outcome-unknown' until evidence can be reconciled.
+    if (origin.sessionId !== currentSessionId) return;
 
     // Non-context session entry. 'sent' means broker delivery, not model acceptance.
     pi.appendEntry('compose_handoff_delivery', {
@@ -181,7 +186,7 @@ export function registerHandoff(pi: ExtensionAPI): (ctx: ExtensionContext) => Pr
       'Recipient: compare with current decisions; consult the original before changing a contract.',
     ].join('\n');
 
-    pending.add(requestId);
+    pending.set(requestId, { sessionId: senderSessionId, sessionFile: senderSessionFile });
     pi.appendEntry('compose_handoff_request', {
       requestId, senderSessionId, recipientIntercomId: target.id,
       sourceLeafId, sourceEntryId: source.id, kind,
@@ -206,4 +211,39 @@ export function registerHandoff(pi: ExtensionAPI): (ctx: ExtensionContext) => Pr
       ctx.ui.notify('Handoff request failed: ' + String(error), 'error');
     }
   };
+}
+
+
+/**
+ * Temporary native Pi TUI reader until the approved Ghostty Overview message
+ * sidebar exists. It displays recorded facts only; it never marks messages read.
+ */
+export async function showHandoffHistory(ctx: ExtensionContext): Promise<void> {
+  if (!ctx.hasUI) {
+    ctx.ui.notify('Handoff history requires an interactive Pi TUI.', 'warning');
+    return;
+  }
+  const rows = projectHandoffHistory(ctx.sessionManager.getEntries());
+  if (rows.length === 0) {
+    ctx.ui.notify('No Compose Handoff records or intercom messages in this Pi session.', 'info');
+    return;
+  }
+  const labels = rows.map((row, i) =>
+    String(i + 1) + '. ' + row.direction + ' / ' + row.status +
+    ' / ' + row.peer.slice(0, 32) + ' / ' + row.at.slice(0, 19));
+  const selected = await ctx.ui.select('Handoff messages (recorded evidence only)', labels);
+  if (!selected) return;
+  const row = rows[labels.indexOf(selected)];
+  if (!row) return;
+  ctx.ui.notify([
+    'Direction: ' + row.direction,
+    'Status: ' + row.status,
+    'Peer: ' + row.peer,
+    'When: ' + row.at,
+    'Message ID: ' + (row.messageId || 'not observed'),
+    'Source entry: ' + (row.sourceEntryId || 'not recorded'),
+    'Source leaf: ' + (row.sourceLeafId || 'not recorded'),
+    'Excerpt: ' + (row.excerpt || 'not stored in this projection'),
+    'This is not confirmation that a model read, accepted or approved the message.',
+  ].join('\n'), 'info');
 }
