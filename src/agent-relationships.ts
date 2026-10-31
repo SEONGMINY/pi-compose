@@ -109,3 +109,31 @@ export function buildAgentTree(agents: readonly AgentRelationship[]): {
   // Arrays preserve the caller's creation order; runtime changes never sort.
   return { byProduct, unlinked };
 }
+
+
+/**
+ * Link two independently recorded facts: a child Pi identity and a successful
+ * native Ghostty split receipt from the initiating process.
+ *
+ * Neither CWD, terminal title nor Fork lineage proves terminal identity. A
+ * receipt must match both the *new Pi session ID* and its launch request ID.
+ */
+export function withNativeSplitReceipts(
+  agent: AgentRelationship,
+  records: readonly unknown[],
+): AgentRelationship {
+  if (!agent.launchRequestId) return agent;
+  let terminalId = agent.terminalId;
+  for (const raw of records) {
+    const entry = object(raw);
+    if (entry?.type !== 'custom' || entry.customType !== 'compose_native_split_created') continue;
+    const d = object(entry.data);
+    if (str(d?.sessionId) !== agent.sessionId ||
+      str(d?.launchRequestId) !== agent.launchRequestId) continue;
+    const id = str(d?.terminalId);
+    if (id && /^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$/.test(id)) {
+      terminalId = id;
+    }
+  }
+  return { ...agent, terminalId };
+}
