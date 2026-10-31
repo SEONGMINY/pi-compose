@@ -46,14 +46,15 @@
 | 항목 | 코드 상태 | 실제 실행 검증 |
 | --- | --- | --- |
 | Pi 1.4.0 원본 Session/Leaf/Entry 참조 | 기존 Pi API 사용 | 과거 실제 Fork 기록 검토; Compose Handoff 통합 전 |
-| `/compose handoff` 사용자 선택형 전송 | **Draft PR #15 구현** | 미검증 |
-| pi-intercom Outbox 발송 및 결과 기록 | **Draft PR #15 구현** | Compose 연결 미검증 |
+| `/compose handoff` 사용자 선택형 전송 | **Draft PR #15 코드 작성** | 미검증 |
+| pi-intercom Outbox 발송 및 결과 기록 | **Draft PR #15 코드 작성** | Compose 연결 미검증 |
+| Pi 기록 기반 `/compose messages` 읽기 전용 메시지 조회 | **Draft PR #15 코드 작성** | 미검증; 최종 Sidebar 아님 |
 | `human-first` 정상 턴 종료 후 전달 | pi-intercom 0.18.1 upstream 재사용 | 실제 Pi TUI 1회 관찰. 오류/중단 전체 미검증 |
 | Summary Overlay 공유 후보와 연결 | 미구현 | 미검증 |
 | 제품별 수신 Agent 식별·Overview 제어 연결 | 미구현 | 미검증 |
 | 메시지 Sidebar 및 상태 표시 | 미구현 | 미검증 |
 
-**다음 구현:** Pi 원본 엔트리와 Compose Handoff 발신/결과 custom entry에서 메시지 상태를 읽기 전용으로 구성하는 최소 조회 기능을 만든 뒤, Ghostty Overview에 연결 가능한 구조로 유지합니다. 이후 실제 Summary·제품별 Agent 목록이 준비되면 해당 화면에서 기존 전송 경로를 호출합니다. 모델 읽음/정책 승인/검증 성공을 추정하거나 자동 재전송·새 Broker를 만들지 않습니다. 제품이 아직 없는 UI를 구현 완료로 표시하지 않습니다.
+**구현 완료(코드 기준):** Pi 원본 엔트리와 Compose Handoff custom entry를 읽기 전용으로 투영하는 기능을 `src/handoff-history.ts`에 분리하고 임시 `/compose messages`를 연결했습니다. **다음 구현:** Ghostty Overview의 실제 프로덕트·Agent 관계 및 Summary 공유 후보 UI가 준비되면, 기존 전송/조회 기능을 해당 화면에 연결합니다. 기능별 실사용·타입 검증은 사용자가 진행합니다. 모델 읽음/정책 승인/검증 성공을 추정하거나 자동 재전송·새 Broker를 만들지 않습니다. 제품이 아직 없는 UI를 구현 완료로 표시하지 않습니다.
 
 ### 이후 사용자 실사용 검증
 
