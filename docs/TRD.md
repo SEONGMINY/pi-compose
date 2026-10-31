@@ -82,7 +82,7 @@
 - 사용자가 명시적으로 요청한 경우에만 Main에 필요한 결정, WHY, 영향, 원본 근거를 전달합니다.
 - **Work→Work 전달은 사용자 선택형**입니다. 사용자가 Work A Summary의 공유 후보와 **수신 Work를 선택**한 경우에만 전송을 요청합니다. **`pi-intercom`의 기존 세션 간 1:1 메시징을 재사용**하며, **작은 Pi Compose Extension**은 Summary/대상 선택/메시지 생성 및 호출 연결만 담당합니다. 별도 메시징 Broker나 새 통신 시스템을 기본안으로 만들지 않습니다.
 - **수신 Work가 Pi 응답(턴)을 생성 중이면 해당 턴 종료 뒤 모델에 반영**합니다. 현재 턴 도중 방향을 변경하지 않습니다. `pi-intercom` 0.18.1의 `busyDelivery: "human-first"`는 정상 Pi TUI 턴 종료에서 보류→주입이 작동한 1회 실사용 기록이 있습니다. 이것이 중단·오류·동시 수신 전체를 증명하지는 않습니다. 기능 개발의 전체 완료를 기다리지 않습니다.
-- **Draft PR #15 코드:** `extensions/handoff.ts`에서 사용자가 활성 Pi 분기의 근거와 수신 세션·본문을 고르고 `intercom:outbox-request`를 발행하며, `intercom:outbox-result`를 기록합니다. 임시 `/compose handoff` 명령이며 **실행/통합 미검증**, Overview/Summary 연결 전입니다. `pi-intercom`의 Outbox 이벤트 API 및 전송 상태 보고는 **연동 수단**입니다. 기존 Broker에 보낸 시점, 수신 Work에 도착한 시점, Work 모델에 반영된 시점은 다를 수 있으므로 단일 '전송 완료'로 혼동하지 않습니다. 기존 `intercom` Tool이 허용하는 Agent 자율 전송은 Pi Compose의 사용자 선택형 Handoff와 **구분해 통제**해야 합니다.
+- **Draft PR #15 코드:** `extensions/handoff.ts`에서 사용자가 활성 Pi 분기의 근거와 수신 세션·본문을 고르고 `intercom:outbox-request`를 발행하며, `intercom:outbox-result`를 기록합니다. 임시 `/compose handoff` 명령 및 `src/handoff-history.ts` + `/compose messages` 읽기 전용 이력 표시 코드를 작성했습니다. **실행/통합 미검증**, Overview/Summary/Sidebar 연결 전입니다. 전송 결과가 없는 발신 요청은 성공이나 대기로 단정하지 않고 `outcome-unknown`으로 구분합니다. `pi-intercom`의 Outbox 이벤트 API 및 전송 상태 보고는 **연동 수단**입니다. 기존 Broker에 보낸 시점, 수신 Work에 도착한 시점, Work 모델에 반영된 시점은 다를 수 있으므로 단일 '전송 완료'로 혼동하지 않습니다. 기존 `intercom` Tool이 허용하는 Agent 자율 전송은 Pi Compose의 사용자 선택형 Handoff와 **구분해 통제**해야 합니다.
 - 독립 작업의 보고는 자체 검증 없이 실제 코드·테스트 성공의 증거로 간주하지 않습니다. Git 통합은 별개입니다.
 
 ## 3. 구현 수단 선택 기준
