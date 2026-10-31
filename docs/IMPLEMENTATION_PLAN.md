@@ -56,8 +56,11 @@
 | Ghostty 1.3.1 AppleScript 실제 Terminal 조회·포커스(`/compose surfaces`) | **Draft PR #15 코드 작성** | macOS 실사용 검증 전; 실제 Agent 관계 미연결 |
 | Ghostty 원본 Split 어댑터 | **Draft PR #15 코드 작성** | Agent 생성·Fork 흐름 미연결 |
 | 명시적 Agent 관계(Fork 출처와 생성 요청자 분리) 읽기 모델 | **Draft PR #15 코드 작성** | 역할/프로덕트 관계를 기록하는 실행 경로 없음; UI 미연결 |
+| 새 Pi 세션의 Launch Ticket·Identity 기록 | **Draft PR #15 코드 작성** | 실제 Ghostty에서 부모/자식 일치 확인 전 |
+| 완료 Leaf 기준 Pi Native Work Fork | **Draft PR #15 코드 작성** | 실제 Fork 대상·원본 불변·Compaction 연결 검증 전 |
+| Ghostty Terminal UUID와 자식 Pi ID의 정확한 연결 | **명시적 영수증 연결 함수 작성** | 영수증 발생/실제 Agent 실행 연결 전 |
 
-**구현 완료(코드 기준):** Pi 원본 엔트리와 Compose Handoff custom entry를 읽기 전용으로 투영하는 기능을 `src/handoff-history.ts`에 분리하고 임시 `/compose messages`를 연결했습니다. **다음 구현:** 기존 Ghostty 어댑터에서 사용자 지시로 실제 Main/Work/Support를 시작할 때 Pi 세션 ID·요청자·Fork 원본·Ghostty Terminal UUID를 정확하게 기록하는 실행 연결이 우선입니다. 그 근거를 이용해 Overview TUI의 프로덕트/Agent/메시지 뷰와 실제 Summary 공유 후보 선택을 구성하고, 기존 Handoff 전송/조회 기능을 연결합니다. 기록이 없는 세션을 역할이나 프로덕트로 추측하지 않습니다. 기능별 실사용·타입 검증은 사용자가 진행합니다. 모델 읽음/정책 승인/검증 성공을 추정하거나 자동 재전송·새 Broker를 만들지 않습니다. 제품이 아직 없는 UI를 구현 완료로 표시하지 않습니다.
+**구현 완료(코드 기준):** Pi 원본 엔트리와 Compose Handoff custom entry를 읽기 전용으로 투영하는 기능을 `src/handoff-history.ts`에 분리하고 임시 `/compose messages`를 연결했습니다. **다음 구현:** 사용자 직접 위임이 실제 Ghostty Split을 시작한 뒤 Launch Ticket→새 Pi 세션 ID→Terminal UUID를 **검증된 생성 영수증으로** 연결하는 실행 경로가 우선입니다. Work의 선택 완료 분기 추출은 코드 작성됐지만 실제 Pi 실행 시작/원문 작업 지시 연결은 아직 없습니다. 그 근거를 이용해 Overview TUI의 프로덕트/Agent/메시지 뷰와 실제 Summary 공유 후보 선택을 구성하고, 기존 Handoff 전송/조회 기능을 연결합니다. 기록이 없는 세션을 역할이나 프로덕트로 추측하지 않습니다. 기능별 실사용·타입 검증은 사용자가 진행합니다. 모델 읽음/정책 승인/검증 성공을 추정하거나 자동 재전송·새 Broker를 만들지 않습니다. 제품이 아직 없는 UI를 구현 완료로 표시하지 않습니다.
 
 ### 이후 사용자 실사용 검증
 
