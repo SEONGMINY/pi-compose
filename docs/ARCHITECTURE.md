@@ -130,9 +130,15 @@ Main이 자신의 컨텍스트에서 관련 계약과 변경 이유를 알고 �
 
 맥락이 없는 세션이 관련 문서를 읽는 것은 사용자의 **명시적 요청**으로만 시작합니다. Skill은 가능한 구현 수단이며 모든 `docs/*`를 상시 적재하지 않습니다.
 
+### 6.1 Handoff의 현재 구현 경계 (Draft PR #15)
+
+- Pi Extension에서 **사용자 선택→원본 엔트리 확인→pi-intercom Outbox 요청**을 연결하는 최소 명령 `/compose handoff`를 작성했습니다. Session ID + 활성 Leaf ID + Entry ID로 근거를 표시하고, 기록은 Pi의 custom entry에 남기므로 별도 데이터베이스를 만들지 않습니다. 실행·통합은 미검증입니다.
+- 현재 `main`에는 Ghostty Overview/Summary 공유 후보와 메시지 Sidebar 기반 화면이 구현돼 있지 않습니다. 임시 명령은 UX의 대체가 아니며, 사용자의 공유 선택 없이 Main에 모델 입력을 추가하지 않습니다.
+- pi-intercom Outbox `sent`/`failed` 결과와 수신 Pi가 모델에 반영한 상태는 서로 다릅니다. 수신 완료/모델 읽음은 별도 근거 없이는 표시하지 않습니다.
+
 ## 7. 다음 설계 질문
 
-- Work A의 중요 결정 공유 후보는 Summary에 자동 표시하고, **수신 Work와 전송은 사용자가 명시적으로 선택**합니다. 전달 수단은 **`pi-intercom` + 최소 Compose Extension**으로 확정했고, 응답 중인 Work에는 **현재 Pi 턴 종료 후 모델 반영**하도록 합니다. 턴 종료를 위한 기술적 이벤트, 대기 큐·수신 상태/확인·중복 처리와 Work 간 미반영 상태 추적은 미확정입니다.
+- Work A의 중요 결정 공유 후보는 Summary에 자동 표시하고, **수신 Work와 전송은 사용자가 명시적으로 선택**합니다. 전달은 **`pi-intercom` + Compose Extension**을 재사용합니다. `human-first` 정상 턴 경계 1회 관찰 및 사용자 선택형 Outbox 코드 작성은 확인됐지만, **Summary/Overview와의 연결, 수신 상태 조회·중복·다른 경계**는 남았습니다.
 - Work에서 기존 문서를 갱신하는 역할의 범위와 다른 Worktree와의 문서 통합 방식.
 - Summary의 **실제 Ghostty Surface Overlay 구현**, 근거 수집과 경량 모델 비용·갱신 제약, 상태 감지·비정상 종료·Resume 복구 구현 및 Handoff 대상과 명시적 수신 방식. 표시 정책·30초·정보 우선순위·종료 후 클릭 재개 자체는 확정.
 - **Pi의 `>w @` 세션 선택 자동완성·현재 프로덕트 판별·실행/종료 세션의 완료 leaf 식별**, 입력 Agent와 원본 세션/실제 Git 작업 공간의 분리, Git Worktree 생성·브랜치 충돌/실패를 안전하게 다루는 API.
