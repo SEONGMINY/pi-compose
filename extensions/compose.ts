@@ -5,6 +5,7 @@ import { planResume, executeResume } from '../src/resume.ts';
 import { registerWorkReturn, showWorkPicker } from './work-return.ts';
 import { registerHandoff, showHandoffHistory } from './handoff.ts';
 import { showGhosttySurfaces } from './ghostty-surfaces.ts';
+import { registerAgentIdentity } from './agent-identity.ts';
 import { fileURLToPath } from 'node:url';
 
 const baseExtension = fileURLToPath(import.meta.url);
@@ -43,6 +44,7 @@ async function chooseForkSource(ctx: ExtensionContext, { includeCurrent = true }
 }
 
 export default function composeExtension(pi: ExtensionAPI): void {
+  registerAgentIdentity(pi);
   registerWorkReturn(pi);
   const showHandoff = registerHandoff(pi);
   pi.registerCommand('compose', {
