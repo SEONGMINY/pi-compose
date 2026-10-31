@@ -52,7 +52,8 @@ export function projectHandoffHistory(rawEntries: readonly unknown[], max = 40):
           status: 'outcome-unknown',
           at,
         });
-      } else if (entry.customType === 'compose_handoff_delivery' && requestId) {
+      } else if ((entry.customType === 'compose_handoff_delivery' ||
+                  entry.customType === 'intercom_outbox_result') && requestId) {
         const previous = sent.get(requestId);
         if (!previous) continue;
         const status = field(data, 'status');
