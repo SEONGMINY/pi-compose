@@ -53,10 +53,10 @@ export function parseAgentBootstrap(value: unknown): ComposeAgentBootstrap | und
     product: raw.product,
     label: raw.label,
     workspaceCwd: raw.workspaceCwd,
-    requesterSessionId: raw.requesterSessionId,
-    requesterSessionFile: raw.requesterSessionFile,
-    forkSourceSessionId: raw.forkSourceSessionId,
-    forkSourceLeafId: raw.forkSourceLeafId,
+    requesterSessionId: typeof raw.requesterSessionId === 'string' ? raw.requesterSessionId : undefined,
+    requesterSessionFile: typeof raw.requesterSessionFile === 'string' ? raw.requesterSessionFile : undefined,
+    forkSourceSessionId: typeof raw.forkSourceSessionId === 'string' ? raw.forkSourceSessionId : undefined,
+    forkSourceLeafId: typeof raw.forkSourceLeafId === 'string' ? raw.forkSourceLeafId : undefined,
   };
 }
 
