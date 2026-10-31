@@ -134,7 +134,7 @@ Work는 실제 구현에 따라 필요한 설명을 보완할 수 있다는 **�
 
 자체 Pi 런타임·Compaction·Git 병합 엔진·프로젝트 계약 DB·범용 문서 동기화/주기적 Agent 감시/전체 메시지 버스·자동 Agent 스케줄러·Orca 호환 UI·새 데스크톱 GUI는 초기 범위가 아닙니다. 기존 Pi·Git·Ghostty에서 재사용 가능한 기능을 우선합니다.
 
-> **구현 현황(2026-11-01, Draft PR #15):** Pi Extension의 임시 `/compose handoff`에서 사용자가 수신 세션·활성 분기 원본 메시지·전달 내용을 선택하고 pi-intercom Outbox로 전송 요청하는 경로를 작성했습니다. 원본 Session/Leaf/Entry ID와 Outbox 결과를 Pi 엔트리에 기록합니다. **코드 작성 완료, 실행·통합 검증 전**이며 Ghostty Overview/Summary 공유 UI·제품별 대상 제한·메시지 Sidebar는 아직 구현되지 않았습니다. 현재 임시 명령이 제품의 최종 UX를 대신하지 않습니다. 사용자의 공유 선택은 내용의 정책 승인과 구분합니다.
+> **구현 현황(2026-11-01, Draft PR #15):** Pi Extension의 임시 `/compose handoff`에서 사용자가 수신 세션·활성 분기 원본 메시지·전달 내용을 선택해 pi-intercom Outbox로 전송 요청하는 경로와, `/compose messages`에서 Pi 기록의 발송·결과·수신 메시지를 읽기 전용으로 조회하는 경로를 작성했습니다. 원본 Session/Leaf/Entry ID와 Outbox 결과를 Pi 엔트리에 기록합니다. **코드 작성 완료, 실행·통합 검증 전**이며 Ghostty Overview/Summary 공유 UI·제품별 대상 제한·메시지 Sidebar는 아직 구현되지 않았습니다. 현재 임시 명령이 제품의 최종 UX를 대신하지 않습니다. 사용자의 공유 선택은 내용의 정책 승인과 구분합니다.
 
 ## 7. 아직 확정되지 않은 결정
 
