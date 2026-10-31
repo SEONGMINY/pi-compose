@@ -64,17 +64,22 @@ export function parseAgentBootstrap(value: unknown): ComposeAgentBootstrap | und
  * A launch ticket identifies a newly created Pi session before Ghostty starts it.
  * Never use source/fork session IDs as the child's identity.
  */
-export function createAgentBootstrap(
-  args: Omit<ComposeAgentBootstrap, 'version' | 'launchRequestId' | 'sessionId'>,
+export function createAgentBootstrapForSession(
+  args: Omit<ComposeAgentBootstrap, 'version' | 'launchRequestId'>,
 ): ComposeAgentBootstrap {
   const value = parseAgentBootstrap({
     version: 1,
     launchRequestId: randomUUID(),
-    sessionId: randomUUID(),
     ...args,
   });
   if (!value) throw new Error('Cannot create Pi Compose Agent identity from invalid launch metadata.');
   return value;
+}
+
+export function createAgentBootstrap(
+  args: Omit<ComposeAgentBootstrap, 'version' | 'launchRequestId' | 'sessionId'>,
+): ComposeAgentBootstrap {
+  return createAgentBootstrapForSession({ ...args, sessionId: randomUUID() });
 }
 
 export function encodeAgentBootstrap(data: ComposeAgentBootstrap): string {
