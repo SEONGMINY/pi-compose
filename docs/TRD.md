@@ -18,6 +18,8 @@
 
 ## 2. 반드시 검증할 기술 계약
 
+**2026-11-01 기술 조사·코드 진척:** Pi 1.4.0 CLI `--fork`/`SessionManager.forkFrom()`는 JSONL 전체 엔트리를 복사하므로, 이를 선택한 활성 완료 분기의 정확한 Fork로 바로 간주하지 않습니다. Native `createBranchedSession(leafId)`는 명시적으로 지정한 분기의 엔트리·Compaction·ContextEdit 등을 복제할 수 있습니다. Draft PR #15의 `src/native-work-fork.ts`는 원본을 읽기 전용으로 열고 새 대상 세션 파일을 만들며, 헤더 ID·leaf·마지막 Assistant `stop`을 확인합니다. `src/agent-bootstrap.ts` + `extensions/agent-identity.ts`는 새 세션의 ID와 launch ticket가 맞을 때만 Agent 역할/프로덕트/생성 요청자/Fork 출처를 해당 **새 Pi 세션에만** custom entry로 기록합니다. `src/agent-relationships.ts`는 명시적인 native Split 생성 영수증(request ID + 자식 세션 ID + Terminal UUID)이 있는 경우에만 Surface를 결합합니다. **각 코드의 실행·통합 검증 전이며 현재 Ghostty Split 실행 경로는 아직 연결되지 않았습니다.**
+
 ### 정확한 Pi 세션 Fork
 
 1. 직접 위임을 입력한 **현재 Agent**를 기본 Fork 원본으로 삼거나, `>w @세션`/`>>w @세션`에서 선택한 **같은 프로덕트**의 Pi 세션 ID/활성 분기를 정확히 식별합니다. 원본은 Main·Work·Support 모두 가능하며 실행 중/종료된 저장 세션 모두 후보입니다.
