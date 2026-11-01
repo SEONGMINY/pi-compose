@@ -35,6 +35,7 @@ export type NativeMainLaunchReceipt = {
   launchRequestId: string;
   sessionId: string;
   terminalId: string;
+  runtimeReceiptFile: string;
   state: 'ghostty-split-created-pi-unverified';
   mode: 'new-main' | 'resume-main';
 };
@@ -58,6 +59,7 @@ export type NativeAgentLaunchReceipt = {
   launchRequestId: string;
   sessionId: string;
   terminalId: string;
+  runtimeReceiptFile: string;
   role: 'work' | 'support';
   worktree?: NativeWorktreeReceipt;
   // A Split receipt is NOT Pi readiness and not a completed task.
@@ -83,7 +85,7 @@ async function launchNativeSplit(
   sessionFile: string | undefined,
   overviewAnchorTerminalId: string,
   targetCwd: string,
-): Promise<string> {
+): Promise<{ terminalId: string; runtimeReceiptFile: string }> {
   const existing = await listGhosttyTerminals();
   if (!existing.some(term => term.id === overviewAnchorTerminalId)) {
     throw new Error('The exact pic Overview anchor Terminal no longer exists.');
@@ -122,7 +124,7 @@ async function launchNativeSplit(
       await focusGhosttyTerminal(previousFocusedId).catch(() => undefined);
     }
   }
-  return terminalId;
+  return { terminalId, runtimeReceiptFile };
 }
 
 /**
@@ -166,13 +168,14 @@ export async function startNativeMainInOverview(
     sessionId, role: 'main', product: request.product,
     label: request.label, workspaceCwd: cwd,
   });
-  const terminalId = await launchNativeSplit(
+  const { terminalId, runtimeReceiptFile } = await launchNativeSplit(
     bootstrap, undefined, sessionFile, request.overviewAnchorTerminalId, cwd,
   );
   return {
     launchRequestId: bootstrap.launchRequestId,
     sessionId: bootstrap.sessionId,
     terminalId,
+    runtimeReceiptFile,
     mode: request.resume ? 'resume-main' : 'new-main',
     state: 'ghostty-split-created-pi-unverified',
   };
@@ -255,7 +258,7 @@ export async function startNativeAgentInOverview(
     });
   }
 
-  const terminalId = await launchNativeSplit(
+  const { terminalId, runtimeReceiptFile } = await launchNativeSplit(
     bootstrap, request.task, sessionFile,
     request.overviewAnchorTerminalId, targetCwd,
   );
@@ -264,6 +267,7 @@ export async function startNativeAgentInOverview(
     launchRequestId: bootstrap.launchRequestId,
     sessionId: bootstrap.sessionId,
     terminalId,
+    runtimeReceiptFile,
     role: request.role,
     worktree,
     state: 'ghostty-split-created-pi-unverified',
