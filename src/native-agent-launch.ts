@@ -17,6 +17,7 @@ import {
   splitGhosttyTerminal,
 } from './ghostty-native.ts';
 import { createNativeWorkFork } from './native-work-fork.ts';
+import { createNativeWorktree, type NativeWorktreeReceipt } from './native-worktree.ts';
 
 const launcher = fileURLToPath(new URL('../bin/native-agent-entry.mjs', import.meta.url));
 
@@ -46,6 +47,7 @@ export type NativeAgentLaunchRequest = {
   requesterSessionId: string;
   requesterSessionFile?: string;
   targetCwd: string;
+  workspace?: 'shared' | 'worktree';
   // Must be supplied by the actual pic Overview. A Main/Work tab is not an
   // acceptable fallback anchor, even if it is the focused terminal.
   overviewAnchorTerminalId: string;
@@ -57,6 +59,7 @@ export type NativeAgentLaunchReceipt = {
   sessionId: string;
   terminalId: string;
   role: 'work' | 'support';
+  worktree?: NativeWorktreeReceipt;
   // A Split receipt is NOT Pi readiness and not a completed task.
   state: 'ghostty-split-created-pi-unverified';
 };
@@ -200,7 +203,13 @@ export async function startNativeAgentInOverview(
     throw new Error('The specified pic Overview Terminal no longer exists.');
   }
 
-  const targetCwd = resolve(request.targetCwd);
+  // The calling Agent's workspace remains the Git source of truth even when
+  // the selected Fork transcript belongs to a different workspace.
+  const callerCwd = await realpath(request.targetCwd);
+  const worktree = request.workspace === 'worktree'
+    ? await createNativeWorktree(callerCwd, request.role)
+    : undefined;
+  const targetCwd = worktree?.workspaceCwd ?? callerCwd;
   let bootstrap: ComposeAgentBootstrap;
   let sessionFile: string | undefined;
   if (request.role === 'work') {
@@ -244,6 +253,7 @@ export async function startNativeAgentInOverview(
     sessionId: bootstrap.sessionId,
     terminalId,
     role: request.role,
+    worktree,
     state: 'ghostty-split-created-pi-unverified',
   };
 }
