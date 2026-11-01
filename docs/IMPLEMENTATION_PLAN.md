@@ -77,6 +77,22 @@
 
 **다음 우선 작업:** 기존 `pic`을 실제 전용 Overview 관리 TUI 진입으로 전환하고, 그 관리 Terminal의 정확한 Ghostty UUID를 각 Agent에 전달하는 방식을 구현합니다. 이후 위 Native 실행 경로를 연결해 사용자가 원본 명령으로 직접 실행할 수 있도록 합니다. Overview 없는 현재 상태에서 다른 작업 Tab에 Agent를 생성하지 않습니다.
 
+### 구현 진행 흐름 — 2026-11-01 기준
+
+아래 표는 사용자 검증을 기능마다 요구하는 단계별 게이트가 아니라, **구현 의존성 및 남은 작업 순서**입니다. 실제 완료는 사용자 실사용 검증을 거쳐 판단합니다.
+
+| 순서 | 개발 영역 | 현재 구현 / 남은 계약 |
+| --- | --- | --- |
+| **1** | Pi 원본 Fork·Handoff·Ghostty 제어 | Native 코드 및 임시 명령 작성, **실행·통합 미검증** |
+| **2 (현재)** | `pic` 전용 Overview TUI·탐색 | 공식 `@earendil-works/pi-tui` 기반 관리 화면 코드 작성. 프로덕트/전체 Agent/메시지 보기 및 **기록된 Terminal UUID를 통한 기존 Surface 포커스** 연결. 실행 미검증 |
+| **3** | Main 명시 선택·새 실행/복원 + Work/Support 직접 위임 | Overview ID→정확한 Agent 생성·Terminal 연결 미구현. Main 복원은 입력 대기까지만. 생성 결과/실패 보존 필요 |
+| **4** | `@세션`·Git Worktree | 같은 프로덕트의 저장 세션 검색·완료 leaf와 `>>`의 호출 Agent HEAD 기준 Worktree, 실패/충돌 처리 미구현 |
+| **5** | Agent 수명·실시간 상태·탐색 | 실행/선택 대기/종료/오류 이벤트, 기존 Surface 이동 후 포커스, 종료·Resume·백그라운드 선택 미구현 |
+| **6** | Summary Overlay·Handoff 실제 UI | 경량 근거 요약·포커스 아웃 30초/종료 시 Overlay·공유 후보/대상 선택·메시지 Sidebar 통합 미구현 |
+| **7** | 설치·사용 흐름 정리와 전체 실사용 검증 | 사용자 직접 실제 Ghostty/Pi 흐름 검증 및 후속 관찰 개선. 자동 PR 병합/CI 추가 없음 |
+
+**Overview 현재 코드 경계:** `bin/pic.mjs`의 인자 없는 실행을 `src/overview.ts`로 라우팅하고, Pi 1.4.0의 `SessionManager.listAll()` + `getEntries()`에서 **명시적으로 기록된 Compose Agent 신원**만 읽습니다. Ghostty 1.3.1 Terminal 목록에서 정확한 UUID가 발견된 경우에만 기존 Surface를 포커스합니다. 실시간 실행 상태·최근 사용자 확인 여부·Main 승인 여부를 추측하지 않습니다. 다른 Ghostty Tab에는 Overview TUI를 만들지 않습니다. 사용자가 종료하거나 다시 여는 기록은 아직 미구현입니다. 현재 첫 Main 생성/선택이 연결되지 않아 **제품을 처음부터 사용할 수 있는 상태가 아닙니다.**
+
 ### 이후 사용자 실사용 검증
 
 전체 구현 배치를 마친 뒤 사용자가 실제 개발 흐름(위임→Overview의 새 Split→포커스·30초 Overlay→결과·확인 필요→종료·재개→Handoff)으로 확인합니다. **새 테스트 코드/CI 작성, PR 병합, 기능별 검증 반복은 사용자가 별도로 요청하기 전까지 진행하지 않습니다.** 실사용에서 발견한 실패/불편 사항을 모아 후속 개선합니다.
