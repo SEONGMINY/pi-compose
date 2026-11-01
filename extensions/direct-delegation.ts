@@ -92,6 +92,9 @@ export function registerDelegationAutocomplete(pi: ExtensionAPI): void {
           })),
         };
       },
+      shouldTriggerFileCompletion(lines, cursorLine, cursorCol) {
+        return previous.shouldTriggerFileCompletion?.(lines, cursorLine, cursorCol) ?? false;
+      },
       applyCompletion(lines, cursorLine, cursorCol, item, prefix) {
         if (!prefix.startsWith('@') || !/^(>w|>>w)\s+@/.test(lines[0] || '')) {
           return previous.applyCompletion(lines, cursorLine, cursorCol, item, prefix);
