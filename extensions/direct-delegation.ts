@@ -31,7 +31,8 @@ export function registerDirectDelegation(pi: ExtensionAPI): void {
   pi.on('input', async (event, ctx) => {
     if (event.source !== 'interactive') return { action: 'continue' };
     const direct = parseDirectDelegation(event.text);
-    if (!direct) return { action: 'continue' };
+    const shortcutAttempt = /^>{1,2}[ws](?:$|\s)/.test(event.text);
+    if (!direct && !shortcutAttempt) return { action: 'continue' };
 
     // Any failure/cancel keeps the original task in the Pi editor.
     // Never send a directly delegated prompt to the caller's model.
@@ -41,6 +42,7 @@ export function registerDirectDelegation(pi: ExtensionAPI): void {
       return { action: 'handled' as const };
     };
     if (!ctx.hasUI) return { action: 'handled' };
+    if (!direct) return restore('A non-empty task is required after >w, >s, >>w, or >>s.');
     if (inFlight) return restore('A Compose creation request is already running.');
     if (event.images?.length) return restore('Direct delegation with images is not supported yet.');
     if (event.streamingBehavior) return restore('Finish the current Pi turn before starting a new Work/Support Agent.');
@@ -64,6 +66,10 @@ export function registerDirectDelegation(pi: ExtensionAPI): void {
       const product = identity?.product ?? await ctx.ui.input('Product for this Agent', 'Project / product name');
       if (!product?.trim()) return restore('A product must be selected to preserve Agent ownership.');
 
+      if (ctx.sessionManager.getSessionId() !== requesterId ||
+          ctx.sessionManager.getSessionFile() !== requesterFile) {
+        return restore('The source Pi session changed during selection. No Agent was started.');
+      }
       const sourceLeafId = direct.role === 'work' ? ctx.sessionManager.getLeafId() : undefined;
       if (direct.role === 'work' && (!requesterFile || !sourceLeafId)) {
         return restore('The current Pi session has no persistent completed Fork source.');
