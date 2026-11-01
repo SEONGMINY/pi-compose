@@ -73,7 +73,7 @@
 | 자식 Pi 시작·초기 작업 지시 원문 | 일회성 Ticket + `bin/native-agent-entry.mjs` 작성 | 실제 Pi readiness·지시 전달 검증 전 |
 | 자식 세션 identity/Terminal binding | `extensions/agent-identity.ts` 연결 | 실제 부모-자식-UUID 검증 전 |
 | `pic` 전용 Overview TUI·관리 Terminal ID | **미구현** | **현재 Native 직접 위임 실행 불가** |
-| `>>w`/`>>s` Worktree, `>w @세션` | **미구현** | 임의로 cwd 실행/최근 세션 사용하지 않음 |
+| `>>w`/`>>s` Worktree, `>w @세션`, `>>w @세션` | **Draft PR #15 코드 작성** | Pi 자동완성·Git Worktree 실행 통합 미검증; 오류 시 자동 재시도/삭제 없음 |
 
 **다음 우선 작업:** 기존 `pic`을 실제 전용 Overview 관리 TUI 진입으로 전환하고, 그 관리 Terminal의 정확한 Ghostty UUID를 각 Agent에 전달하는 방식을 구현합니다. 이후 위 Native 실행 경로를 연결해 사용자가 원본 명령으로 직접 실행할 수 있도록 합니다. Overview 없는 현재 상태에서 다른 작업 Tab에 Agent를 생성하지 않습니다.
 
@@ -86,7 +86,7 @@
 | **1** | Pi 원본 Fork·Handoff·Ghostty 제어 | Native 코드 및 임시 명령 작성, **실행·통합 미검증** |
 | **2 (현재)** | `pic` 전용 Overview TUI·탐색 | 공식 `@earendil-works/pi-tui` 기반 관리 화면 코드 작성. 프로덕트/전체 Agent/메시지 보기, **명시적으로 기록된 생성 요청 관계에 따른 Main·Work·Support 중첩 계층**, **기록된 Terminal UUID를 통한 기존 Surface 포커스** 연결. 실행 미검증 |
 | **3 (현재)** | Main 명시 생성·저장 세션 선택·재개 및 Work/Support 직접 위임 | `n` 새 Main / `o` 저장 Pi 세션 선택→Main Resume 코드 작성. Ghostty Split UUID를 자식 Pi에 전달해 Overview 직접 위임 Anchor로 사용. **실제 Main·위임 통합 미검증**, 생성 실패·미저장 세션의 영구 목록/중복 실행 보호 보완 필요 |
-| **4** | `@세션`·Git Worktree | 같은 프로덕트의 저장 세션 검색·완료 leaf와 `>>`의 호출 Agent HEAD 기준 Worktree, 실패/충돌 처리 미구현 |
+| **4 (현재)** | `@세션`·Git Worktree | 같은 프로덕트 저장 Pi 세션 선택, 입력창 전용 자동완성, 호출 Agent HEAD 기반 `>>` Worktree 생성 코드 작성. macOS/Pi/Git 통합 검증 전 |
 | **5** | Agent 수명·실시간 상태·탐색 | 실행/선택 대기/종료/오류 이벤트, 기존 Surface 이동 후 포커스, 종료·Resume·백그라운드 선택 미구현 |
 | **6** | Summary Overlay·Handoff 실제 UI | 경량 근거 요약·포커스 아웃 30초/종료 시 Overlay·공유 후보/대상 선택·메시지 Sidebar 통합 미구현 |
 | **7** | 설치·사용 흐름 정리와 전체 실사용 검증 | 사용자 직접 실제 Ghostty/Pi 흐름 검증 및 후속 관찰 개선. 자동 PR 병합/CI 추가 없음 |
@@ -100,6 +100,14 @@
 - **완료 범위 한계:** 코드 작성 단계이며 실제 Ghostty 실행/설치/타입검증 전입니다. Ghostty 1.3.1에서 Terminal 존재는 실제 Pi 프로세스가 살아 있음을 보장하지 않습니다. 상태 추론·동시 실행 감지/기존 탭 불명확 처리·실패 영구 항목·Main 종료 선택은 다음 수명 관리 단계에서 다룹니다. 생성 시 임의 모델 입력/업무 재개/자동 중복 실행은 금지합니다.
 
 **Overview 현재 코드 경계:** `bin/pic.mjs`의 인자 없는 실행을 `src/overview.ts`로 라우팅하고, Pi 1.4.0의 `SessionManager.listAll()` + `getEntries()`에서 **명시적으로 기록된 Compose Agent 신원**만 읽습니다. Ghostty 1.3.1 Terminal 목록에서 정확한 UUID가 발견된 경우에만 기존 Surface를 포커스합니다. 실시간 실행 상태·최근 사용자 확인 여부·Main 승인 여부를 추측하지 않습니다. 다른 Ghostty Tab에는 Overview TUI를 만들지 않습니다. 사용자가 종료하거나 다시 여는 기록은 아직 미구현입니다. 현재 첫 Main 생성/선택이 연결되지 않아 **제품을 처음부터 사용할 수 있는 상태가 아닙니다.**
+
+### 4단계 구현 진척 — 같은 프로덕트 세션 선택·Git Worktree
+
+- `src/product-sessions.ts`: Pi `SessionManager.listAll()`에서 실제 Compose 프로덕트 소속과 **마지막 완료 Assistant 지점**이 확인된 Main/Work/Support만 Fork 원본 후보로 조회합니다. 실제 사용자 메시지에서 최근 작업 한 줄을 추출합니다. 세션 ID·이름·원본 cwd/Worktree 경로를 표시하고, 이름·최근 작업·ID 검색을 제공합니다. Compose 신원이 없는 Pi 세션은 프로덕트를 추측하지 않습니다.
+- `extensions/direct-delegation.ts`: `>w @검색어 작업` / `>>w @검색어 작업`에서 사용자에게 **정확한 원본 세션 선택**을 요청합니다. Pi 공식 `addAutocompleteProvider`를 사용해 해당 접두어에서만 같은 프로덕트 세션의 ID를 완성합니다. 평소 Pi의 `@파일` 자동완성은 변경하지 않습니다. 선택한 세션의 작업 디렉터리로 자동 이동하지 않고 **호출 Agent의 cwd를 그대로 작업 공간 기준**으로 삼습니다.
+- `src/native-worktree.ts`: 호출 Agent의 `git rev-parse HEAD` + `symbolic-ref --short HEAD`를 확보하고, `git worktree add -b <고유 브랜치> <고유 경로> <호출 HEAD>`로 새로운 독립 Worktree를 생성합니다. 원본 브랜치/작업 디렉터리·미커밋 파일에 손대지 않으며, 현재 브랜치가 없는 detached HEAD와 Git repo가 없는 경로는 명확히 실패합니다. 미커밋 파일은 새 Worktree에 복사하지 않으며 확인 가능한 경우 사용자에게 안내합니다.
+- Native Pi 자식 Launch Ticket와 identity custom entry에 Worktree 브랜치·원본 HEAD·원본 브랜치·디렉터리를 저장합니다. `>w`/`>s`는 Shared Directory, `>>w`/`>>s`는 새 Worktree입니다.
+- **실패/검증 경계:** Worktree 생성 뒤 Pi Fork/네이티브 Split이 실패하면 이미 생성된 Worktree를 자동 삭제하거나 다른 브랜치로 재시도하지 않습니다. 사용자가 결과를 확인할 수 있도록 경로를 남깁니다. 실제 Git CLI·Ghostty 1.3.1·Pi 1.4.0 연동, `@세션` IME·멀티라인, 중복 세션/실행 중 쓰기·생성 순서 검증은 **미실시**입니다. 인자 없는 `pic` Overview에서 실제 Agent를 선택·시작한 후의 전체 동작도 아직 사용자 검증 전입니다.
 
 ### 이후 사용자 실사용 검증
 
