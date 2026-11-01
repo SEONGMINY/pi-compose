@@ -84,7 +84,7 @@
 | 순서 | 개발 영역 | 현재 구현 / 남은 계약 |
 | --- | --- | --- |
 | **1** | Pi 원본 Fork·Handoff·Ghostty 제어 | Native 코드 및 임시 명령 작성, **실행·통합 미검증** |
-| **2 (현재)** | `pic` 전용 Overview TUI·탐색 | 공식 `@earendil-works/pi-tui` 기반 관리 화면 코드 작성. 프로덕트/전체 Agent/메시지 보기 및 **기록된 Terminal UUID를 통한 기존 Surface 포커스** 연결. 실행 미검증 |
+| **2 (현재)** | `pic` 전용 Overview TUI·탐색 | 공식 `@earendil-works/pi-tui` 기반 관리 화면 코드 작성. 프로덕트/전체 Agent/메시지 보기, **명시적으로 기록된 생성 요청 관계에 따른 Main·Work·Support 중첩 계층**, **기록된 Terminal UUID를 통한 기존 Surface 포커스** 연결. 실행 미검증 |
 | **3** | Main 명시 선택·새 실행/복원 + Work/Support 직접 위임 | Overview ID→정확한 Agent 생성·Terminal 연결 미구현. Main 복원은 입력 대기까지만. 생성 결과/실패 보존 필요 |
 | **4** | `@세션`·Git Worktree | 같은 프로덕트의 저장 세션 검색·완료 leaf와 `>>`의 호출 Agent HEAD 기준 Worktree, 실패/충돌 처리 미구현 |
 | **5** | Agent 수명·실시간 상태·탐색 | 실행/선택 대기/종료/오류 이벤트, 기존 Surface 이동 후 포커스, 종료·Resume·백그라운드 선택 미구현 |
