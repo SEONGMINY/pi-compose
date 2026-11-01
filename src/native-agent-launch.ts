@@ -210,6 +210,14 @@ export async function startNativeAgentInOverview(
     ? await createNativeWorktree(callerCwd, request.role)
     : undefined;
   const targetCwd = worktree?.workspaceCwd ?? callerCwd;
+  const gitWorktree = worktree ? {
+    path: worktree.worktreePath,
+    sourceRoot: worktree.root,
+    branch: worktree.branch,
+    baseBranch: worktree.baseBranch,
+    baseCommit: worktree.baseCommit,
+    hadUncommittedChanges: worktree.hadUncommittedChanges,
+  } : undefined;
   let bootstrap: ComposeAgentBootstrap;
   let sessionFile: string | undefined;
   if (request.role === 'work') {
@@ -229,6 +237,7 @@ export async function startNativeAgentInOverview(
       requesterSessionId: request.requesterSessionId,
       requesterSessionFile: request.requesterSessionFile,
       workspaceCwd: targetCwd,
+      gitWorktree,
       forkSourceSessionId: fork.sourceSessionId,
       forkSourceLeafId: fork.sourceLeafId,
     });
@@ -240,6 +249,7 @@ export async function startNativeAgentInOverview(
       requesterSessionId: request.requesterSessionId,
       requesterSessionFile: request.requesterSessionFile,
       workspaceCwd: targetCwd,
+      gitWorktree,
     });
   }
 
