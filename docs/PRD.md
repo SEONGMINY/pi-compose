@@ -160,6 +160,14 @@ Pi 1.4.0의 `SessionManager.listAll()`와 자동완성 Provider를 재사용해 
 
 **모든 항목은 Draft 코드 작성 상태**입니다. 타입체크·macOS Ghostty/Pi/Git 실사용·세션 검색 IME/멀티라인·오류/중복 복구 검증은 아직 진행하지 않았습니다.
 
+### 5단계 구현 진척 — 실행 상태와 종료 선택 (Draft PR #15)
+
+Native Ghostty Split에서 새 Pi를 실행하는 기존 일회성 래퍼에 **Pi 자식 프로세스 시작·OS PID/시작 시각·종료/오류 영수증**을 기록하는 코드를 추가했습니다. Overview의 Agent 표시는 Ghostty Terminal 존재 여부와 별도로 Pi 실행 영수증의 일치 여부를 확인해 `process-observed`, `exited-observed`, `process-unconfirmed` 등으로 나눕니다. 프로세스 존재는 사용자의 입력 대기·모델 응답·작업 완료와 다릅니다.
+
+`pic` 내부 `q` 종료 선택에서 **Ghostty/Agent 유지(숨김)**, **확인 가능한 Agent 종료 요청**, 취소를 구분하도록 코드를 작성했습니다. 숨김 실패 시 기존 화면과 프로세스는 유지합니다. 종료 시 재확인된 정확한 Native Surface만 사용자 최종 확인 후 닫고, 상태 불명 세션은 닫거나 삭제하지 않습니다. 저장된 Pi 대화와 Git Worktree는 보존합니다. 이는 기존 확정 제품 정책의 **부분 구현**으로, 전체 실행 중 Agent의 일괄 정상 종료·프로세스 생존 판정·자동 종료 확인·중복 실행 복구·Summary 상태 등은 아직 보장하지 않습니다.
+
+**전체 코드 실행/타입 및 Ghostty 1.3.1/macOS 실사용 검증 전입니다.** Ghostty 자체 Quit/창 닫기를 이 UI가 가로챈다고 주장하지 않습니다.
+
 ## 7. 아직 확정되지 않은 결정
 
 1. **전달 경계:** `pi-intercom` 0.18.1 `human-first`는 실제 Pi TUI 정상 턴 종료 뒤 메시지를 주입한 1회 실행 근거가 있습니다. 전체 오류·중단 경계나 Compose Outbox 통합이 검증된 것은 아닙니다. **현재 Pi 턴 종료 후 전달**이라는 확정 기준은 유지하며, 수신 확인·모델 처리 완료의 의미를 구분합니다.
