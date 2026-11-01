@@ -140,7 +140,7 @@ Work는 실제 구현에 따라 필요한 설명을 보완할 수 있다는 **�
 
 Draft PR #15에서 Pi 직접 입력의 `>w`/`>s`를 모델 처리 전 구분하고 원문을 보존하는 Hook, 활성 완료 분기 Native Work Fork, Support 새 Pi ID, Ghostty 1.3.1의 실제 Split, 반환된 Terminal UUID와 자식 Pi 신원 기록, 초기 작업 지시 원문 전달을 위한 일회성 Launch Ticket 기반 실행 경로를 작성했습니다. **이것은 코드 작성 완료이며 기능의 실행·통합·요구사항 충족 검증은 아닙니다.**
 
-**Overview는 실행의 필수 전제**입니다. 새 Split이 현재 Main/Work의 별도 작업 Tab에 만들어지는 우회 구현은 하지 않습니다. 기존 `pic`은 아직 전용 Overview 관리 TUI가 아니므로 실제 Overview Terminal ID를 제공할 수 없어 `>w`/`>s`의 현재 코드 경로는 **실행하지 않고 편집기 원문을 복원**합니다. `>>w`/`>>s` Worktree 및 `>w @세션`의 같은 프로덕트 세션 선택은 아직 미연결이며, 현재 디렉터리 실행으로 조용히 대체하지 않습니다. 입력 실패 시 Main 모델에 직접 위임 요청을 기록하지 않으며 사용자가 원문을 재편집할 수 있게 둡니다.
+**Overview는 실행의 필수 전제**입니다. 새 Split이 현재 Main/Work의 별도 작업 Tab에 만들어지는 우회 구현은 하지 않습니다. 기존 `pic`은 아직 전용 Overview 관리 TUI가 아니므로 실제 Overview Terminal ID를 제공할 수 없어 `>w`/`>s`의 현재 코드 경로는 **실행하지 않고 편집기 원문을 복원**합니다. `>>w`/`>>s` Worktree와 `>w @세션`/`>>w @세션`의 선택형 Fork 코드는 후속 Draft 단계에서 작성됐지만, 실제 Pi/Git/Ghostty 통합 검증 전입니다. 잘못된 작업 디렉터리 실행이나 자동 전송으로 대체하지 않습니다. 입력 실패 시 Main 모델에 직접 위임 요청을 기록하지 않으며 사용자가 원문을 재편집할 수 있게 둡니다.
 
 ### Overview 구현 진척 (Draft PR #15)
 
@@ -151,6 +151,14 @@ Draft PR #15에서 Pi 직접 입력의 `>w`/`>s`를 모델 처리 전 구분하�
 Overview의 `n` 새 Main 생성과 `o` 저장 Pi 세션 직접 선택·Main 재개 UI 및 네이티브 Ghostty 실행 연결 코드를 추가했습니다. 새 Main은 **사용자 입력 대기** 상태로 시작하며 사전 프롬프트를 보내지 않고, 기존 Main은 사용자가 고른 정확한 세션 파일만 엽니다. 기존 Work/Support를 자동 재실행하지 않고, 이미 바인딩된 Ghostty Terminal이 존재하면 해당 Surface를 사용합니다. 사용자 명시 선택 없이 비-Compose 세션을 Main으로 추측하지 않습니다.
 
 Pi 1.4.0에서 대화가 전혀 없는 새 세션은 디스크 기록이 생성되지 않아 Overview 실행 중 **임시 항목**으로만 보여줍니다. 이를 저장된 Main으로 표현하지 않습니다. 현재 이 실행·통합 동작은 코드 작성 상태이며 macOS Ghostty에서 미검증입니다. 역할 관계, Agent 실제 생존/중복 실행, 초기 작업 공간 신뢰성, 생성 실패 영구 항목, Main/Work/Support 종료 및 새 실행 흐름 전체가 요구사항을 충족한다는 뜻은 아닙니다.
+
+### 4단계 구현 진척 — 세션 자동완성·Native Git Worktree (Draft PR #15)
+
+Pi 1.4.0의 `SessionManager.listAll()`와 자동완성 Provider를 재사용해 **현재 프로덕트의 실제 Main/Work/Support 세션 중 완료 지점이 있는 후보**를 이름·최근 실제 사용자 작업·cwd·ID 기준으로 조회하고 사용자 선택을 요청하는 코드를 작성했습니다. 일반 Pi의 `@파일` 자동완성에는 개입하지 않습니다. 후보가 없거나 사용자가 선택하지 않으면 생성하지 않으며, 표시 이름으로 Fork 원본을 임의 결정하지 않습니다.
+
+`>>w`·`>>s`는 명령 입력 Agent의 실제 체크아웃 브랜치 HEAD 커밋에서 `git worktree add -b`로 새 Git 브랜치/Worktree를 만들도록 연결했습니다. `@세션`이 다른 Workspace에 있어도 파일 작업 공간은 입력 Agent 기준입니다. 원본 미커밋 변경을 복사하지 않으며 Git Merge/Worktree 자동 삭제를 하지 않습니다. 저장된 새 자식 Pi 세션에 실제 Git 원본 HEAD/브랜치/Worktree 정보를 기록합니다. Detached HEAD 등 원본이 불명확하면 실행하지 않습니다.
+
+**모든 항목은 Draft 코드 작성 상태**입니다. 타입체크·macOS Ghostty/Pi/Git 실사용·세션 검색 IME/멀티라인·오류/중복 복구 검증은 아직 진행하지 않았습니다.
 
 ## 7. 아직 확정되지 않은 결정
 
