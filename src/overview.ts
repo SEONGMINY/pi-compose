@@ -66,19 +66,41 @@ function toEntries(view: View, agents: readonly VisibleAgent[]): Array<{ item: S
   }
   const products = [...new Set(agents.map(a => a.identity.product))];
   if (view === 'products') {
-    return products.flatMap(product => [
-      { item: { value: 'product/' + product, label: '▾ ' + product }, action: { type: 'refresh' as const } },
-      ...agents.filter(a => a.identity.product === product).map(agent => ({
-        item: {
-          value: 'agent/' + agent.identity.sessionId,
-          label: '  ' + agent.identity.label,
-          description: agent.identity.role === 'main'
-            ? (agent.terminal ? 'Pi Surface 확인' : 'Surface 미확인')
-            : agent.identity.role + (agent.terminal ? ' · Pi Surface 확인' : ' · Surface 미확인'),
-        },
-        action: { type: 'agent' as const, sessionId: agent.identity.sessionId },
-      })),
-    ]);
+    return products.flatMap(product => {
+      const members = agents.filter(a => a.identity.product === product);
+      const byId = new Map(members.map(agent => [agent.identity.sessionId, agent]));
+      const roots = members.filter(agent => !agent.identity.requesterSessionId ||
+        !byId.has(agent.identity.requesterSessionId));
+      const visited = new Set<string>();
+      const hierarchy: Array<{ item: SelectItem; action: SelectionAction }> = [];
+      const visit = (agent: VisibleAgent, depth: number) => {
+        const id = agent.identity.sessionId;
+        if (visited.has(id)) return;
+        visited.add(id);
+        hierarchy.push({
+          item: {
+            value: 'agent/' + id,
+            label: '  '.repeat(Math.min(depth + 1, 12)) + agent.identity.label,
+            description: (agent.identity.role === 'main' ? '' : agent.identity.role + ' · ') +
+              (agent.terminal ? 'Surface 확인' : 'Surface 미확인'),
+          },
+          action: { type: 'agent', sessionId: id },
+        });
+        for (const child of members) {
+          if (child.identity.requesterSessionId === id) visit(child, depth + 1);
+        }
+      };
+      for (const root of roots) visit(root, 0);
+      // Corrupt/partial creator relationships stay visible but are never
+      // assigned a guessed parent. A cycle is displayed only once.
+      for (const agent of members) {
+        if (!visited.has(agent.identity.sessionId)) visit(agent, 0);
+      }
+      return [
+        { item: { value: 'product/' + product, label: '▾ ' + product }, action: { type: 'refresh' as const } },
+        ...hierarchy,
+      ];
+    });
   }
   return agents.map(agent => ({
     item: {
