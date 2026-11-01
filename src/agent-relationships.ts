@@ -15,6 +15,7 @@ export type AgentRelationship = {
   forkSourceSessionId?: string;
   forkSourceLeafId?: string;
   workspaceCwd: string;
+  gitWorktree?: { path: string; branch: string; baseCommit: string; baseBranch: string; hadUncommittedChanges: boolean };
   launchRequestId?: string;
   terminalId?: string;
 };
@@ -56,6 +57,19 @@ export function readAgentRelationship(
       role,
       label,
       workspaceCwd,
+      gitWorktree: (() => {
+        const git = object(d.gitWorktree);
+        if (!git) return undefined;
+        const path = str(git.path);
+        const branch = str(git.branch);
+        const baseCommit = str(git.baseCommit);
+        const baseBranch = str(git.baseBranch);
+        if (!path || !branch || !baseCommit || !baseBranch) return undefined;
+        return {
+          path, branch, baseCommit, baseBranch,
+          hadUncommittedChanges: git.hadUncommittedChanges === true,
+        };
+      })(),
       requesterSessionId: str(d.requesterSessionId),
       forkSourceSessionId: str(d.forkSourceSessionId),
       forkSourceLeafId: str(d.forkSourceLeafId),
