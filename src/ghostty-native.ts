@@ -66,6 +66,18 @@ on run argv
 end run
 `;
 
+const QUERY_FOCUSED_TERMINAL = `
+on run argv
+  tell application "Ghostty"
+    if not frontmost then return "not-frontmost"
+    set focusedTab to selected tab of front window
+    set focusedTerm to focused terminal of focusedTab
+    if focusedTerm is missing value then return "unknown"
+    return (id of focusedTerm) as text
+  end tell
+end run
+`;
+
 const FOCUS_TERMINAL = `
 on run argv
   set wantedId to item 1 of argv
@@ -191,6 +203,17 @@ export async function listGhosttyTerminals(): Promise<GhosttyTerminal[]> {
 export async function getFocusedGhosttyTerminalId(): Promise<string> {
   const id = await runAppleScript(FOCUSED_TERMINAL);
   return validId(id);
+}
+
+/**
+ * Read-only focus observation. Unknown or AppleScript permission failures
+ * never imply that an Agent is unfocused.
+ */
+export async function isGhosttyTerminalFocused(id: string): Promise<boolean | undefined> {
+  const observed = await runAppleScript(QUERY_FOCUSED_TERMINAL);
+  if (observed === 'unknown') return undefined;
+  if (observed === 'not-frontmost') return false;
+  return observed === validId(id);
 }
 
 export async function focusGhosttyTerminal(id: string): Promise<void> {
