@@ -1,11 +1,15 @@
 #!/usr/bin/env node
-// A one-shot adapter inside the NEW Ghostty Surface, not an agent daemon.
-// It waits only for the initiating Ghostty split to return its exact native ID.
-import { spawn } from 'node:child_process';
-import { readFile, rm } from 'node:fs/promises';
-import { dirname } from 'node:path';
+// One-shot child bootstrap within the exact new Ghostty Surface.
+// Native Pi owns its session and transcript. This wrapper records only OS
+// spawn/exit facts; it is not a daemon, agent registry or message broker.
+import { spawn, execFile } from 'node:child_process';
+import { readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { promisify } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
 
+const execFileAsync = promisify(execFile);
 const launchFile = process.env.PI_COMPOSE_LAUNCH_TICKET;
 if (!launchFile || !launchFile.startsWith('/')) {
   console.error('Pi Compose: a private launch ticket is required.');
@@ -14,42 +18,65 @@ if (!launchFile || !launchFile.startsWith('/')) {
   let ticket;
   for (let i = 0; i < 200; i++) {
     try {
-      const parsed = JSON.parse(await readFile(launchFile, 'utf8'));
-      if (parsed.ready === true) {
-        ticket = parsed;
-        break;
-      }
-    } catch (error) {
-      // A ticket being atomically written may not be available yet.
-      if (i === 199) console.error('Pi Compose: cannot read launch ticket:', String(error));
+      const value = JSON.parse(await readFile(launchFile, 'utf8'));
+      if (value.ready === true) { ticket = value; break; }
+    } catch {
+      // The initiating Ghostty AppleScript call may still be completing.
     }
     await delay(75);
   }
 
   if (!ticket) {
-    console.error('Pi Compose: Ghostty split receipt was not confirmed; Pi was not started.');
+    console.error('Pi Compose: Ghostty split receipt missing; Pi was NOT started.');
     process.exitCode = 1;
   } else {
     const { bootstrap, task, composeExtensionFile, sessionFile, overviewTerminalId } = ticket;
     const uuid = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
-    if (bootstrap?.version !== 1 ||
-        !uuid.test(bootstrap.terminalId || '') ||
-        !uuid.test(bootstrap.sessionId || '') ||
-        typeof composeExtensionFile !== 'string' || !composeExtensionFile.startsWith('/') ||
-        !uuid.test(overviewTerminalId || '') ||
-        !['main', 'support', 'work'].includes(bootstrap.role) ||
-        (bootstrap.role !== 'main' && (typeof task !== 'string' || !task.trim())) ||
-        (bootstrap.role === 'main' && task !== undefined) ||
-        ((bootstrap.role === 'work' || (bootstrap.role === 'main' && sessionFile)) &&
-          (typeof sessionFile !== 'string' || !sessionFile.startsWith('/')))) {
-      console.error('Pi Compose: invalid or incomplete native Agent launch ticket.');
+    const good =
+      bootstrap?.version === 1 &&
+      uuid.test(bootstrap.terminalId || '') &&
+      uuid.test(bootstrap.sessionId || '') &&
+      uuid.test(overviewTerminalId || '') &&
+      typeof bootstrap.launchRequestId === 'string' &&
+      typeof bootstrap.runtimeReceiptFile === 'string' &&
+      bootstrap.runtimeReceiptFile === join(dirname(launchFile), 'runtime.json') &&
+      typeof composeExtensionFile === 'string' && composeExtensionFile.startsWith('/') &&
+      ['main', 'work', 'support'].includes(bootstrap.role) &&
+      (bootstrap.role === 'main' ? task === undefined :
+        typeof task === 'string' && task.trim().length > 0) &&
+      (sessionFile === undefined ||
+        (typeof sessionFile === 'string' && sessionFile.startsWith('/'))) &&
+      (bootstrap.role !== 'work' || typeof sessionFile === 'string');
+    if (!good) {
+      console.error('Pi Compose: invalid/incomplete native Agent launch ticket.');
       process.exitCode = 2;
     } else {
+      // The task itself stays in the one-shot private launch permit, not in
+      // a long-lived status file or in the caller's Main conversation.
+      await rm(launchFile, { force: true });
+      const runtimeFile = bootstrap.runtimeReceiptFile;
+      let receiptQueue = Promise.resolve();
+      const record = (event, extra = {}) => {
+        const value = {
+          version: 1,
+          sessionId: bootstrap.sessionId,
+          launchRequestId: bootstrap.launchRequestId,
+          terminalId: bootstrap.terminalId,
+          event, at: new Date().toISOString(), ...extra,
+        };
+        receiptQueue = receiptQueue.then(async () => {
+          const next = runtimeFile + '.' + randomUUID() + '.next';
+          await writeFile(next, JSON.stringify(value), { mode: 0o600 });
+          await rename(next, runtimeFile);
+        }).catch(err => {
+          console.error('Pi Compose: runtime evidence not recorded:', String(err));
+        });
+        return receiptQueue;
+      };
+
       const args = ['--extension', composeExtensionFile];
       if (sessionFile) args.push('--session', sessionFile);
       else args.push('--session-id', bootstrap.sessionId);
-      // Main (new or resumed) starts at the Pi editor, with NO automatic prompt.
-      // Work/Support receive the exact original user task as a literal argument.
       if (bootstrap.role !== 'main') args.push('--', task);
       const env = {
         ...process.env,
@@ -57,25 +84,41 @@ if (!launchFile || !launchFile.startsWith('/')) {
         PI_COMPOSE_OVERVIEW_TERMINAL_ID: overviewTerminalId,
       };
       delete env.PI_COMPOSE_LAUNCH_TICKET;
+      await record('pi-starting');
+
       try {
-        // Launch file is ephemeral control state, not a transcript or a database.
-        // Tickets are per-request private temp directories, never shared state.
-        if (dirname(launchFile).split('/').pop().startsWith('pi-compose-launch-')) {
-          await rm(dirname(launchFile), { recursive: true, force: true });
-        } else {
-          await rm(launchFile, { force: true });
-        }
         const child = spawn('pi', args, { cwd: bootstrap.workspaceCwd, stdio: 'inherit', env });
-        child.on('error', error => {
-          console.error('Pi Compose: cannot start Pi:', String(error));
+        let failed = false;
+        child.once('spawn', () => {
+          // ps lstart is an OS process identity fingerprint. A PID alone
+          // could refer to a different process after reuse.
+          void (async () => {
+            let processStart;
+            try {
+              const result = await execFileAsync('/bin/ps', ['-p', String(child.pid), '-o', 'lstart='], {
+                timeout: 2500, maxBuffer: 2048,
+              });
+              processStart = result.stdout.trim();
+            } catch { /* A missing fingerprint remains an unconfirmed process. */ }
+            await record('pi-spawned', { pid: child.pid, processStart });
+          })();
+        });
+        child.once('error', error => {
+          failed = true;
+          void record('pi-spawn-failed', { detail: String(error) });
           process.exitCode = 127;
         });
-        child.on('exit', (code, signal) => {
-          process.exitCode = code ?? (signal ? 1 : 0);
+        child.once('exit', (code, signal) => {
+          if (!failed) void record('pi-exited', {
+            pid: child.pid, exitCode: code, signal,
+          });
+          process.exitCode = code ?? (signal ? 1 : process.exitCode ?? 0);
         });
         await new Promise(resolve => child.once('close', resolve));
+        await receiptQueue;
       } catch (error) {
-        console.error('Pi Compose: Agent process launch failed:', String(error));
+        await record('pi-spawn-failed', { detail: String(error) });
+        console.error('Pi Compose: Agent launch failed:', String(error));
         process.exitCode = 1;
       }
     }
