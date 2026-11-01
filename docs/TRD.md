@@ -95,7 +95,7 @@
 - **Ghostty 1.3.1 공식 계약:** `new surface configuration`, `split terminal direction right with configuration`, `terminal.id`, `focus`를 재사용합니다. 1.3.1에 없는 Terminal TTY/PID를 요구하지 않고, `GHOSTTY_SURFACE_ID`를 AppleScript UUID로 취급하지 않습니다.
 - **작성한 코드:** `extensions/direct-delegation.ts`는 `>w`/`>s`를 선처리하고, `src/native-agent-launch.ts`는 **실제 pic Overview Terminal UUID를 인자로 받을 때만** 새 Split을 생성합니다. Split이 반환한 UUID를 임시 전용 Launch Ticket에 기록한 뒤 `bin/native-agent-entry.mjs`가 실제 자식 Pi를 시작합니다. `extensions/agent-identity.ts`는 자식 Pi 세션에서만 역할·프로덕트·요청자·Fork 원본·Surface 연결을 기록합니다. 발신 Main JSONL에 위임 작업 지시나 상태 메타데이터를 추가하지 않습니다.
 - **코드 안전 경계:** 준비 단계에서 원본 Pi 세션을 변경하거나 기존 Surface를 복제하지 않습니다. Split 생성 결과는 Pi 실행 성공/초기 프롬프트 수신 완료를 증명하지 않습니다. 반환이 불확실하면 무단 재시도하지 않습니다. Split이 포커스를 가져온 경우에만 기존 포커스를 복원합니다.
-- **미연결:** 확정된 `pic` Overview 관리 TUI 및 실제 Overview Terminal UUID 공급, `@세션` 같은 프로덕트 검색과 `>>` Git Worktree 연결은 후속 Draft 코드가 작성됐지만 통합 검증 전이며, Main 명시적 세션 진입, 전체 Agent Sidebar/상태·Summary·Handoff UI. `>w`/`>s`는 Overview 식별자가 없으면 입력 원문만 복원하고 실행하지 않습니다. **코드 작성이며 실행·타입·통합 검증 전**입니다.
+- **현재 구현 경계:** 후속 Draft 코드에서 `pic` Overview와 Terminal UUID 전달, `@세션` 선택 및 `>>` Git Worktree, Main 명시적 세션 진입을 작성했지만 **통합 검증 전**입니다. Agent의 실제 생존 상태·Summary Overlay·완성된 Handoff UI·종료/복구는 미구현입니다. `>w`/`>s`는 Overview 식별자가 없으면 입력 원문만 복원하고 실행하지 않습니다. **코드 작성이며 실행·타입·통합 검증 전**입니다.
 
 ### `pic` Overview 공식 Pi TUI 사용 (Draft PR #15)
 
@@ -103,7 +103,7 @@
 - `bin/pic.mjs`의 **인자 없는** `pic`은 현재 Ghostty Terminal 내부에서만 별도 관리 TUI를 엽니다. Pi 설정/설치 관리용 기존 명령 라우팅은 유지합니다.
 - `src/overview.ts`는 프로덕트별 / 전체 Agent / 메시지 기록 보기 전환, Pi native 기록에 **명시적으로 등록된 Agent만** 포함한 탐색, 정확한 Ghostty Terminal UUID 기반 기존 Surface Focus를 연결합니다. 수신 상태는 Pi 기록의 제한된 증거만 표시하고 모델 읽음/승인을 주장하지 않습니다.
 - 관리 TUI는 **Main/Work/Support Pi TUI 프로세스를 대체하지 않습니다**. 각 Agent는 독립 Ghostty Surface에 남아 있어야 하며 Overview의 존재/Focus와 Pi 세션 실행은 별개입니다.
-- **미구현:** 첫 Main 생성/기존 Main 명시 선택·Resume, `pic` Overview Terminal UUID를 새 Agent에게 안전하게 제공하는 제어 경로, 원본 Pi 프로세스가 실제 살아 있는지에 대한 상태, 생성 순서 Split, 파일/워크트리 넘나드는 관계 발견, 실시간 Summary/메시지 UI. 현재 이 TUI만으로 제품 실사용은 불가능합니다.
+- **현재 범위:** 후속 코드에서 첫 Main 생성·기존 Main 명시 선택/Resume·Overview Terminal UUID 전달을 추가했습니다. 실제 Pi 프로세스 생존 확인, 여러 Split의 생성 순서 보장, 상태·복구, Summary Overlay·전체 메시지 UI는 아직 미구현 또는 검증 전입니다. 현재 이 TUI만으로 제품 실사용은 불가능합니다.
 - 코드 작성 완료, 실제 macOS Ghostty/Pi 시작·타입·실사용 검증 전입니다.
 
 ### Main 새 세션/재개 경계 (Draft PR #15)
