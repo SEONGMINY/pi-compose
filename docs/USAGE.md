@@ -63,6 +63,12 @@ Draft PR #15는 Pi 1.4.0 `input` 이벤트로 입력 첫머리의 `>w 작업`, `
 
 이것은 **실행·통합 미검증 Draft**이며, 현재 Main 생성/명시적 재접속 및 Work/Support를 자동으로 Overview Split에 붙이는 경로가 미완성입니다. 등록된 Agent가 없으면 비어 있는 관리 목록이 나타납니다. 제품 전체가 사용 가능하다는 뜻이 아닙니다.
 
+### Main 생성·저장 세션 선택 — Draft 코드
+
+`pic` Overview에서 `n`은 사용자가 프로덕트·Main 이름·절대 디렉터리를 선택해 새 Main의 Ghostty Split을 만드는 기능, `o`는 **실제 Pi 세션을 정확하게 선택해 Main으로 재개**하는 기능으로 작성됐습니다. 새 Main은 첫 사용자 입력을 기다리며 이전 작업을 자동 시작하지 않습니다. 기존 Main의 Surface가 확인되면 재개 대신 같은 터미널로 이동합니다. 선택한 저장 세션이 Compose에 등록된 Work/Support라면 Main으로 간주하지 않습니다.
+
+**주의:** 이 기능은 실제 실행/타입 검증 전이며, 새 Main이 한 번도 대화하지 않았다면 Pi의 기본 동작상 세션 파일은 없습니다. 해당 항목은 Overview를 닫기 전까지만 임시로 나타나며 최초 대화 이후 Native Pi 기록으로 저장됩니다. Ghostty에서 Surface가 보인다는 사실만으로 Pi 프로세스가 실제 실행 중이라고 단정하지 않습니다. `>>`·`@세션`·Summary Overlay·Agent 종료/복구는 별도 구현이 남아 있습니다.
+
 ## 7. 현재 구현과의 차이
 
 새로운 Ghostty 분할/세션 제어·**프로덕트/Agent 및 메시지 관리 사이드바·종료 선택 UX**·Summary Overlay·선택적 문서 맥락 로드·전체 Handoff 경험은 아직 제품으로 완성되지 않았습니다. Draft PR #15는 Handoff 전송 경로의 일부 코드만 추가합니다. 이 저장소의 이전 CLI/설치 스크립트를 새 방향의 실행 방법으로 사용하지 마세요. 개발 순서와 남은 기술 검증은 [Implementation Plan](IMPLEMENTATION_PLAN.md)과 [TRD](TRD.md)에서 확인할 수 있습니다.
