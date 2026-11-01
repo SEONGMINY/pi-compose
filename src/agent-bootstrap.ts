@@ -14,6 +14,7 @@ export type ComposeAgentBootstrap = {
   label: string;
   workspaceCwd: string;
   terminalId?: string;
+  runtimeReceiptFile?: string;
   gitWorktree?: {
     path: string;
     sourceRoot: string;
@@ -47,6 +48,8 @@ export function parseAgentBootstrap(value: unknown): ComposeAgentBootstrap | und
   if (!validId(raw.sessionId) || !validId(raw.launchRequestId)) return;
   if (!requiredText(raw.product, 120) || !requiredText(raw.label, 120)) return;
   if (!requiredText(raw.workspaceCwd, 4096) || !isAbsolute(raw.workspaceCwd)) return;
+  if (raw.runtimeReceiptFile !== undefined &&
+      (!requiredText(raw.runtimeReceiptFile, 4096) || !isAbsolute(raw.runtimeReceiptFile))) return;
   if (raw.terminalId !== undefined &&
       (typeof raw.terminalId !== 'string' ||
        !/^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$/.test(raw.terminalId))) return;
@@ -76,6 +79,7 @@ export function parseAgentBootstrap(value: unknown): ComposeAgentBootstrap | und
     label: raw.label,
     workspaceCwd: raw.workspaceCwd,
     terminalId: typeof raw.terminalId === 'string' ? raw.terminalId : undefined,
+    runtimeReceiptFile: typeof raw.runtimeReceiptFile === 'string' ? raw.runtimeReceiptFile : undefined,
     gitWorktree: wt && typeof wt === 'object' && !Array.isArray(wt)
       ? {
           path: (wt as Record<string, string>).path,
