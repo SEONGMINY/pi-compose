@@ -6,7 +6,7 @@ import { registerWorkReturn, showWorkPicker } from './work-return.ts';
 import { registerHandoff, showHandoffHistory } from './handoff.ts';
 import { showGhosttySurfaces } from './ghostty-surfaces.ts';
 import { registerAgentIdentity } from './agent-identity.ts';
-import { registerDirectDelegation } from './direct-delegation.ts';
+import { registerDirectDelegation, registerDelegationAutocomplete } from './direct-delegation.ts';
 import { fileURLToPath } from 'node:url';
 
 const baseExtension = fileURLToPath(import.meta.url);
@@ -47,6 +47,7 @@ async function chooseForkSource(ctx: ExtensionContext, { includeCurrent = true }
 export default function composeExtension(pi: ExtensionAPI): void {
   registerAgentIdentity(pi);
   registerDirectDelegation(pi);
+  registerDelegationAutocomplete(pi);
   registerWorkReturn(pi);
   const showHandoff = registerHandoff(pi);
   pi.registerCommand('compose', {
