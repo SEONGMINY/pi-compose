@@ -1,64 +1,120 @@
 # Pi Compose
 
-**설계와 의사결정의 맥락을 Main에 유지하고, 구현은 그 대화를 정확히 이어받은 Work에서 진행하는 Pi 기반 Coding Agent Harness입니다.**
+**설계를 논의하던 Pi 대화는 남겨두고, 구현은 그 대화를 이어받은 다른 Pi 에이전트에게 맡길 수 있어요.**
 
-## 왜 만들까요?
+AI와 개발 방향을 논의하다 보면 구현할 기능뿐 아니라 *왜 그렇게 결정했는지*, *어떤 대안을 제외했는지*, *무엇을 바꾸면 안 되는지*까지 정하게 됩니다. 작업을 새 에이전트에게 짧게 요약해서 전달하면 이런 배경이 빠지기 쉽습니다.
 
-서비스를 개발할 때는 요구사항뿐 아니라 선택의 이유, 도메인 정책, 버린 대안과 강한 금지사항까지 함께 논의합니다. 이를 짧은 위임 프롬프트로 다시 전달하면 중요한 뉘앙스가 사라질 수 있습니다.
+그렇다고 설계하던 대화에서 코드 탐색, 구현, 테스트, 긴 오류 로그까지 모두 처리하고 싶지는 않았습니다.
 
-반대로 Main에서 코드 탐색·구현·테스트·긴 오류 로그까지 모두 처리하면, 이후 의사결정에 필요한 컨텍스트가 소모됩니다.
+**Pi Compose는 원래 대화의 맥락을 유지한 채, 개발 작업을 분리하기 위해 만든 [Pi](https://github.com/earendil-works/pi) 기반 코딩 에이전트 Harness입니다.**
 
-Pi Compose는 **실제 Pi 세션 Fork**로 두 문제를 분리합니다.
+[![Pi Compose에서 Main을 선택하고 Work에 개발을 맡기는 전체 화면](docs/assets/readme/overview-preview.png)](docs/assets/readme/overview-demo.mp4)
 
-## 어떻게 사용하나요? (설계된 경험)
+*Main에서 설계를 논의하고, Work에 구현을 맡긴 뒤, 필요한 결과만 확인하는 흐름. 이미지를 클릭하면 전체 데모를 볼 수 있어요.*
 
-```text
-Main  ── 실제 Pi 세션 Fork ──▶ Work · 구현 / 테스트 코드 작성
-  │                              │
-  │                              └─ 결과 Summary Overlay
-  │                                 └─ 사용자가 선택해 Main에 필요한 결정 전달
-  └─ 설계와 다음 의사결정을 이어감
+## 실제로 사용해 보면
 
-Support · 탐색 / 자료 조사 / 테스트 실행 / 독립 검증
-         └─ 맥락이 불필요한 작업은 독립 Pi 세션에서 수행
-```
+예를 들어 프로필 API에 \`displayName\`을 추가하면서, 이전 클라이언트와의 호환성을 위해 \`label\`은 계속 유지하기로 했다고 해볼게요.
 
-- **Main:** 문제 정의, 도메인 스토리텔링, 기획, API, 아키텍처, 제약, 결정과 그 이유를 축적합니다. 여러 Main을 사용할 수 있습니다.
-- **Work:** 사용자가 지정한 Main의 활성 완료 대화 지점을 정확히 Fork합니다. 개발과 디버깅의 전체 기록을 Main에 자동으로 쌓지 않습니다.
-- **Support:** 전체 Main 맥락이 필요 없는 독립 조사·테스트 실행 등을 처리합니다.
-- **Summary Overlay:** Work의 결과와 공유할 만한 중요한 결정을 **사용자에게 자동으로 표시**합니다. 선택하면 원본 Pi 터미널 화면을 확인합니다. Main으로의 전달은 사용자 요청이 있을 때만 이루어집니다.
+### 1. Main에는 설계와 결정 이유를 남깁니다
 
-## 현재 제품 방향
+\`pic\`에서 프로덕트를 선택하고 Main을 엽니다. Main에서는 요구사항, 기존 API 계약, 대안을 함께 논의해요.
 
-| 항목 | 방향 |
+이 대화에는 **\`label\`을 유지해야 하는 이유**도 남습니다. 개발 작업 때문에 이 대화를 다른 세션으로 바꾸거나 처음부터 다시 설명할 필요가 없습니다.
+
+### 2. 같은 맥락으로 Work를 만들어 개발합니다
+
+설계 논의가 끝나면 Main에서 다음과 같이 입력합니다.
+
+\`\`\`text
+>>w 앞서 합의한 프로필 API 변경을 구현해줘.
+\`\`\`
+
+\`>>w\`는 **현재 Pi 대화를 Fork한 Work**를 만들고, 파일은 **새 Git Worktree**에서 수정하도록 요청합니다. 새 Work에는 논의했던 맥락이 이어지지만, 이후 코드 탐색·도구 출력·수정 기록은 원래 Main 대화에 쌓이지 않아요.
+
+![원래 Main 대화를 이어받아 별도 Ghostty Split과 Git Worktree에서 작업하는 Work](docs/assets/readme/work-fork.png)
+
+*Work는 원본 설계 제약을 참고해 개발하고, Main은 그대로 남아 있습니다.*
+
+### 3. 작업 내용 중 필요한 것만 확인하고 공유합니다
+
+Work가 작업하는 동안 \`pic\`에서는 프로덕트별 Agent를 보거나 기존 Ghostty Split으로 이동할 수 있습니다. Summary 정보층에서는 최근 요청·도구 결과·Assistant 응답을 원본 기록과 연결해 확인할 수 있어요.
+
+중요한 내용을 다른 에이전트에게 전달하고 싶을 때는 Work의 Pi TUI에서 직접 선택합니다.
+
+\`\`\`text
+/compose handoff
+\`\`\`
+
+보낼 원본 내용과 받을 Agent를 고르고, 전송할 문구를 검토한 뒤 공유합니다. **Work의 전체 로그나 새 제안이 Main의 대화에 자동으로 들어가지는 않습니다.** 공유했다는 사실과 그 내용을 승인했다는 사실도 구분합니다.
+
+![Work의 원본 내용을 확인하고 수신 Agent를 선택하는 Handoff 화면](docs/assets/readme/handoff-review.png)
+
+*필요한 내용만 사용자가 선택합니다. 전송 성공은 수신 모델이 실제로 내용을 처리했다는 뜻은 아니에요.*
+
+### 4. Main으로 돌아와 다음 결정을 이어갑니다
+
+프로덕트 목록에서 원래 Main을 선택하면 기존 Pi 화면으로 돌아갑니다. Work에서 발생한 긴 실행 로그 대신 **처음 논의했던 요구사항과 결정 이유를 바탕으로** 다음 작업을 이어갈 수 있어요.
+
+![기존 설계와 의사결정 맥락이 유지된 Main Pi 화면으로 돌아온 모습](docs/assets/readme/main-return.png)
+
+*Work의 작업 기록을 Main에 전부 옮기지 않아도, 원래 설계 대화는 그대로 이어집니다.*
+
+반대로 기존 대화가 필요 없는 파일 탐색이나 독립적인 조사는 \`>s\`로 Support에 맡길 수 있습니다. 모든 작업을 Main의 긴 대화에서 Fork할 필요는 없기 때문입니다.
+
+## 어떻게 동작하나요?
+
+**대화의 맥락(Context)**과 **파일을 수정할 공간(Workspace)**을 분리해서 생각하면 이해하기 쉬워요.
+
+\`\`\`mermaid
+flowchart TB
+    Main["Main<br/>설계·결정 이유가 남은 Pi 대화"]
+    Main -->|"Pi 활성 대화 Fork"| Work["Work<br/>같은 맥락으로 구현"]
+    Main -->|"독립 세션"| Support["Support<br/>조사·탐색·검증"]
+    Work --> Workspace{"작업 공간"}
+    Support --> Workspace
+    Workspace -->|"공유"| Shared["Shared Directory<br/>현재 작업 디렉터리"]
+    Workspace -->|"분리"| Git["Git Worktree<br/>새 브랜치·체크아웃"]
+    Work -.->|"사용자가 내용·수신자 선택"| Handoff["Handoff · pi-intercom"]
+    Handoff -.-> Main
+\`\`\`
+
+**Main**은 문제 정의와 설계의 원본 대화입니다. **Work**는 지정한 Pi 세션의 완료된 대화 지점을 실제로 Fork해 맥락이 중요한 개발에 사용합니다. **Support**는 기존 대화를 상속하지 않는 독립 Pi 세션입니다.
+
+파일 작업은 별개예요. \`>w\`와 \`>s\`는 현재 디렉터리를 공유하고, \`>>w\`와 \`>>s\`는 명령을 입력한 Agent의 **현재 Git HEAD**에서 새 Worktree를 만듭니다. Worktree에 원본 디렉터리의 미커밋 변경사항이 복사되지는 않습니다.
+
+## Pi만 사용할 때와 무엇이 다른가요?
+
+Pi는 이미 세션 Fork·Resume과 Extension을 제공하고, Git에는 Worktree가 있으며, Ghostty는 Split을 제공합니다. Pi Compose가 이 기능들을 새로 만든 것은 아닙니다.
+
+| 기존 도구가 제공하는 기능 | Pi Compose에서 연결하는 경험 |
 | --- | --- |
-| Agent 런타임 | [Pi](https://github.com/earendil-works/pi)와 기존 Extension 활용 |
-| 터미널 | **Ghostty만 사용**. `pic` 탭에서 관리 사이드바와 실제 Main·Work·Support Pi TUI를 **각각 독립 Split**으로 배치. 실행 중 Agent마다 Split을 유지하고 사이드바에서 해당 Split으로 포커스 이동. 배치·규모에 따른 화면 제약은 수용 |
-| 사이드바 | **`pic` 실행 화면에서만 표시**. 프로덕트별 보기 / 전체 Agent 보기 / 별도 메시지 관리. Main·Work·Support를 전환해도 유지하고, 일반 Ghostty 탭에는 표시하지 않음. Main 이름에는 `Main ·` 접두어를 붙이지 않음 |
-| 작업 공간 | Shared Directory 또는 Git Worktree를 작업에 맞게 선택 |
-| 시작/재접속 | 사용자가 명시적으로 Agent 실행 및 이전 Main 세션 선택 |
-| Main 재접속 | 선택한 Main만 실행; 과거 Work/Support는 자동 시작하지 않음 |
-| 종료 요청 | **백그라운드로 유지(최소화/숨김) / 실행 중인 Agent 종료**를 사용자에게 선택받는 UX. **백그라운드 유지 시 Ghostty 자체를 종료하지 않고 살려두는 방향**이며, 창 닫기·앱 Quit 연결은 검증 필요 |
-| 맥락 보존 | 원본 Pi 대화 + 기존 `docs/*` 문서; 작은 `AGENTS.md`는 문서 안내 |
-| 문서화 | 명확하게 승인한 중요한 결정은 기존 문서에 즉시 반영; 새 문서는 사용자 확인 |
-| Handoff | 사용자 요청 전에는 Work의 메시지·로그·결정을 Main 모델에 자동 입력하지 않음. 메시지 대기·전달·실패 등은 별도 사이드바에서 확인·관리하는 방향 |
+| **Pi** — 대화, Fork, Resume, Extension | Main·Work·Support를 구분하고 원하는 대화 맥락으로 작업 시작 |
+| **Ghostty** — 터미널·Split·포커스 | \`pic\`에서 Agent를 탐색하고 기존 Pi 터미널로 이동 |
+| **Git** — 브랜치·Worktree | 맥락 상속과 별개로 파일 작업 공간 선택 |
+| **pi-intercom** — Agent 간 메시지 | 사용자가 원본 내용과 수신자를 선택해 필요한 정보만 전달 |
 
-**Orca 통합 및 tmux/workmux 도입은 중단했습니다.** **Herdr App·herdr-core·별도 멀티플렉서/프로세스 실행 계층도 현재 도입하지 않습니다.** 별도 데스크톱 GUI도 현재 개발하지 않습니다. 복잡성이나 시각적 비교의 필요성이 실제로 생길 때 다시 검토합니다.
+**Pi Compose는 또 다른 Agent Runtime이나 자동 작업 스케줄러가 아닙니다.** Pi의 확장성을 유지하면서, 직접 조합해야 했던 개발 흐름을 하나로 연결하는 프로젝트예요.
 
-## 구현 상태
+## 설치 및 첫 실행
 
-**Draft PR #15 — 현재 4단계 코드 작성:**
-- `pic` 전용 Overview의 프로덕트/Agent/메시지 탐색, `n` 새 Main 생성, `o` 저장 Pi Main 명시적 재개, Ghostty의 기존 Terminal UUID로 포커스
-- Pi 1.4.0 활성 완료 분기 기반 Native Work Fork와 독립 Support, `>w`·`>s` 직접 위임, **같은 프로덕트의 `>w @` / `>>w @` 원본 선택·Pi 에디터 자동완성**
-- `>>w`·`>>s`는 **명령 입력 Agent의 Git HEAD**에서 새로운 Worktree/브랜치 생성. 원본 미커밋 변경은 복사하지 않으며, 생성 브랜치·HEAD·경로를 새 Pi 신원 기록에 남김
-- 사용자 선택형 `/compose handoff`, Pi 기록 기반 `/compose messages`, 실제 Ghostty Terminal 포커스 `/compose surfaces`
+현재 설치 스크립트는 **macOS**용이며 **Node.js 22.19.0 이상**이 필요합니다. [Ghostty](https://ghostty.org/)에서 실행하는 것을 기준으로 개발하고 있어요.
 
-**모든 항목은 코드 작성이며 타입체크·macOS Ghostty/Pi/Git 실사용 통합 검증 전입니다.** 실제 Pi 프로세스/Agent 수명 관리, Summary의 경량 모델 의미 요약·중요 결정 후보, 완성된 메시지 Sidebar와 Handoff UX, 설치·종료·복구 흐름은 남았습니다. 코드가 작성됐다는 이유로 제품 전체 동작을 보장하지 않습니다. 남은 순서는 [Implementation Plan](docs/IMPLEMENTATION_PLAN.md)을 확인해 주세요.
+\`\`\`bash
+curl -fsSL https://raw.githubusercontent.com/SEONGMINY/pi-compose/main/scripts/install.sh | bash
+\`\`\`
 
-**5단계 Draft 코드:** Native Pi 자식 실행 래퍼에 OS 프로세스 시작/종료 영수증을 남기고, Overview에서 **Session ID + Launch ID + Terminal UUID + PID 시작 시각**을 대조해 확인된 실행 사실만 표시하도록 추가했습니다. `q` 종료 선택에서는 Agent 유지·Ghostty 숨김, **재확인된 Pi 프로세스의 Surface만 사용자 승인 후 닫기**, 취소를 구분합니다. 상태 불명 Agent를 임의로 종료하거나 저장된 Pi 대화/Git Worktree를 삭제하지 않습니다. Main 저장 세션 재개 시 실제 OS 프로세스가 관찰되면 **중복 실행을 거부**하고, 실행 여부가 불명확하면 위험을 명시적으로 확인한 사용자에게만 재개를 허용하도록 보완했습니다. **실시간 모델 상태·완전한 종료/복구는 미완성이며 Summary 사실 정보층 코드는 작성됐으나 타입/실사용 검증 전입니다.**
+설치 후 원하는 프로젝트에서 실행합니다.
 
-**6단계 Draft 코드:** 기존 Pi TUI에 `ctx.ui.custom`의 **non-capturing Overlay**를 연결해 포커스 아웃 30초 또는 비포커스 정상 응답 종료 시 표시하고 재포커스하면 닫는 경로를 작성했습니다. 화면에는 Pi 활성 분기에서 확인한 요청·Tool 결과·Assistant 답변과 원본 Entry ID를 표시합니다. Overview에는 Agent 행에서 `v`로 근거를 읽는 기능을 추가했습니다. **이는 경량 모델 의미 요약·중요 결정 자동 공유 후보가 아니며, 실사용 검증 전입니다.** 수신자 선택형 Summary 공유 UI/메시지 Sidebar의 완전한 통합은 남았습니다. Overlay는 Main 컨텍스트를 변경하지 않습니다.
+\`\`\`bash
+cd /path/to/your-project
+pic
+\`\`\`
 
-**이 README는 새 제품 방향을 설명하는 설계 문서입니다.** 기존 코드에는 이전 tmux/workmux 기반 CLI와 Orca 실험이 남아 있고, 위 Ghostty 중심 흐름, 제품/Agent 사이드바, 메시지 관리, 종료 선택 UX와 Summary Overlay가 실제로 완성·검증됐다는 뜻은 아닙니다. 과거 설치·명령을 새 제품의 사용법처럼 안내하지 않습니다.
+\`pic\`의 관리 화면에서 \`n\`은 새 Main 생성, \`o\`는 저장된 Pi 세션 선택, \`1\`·\`2\`·\`3\`은 각각 프로덕트·전체 Agent·메시지 보기입니다. Main을 처음 열었다면 Pi의 \`/login\`과 \`/model\`로 인증과 모델을 설정할 수 있어요.
 
-현재 확정된 계약과 결정하지 않은 항목은 [PRD](docs/PRD.md)를 기준으로 확인해 주세요. 기술적 책임과 검증 범위는 [Architecture](docs/ARCHITECTURE.md)와 [TRD](docs/TRD.md), 앞으로의 구현 순서는 [Implementation Plan](docs/IMPLEMENTATION_PLAN.md)에 정리했습니다. 기존 CLI 구현과 기록은 Git 이력에 보존합니다.
+**사용 전 확인:** 현재 \`main\`에는 Ghostty 중심 코드와 이전 실행 구조가 함께 남아 있습니다. 설치 스크립트도 레거시 \`tmux\`·\`workmux\`를 설치하며, 이는 새 Ghostty 경험의 필수 의존성이라는 뜻이 아닙니다. Native 실행·Fork·Handoff·Overlay의 전체 macOS 실사용 흐름은 아직 통합 검증 전이고, Summary의 의미 요약과 중요 결정 자동 후보·완성된 메시지 Sidebar도 구현 중입니다. 이 README의 화면 자료는 해당 흐름을 보여줄 녹화·캡처로 교체할 예정입니다.
+
+## 더 알아보기
+
+실행 명령과 제약은 [사용 가이드](docs/USAGE.md), 중요한 제품 결정은 [PRD](docs/PRD.md), 구조와 구현 범위는 [Architecture](docs/ARCHITECTURE.md)와 [Implementation Plan](docs/IMPLEMENTATION_PLAN.md)에서 확인할 수 있어요.
