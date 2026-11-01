@@ -90,7 +90,8 @@ on run argv
   set wantedId to item 1 of argv
   set newCwd to item 2 of argv
   set newCommand to item 3 of argv
-  set environmentLines to items 4 thru -1 of argv
+  set environmentLines to {}
+  if (count of argv) > 3 then set environmentLines to items 4 thru -1 of argv
   tell application "Ghostty"
     repeat with w in windows
       repeat with t in tabs of w
