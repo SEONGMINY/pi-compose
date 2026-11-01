@@ -89,10 +89,12 @@ if (!launchFile || !launchFile.startsWith('/')) {
       try {
         const child = spawn('pi', args, { cwd: bootstrap.workspaceCwd, stdio: 'inherit', env });
         let failed = false;
+        let spawnEvidence = Promise.resolve();
+        let exitEvidence;
         child.once('spawn', () => {
           // ps lstart is an OS process identity fingerprint. A PID alone
           // could refer to a different process after reuse.
-          void (async () => {
+          spawnEvidence = (async () => {
             let processStart;
             try {
               const result = await execFileAsync('/bin/ps', ['-p', String(child.pid), '-o', 'lstart='], {
@@ -109,12 +111,14 @@ if (!launchFile || !launchFile.startsWith('/')) {
           process.exitCode = 127;
         });
         child.once('exit', (code, signal) => {
-          if (!failed) void record('pi-exited', {
-            pid: child.pid, exitCode: code, signal,
-          });
+          exitEvidence = { pid: child.pid, exitCode: code, signal };
           process.exitCode = code ?? (signal ? 1 : process.exitCode ?? 0);
         });
         await new Promise(resolve => child.once('close', resolve));
+        // Never allow a delayed OS start-time lookup to overwrite the final
+        // exit result with a stale 'pi-spawned' event.
+        await spawnEvidence;
+        if (!failed) await record('pi-exited', exitEvidence ?? { pid: child.pid });
         await receiptQueue;
       } catch (error) {
         await record('pi-spawn-failed', { detail: String(error) });
