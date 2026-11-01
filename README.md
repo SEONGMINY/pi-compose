@@ -47,6 +47,10 @@ Support · 탐색 / 자료 조사 / 테스트 실행 / 독립 검증
 
 ## 구현 상태
 
+**4단계 Draft 구현:** 같은 프로덕트의 Pi 세션 검색·원본 ID 선택 및 직접 위임 `>w @` / `>>w @` 전용 자동완성, `>>w`·`>>s` Git Worktree 생성 코드를 추가했습니다. Git Worktree는 **명령 입력 Agent의 현재 HEAD**에서 새 브랜치를 만들고 미커밋 변경을 복사하지 않습니다. Workspace 원본 브랜치/HEAD/경로는 자식 Pi identity에 기록합니다. **타입체크·실행·macOS Pi/Git/Ghostty 통합 검증 전**이며 기존 Pi 세션·Git Worktree·브랜치는 정리하지 않았습니다. 상세 상태는 [Implementation Plan](docs/IMPLEMENTATION_PLAN.md)을 참조하세요.
+
+
+
 **현재 단계 (Draft PR #15):** `pic` 명령이 전용 Pi TUI Overview에 진입하도록 코드를 작성했습니다. 제품별/전체 Agent/메시지 목록을 탐색하고 **원본 Pi 기록에 신원이 등록되어 Ghostty Terminal UUID까지 확인되는 Agent만** 기존 Surface에 포커스합니다. 기존 Pi TUI를 새로 실행하거나 미러링하지 않습니다. **실행/타입·통합 검증 전**이며, 첫 Main 생성과 Work/Support 실행 연결, Summary Overlay/상태/종료 UX는 미구현입니다. 전체 구현 순서와 남은 개발 항목은 [Implementation Plan](docs/IMPLEMENTATION_PLAN.md)에 정리했습니다.
 
 
