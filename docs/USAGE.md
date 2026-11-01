@@ -77,6 +77,14 @@ Draft PR #15는 Pi 1.4.0 `input` 이벤트로 입력 첫머리의 `>w 작업`, `
 
 위 기능은 **코드 작성만 완료, 실제 Pi/Git/Ghostty 실사용 검증 전**입니다. 제품 전체가 실행 가능하다는 뜻은 아닙니다. 생성 오류 후 Git Worktree는 남을 수 있으므로 무작정 명령을 반복하지 말고 Worktree 목록을 확인해야 합니다.
 
+### Agent 상태와 `pic` 종료 선택 — Draft 코드
+
+`pic`의 프로덕트/Agent 보기에서 `r`을 누르면 네이티브 Pi 세션 기록과 별도로 **실행 영수증에 확인된 OS 프로세스 상태**를 다시 조회하도록 작성했습니다. `process-observed`는 동일 PID와 OS 시작 시각을 확인했다는 뜻이지 Pi가 모델 답변을 생성 중이거나 작업이 끝났다는 뜻은 아닙니다. `exited-observed`는 자식 프로세스 종료 영수증이 남은 경우입니다. 상태가 불명확하면 `process-unconfirmed`으로 남습니다.
+
+`q`/Ctrl+C에서는 (1) Ghostty와 Agent 실행을 **그대로 유지하며 숨김 시도**, (2) 확인된 Pi 프로세스의 Ghostty Surface만 **사용자 추가 확인 후 닫기**, (3) 취소를 제공하는 코드가 추가됐습니다. 숨김에 필요한 macOS 권한이 없다면 아무 프로세스도 종료하지 않고 Ghostty `Cmd+H`를 안내합니다. 두 번째 선택에서도 실행 상태가 불명확한 Agent는 자동 종료하지 않으며, 저장된 Pi 대화/파일·Worktree는 삭제하지 않습니다. Native Surface 닫기 요청과 Pi 프로세스 종료 확인은 별개입니다.
+
+**코드 작성 상태이며 macOS 실사용/타입 검증 전입니다.** Ghostty의 Cmd+Q나 일반 창 닫기에는 이 선택지가 개입하지 않으며, 실제 모델 작업 상태·자동 재개·실시간 업데이트도 아직 미구현입니다.
+
 ## 7. 현재 구현과의 차이
 
 새로운 Ghostty 분할/세션 제어·**프로덕트/Agent 및 메시지 관리 사이드바·종료 선택 UX**·Summary Overlay·선택적 문서 맥락 로드·전체 Handoff 경험은 아직 제품으로 완성되지 않았습니다. Draft PR #15에는 Native Pi Fork·Ghostty Overview·Main/Work/Support 실행 경로·Git Worktree·Handoff의 코드가 포함됐지만 실사용·타입 검증을 진행하지 않았습니다. 이 저장소의 이전 CLI/설치 스크립트를 새 방향의 실행 방법으로 사용하지 마세요. 개발 순서와 남은 기술 검증은 [Implementation Plan](IMPLEMENTATION_PLAN.md)과 [TRD](TRD.md)에서 확인할 수 있습니다.
