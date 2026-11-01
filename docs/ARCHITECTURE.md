@@ -55,6 +55,8 @@ flowchart TD
 
 **실행 정체성 계약 (Draft PR #15, 검증 전):** 새 Pi 세션 ID를 포함하는 Launch Ticket를 발급해 자식 Pi가 실제로 그 ID로 시작했을 때만 `compose_agent_identity`를 남기는 Hook을 작성했습니다. 여기에는 프로덕트·Agent 역할·생성 요청 세션·실제 Fork 원본 ID/leaf·Workspace가 각각 별도로 들어갑니다. 실제 Ghostty Split 영수증을 Pi 세션과 연결하는 함수는 정확히 동일한 Launch Request ID와 자식 Session ID를 요구합니다. Work Fork는 Pi 네이티브 `createBranchedSession(leafId)`를 사용한 원본 불변 분기 추출 함수로 구성했습니다. **이것은 Agent 시작 전체, Overview 등록, 영수증 발행, 제품별 조회의 완료를 뜻하지 않습니다.**
 
+**Overview TUI 구현 기반 (Draft PR #15):** `pic` 인자 없는 실행은 `@earendil-works/pi-tui`로 만들어진 전용 관리 화면을 현재 Terminal에서 시작하도록 코드를 작성했습니다. 이 화면의 제품별 보기/전체 Agent 보기/메시지 기록은 동일한 Pi SessionManager 원본을 바라보고, 저장된 `compose_agent_identity`가 실제 자식 세션 ID와 일치할 때만 목록에 포함합니다. Ghostty Terminal UUID가 정확하게 등록되어 현재 Ghostty에 존재하는 Agent만 Surface Focus를 허용합니다. **Pi 프로세스 살아 있음, 종료 상태, Main 승인, 새 응답 확인은 아직 판별하지 않습니다.** 이 TUI는 `pic` Tab에만 있으며 Pi의 실제 TUI를 합성·미러링하지 않습니다. Main 생성·선택과 Overview → Native Launch 연결은 다음 단계이고, 초기 사용 가능한 제품은 아닙니다.
+
 ### 3.2 위임 입력에서 실행까지
 ```mermaid
 flowchart TD
