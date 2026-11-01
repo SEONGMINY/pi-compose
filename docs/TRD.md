@@ -128,6 +128,14 @@
 - 새 자식 Pi의 identity custom entry에 Worktree path, 생성 branch, 호출 Agent의 baseBranch/baseCommit을 보존합니다. 명령 입력 Agent의 cwd 하위 디렉터리를 공유할 수 있으며 `>>`는 같은 상대 디렉터리를 새 Worktree에서 사용합니다. 폴더가 커밋에 존재하지 않는 경우 연결 실패가 발생할 수 있으므로 결과를 추측하지 않습니다.
 - **중요:** Worktree 생성 후 Pi/Ghostty 실행 실패 시 Worktree를 무단 삭제하거나 무조건 재시도하지 않습니다. 실제 Git Worktree 생성/입력 자동완성/정확한 Leaf/맥락 상속/오류·중단 검증은 사용자에게 남깁니다. 현재 코드를 실사용 통합 완료로 표시하지 않습니다.
 
+### Native 수명 관찰과 종료 선택 (Draft PR #15)
+
+- **소스 근거:** Ghostty 1.3.1의 `macos/Ghostty.sdef`에서 `close terminal`·`focus`는 정확한 Terminal을 지정합니다. `ScriptTerminal.swift`는 close 처리 시 앱 내부 추가 확인 없이 `closeSurface(..., withConfirmation: false)`를 호출합니다. 따라서 무단 자동 종료는 금지하고 Compose 자체 확인 과정을 거칩니다.
+- `bin/native-agent-entry.mjs`는 기존 새 Pi 실행 프로세스를 래핑하는 동안 PID/시작 시간(가능한 경우 `/bin/ps -o lstart=`)·child exit/에러를 private 단발 영수증 파일에 atomic 기록합니다. `src/agent-lifecycle.ts`는 **Pi Session ID + Launch Request ID + Ghostty Terminal UUID**가 모두 일치해야 관련 실행 증거로 인정합니다. OS PID만 보존하면 재사용될 수 있어 같은 프로세스인지 확인할 때 PID와 시작 시각을 함께 대조합니다. 래퍼 강제 종료/권한 문제/기록 유실은 `process-unconfirmed`으로 표시합니다.
+- `src/overview.ts`는 현재 **`r` 새로고침 시** 확인 가능한 프로세스 상태만 표시합니다. 실제 Pi의 `agent_settled`, 응답 중, UI Prompt의 사용자 입력 대기까지 구분하는 이벤트 연결/실시간 자동 갱신은 아직 없습니다.
+- `q`에서는 사용자에게 Ghostty 숨김 유지 또는 명시적인 Agent 종료를 선택하게 합니다. 후자는 재확인한 Native Surface+OS 프로세스 증거가 있는 Agent만 `close`를 호출하고, 상태 불명 Surface는 남깁니다. OS 숨김은 System Events 권한에 실패할 수 있으며 그때는 Overview를 유지하고 Ghostty `Cmd+H`를 안내합니다. 실제 Pi child 종료는 `close` 응답이 아닌 **별도 exit 영수증**으로 확인합니다.
+- **미완료:** 전 Agent의 실제 종료 확인/강제 종료 복구/다중 Pi 동시 세션 충돌·기존 터미널 내부에서 수동 재개한 Pi/세션 실시간 생존 감지/완전한 background exit UX/Surface 이동. Pi 세션·Git Worktree는 삭제하지 않습니다. 별도 Broker/daemon/DB를 도입하지 않습니다. 이 구현의 타입·실행 검증은 사용자 범위입니다.
+
 ## 4. 아직 해결되지 않은 기술·제품 질문
 
 1. `pi-intercom` 0.18.1 `human-first` 정상 턴 종료 경계는 **외부 TUI 실행 1회 관찰**. **Compose Outbox와 실제 설치/설정 조합은 미검증**이며, 중단·오류의 수신 및 Broker 전송·대기·주입·실제 모델 처리의 관찰 범위는 구현 연결 시 확인합니다. Outbox `sent`는 수신 모델이 읽음/승인함을 뜻하지 않습니다.
