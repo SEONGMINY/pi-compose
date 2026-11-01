@@ -30,27 +30,31 @@ if (!launchFile || !launchFile.startsWith('/')) {
     console.error('Pi Compose: Ghostty split receipt was not confirmed; Pi was not started.');
     process.exitCode = 1;
   } else {
-    const { bootstrap, task, composeExtensionFile, sessionFile } = ticket;
+    const { bootstrap, task, composeExtensionFile, sessionFile, overviewTerminalId } = ticket;
     const uuid = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
     if (bootstrap?.version !== 1 ||
         !uuid.test(bootstrap.terminalId || '') ||
         !uuid.test(bootstrap.sessionId || '') ||
         typeof composeExtensionFile !== 'string' || !composeExtensionFile.startsWith('/') ||
-        typeof task !== 'string' || !task.trim() ||
-        (bootstrap.role !== 'support' && bootstrap.role !== 'work') ||
-        (bootstrap.role === 'work' && (typeof sessionFile !== 'string' || !sessionFile.startsWith('/')))) {
+        !uuid.test(overviewTerminalId || '') ||
+        !['main', 'support', 'work'].includes(bootstrap.role) ||
+        (bootstrap.role !== 'main' && (typeof task !== 'string' || !task.trim())) ||
+        (bootstrap.role === 'main' && task !== undefined) ||
+        ((bootstrap.role === 'work' || (bootstrap.role === 'main' && sessionFile)) &&
+          (typeof sessionFile !== 'string' || !sessionFile.startsWith('/')))) {
       console.error('Pi Compose: invalid or incomplete native Agent launch ticket.');
       process.exitCode = 2;
     } else {
       const args = ['--extension', composeExtensionFile];
-      if (bootstrap.role === 'work') args.push('--session', sessionFile);
+      if (sessionFile) args.push('--session', sessionFile);
       else args.push('--session-id', bootstrap.sessionId);
-      // A literal positional prompt: no summarization, rewriting, or parent
-      // session insertion. The direct >w/>s prefix is removed by the caller.
-      args.push('--', task);
+      // Main (new or resumed) starts at the Pi editor, with NO automatic prompt.
+      // Work/Support receive the exact original user task as a literal argument.
+      if (bootstrap.role !== 'main') args.push('--', task);
       const env = {
         ...process.env,
         PI_COMPOSE_AGENT_BOOTSTRAP_V1: Buffer.from(JSON.stringify(bootstrap), 'utf8').toString('base64url'),
+        PI_COMPOSE_OVERVIEW_TERMINAL_ID: overviewTerminalId,
       };
       delete env.PI_COMPOSE_LAUNCH_TICKET;
       try {
