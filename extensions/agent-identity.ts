@@ -39,5 +39,13 @@ export function registerAgentIdentity(pi: ExtensionAPI): void {
       forkSourceLeafId: ticket.forkSourceLeafId,
       recordedAt: new Date().toISOString(),
     });
+    if (ticket.terminalId) {
+      pi.appendEntry('compose_surface_binding', {
+        sessionId: ticket.sessionId,
+        terminalId: ticket.terminalId,
+        launchRequestId: ticket.launchRequestId,
+        recordedAt: new Date().toISOString(),
+      });
+    }
   });
 }
