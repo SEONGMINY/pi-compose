@@ -89,6 +89,14 @@
 - **Draft PR #15 코드:** `extensions/handoff.ts`에서 사용자가 활성 Pi 분기의 근거와 수신 세션·본문을 고르고 `intercom:outbox-request`를 발행하며, `intercom:outbox-result`를 기록합니다. 임시 `/compose handoff` 명령 및 `src/handoff-history.ts` + `/compose messages` 읽기 전용 이력 표시 코드를 작성했습니다. **실행/통합 미검증**, Overview/Summary/Sidebar 연결 전입니다. 전송 결과가 없는 발신 요청은 성공이나 대기로 단정하지 않고 `outcome-unknown`으로 구분합니다. `pi-intercom`의 Outbox 이벤트 API 및 전송 상태 보고는 **연동 수단**입니다. 기존 Broker에 보낸 시점, 수신 Work에 도착한 시점, Work 모델에 반영된 시점은 다를 수 있으므로 단일 '전송 완료'로 혼동하지 않습니다. 기존 `intercom` Tool이 허용하는 Agent 자율 전송은 Pi Compose의 사용자 선택형 Handoff와 **구분해 통제**해야 합니다.
 - 독립 작업의 보고는 자체 검증 없이 실제 코드·테스트 성공의 증거로 간주하지 않습니다. Git 통합은 별개입니다.
 
+### Native Ghostty Agent 생성 연결 — Draft PR #15
+
+- **Pi 1.4.0 공식 계약:** `input` 이벤트는 `interactive` 출처에 한정해 `handled`로 선처리할 수 있고, `setEditorText()`로 실패한 입력을 복원합니다. `--session <path>` 또는 `--session-id <id>`와 초기 위치 인자는 실제 Pi TUI 초기 지시에 사용할 수 있습니다. 원문을 모델이 다시 작성해 위임하지 않습니다.
+- **Ghostty 1.3.1 공식 계약:** `new surface configuration`, `split terminal direction right with configuration`, `terminal.id`, `focus`를 재사용합니다. 1.3.1에 없는 Terminal TTY/PID를 요구하지 않고, `GHOSTTY_SURFACE_ID`를 AppleScript UUID로 취급하지 않습니다.
+- **작성한 코드:** `extensions/direct-delegation.ts`는 `>w`/`>s`를 선처리하고, `src/native-agent-launch.ts`는 **실제 pic Overview Terminal UUID를 인자로 받을 때만** 새 Split을 생성합니다. Split이 반환한 UUID를 임시 전용 Launch Ticket에 기록한 뒤 `bin/native-agent-entry.mjs`가 실제 자식 Pi를 시작합니다. `extensions/agent-identity.ts`는 자식 Pi 세션에서만 역할·프로덕트·요청자·Fork 원본·Surface 연결을 기록합니다. 발신 Main JSONL에 위임 작업 지시나 상태 메타데이터를 추가하지 않습니다.
+- **코드 안전 경계:** 준비 단계에서 원본 Pi 세션을 변경하거나 기존 Surface를 복제하지 않습니다. Split 생성 결과는 Pi 실행 성공/초기 프롬프트 수신 완료를 증명하지 않습니다. 반환이 불확실하면 무단 재시도하지 않습니다. Split이 포커스를 가져온 경우에만 기존 포커스를 복원합니다.
+- **미연결:** 확정된 `pic` Overview 관리 TUI 및 실제 Overview Terminal UUID 공급, `@세션` 같은 프로덕트 검색, `>>` Git Worktree 생성, Main 명시적 세션 진입, 전체 Agent Sidebar/상태·Summary·Handoff UI. `>w`/`>s`는 Overview 식별자가 없으면 입력 원문만 복원하고 실행하지 않습니다. **코드 작성이며 실행·타입·통합 검증 전**입니다.
+
 ## 3. 구현 수단 선택 기준
 
 - **기능의 필요성은 제품 요구사항**, 구현 수단은 기존 Pi·Git·Ghostty의 API로 먼저 검증합니다.
