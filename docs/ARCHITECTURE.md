@@ -103,6 +103,26 @@ flowchart LR
 - 요약용 모델 호출은 실제 Agent의 모델 대화에 컨텍스트를 삽입하지 않고, Tool·메시지·Git 근거가 충분할 때 제한적으로 사용합니다. 활동 의미를 가공하되 진행률/성공·공유 Directory 변경의 소유권을 추측하지 않습니다. 전체 실행 로그는 해당 Pi 세션에 둡니다.
 - Sidebar의 상태 표시와 Summary의 내용은 분리합니다. `새 응답`은 확인 시 해제할 수 있지만 실제 `확인 필요`는 포커스만으로 해제하지 않습니다. 상태에 따라 Agent 위치/크기/포커스는 바꾸지 않습니다.
 
+### 3.4 Native Agent 실행 경로 (코드 작성 · 검증 전)
+
+```mermaid
+flowchart TD
+    I["Pi 사용자 입력 첫머리 >w / >s"] --> H["Extension input handled: 발신 모델 호출 없음"]
+    H --> Q{"실제 pic Overview Terminal ID 존재?"}
+    Q -->|아니요| R["실행 금지 · 사용자 입력 원문 복원"]
+    Q -->|예| F{"Work 또는 Support"}
+    F -->|Work| W["Pi 원본 완료 leaf만 새 Session으로 Fork"]
+    F -->|Support| S["독립 Pi Session ID 발급"]
+    W --> T["자식 ID/원문 지시/요청 관계 Launch Ticket"]
+    S --> T
+    T --> G["Ghostty Overview native Split"]
+    G --> U["Ghostty Terminal UUID 확인"]
+    U --> E["자식 Pi TUI 실행 및 원문 초기 지시 전달"]
+    E --> C["자식 Pi에만 identity + Surface binding"]
+```
+
+`src/native-agent-launch.ts`는 **Overview Terminal ID가 확인된 경우에만** Split을 요청합니다. 현재 `pic` 관리 TUI가 해당 ID를 제공하는 기능은 아직 없으므로 직접 위임 경로는 비활성 상태입니다. 시작 실패/결과 불명확 상황에서 중복 생성이나 원문 재전송은 하지 않습니다. 임시 Launch Ticket는 자식 프로세스 시작 허가를 위한 단발 자료이며 Agent 계약 데이터베이스가 아닙니다. 코드가 실제로 순서와 원본 불변을 지키는지는 사용자 통합 검증 전입니다. 기존 Main/Work Tab 안에 새 Agent를 배치하는 우회 구현은 허용하지 않습니다.
+
 ## 4. Fork / Independent / Workspace
 
 | Agent | `>` — Shared Directory | `>>` — Git Worktree |
