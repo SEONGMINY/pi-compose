@@ -116,6 +116,7 @@
 - `q`/Ctrl+C 종료 선택에는 **Ghostty 숨김(실행 상태 보존)** 또는 **확인된 Pi 프로세스의 Native Surface 닫기** 및 취소를 두었습니다. 종료 선택 시 대상 수를 표시하고 **두 번째 명시적 확인 후** 동일 Session ID/Launch ID/Terminal UUID/OS 시작 지문을 다시 확인한 Surface에만 Ghostty의 `close`를 요청합니다. 상태 불명 Agent/Surface는 건드리지 않습니다. Ghostty 1.3.1의 `close`는 앱 차원 추가 확인이 없으므로 Compose가 먼저 확인합니다.
 - 숨김은 macOS System Events의 Ghostty 가시성 조정을 시도하므로 OS 권한 때문에 실패할 수 있습니다. 실패 시 Overview/모든 Agent는 유지되고 사용자는 **Ghostty `Cmd+H`**를 사용할 수 있습니다. Ghostty의 Cmd+Q/창 닫기를 가로채지 않습니다.
 - 종료 요청은 **Surface 닫기 응답**까지의 처리이며 Pi 자식 프로세스 exit 확인은 별도 영수증에서 판단합니다. 불명확한 상태가 남으면 Overview를 유지해 확인할 수 있도록 합니다. Pi 대화·Git 파일·Worktree는 자동 삭제하지 않습니다.
+- **같은 Pi Main 세션의 중복 재개 보호:** 저장된 Main을 열 때 현재 Ghostty의 Native Surface가 있으면 그 Surface로 이동합니다. Surface는 없지만 **동일 OS Pi 프로세스가 관찰**되면 중복 재개를 차단하고, 생존이 불분명하다면 사용자가 위험을 알고 명시적으로 `RESUME`을 입력한 경우에만 실행을 허용합니다. 이는 Pi 세션 파일에 대한 범용 프로세스 잠금이 아니라 실측 근거 기반 보호이며, 비-Compose/manual Pi 프로세스까지 완전 차단하지는 못합니다.
 - **남은 5단계:** 기존 외부에서 실행한 Pi 세션의 실행 여부, 중단/크래시/Wrapper 종료 시 정확한 복구 및 동시 실행 감지, 실시간 Pi turn/UI Prompt 상태, 확정 종료 후 복구 UX, 수동 Ghostty Tab 이동 검증은 미완성입니다. 본 변경은 **코드 작성만 완료**, 타입·실행·macOS 실사용 검증 전입니다.
 
 ### 이후 사용자 실사용 검증
