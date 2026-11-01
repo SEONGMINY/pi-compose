@@ -1,5 +1,6 @@
 import { mkdtemp, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { SessionManager } from '@earendil-works/pi-coding-agent';
+import { randomUUID } from 'node:crypto';
 import { readAgentRelationship } from './agent-relationships.ts';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -137,7 +138,8 @@ export async function startNativeMainInOverview(
   if (request.resume) {
     sessionFile = await realpath(request.resume.sessionFile);
     const old = SessionManager.open(sessionFile);
-    if (old.getSessionId() !== request.resume.sessionId || old.getCwd() !== cwd) {
+    const sourceCwd = await realpath(old.getCwd());
+    if (old.getSessionId() !== request.resume.sessionId || sourceCwd !== cwd) {
       throw new Error('The exact Main session ID or working directory did not match.');
     }
     const existing = readAgentRelationship(sessionId = old.getSessionId(), old.getEntries());
@@ -152,10 +154,7 @@ export async function startNativeMainInOverview(
       throw new Error('Main has an existing Ghostty Surface. Focus it instead of resuming.');
     }
   } else {
-    sessionId = createAgentBootstrap({
-      role: 'main', product: request.product,
-      label: request.label, workspaceCwd: cwd,
-    }).sessionId;
+    sessionId = randomUUID();
   }
 
   const bootstrap = createAgentBootstrapForSession({
