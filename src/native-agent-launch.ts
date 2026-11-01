@@ -2,6 +2,7 @@ import { mkdtemp, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { SessionManager } from '@earendil-works/pi-coding-agent';
 import { randomUUID } from 'node:crypto';
 import { readAgentRelationship } from './agent-relationships.ts';
+import { observeAgentLifecycle } from './agent-lifecycle.ts';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,7 +29,7 @@ export type NativeMainLaunchRequest = {
   targetCwd: string;
   overviewAnchorTerminalId: string;
   /** A user-selected persisted Pi session, NOT the most recent session. */
-  resume?: { sessionFile: string; sessionId: string };
+  resume?: { sessionFile: string; sessionId: string; allowUnconfirmedProcess?: boolean };
 };
 
 export type NativeMainLaunchReceipt = {
@@ -159,6 +160,19 @@ export async function startNativeMainInOverview(
     if (existing?.terminalId &&
         (await listGhosttyTerminals()).some(term => term.id === existing.terminalId)) {
       throw new Error('Main has an existing Ghostty Surface. Focus it instead of resuming.');
+    }
+    const runtime = await observeAgentLifecycle(existing?.runtimeReceiptFile, {
+      sessionId,
+      launchRequestId: existing?.runtimeLaunchRequestId,
+      terminalId: existing?.terminalId,
+    });
+    if (runtime.state === 'process-observed') {
+      throw new Error('The selected Main OS process is still present. Do not start a duplicate Pi.');
+    }
+    if (runtime.state !== 'exited-observed' &&
+        runtime.state !== 'launch-failed' &&
+        request.resume.allowUnconfirmedProcess !== true) {
+      throw new Error('The selected Main process status is unknown. Explicit user acknowledgement is required to resume.');
     }
   } else {
     sessionId = randomUUID();
