@@ -62,6 +62,21 @@
 
 **구현 완료(코드 기준):** Pi 원본 엔트리와 Compose Handoff custom entry를 읽기 전용으로 투영하는 기능을 `src/handoff-history.ts`에 분리하고 임시 `/compose messages`를 연결했습니다. **다음 구현:** 사용자 직접 위임이 실제 Ghostty Split을 시작한 뒤 Launch Ticket→새 Pi 세션 ID→Terminal UUID를 **검증된 생성 영수증으로** 연결하는 실행 경로가 우선입니다. Work의 선택 완료 분기 추출은 코드 작성됐지만 실제 Pi 실행 시작/원문 작업 지시 연결은 아직 없습니다. 그 근거를 이용해 Overview TUI의 프로덕트/Agent/메시지 뷰와 실제 Summary 공유 후보 선택을 구성하고, 기존 Handoff 전송/조회 기능을 연결합니다. 기록이 없는 세션을 역할이나 프로덕트로 추측하지 않습니다. 기능별 실사용·타입 검증은 사용자가 진행합니다. 모델 읽음/정책 승인/검증 성공을 추정하거나 자동 재전송·새 Broker를 만들지 않습니다. 제품이 아직 없는 UI를 구현 완료로 표시하지 않습니다.
 
+### Native 실행 연결 진척 — 2026-11-01
+
+| 항목 | 코드 | 검증/현재 제약 |
+| --- | --- | --- |
+| Pi `input` 직접 위임 명령 선처리 | `extensions/direct-delegation.ts` 작성 | `>w`/`>s`만 준비; 실제 Overview ID 없으면 원문 복원 |
+| 진행 중 응답/명령 실패 시 원문 보존 | `handled`·`setEditorText()` 코드 작성 | 실제 Pi TUI 검증 전 |
+| 완료한 Work leaf 복제와 Support ID 생성 | Native Pi API 연결 코드 작성 | 실행/원본 불변 검증 전 |
+| Ghostty Split 발행·반환 UUID 확보·기존 포커스 복원 | `src/native-agent-launch.ts` 작성 | Ghostty 1.3.1 macOS 통합 검증 전 |
+| 자식 Pi 시작·초기 작업 지시 원문 | 일회성 Ticket + `bin/native-agent-entry.mjs` 작성 | 실제 Pi readiness·지시 전달 검증 전 |
+| 자식 세션 identity/Terminal binding | `extensions/agent-identity.ts` 연결 | 실제 부모-자식-UUID 검증 전 |
+| `pic` 전용 Overview TUI·관리 Terminal ID | **미구현** | **현재 Native 직접 위임 실행 불가** |
+| `>>w`/`>>s` Worktree, `>w @세션` | **미구현** | 임의로 cwd 실행/최근 세션 사용하지 않음 |
+
+**다음 우선 작업:** 기존 `pic`을 실제 전용 Overview 관리 TUI 진입으로 전환하고, 그 관리 Terminal의 정확한 Ghostty UUID를 각 Agent에 전달하는 방식을 구현합니다. 이후 위 Native 실행 경로를 연결해 사용자가 원본 명령으로 직접 실행할 수 있도록 합니다. Overview 없는 현재 상태에서 다른 작업 Tab에 Agent를 생성하지 않습니다.
+
 ### 이후 사용자 실사용 검증
 
 전체 구현 배치를 마친 뒤 사용자가 실제 개발 흐름(위임→Overview의 새 Split→포커스·30초 Overlay→결과·확인 필요→종료·재개→Handoff)으로 확인합니다. **새 테스트 코드/CI 작성, PR 병합, 기능별 검증 반복은 사용자가 별도로 요청하기 전까지 진행하지 않습니다.** 실사용에서 발견한 실패/불편 사항을 모아 후속 개선합니다.
