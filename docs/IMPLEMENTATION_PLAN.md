@@ -66,16 +66,16 @@
 
 | 항목 | 코드 | 검증/현재 제약 |
 | --- | --- | --- |
-| Pi `input` 직접 위임 명령 선처리 | `extensions/direct-delegation.ts` 작성 | `>w`/`>s`만 준비; 실제 Overview ID 없으면 원문 복원 |
+| Pi `input` 직접 위임 명령 선처리 | `extensions/direct-delegation.ts` 작성 | 네 가지 `>`/`>>` 명령과 `@세션` 코드를 작성; Overview ID 없으면 원문 복원 |
 | 진행 중 응답/명령 실패 시 원문 보존 | `handled`·`setEditorText()` 코드 작성 | 실제 Pi TUI 검증 전 |
 | 완료한 Work leaf 복제와 Support ID 생성 | Native Pi API 연결 코드 작성 | 실행/원본 불변 검증 전 |
 | Ghostty Split 발행·반환 UUID 확보·기존 포커스 복원 | `src/native-agent-launch.ts` 작성 | Ghostty 1.3.1 macOS 통합 검증 전 |
 | 자식 Pi 시작·초기 작업 지시 원문 | 일회성 Ticket + `bin/native-agent-entry.mjs` 작성 | 실제 Pi readiness·지시 전달 검증 전 |
 | 자식 세션 identity/Terminal binding | `extensions/agent-identity.ts` 연결 | 실제 부모-자식-UUID 검증 전 |
-| `pic` 전용 Overview TUI·관리 Terminal ID | **미구현** | **현재 Native 직접 위임 실행 불가** |
+| `pic` 전용 Overview TUI·관리 Terminal ID | **Draft PR #15 코드 작성** | Main/Work/Support 실행 통합 검증 전 |
 | `>>w`/`>>s` Worktree, `>w @세션`, `>>w @세션` | **Draft PR #15 코드 작성** | Pi 자동완성·Git Worktree 실행 통합 미검증; 오류 시 자동 재시도/삭제 없음 |
 
-**다음 우선 작업:** 기존 `pic`을 실제 전용 Overview 관리 TUI 진입으로 전환하고, 그 관리 Terminal의 정확한 Ghostty UUID를 각 Agent에 전달하는 방식을 구현합니다. 이후 위 Native 실행 경로를 연결해 사용자가 원본 명령으로 직접 실행할 수 있도록 합니다. Overview 없는 현재 상태에서 다른 작업 Tab에 Agent를 생성하지 않습니다.
+**완료한 코드 연결:** `pic` Overview TUI에서 Native Terminal UUID를 확인해 Main을 생성/명시적 재개하고, 자식 Pi에 Overview ID를 전달해 직접 위임 시 Ghostty Overview Split을 생성하도록 코드를 작성했습니다. 기존 작업 Tab에 우회 Split을 생성하지 않습니다. **실제 연결·오류·중복 실행 검증 전**입니다.
 
 ### 구현 진행 흐름 — 2026-11-01 기준
 
@@ -84,8 +84,8 @@
 | 순서 | 개발 영역 | 현재 구현 / 남은 계약 |
 | --- | --- | --- |
 | **1** | Pi 원본 Fork·Handoff·Ghostty 제어 | Native 코드 및 임시 명령 작성, **실행·통합 미검증** |
-| **2 (현재)** | `pic` 전용 Overview TUI·탐색 | 공식 `@earendil-works/pi-tui` 기반 관리 화면 코드 작성. 프로덕트/전체 Agent/메시지 보기, **명시적으로 기록된 생성 요청 관계에 따른 Main·Work·Support 중첩 계층**, **기록된 Terminal UUID를 통한 기존 Surface 포커스** 연결. 실행 미검증 |
-| **3 (현재)** | Main 명시 생성·저장 세션 선택·재개 및 Work/Support 직접 위임 | `n` 새 Main / `o` 저장 Pi 세션 선택→Main Resume 코드 작성. Ghostty Split UUID를 자식 Pi에 전달해 Overview 직접 위임 Anchor로 사용. **실제 Main·위임 통합 미검증**, 생성 실패·미저장 세션의 영구 목록/중복 실행 보호 보완 필요 |
+| **2 (코드 작성)** | `pic` 전용 Overview TUI·탐색 | 공식 `@earendil-works/pi-tui` 기반 관리 화면 코드 작성. 프로덕트/전체 Agent/메시지 보기, **명시적으로 기록된 생성 요청 관계에 따른 Main·Work·Support 중첩 계층**, **기록된 Terminal UUID를 통한 기존 Surface 포커스** 연결. 실행 미검증 |
+| **3 (코드 작성)** | Main 명시 생성·저장 세션 선택·재개 및 Work/Support 직접 위임 | `n` 새 Main / `o` 저장 Pi 세션 선택→Main Resume 코드 작성. Ghostty Split UUID를 자식 Pi에 전달해 Overview 직접 위임 Anchor로 사용. **실제 Main·위임 통합 미검증**, 생성 실패·미저장 세션의 영구 목록/중복 실행 보호 보완 필요 |
 | **4 (현재)** | `@세션`·Git Worktree | 같은 프로덕트 저장 Pi 세션 선택, 입력창 전용 자동완성, 호출 Agent HEAD 기반 `>>` Worktree 생성 코드 작성. macOS/Pi/Git 통합 검증 전 |
 | **5** | Agent 수명·실시간 상태·탐색 | 실행/선택 대기/종료/오류 이벤트, 기존 Surface 이동 후 포커스, 종료·Resume·백그라운드 선택 미구현 |
 | **6** | Summary Overlay·Handoff 실제 UI | 경량 근거 요약·포커스 아웃 30초/종료 시 Overlay·공유 후보/대상 선택·메시지 Sidebar 통합 미구현 |
@@ -99,7 +99,7 @@
 - **Pi 1.4.0 공식 저장 정책:** 사용자·Assistant 대화 메시지가 없는 새 세션은 JSONL 파일을 생성하지 않습니다. Overview는 현재 실행 중에만 새 Main의 임시 항목을 보유하고, 첫 사용자 메시지가 실제 저장되면 native Pi 기록으로 전환합니다. Overview 종료 전까지 메시지를 보내지 않았다면 미저장 항목은 복구되지 않습니다. 이를 영구 세션이라고 표시하지 않습니다.
 - **완료 범위 한계:** 코드 작성 단계이며 실제 Ghostty 실행/설치/타입검증 전입니다. Ghostty 1.3.1에서 Terminal 존재는 실제 Pi 프로세스가 살아 있음을 보장하지 않습니다. 상태 추론·동시 실행 감지/기존 탭 불명확 처리·실패 영구 항목·Main 종료 선택은 다음 수명 관리 단계에서 다룹니다. 생성 시 임의 모델 입력/업무 재개/자동 중복 실행은 금지합니다.
 
-**Overview 현재 코드 경계:** `bin/pic.mjs`의 인자 없는 실행을 `src/overview.ts`로 라우팅하고, Pi 1.4.0의 `SessionManager.listAll()` + `getEntries()`에서 **명시적으로 기록된 Compose Agent 신원**만 읽습니다. Ghostty 1.3.1 Terminal 목록에서 정확한 UUID가 발견된 경우에만 기존 Surface를 포커스합니다. 실시간 실행 상태·최근 사용자 확인 여부·Main 승인 여부를 추측하지 않습니다. 다른 Ghostty Tab에는 Overview TUI를 만들지 않습니다. 사용자가 종료하거나 다시 여는 기록은 아직 미구현입니다. 현재 첫 Main 생성/선택이 연결되지 않아 **제품을 처음부터 사용할 수 있는 상태가 아닙니다.**
+**Overview 현재 코드 경계:** `bin/pic.mjs`의 인자 없는 실행을 `src/overview.ts`로 라우팅하고, Pi 1.4.0의 `SessionManager.listAll()` + `getEntries()`에서 **명시적으로 기록된 Compose Agent 신원**만 읽습니다. Ghostty 1.3.1 Terminal 목록에서 정확한 UUID가 발견된 경우에만 기존 Surface를 포커스합니다. 실시간 실행 상태·최근 사용자 확인 여부·Main 승인 여부를 추측하지 않습니다. 다른 Ghostty Tab에는 Overview TUI를 만들지 않습니다. 사용자가 종료하거나 다시 여는 기록은 아직 미구현입니다. Main 생성/선택 코드도 연결했으나 실제 Ghostty/Pi 실사용 검증 전이며 **제품 사용 가능 상태로 판정하지 않습니다.**
 
 ### 4단계 구현 진척 — 같은 프로덕트 세션 선택·Git Worktree
 
