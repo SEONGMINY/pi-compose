@@ -166,6 +166,13 @@ Ghostty가 새 Split의 Terminal UUID를 돌려준 후 해당 ID와 Overview UUI
 - Pi 자체 종료·Ghostty Surface 닫기까지 실제 프로세스 상태와 연결하고 비정상 종료를 구분합니다. **생성에 실패한 Agent의 Sidebar 항목과 생성 요청 Agent·프로덕트 관계는 유지**하며, 세션 존재/실행 여부가 불명확하다고 자동 중복 생성하거나 최초 지시를 재전송하지 않습니다. Sidebar 재시도 버튼이나 별도 복구 화면은 도입하지 않고 기존 Overview/터미널에서 확인 가능한 오류를 표시합니다. 개별 종료/재개와 `pic` 전체 종료 선택은 별개입니다.
 - 중단된 외부 명령을 자동 재개하는 시스템을 만들지 않습니다.
 
+### 5.1 Summary Overlay 구현 연결 (Draft 코드)
+
+- **렌더링 소유권:** 각 Agent의 **원래 Pi 1.4.0 TUI**가 `ctx.ui.custom({overlay:true,nonCapturing:true})`로 표시합니다. Ghostty Terminal은 하나이며 Pi 프로세스·원본 JSONL/분기 이력은 변하지 않습니다. 별도 TUI 미러링·프로세스 재생성·새 GUI가 아닙니다.
+- **포커스/시간:** 각 자식 Agent는 Launch Ticket의 정확한 AppleScript Terminal UUID를 알고 있으며, Ghostty의 읽기 전용 `frontmost`/선택 Tab의 focused Terminal 관찰로 포커스 아웃 30초와 재포커스 닫기를 판단합니다. 비포커스 Pi 정상 `agent_settled`만 표시 지연을 건너뜁니다. 1초 폴링의 리소스·지연 및 UI prompt 충돌은 아직 검증 전입니다.
+- **원본 근거:** `src/summary-evidence.ts`는 활성 분기의 Pi user/assistant/toolResult 엔트리와 원본 Entry ID를 투영합니다. **현재는 증거 패널이며 경량 모델 의미 요약·중요 결정 자동 후보는 아닙니다.** Overview `v` 조회 또한 같은 Pi 원본에 근거합니다. 사용자 요청 없이 Main이나 다른 Work에 정보를 주입하거나 Git Merge하지 않습니다.
+- **추가 구현 필요:** 승인된 경량 요약 모델의 정확도·비용 제한, 자동 공유 후보와 명시적 수신자 선택, 메시지 Sidebar 상태의 최종 통합. 기술적으로 UI 구조를 구성한 것과 제품 요구사항 충족을 구분합니다.
+
 ## 6. 문서와 맥락의 경계
 
 `AGENTS.md`는 짧은 프로젝트 문서 안내자이며, 실제 확정 계약은 기존 `docs/*`의 해당 원본에 유지합니다. 중요한 승인 결정은 Main의 짧은 지침과 Pi 기본 파일 도구로 **즉시 기존 문서를 갱신**하는 방향입니다. 신규 문서 생성은 사용자 확인이 필요합니다.
