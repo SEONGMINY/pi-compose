@@ -97,6 +97,15 @@
 - **코드 안전 경계:** 준비 단계에서 원본 Pi 세션을 변경하거나 기존 Surface를 복제하지 않습니다. Split 생성 결과는 Pi 실행 성공/초기 프롬프트 수신 완료를 증명하지 않습니다. 반환이 불확실하면 무단 재시도하지 않습니다. Split이 포커스를 가져온 경우에만 기존 포커스를 복원합니다.
 - **미연결:** 확정된 `pic` Overview 관리 TUI 및 실제 Overview Terminal UUID 공급, `@세션` 같은 프로덕트 검색, `>>` Git Worktree 생성, Main 명시적 세션 진입, 전체 Agent Sidebar/상태·Summary·Handoff UI. `>w`/`>s`는 Overview 식별자가 없으면 입력 원문만 복원하고 실행하지 않습니다. **코드 작성이며 실행·타입·통합 검증 전**입니다.
 
+### `pic` Overview 공식 Pi TUI 사용 (Draft PR #15)
+
+- Pi 1.4.0의 **`@earendil-works/pi-tui`** `ProcessTerminal`, `TuiMainScreen`, `SelectList`, `Text` 및 `SessionManager.listAll()`를 재사용합니다. 별도 데스크톱 GUI나 tmux/workmux를 만들지 않습니다.
+- `bin/pic.mjs`의 **인자 없는** `pic`은 현재 Ghostty Terminal 내부에서만 별도 관리 TUI를 엽니다. Pi 설정/설치 관리용 기존 명령 라우팅은 유지합니다.
+- `src/overview.ts`는 프로덕트별 / 전체 Agent / 메시지 기록 보기 전환, Pi native 기록에 **명시적으로 등록된 Agent만** 포함한 탐색, 정확한 Ghostty Terminal UUID 기반 기존 Surface Focus를 연결합니다. 수신 상태는 Pi 기록의 제한된 증거만 표시하고 모델 읽음/승인을 주장하지 않습니다.
+- 관리 TUI는 **Main/Work/Support Pi TUI 프로세스를 대체하지 않습니다**. 각 Agent는 독립 Ghostty Surface에 남아 있어야 하며 Overview의 존재/Focus와 Pi 세션 실행은 별개입니다.
+- **미구현:** 첫 Main 생성/기존 Main 명시 선택·Resume, `pic` Overview Terminal UUID를 새 Agent에게 안전하게 제공하는 제어 경로, 원본 Pi 프로세스가 실제 살아 있는지에 대한 상태, 생성 순서 Split, 파일/워크트리 넘나드는 관계 발견, 실시간 Summary/메시지 UI. 현재 이 TUI만으로 제품 실사용은 불가능합니다.
+- 코드 작성 완료, 실제 macOS Ghostty/Pi 시작·타입·실사용 검증 전입니다.
+
 ## 3. 구현 수단 선택 기준
 
 - **기능의 필요성은 제품 요구사항**, 구현 수단은 기존 Pi·Git·Ghostty의 API로 먼저 검증합니다.
