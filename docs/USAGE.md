@@ -57,6 +57,12 @@ Draft PR #15는 Pi 1.4.0 `input` 이벤트로 입력 첫머리의 `>w 작업`, `
 
 `>w @세션`, `>>w`, `>>s`는 아직 연결 전입니다. 잘못된 작업 공간이나 임의 세션을 선택해 실행하지 않습니다. 새 Agent는 Overview의 실제 Ghostty Split에서 고유 Pi 세션으로 실행해야 하며, Main/Work의 별도 Tab에 임의 생성하지 않습니다.
 
+### Overview 초기 구현 — 현재 Draft 코드
+
+**인자 없이 `pic` 실행:** Pi 1.4.0 TUI 관리 화면을 별도 Ghostty Terminal에서 열도록 작성했습니다. `1` 제품별 보기, `2` 전체 Agent, `3` 메시지 보기, `r` 원본 조회 새로고침, `q` 관리 화면 종료를 제공합니다. 실제 Ghostty에 등록된 Terminal UUID와 Pi 세션의 정확한 바인딩이 있을 때만 기존 Surface에 포커스합니다. Overview에는 실제 Agent의 Pi TUI를 재구성하거나 복제해서 그리지 않습니다.
+
+이것은 **실행·통합 미검증 Draft**이며, 현재 Main 생성/명시적 재접속 및 Work/Support를 자동으로 Overview Split에 붙이는 경로가 미완성입니다. 등록된 Agent가 없으면 비어 있는 관리 목록이 나타납니다. 제품 전체가 사용 가능하다는 뜻이 아닙니다.
+
 ## 7. 현재 구현과의 차이
 
 새로운 Ghostty 분할/세션 제어·**프로덕트/Agent 및 메시지 관리 사이드바·종료 선택 UX**·Summary Overlay·선택적 문서 맥락 로드·전체 Handoff 경험은 아직 제품으로 완성되지 않았습니다. Draft PR #15는 Handoff 전송 경로의 일부 코드만 추가합니다. 이 저장소의 이전 CLI/설치 스크립트를 새 방향의 실행 방법으로 사용하지 마세요. 개발 순서와 남은 기술 검증은 [Implementation Plan](IMPLEMENTATION_PLAN.md)과 [TRD](TRD.md)에서 확인할 수 있습니다.
