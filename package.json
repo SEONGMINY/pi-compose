@@ -21,6 +21,7 @@
     ]
   },
   "dependencies": {
+    "@earendil-works/pi-tui": "1.4.0",
     "zod": "4.6.5"
   },
   "peerDependencies": {

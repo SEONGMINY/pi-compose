@@ -2,7 +2,7 @@
 
 [← README](../README.md) · [확정 정책](PRD.md)
 
-> **새 Ghostty 중심 흐름은 설계 단계입니다.** 이 문서의 예시는 개념적 사용자 흐름이며, 아직 존재하지 않는 CLI 명령이나 동작을 실행할 수 있다고 주장하지 않습니다. 저장소의 오래된 tmux/workmux 기반 CLI는 이전 구현입니다.
+> **Ghostty 중심 Overview 경험은 아직 미구현입니다.** 아래 흐름 대부분은 목표 UX이며, Draft PR #15의 임시 Pi 명령 `/compose handoff`·`/compose messages`·`/compose surfaces`는 코드가 작성됐지만 실제 실행 검증 전입니다. 오래된 tmux/workmux CLI는 이전 구현입니다.
 
 ## 1. Main에서 설계를 논의합니다
 
@@ -41,12 +41,58 @@ Work의 중요한 발견이나 승인 결정이 있어도 Main에는 자동 전�
 
 새 Work를 Fork할 때 이전 Work의 미반영 결정을 자동 경고하거나 동기화하지 않습니다. 문서를 다시 읽는 경우도 **현재 작업 공간에 있는 문서만** 알 수 있으며, 다른 Worktree에서 아직 통합하지 않은 결정은 자동으로 공유되지 않습니다.
 
+### 현재 Draft 구현: `/compose handoff` · `/compose messages` · `/compose surfaces`
+
+Pi TUI에서 사용자가 이 명령을 입력하면 연결된 수신 세션, 현재 Pi 활성 분기의 메시지, 전송 유형을 선택한 뒤 전달 문구를 검토·편집해 pi-intercom Outbox로 전송을 요청하도록 작성돼 있습니다. **실제 사용·설치·타입 검증 전**이며, pi-intercom이 없거나 수신 세션이 없으면 발송하지 않습니다. 이 과정에서 공유는 승인과 구분되고, `sent` 결과를 모델 읽음으로 표시하지 않습니다. `/compose messages`는 같은 Pi 세션의 기록에 남은 발송 요청·Outbox 결과·수신 intercom 메시지를 읽기 전용으로 보여줍니다. 결과가 확인되지 않은 요청은 `outcome-unknown`이며 모델 처리·승인 완료를 표시하지 않습니다. `/compose surfaces`는 Ghostty가 실제로 보유한 Terminal UUID·제목·cwd를 사용자에게 표시하고 선택한 **기존 Terminal**에 포커스하도록 작성했습니다. 이것은 Agent 목록이 아니며, cwd/제목에서 Pi 세션과 Agent 역할을 추측하지 않습니다. Ghostty Split을 만드는 API는 작성됐지만 아직 Agent 실행 경로에는 연결되지 않았습니다. 또한 새 세션 ID와 출처를 명시적으로 기록하는 Launch Ticket Hook, 정확한 완료 분기의 Native Work Fork 함수는 코드만 준비된 상태입니다. 이 함수들이 실제 `>w`/`>s`/`>>w`/`>>s` 사용자 입력과 Ghostty Split 실행까지 연결된 것은 아닙니다. Summary·Sidebar 및 프로덕트 소속 제한은 아직 없습니다.
+
 ## 6. 종료하고 다시 실행합니다
 
 종료를 요청하면 **백그라운드로 유지(최소화/숨김)**하거나 **실행 중인 Agent를 종료**할지 선택할 수 있어야 합니다. 백그라운드를 선택하면 **Ghostty를 종료하지 않고 살아 있는 상태로 유지**하므로 Agent 작업이 계속 진행됩니다. 종료를 선택하면 프로세스를 중지하지만 저장된 Pi 대화와 Git 파일은 유지합니다. Ghostty 앱을 완전히 종료한 후에도 Agent가 별도 프로세스로 남는 구조는 제공하지 않습니다. 창 닫기·Cmd+Q 이벤트와 선택 UI의 연동은 아직 검증 대상입니다.
 
 **백그라운드 유지 후 다시 화면으로 돌아오는 경우**에는 중단·재생성이 아니라 기존 실행 중인 Agent 화면으로 복귀합니다. **완전히 종료한 뒤 다음 실행**에서 사용자가 **특정 Main 세션을 선택**하면 Main만 재개합니다. 관련 Work/Support는 자동 실행하지 않습니다. 중단된 외부 명령도 자동 재실행하지 않습니다. 오래된 대화 기록이나 문서 파일을 되돌리는 행동은 사용자가 별도로 수행합니다.
 
+### Native 직접 위임 — 현재 코드 상태
+
+Draft PR #15는 Pi 1.4.0 `input` 이벤트로 입력 첫머리의 `>w 작업`, `>s 작업`을 가로채는 경로를 준비했습니다. 후속 코드에서 `pic` Overview와 자식 Pi의 Overview ID 전달을 연결했지만 **실제 실행·통합 검증 전**입니다. Overview ID가 없거나 생성이 실패하면 원문을 편집기에 복원합니다. 이 명령을 이미 실사용할 수 있다고 안내하지 않습니다.
+
+`>w @검색어 작업`, `>>w @검색어 작업`의 같은 프로덕트 Fork 원본 선택 및 `>>w`/`>>s`의 Native Git Worktree 생성 **코드가 추가됐습니다**. 현재 제품 전체는 실행 검증 전입니다. 잘못된 작업 공간이나 임의 세션을 선택해 실행하지 않으며, 기존 Pi `@파일` 참조를 다른 입력에서 변경하지 않습니다. 새 Agent는 Overview의 실제 Ghostty Split에서 고유 Pi 세션으로 실행해야 하며, Main/Work의 별도 Tab에 임의 생성하지 않습니다.
+
+### Overview 초기 구현 — 현재 Draft 코드
+
+**인자 없이 `pic` 실행:** Pi 1.4.0 TUI 관리 화면을 별도 Ghostty Terminal에서 열도록 작성했습니다. `1` 제품별 보기, `2` 전체 Agent, `3` 메시지 보기, `r` 원본 조회 새로고침, `q` 관리 화면 종료를 제공합니다. 실제 Ghostty에 등록된 Terminal UUID와 Pi 세션의 정확한 바인딩이 있을 때만 기존 Surface에 포커스합니다. Overview에는 실제 Agent의 Pi TUI를 재구성하거나 복제해서 그리지 않습니다.
+
+이것은 **실행·통합 미검증 Draft**이며, 후속 코드에서 Main 생성·명시적 재접속 및 Work/Support Split 실행을 연결했습니다. 실제 Pi 실행·완료 판단·오류 복구는 검증 전입니다. 등록된 Agent가 없으면 비어 있는 관리 목록이 나타납니다. 제품 전체가 사용 가능하다는 뜻이 아닙니다.
+
+### Main 생성·저장 세션 선택 — Draft 코드
+
+`pic` Overview에서 `n`은 사용자가 프로덕트·Main 이름·절대 디렉터리를 선택해 새 Main의 Ghostty Split을 만드는 기능, `o`는 **실제 Pi 세션을 정확하게 선택해 Main으로 재개**하는 기능으로 작성됐습니다. 새 Main은 첫 사용자 입력을 기다리며 이전 작업을 자동 시작하지 않습니다. 기존 Main의 Surface가 확인되면 재개 대신 같은 터미널로 이동합니다. 선택한 저장 세션이 Compose에 등록된 Work/Support라면 Main으로 간주하지 않습니다.
+
+**주의:** 이 기능은 실제 실행/타입 검증 전이며, 새 Main이 한 번도 대화하지 않았다면 Pi의 기본 동작상 세션 파일은 없습니다. 해당 항목은 Overview를 닫기 전까지만 임시로 나타나며 최초 대화 이후 Native Pi 기록으로 저장됩니다. Ghostty에서 Surface가 보인다는 사실만으로 Pi 프로세스가 실제 실행 중이라고 단정하지 않습니다. `>>`·`@세션` 코드는 준비됐지만 통합 검증 전이며, Summary Overlay의 **사실 정보층 코드는 작성**됐지만 경량 의미 요약·공유 후보·실시간 상태·Agent 복구는 별도 구현이 남아 있습니다.
+
+### 직접 위임의 Workspace/원본 선택 — Draft 코드
+
+- `>w 작업` / `>s 작업`: 명령을 입력한 Agent의 cwd 공유. Work는 자신을 정확히 Fork하고 Support는 독립 실행.
+- `>w @검색어 작업` / `>>w @검색어 작업`: Pi 입력창에서 **같은 프로덕트 세션**을 ID/이름/최근 작업으로 검색해 원본 선택. 선택 토큰 뒤 작업 본문은 원문 그대로 수신 Agent에 전달.
+- `>>w 작업` / `>>s 작업`: 명령 입력 Agent가 체크아웃한 Git 브랜치 HEAD에서 새 브랜치·Worktree 생성. 사용자 미커밋 파일은 복사하지 않고 Git Merge/삭제도 자동 실행하지 않음. 현재 브랜치가 없다면 실행하지 않음.
+
+위 기능은 **코드 작성만 완료, 실제 Pi/Git/Ghostty 실사용 검증 전**입니다. 제품 전체가 실행 가능하다는 뜻은 아닙니다. 생성 오류 후 Git Worktree는 남을 수 있으므로 무작정 명령을 반복하지 말고 Worktree 목록을 확인해야 합니다.
+
+### Agent 상태와 `pic` 종료 선택 — Draft 코드
+
+`pic`의 프로덕트/Agent 보기에서 `r`을 누르면 네이티브 Pi 세션 기록과 별도로 **실행 영수증에 확인된 OS 프로세스 상태**를 다시 조회하도록 작성했습니다. `process-observed`는 동일 PID와 OS 시작 시각을 확인했다는 뜻이지 Pi가 모델 답변을 생성 중이거나 작업이 끝났다는 뜻은 아닙니다. `exited-observed`는 자식 프로세스 종료 영수증이 남은 경우입니다. 상태가 불명확하면 `process-unconfirmed`으로 남습니다.
+
+`q`/Ctrl+C에서는 (1) Ghostty와 Agent 실행을 **그대로 유지하며 숨김 시도**, (2) 확인된 Pi 프로세스의 Ghostty Surface만 **사용자 추가 확인 후 닫기**, (3) 취소를 제공하는 코드가 추가됐습니다. 숨김에 필요한 macOS 권한이 없다면 아무 프로세스도 종료하지 않고 Ghostty `Cmd+H`를 안내합니다. 두 번째 선택에서도 실행 상태가 불명확한 Agent는 자동 종료하지 않으며, 저장된 Pi 대화/파일·Worktree는 삭제하지 않습니다. Native Surface 닫기 요청과 Pi 프로세스 종료 확인은 별개입니다. 저장된 Main을 `o`로 다시 열 때 같은 OS 프로세스가 관찰되면 중복 재개하지 않고, 실행 여부를 확인할 수 없는 경우에는 **`RESUME` 명시 입력**으로 위험을 인지한 경우에만 같은 Pi 세션을 재개하도록 작성했습니다.
+
+**코드 작성 상태이며 macOS 실사용/타입 검증 전입니다.** Ghostty의 Cmd+Q나 일반 창 닫기에는 이 선택지가 개입하지 않으며, 실제 모델 작업 상태·자동 재개·실시간 업데이트도 아직 미구현입니다.
+
+### Summary 정보층 — Draft 코드
+
+Agent가 자기 Ghostty Terminal 포커스를 벗어난 뒤 **30초**가 지나거나 **비포커스 Pi 응답이 정상 종료**되면, 같은 Pi TUI 위에 **포커스를 가져가지 않는 Summary 정보층**을 보여주는 코드를 작성했습니다. Agent Terminal을 다시 선택하면 Overlay를 닫습니다. 이 부분은 AppleScript로 1초마다 실제 포커스를 관찰하는 방식이므로 **즉시 사라지는 타이밍/OS 리소스/실제 Pi TUI에서의 UI 안정성은 검증 전**입니다.
+
+현재 정보층은 Pi 대화의 마지막 실제 지시·Tool 결과·Assistant 답변을 원본 Entry ID와 함께 발췌하는 **사실 정보**입니다. 아직 경량 모델이 생성하는 의미 요약이나 **중요 결정 자동 공유 후보가 아닙니다**. Main 자동 반영/전송은 없으며, 사용자가 원본 Pi를 포커스한 뒤 `/compose handoff`에서 직접 공유 항목/대상을 고릅니다.
+
+`pic` Overview의 Agent 행에서 `v`는 저장된 Pi 원본의 최근 사실 근거를 읽기 전용으로 확인합니다. 이 역시 Agent의 현재 진행 중 모델 상태를 추측하지 않습니다.
+
 ## 7. 현재 구현과의 차이
 
-새로운 Ghostty 분할/세션 제어·**프로덕트/Agent 및 메시지 관리 사이드바·종료 선택 UX**·Summary Overlay·선택적 문서 맥락 로드·정확한 Handoff 경험은 아직 제품으로 완성되지 않았습니다. 이 저장소의 이전 CLI/설치 스크립트를 새 방향의 실행 방법으로 사용하지 마세요. 개발 순서와 남은 기술 검증은 [Implementation Plan](IMPLEMENTATION_PLAN.md)과 [TRD](TRD.md)에서 확인할 수 있습니다.
+새로운 Ghostty 분할/세션 제어·**프로덕트/Agent 및 메시지 관리 사이드바·종료 선택 UX**·Summary Overlay·선택적 문서 맥락 로드·전체 Handoff 경험은 아직 제품으로 완성되지 않았습니다. Draft PR #15에는 Native Pi Fork·Ghostty Overview·Main/Work/Support 실행 경로·Git Worktree·Handoff의 코드가 포함됐지만 실사용·타입 검증을 진행하지 않았습니다. 이 저장소의 이전 CLI/설치 스크립트를 새 방향의 실행 방법으로 사용하지 마세요. 개발 순서와 남은 기술 검증은 [Implementation Plan](IMPLEMENTATION_PLAN.md)과 [TRD](TRD.md)에서 확인할 수 있습니다.

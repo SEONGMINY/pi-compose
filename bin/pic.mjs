@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { constants } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { openOverview } from '../src/overview.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const coreExtension = resolve(root, 'extensions/compose.ts');
@@ -31,7 +32,17 @@ const command = args[0];
 
 // A one-time, explicit opt-in to the optional feature bundle. All three features
 // are initially enabled by Pi on installation; pi config owns later selection.
-if (command === 'features') {
+if (!command) {
+  // A dedicated management TUI in THIS Ghostty terminal only. Existing
+  // Main/Work/Support Pi terminals are separate native Ghostty Surfaces.
+  try {
+    await openOverview();
+  } catch (error) {
+    console.error('pic: Cannot start native Overview: ' +
+      (error instanceof Error ? error.message : String(error)));
+    process.exitCode = 1;
+  }
+} else if (command === 'features') {
   const flags = args.slice(1);
   if (flags.length > 1 || (flags.length === 1 && flags[0] !== '--local' && flags[0] !== '-l')) {
     console.error('Usage: pic features [--local]');

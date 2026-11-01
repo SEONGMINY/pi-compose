@@ -47,6 +47,18 @@ Support · 탐색 / 자료 조사 / 테스트 실행 / 독립 검증
 
 ## 구현 상태
 
+**Draft PR #15 — 현재 4단계 코드 작성:**
+- `pic` 전용 Overview의 프로덕트/Agent/메시지 탐색, `n` 새 Main 생성, `o` 저장 Pi Main 명시적 재개, Ghostty의 기존 Terminal UUID로 포커스
+- Pi 1.4.0 활성 완료 분기 기반 Native Work Fork와 독립 Support, `>w`·`>s` 직접 위임, **같은 프로덕트의 `>w @` / `>>w @` 원본 선택·Pi 에디터 자동완성**
+- `>>w`·`>>s`는 **명령 입력 Agent의 Git HEAD**에서 새로운 Worktree/브랜치 생성. 원본 미커밋 변경은 복사하지 않으며, 생성 브랜치·HEAD·경로를 새 Pi 신원 기록에 남김
+- 사용자 선택형 `/compose handoff`, Pi 기록 기반 `/compose messages`, 실제 Ghostty Terminal 포커스 `/compose surfaces`
+
+**모든 항목은 코드 작성이며 타입체크·macOS Ghostty/Pi/Git 실사용 통합 검증 전입니다.** 실제 Pi 프로세스/Agent 수명 관리, Summary의 경량 모델 의미 요약·중요 결정 후보, 완성된 메시지 Sidebar와 Handoff UX, 설치·종료·복구 흐름은 남았습니다. 코드가 작성됐다는 이유로 제품 전체 동작을 보장하지 않습니다. 남은 순서는 [Implementation Plan](docs/IMPLEMENTATION_PLAN.md)을 확인해 주세요.
+
+**5단계 Draft 코드:** Native Pi 자식 실행 래퍼에 OS 프로세스 시작/종료 영수증을 남기고, Overview에서 **Session ID + Launch ID + Terminal UUID + PID 시작 시각**을 대조해 확인된 실행 사실만 표시하도록 추가했습니다. `q` 종료 선택에서는 Agent 유지·Ghostty 숨김, **재확인된 Pi 프로세스의 Surface만 사용자 승인 후 닫기**, 취소를 구분합니다. 상태 불명 Agent를 임의로 종료하거나 저장된 Pi 대화/Git Worktree를 삭제하지 않습니다. Main 저장 세션 재개 시 실제 OS 프로세스가 관찰되면 **중복 실행을 거부**하고, 실행 여부가 불명확하면 위험을 명시적으로 확인한 사용자에게만 재개를 허용하도록 보완했습니다. **실시간 모델 상태·완전한 종료/복구는 미완성이며 Summary 사실 정보층 코드는 작성됐으나 타입/실사용 검증 전입니다.**
+
+**6단계 Draft 코드:** 기존 Pi TUI에 `ctx.ui.custom`의 **non-capturing Overlay**를 연결해 포커스 아웃 30초 또는 비포커스 정상 응답 종료 시 표시하고 재포커스하면 닫는 경로를 작성했습니다. 화면에는 Pi 활성 분기에서 확인한 요청·Tool 결과·Assistant 답변과 원본 Entry ID를 표시합니다. Overview에는 Agent 행에서 `v`로 근거를 읽는 기능을 추가했습니다. **이는 경량 모델 의미 요약·중요 결정 자동 공유 후보가 아니며, 실사용 검증 전입니다.** 수신자 선택형 Summary 공유 UI/메시지 Sidebar의 완전한 통합은 남았습니다. Overlay는 Main 컨텍스트를 변경하지 않습니다.
+
 **이 README는 새 제품 방향을 설명하는 설계 문서입니다.** 기존 코드에는 이전 tmux/workmux 기반 CLI와 Orca 실험이 남아 있고, 위 Ghostty 중심 흐름, 제품/Agent 사이드바, 메시지 관리, 종료 선택 UX와 Summary Overlay가 실제로 완성·검증됐다는 뜻은 아닙니다. 과거 설치·명령을 새 제품의 사용법처럼 안내하지 않습니다.
 
 현재 확정된 계약과 결정하지 않은 항목은 [PRD](docs/PRD.md)를 기준으로 확인해 주세요. 기술적 책임과 검증 범위는 [Architecture](docs/ARCHITECTURE.md)와 [TRD](docs/TRD.md), 앞으로의 구현 순서는 [Implementation Plan](docs/IMPLEMENTATION_PLAN.md)에 정리했습니다. 기존 CLI 구현과 기록은 Git 이력에 보존합니다.
