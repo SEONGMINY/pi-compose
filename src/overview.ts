@@ -253,7 +253,7 @@ export async function openOverview(): Promise<void> {
         },
         sessionPath: '',
         createdAt: Date.now(),
-        terminal: (await listGhosttyTerminals()).find(t => t.id === receipt.terminalId),
+        terminal: undefined, // Filled by the next read-only Ghostty inventory.
         messages: [], pending: true,
       });
       status = 'Main Split created [' + receipt.sessionId.slice(0, 8) +
@@ -320,7 +320,7 @@ export async function openOverview(): Promise<void> {
         },
         sessionPath: chosen.path,
         createdAt: chosen.created.getTime(),
-        terminal: (await listGhosttyTerminals()).find(t => t.id === receipt.terminalId),
+        terminal: undefined, // Filled by the next read-only Ghostty inventory.
         messages: [], pending: true,
       });
       status = 'Existing Pi session selected and Main Split created. No task replayed; startup unverified.';
