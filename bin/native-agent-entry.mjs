@@ -3,6 +3,7 @@
 // It waits only for the initiating Ghostty split to return its exact native ID.
 import { spawn } from 'node:child_process';
 import { readFile, rm } from 'node:fs/promises';
+import { dirname } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const launchFile = process.env.PI_COMPOSE_LAUNCH_TICKET;
@@ -54,7 +55,12 @@ if (!launchFile || !launchFile.startsWith('/')) {
       delete env.PI_COMPOSE_LAUNCH_TICKET;
       try {
         // Launch file is ephemeral control state, not a transcript or a database.
-        await rm(launchFile, { force: true });
+        // Tickets are per-request private temp directories, never shared state.
+        if (dirname(launchFile).split('/').pop().startsWith('pi-compose-launch-')) {
+          await rm(dirname(launchFile), { recursive: true, force: true });
+        } else {
+          await rm(launchFile, { force: true });
+        }
         const child = spawn('pi', args, { cwd: bootstrap.workspaceCwd, stdio: 'inherit', env });
         child.on('error', error => {
           console.error('Pi Compose: cannot start Pi:', String(error));
