@@ -258,7 +258,9 @@ export async function openOverview(): Promise<void> {
       });
       status = 'Main Split created [' + receipt.sessionId.slice(0, 8) +
         ']. Pi readiness is unverified; blank session persists after its first message.';
-      await refresh();
+      await refresh(true);
+      status = 'Main Split created [' + receipt.sessionId.slice(0, 8) +
+        ']. Pi readiness unverified; first user message persists blank session.';
     } catch (error) {
       status = 'Main creation failed or is unconfirmed: ' + String(error) +
         '. Inspect Ghostty Surfaces before trying again.';
@@ -322,7 +324,8 @@ export async function openOverview(): Promise<void> {
         messages: [], pending: true,
       });
       status = 'Existing Pi session selected and Main Split created. No task replayed; startup unverified.';
-      await refresh();
+      await refresh(true);
+      status = 'Selected Main Split created without replaying prior tasks; Pi readiness unverified.';
     } catch (error) {
       status = 'Main selection/resume failed or is unconfirmed: ' + String(error) +
         '. No automatic retry.';
@@ -369,8 +372,8 @@ export async function openOverview(): Promise<void> {
     }
   }
 
-  async function refresh(): Promise<void> {
-    if (busy) return;
+  async function refresh(force = false): Promise<void> {
+    if (busy && !force) return;
     busy = true;
     status = 'Refreshing native Pi/Ghostty evidence…';
     statusText.setText(status); tui.requestRender();
