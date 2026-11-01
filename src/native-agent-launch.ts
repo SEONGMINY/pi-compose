@@ -1,4 +1,4 @@
-import { mkdtemp, rename, writeFile } from 'node:fs/promises';
+import { mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -127,20 +127,28 @@ export async function startNativeAgentInOverview(
   const previousFocusedId = await getFocusedGhosttyTerminalId().catch(() => undefined);
 
   const command = shellWord(process.execPath) + ' ' + shellWord(launcher);
-  const terminalId = await splitGhosttyTerminal(
-    request.overviewAnchorTerminalId,
-    targetCwd,
-    command,
-    ['PI_COMPOSE_LAUNCH_TICKET=' + ticketPath],
-  );
+  let terminalId: string;
+  try {
+    terminalId = await splitGhosttyTerminal(
+      request.overviewAnchorTerminalId,
+      targetCwd,
+      command,
+      ['PI_COMPOSE_LAUNCH_TICKET=' + ticketPath],
+    );
 
-  // The child starts its real Pi process only after it sees this receipt.
-  // If writing it fails, the child times out and does not start Pi. We never
-  // blindly recreate the split or retransmit the initial user prompt.
-  await writeTicketAtomic(ticketPath, {
-    ...base, ready: true,
-    bootstrap: { ...bootstrap, terminalId },
-  });
+    // The child starts its real Pi process only after it sees this receipt.
+    // If writing it fails, the child times out and does not start Pi. We never
+    // blindly recreate the split or retransmit the initial user prompt.
+    await writeTicketAtomic(ticketPath, {
+      ...base, ready: true,
+      bootstrap: { ...bootstrap, terminalId },
+    });
+  } catch (error) {
+    // A split might exist even when the AppleScript response was lost. Remove
+    // the permit, causing any waiting child to fail closed; never retry it.
+    await rm(ticketDir, { recursive: true, force: true }).catch(() => undefined);
+    throw error;
+  }
 
   // Splitting may move focus. Return it ONLY if Ghostty still focuses the
   // just-created Surface. Never steal focus back after the user switched tabs.
