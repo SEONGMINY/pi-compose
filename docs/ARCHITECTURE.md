@@ -149,6 +149,12 @@ Ghostty가 새 Split의 Terminal UUID를 돌려준 후 해당 ID와 Overview UUI
 - **생성 요청 Agent, 실제 Fork 원본 세션 ID와 완료 leaf, 새 Work Pi 세션 ID, Workspace 경로/브랜치**를 각각 식별합니다. 미완성 응답이나 최근 세션을 임의로 원본으로 추측하지 않습니다.
 - Fork는 프로젝트 파일/미커밋 상태를 복제하지 않습니다. Shared Directory의 동시 수정 위험과 Worktree 간 아직 통합되지 않은 변경은 Git 책임입니다. 원본 세션의 후속 결정이나 다른 Work 문서 변경은 새 Work에 자동 반영되지 않습니다.
 
+### 4.1 Agent 실행 증거와 종료 선택의 연결
+
+**현재 구현 코드 (Draft PR #15):** Overview는 Pi 원본 Session JSONL에 기록된 신원·Surface 바인딩을 읽고, 추가로 해당 Launch Request의 **일회성 자식 Pi 프로세스 실행 영수증**을 참조합니다. `src/agent-lifecycle.ts`에서 Session/Launch/Terminal 식별자가 같고, OS PID와 시작 시각을 재확인한 경우만 `process-observed`로 구분합니다. 자식 Pi의 시작·종료를 기록하지 못했다면 프로세스가 실행 중이라고 추측하지 않습니다. 영수증은 상태 확인용 단발 실행 기록이며 Pi 대화의 별도 기억 DB가 아닙니다.
+
+`pic`의 `q` 종료에서 백그라운드 유지 선택은 Ghostty를 Quit하지 않고 OS 숨김을 시도합니다. 종료를 선택하면 정확히 관찰된 실행 중 프로세스의 Terminal ID에 대해서만 **사용자의 추가 확인→Ghostty Native close**를 요청하며, 결과 불명확 Surface와 저장 세션·Git 파일은 보존합니다. 실제 종료 이벤트가 관찰되기 전에는 종료 완료로 표현하지 않습니다. 이 선택 UI는 Ghostty Cmd+Q/창 종료까지 가로채지 않습니다. **실시간 Pi 작업 상태, 프로세스 복구, 완료된 Agent의 종료·재개, Tab 이동 등 제품 요구사항은 여전히 남습니다.**
+
 ## 5. Ghostty 터미널과 세션 수명
 
 - Overview 기본 화면에는 여러 Agent의 실제 Pi TUI가 Split으로 표시됩니다. 사용자가 **Main·Work·Support 중 어느 Agent든 기존 Surface를 다른 작업 Tab에 드래그**할 수 있습니다. 이동한 Agent의 Surface는 Overview에서 빠져도 실제 Pi 프로세스와 세션, 사이드바 관계는 유지해야 합니다. Overview를 보는 것과 Agent를 Overview로 다시 배치하는 것은 별개입니다. Split을 닫은 채 Pi만 별도로 유지하는 실행 계층은 만들지 않습니다. **새 Tab 준비·드래그 왕복·마지막 Surface 이동·포커스·프로세스 연속성은 실사용 검증 전**입니다.
