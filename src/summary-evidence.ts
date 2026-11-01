@@ -19,7 +19,14 @@ function takeText(content: unknown): string {
     typeof c.text === 'string').map(c => c.text).join('\n');
 }
 function excerpt(content: unknown, max = 150): string {
-  const clean = takeText(content).replace(/\s+/g, ' ').trim();
+  const clean = takeText(content)
+    // Tool output can contain hostile ANSI/OSC/control sequences. Summary
+    // text is evidence, never terminal escape syntax or trusted Markdown.
+    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, '')
+    .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '')
+    .replace(/[\x00-\x1f\x7f-\x9f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   return clean.length > max ? clean.slice(0, max) + '…' : clean;
 }
 
