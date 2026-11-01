@@ -134,6 +134,7 @@
 - `bin/native-agent-entry.mjs`는 기존 새 Pi 실행 프로세스를 래핑하는 동안 PID/시작 시간(가능한 경우 `/bin/ps -o lstart=`)·child exit/에러를 private 단발 영수증 파일에 atomic 기록합니다. `src/agent-lifecycle.ts`는 **Pi Session ID + Launch Request ID + Ghostty Terminal UUID**가 모두 일치해야 관련 실행 증거로 인정합니다. OS PID만 보존하면 재사용될 수 있어 같은 프로세스인지 확인할 때 PID와 시작 시각을 함께 대조합니다. 래퍼 강제 종료/권한 문제/기록 유실은 `process-unconfirmed`으로 표시합니다.
 - `src/overview.ts`는 현재 **`r` 새로고침 시** 확인 가능한 프로세스 상태만 표시합니다. 실제 Pi의 `agent_settled`, 응답 중, UI Prompt의 사용자 입력 대기까지 구분하는 이벤트 연결/실시간 자동 갱신은 아직 없습니다.
 - `q`에서는 사용자에게 Ghostty 숨김 유지 또는 명시적인 Agent 종료를 선택하게 합니다. 후자는 재확인한 Native Surface+OS 프로세스 증거가 있는 Agent만 `close`를 호출하고, 상태 불명 Surface는 남깁니다. OS 숨김은 System Events 권한에 실패할 수 있으며 그때는 Overview를 유지하고 Ghostty `Cmd+H`를 안내합니다. 실제 Pi child 종료는 `close` 응답이 아닌 **별도 exit 영수증**으로 확인합니다.
+- **중복 Main 재개 방어:** 정확히 선택된 세션의 Ghostty Surface가 존재하면 재실행을 거부하고, Surface가 없어도 Native Pi PID+OS 시작 시각이 확인되면 새 Pi 인스턴스를 만들지 않습니다. 유휴/외부 Pi 프로세스 여부를 알 수 없는 기존 세션은 Overview에서 **명시적 위험 확인(`RESUME`)**을 받아야 합니다. 자동 복구나 무조건 재실행은 하지 않습니다.
 - **미완료:** 전 Agent의 실제 종료 확인/강제 종료 복구/다중 Pi 동시 세션 충돌·기존 터미널 내부에서 수동 재개한 Pi/세션 실시간 생존 감지/완전한 background exit UX/Surface 이동. Pi 세션·Git Worktree는 삭제하지 않습니다. 별도 Broker/daemon/DB를 도입하지 않습니다. 이 구현의 타입·실행 검증은 사용자 범위입니다.
 
 ## 4. 아직 해결되지 않은 기술·제품 질문
