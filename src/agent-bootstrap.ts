@@ -13,6 +13,7 @@ export type ComposeAgentBootstrap = {
   product: string;
   label: string;
   workspaceCwd: string;
+  terminalId?: string;
   requesterSessionId?: string;
   requesterSessionFile?: string;
   forkSourceSessionId?: string;
@@ -38,6 +39,9 @@ export function parseAgentBootstrap(value: unknown): ComposeAgentBootstrap | und
   if (!validId(raw.sessionId) || !validId(raw.launchRequestId)) return;
   if (!requiredText(raw.product, 120) || !requiredText(raw.label, 120)) return;
   if (!requiredText(raw.workspaceCwd, 4096) || !isAbsolute(raw.workspaceCwd)) return;
+  if (raw.terminalId !== undefined &&
+      (typeof raw.terminalId !== 'string' ||
+       !/^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$/.test(raw.terminalId))) return;
   for (const name of ['requesterSessionId', 'forkSourceSessionId', 'forkSourceLeafId']) {
     if (raw[name] !== undefined && !validId(raw[name])) return;
   }
@@ -53,6 +57,7 @@ export function parseAgentBootstrap(value: unknown): ComposeAgentBootstrap | und
     product: raw.product,
     label: raw.label,
     workspaceCwd: raw.workspaceCwd,
+    terminalId: typeof raw.terminalId === 'string' ? raw.terminalId : undefined,
     requesterSessionId: typeof raw.requesterSessionId === 'string' ? raw.requesterSessionId : undefined,
     requesterSessionFile: typeof raw.requesterSessionFile === 'string' ? raw.requesterSessionFile : undefined,
     forkSourceSessionId: typeof raw.forkSourceSessionId === 'string' ? raw.forkSourceSessionId : undefined,
