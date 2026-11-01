@@ -19,6 +19,7 @@ export type AgentRelationship = {
   launchRequestId?: string;
   terminalId?: string;
   runtimeReceiptFile?: string;
+  runtimeLaunchRequestId?: string;
 };
 
 function object(value: unknown): Record<string, unknown> | undefined {
@@ -83,6 +84,7 @@ export function readAgentRelationship(
   // real UUID. No mapping from GHOSTTY_SURFACE_ID, cwd, title, or foreground PID.
   let terminalId: string | undefined;
   let runtimeReceiptFile: string | undefined;
+  let runtimeLaunchRequestId: string | undefined;
   for (const raw of entries) {
     const entry = object(raw);
     if (entry?.type !== 'custom' || entry.customType !== 'compose_surface_binding') continue;
@@ -92,9 +94,10 @@ export function readAgentRelationship(
     if (id && /^[0-9a-fA-F-]{36}$/.test(id)) {
       terminalId = id;
       runtimeReceiptFile = str(d?.runtimeReceiptFile);
+      runtimeLaunchRequestId = str(d?.launchRequestId);
     }
   }
-  return { ...relationship, terminalId, runtimeReceiptFile };
+  return { ...relationship, terminalId, runtimeReceiptFile, runtimeLaunchRequestId };
 }
 
 /**
