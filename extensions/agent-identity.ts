@@ -36,6 +36,7 @@ export function registerAgentIdentity(pi: ExtensionAPI): void {
       label: ticket.label,
       role: ticket.role,
       workspaceCwd: ticket.workspaceCwd,
+      gitWorktree: ticket.gitWorktree,
       requesterSessionId: ticket.requesterSessionId,
       requesterSessionFile: ticket.requesterSessionFile,
       forkSourceSessionId: ticket.forkSourceSessionId,
