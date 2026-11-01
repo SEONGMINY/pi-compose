@@ -87,7 +87,7 @@
 | **2 (코드 작성)** | `pic` 전용 Overview TUI·탐색 | 공식 `@earendil-works/pi-tui` 기반 관리 화면 코드 작성. 프로덕트/전체 Agent/메시지 보기, **명시적으로 기록된 생성 요청 관계에 따른 Main·Work·Support 중첩 계층**, **기록된 Terminal UUID를 통한 기존 Surface 포커스** 연결. 실행 미검증 |
 | **3 (코드 작성)** | Main 명시 생성·저장 세션 선택·재개 및 Work/Support 직접 위임 | `n` 새 Main / `o` 저장 Pi 세션 선택→Main Resume 코드 작성. Ghostty Split UUID를 자식 Pi에 전달해 Overview 직접 위임 Anchor로 사용. **실제 Main·위임 통합 미검증**, 생성 실패·미저장 세션의 영구 목록/중복 실행 보호 보완 필요 |
 | **4 (현재)** | `@세션`·Git Worktree | 같은 프로덕트 저장 Pi 세션 선택, 입력창 전용 자동완성, 호출 Agent HEAD 기반 `>>` Worktree 생성 코드 작성. macOS/Pi/Git 통합 검증 전 |
-| **5** | Agent 수명·실시간 상태·탐색 | 실행/선택 대기/종료/오류 이벤트, 기존 Surface 이동 후 포커스, 종료·Resume·백그라운드 선택 미구현 |
+| **5 (현재)** | Agent 수명·상태·종료 선택 | 일회성 Pi 자식 프로세스의 PID+OS 시작 시각·exit 이벤트 영수증, Overview 관찰 상태, `q` 백그라운드 숨김/명시적 확인 후 **확인된 프로세스만** Ghostty Surface 닫기 코드 작성. **실시간 Pi 모델 상태/동시 실행/종료 완료 확인/복구는 여전히 미구현 또는 검증 전** |
 | **6** | Summary Overlay·Handoff 실제 UI | 경량 근거 요약·포커스 아웃 30초/종료 시 Overlay·공유 후보/대상 선택·메시지 Sidebar 통합 미구현 |
 | **7** | 설치·사용 흐름 정리와 전체 실사용 검증 | 사용자 직접 실제 Ghostty/Pi 흐름 검증 및 후속 관찰 개선. 자동 PR 병합/CI 추가 없음 |
 
@@ -108,6 +108,15 @@
 - `src/native-worktree.ts`: 호출 Agent의 `git rev-parse HEAD` + `symbolic-ref --short HEAD`를 확보하고, `git worktree add -b <고유 브랜치> <고유 경로> <호출 HEAD>`로 새로운 독립 Worktree를 생성합니다. 원본 브랜치/작업 디렉터리·미커밋 파일에 손대지 않으며, 현재 브랜치가 없는 detached HEAD와 Git repo가 없는 경로는 명확히 실패합니다. 미커밋 파일은 새 Worktree에 복사하지 않으며 확인 가능한 경우 사용자에게 안내합니다.
 - Native Pi 자식 Launch Ticket와 identity custom entry에 Worktree 브랜치·원본 HEAD·원본 브랜치·디렉터리를 저장합니다. `>w`/`>s`는 Shared Directory, `>>w`/`>>s`는 새 Worktree입니다.
 - **실패/검증 경계:** Worktree 생성 뒤 Pi Fork/네이티브 Split이 실패하면 이미 생성된 Worktree를 자동 삭제하거나 다른 브랜치로 재시도하지 않습니다. 사용자가 결과를 확인할 수 있도록 경로를 남깁니다. 실제 Git CLI·Ghostty 1.3.1·Pi 1.4.0 연동, `@세션` IME·멀티라인, 중복 세션/실행 중 쓰기·생성 순서 검증은 **미실시**입니다. 인자 없는 `pic` Overview에서 실제 Agent를 선택·시작한 후의 전체 동작도 아직 사용자 검증 전입니다.
+
+### 5단계 구현 진척 — Native Pi 수명/종료 선택 (2026-11-01)
+
+- `bin/native-agent-entry.mjs`는 기존 **일회성 자식 Pi 실행 래퍼** 안에서 Pi 자식 프로세스 생성·종료/시작 실패 이벤트를 기록합니다. `src/agent-lifecycle.ts`는 저장된 Launch Request ID, Session ID, Ghostty Terminal UUID와 영수증을 대조하고, 실행 중이라고 표시하려면 **실제 OS PID와 시작 시각 지문이 동일한지** 재조회합니다. **Terminal 존재만으로 Pi 실행·대기·작업 완료를 추정하지 않습니다.** 별도 상주 서버, 메시지 Broker, 세션 DB는 추가하지 않았습니다.
+- 프로세스 상태는 `starting-unverified`, `process-observed`, `process-unconfirmed`, `exited-observed`, `launch-failed`, `no-runtime-evidence`로 기록 근거에 따라 구분합니다. 이는 **OS 프로세스의 흔적**이며 Pi 모델의 실제 응답 진행·사용자 입력 대기·작업 성공을 판정하지 않습니다. 현재 Overview는 **수동 `r` 새로고침** 시 이 정보를 반영하며 실시간 구독/30초 Overlay는 미구현입니다.
+- `q`/Ctrl+C 종료 선택에는 **Ghostty 숨김(실행 상태 보존)** 또는 **확인된 Pi 프로세스의 Native Surface 닫기** 및 취소를 두었습니다. 종료 선택 시 대상 수를 표시하고 **두 번째 명시적 확인 후** 동일 Session ID/Launch ID/Terminal UUID/OS 시작 지문을 다시 확인한 Surface에만 Ghostty의 `close`를 요청합니다. 상태 불명 Agent/Surface는 건드리지 않습니다. Ghostty 1.3.1의 `close`는 앱 차원 추가 확인이 없으므로 Compose가 먼저 확인합니다.
+- 숨김은 macOS System Events의 Ghostty 가시성 조정을 시도하므로 OS 권한 때문에 실패할 수 있습니다. 실패 시 Overview/모든 Agent는 유지되고 사용자는 **Ghostty `Cmd+H`**를 사용할 수 있습니다. Ghostty의 Cmd+Q/창 닫기를 가로채지 않습니다.
+- 종료 요청은 **Surface 닫기 응답**까지의 처리이며 Pi 자식 프로세스 exit 확인은 별도 영수증에서 판단합니다. 불명확한 상태가 남으면 Overview를 유지해 확인할 수 있도록 합니다. Pi 대화·Git 파일·Worktree는 자동 삭제하지 않습니다.
+- **남은 5단계:** 기존 외부에서 실행한 Pi 세션의 실행 여부, 중단/크래시/Wrapper 종료 시 정확한 복구 및 동시 실행 감지, 실시간 Pi turn/UI Prompt 상태, 확정 종료 후 복구 UX, 수동 Ghostty Tab 이동 검증은 미완성입니다. 본 변경은 **코드 작성만 완료**, 타입·실행·macOS 실사용 검증 전입니다.
 
 ### 이후 사용자 실사용 검증
 
