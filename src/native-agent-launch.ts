@@ -90,8 +90,10 @@ async function launchNativeSplit(
   }
   const ticketDir = await mkdtemp(join(tmpdir(), 'pi-compose-launch-'));
   const ticketPath = join(ticketDir, 'ticket.json');
+  const runtimeReceiptFile = join(ticketDir, 'runtime.json');
+  const bootstrapWithReceipt = { ...bootstrap, runtimeReceiptFile };
   const base = {
-    bootstrap, task, sessionFile,
+    bootstrap: bootstrapWithReceipt, task, sessionFile,
     overviewTerminalId: overviewAnchorTerminalId,
     composeExtensionFile: fileURLToPath(new URL('../extensions/compose.ts', import.meta.url)),
   };
@@ -106,7 +108,7 @@ async function launchNativeSplit(
     );
     await writeTicketAtomic(ticketPath, {
       ...base, ready: true,
-      bootstrap: { ...bootstrap, terminalId },
+      bootstrap: { ...bootstrapWithReceipt, terminalId },
     });
   } catch (error) {
     // Unknown split outcome must never cause an automatic second attempt.
