@@ -1,7 +1,7 @@
 # Implementation Plan — Pi + Ghostty 재설계
 
 - 기준: [PRD](PRD.md) · [Architecture](ARCHITECTURE.md) · [TRD](TRD.md), 최신 UX 합의 2026-10-31
-- 상태: **새 방향의 일부 기능을 Draft PR #15에서 구현 중**. 사용자 선택형 Handoff의 Pi Extension 연결 코드는 작성됐지만 실사용·통합 검증 전입니다. Ghostty Overview/Sidebar/Summary와 현재 레거시 실행 경로는 여전히 미구현/재설계 대상입니다. 이전 tmux/workmux/Orca Phase 0–6 계획은 현행 작업 순서가 아닙니다.
+- 상태: **새 방향의 일부 기능을 Draft PR #15에서 구현 중**. 사용자 선택형 Handoff의 Pi Extension 연결 코드는 작성됐지만 실사용·통합 검증 전입니다. Ghostty Overview와 Summary Overlay 기초 코드는 Draft로 작성됐고, 실제 제품 Sidebar·경량 의미 요약·Handoff 공유 UI 및 레거시 실행 경로는 여전히 미구현/재설계 대상입니다. 이전 tmux/workmux/Orca Phase 0–6 계획은 현행 작업 순서가 아닙니다.
 - 원칙: 사용자 검증을 위해 기능 구현과 별도로 테스트/CI/PR 병합을 자동 실행하지 않습니다. 이전 구현 코드와 사용자 세션·Worktree는 보존합니다.
 
 ## 1. 구현 목표
@@ -88,7 +88,7 @@
 | **3 (코드 작성)** | Main 명시 생성·저장 세션 선택·재개 및 Work/Support 직접 위임 | `n` 새 Main / `o` 저장 Pi 세션 선택→Main Resume 코드 작성. Ghostty Split UUID를 자식 Pi에 전달해 Overview 직접 위임 Anchor로 사용. **실제 Main·위임 통합 미검증**, 생성 실패·미저장 세션의 영구 목록/중복 실행 보호 보완 필요 |
 | **4 (현재)** | `@세션`·Git Worktree | 같은 프로덕트 저장 Pi 세션 선택, 입력창 전용 자동완성, 호출 Agent HEAD 기반 `>>` Worktree 생성 코드 작성. macOS/Pi/Git 통합 검증 전 |
 | **5 (현재)** | Agent 수명·상태·종료 선택 | 일회성 Pi 자식 프로세스의 PID+OS 시작 시각·exit 이벤트 영수증, Overview 관찰 상태, `q` 백그라운드 숨김/명시적 확인 후 **확인된 프로세스만** Ghostty Surface 닫기 코드 작성. **실시간 Pi 모델 상태/동시 실행/종료 완료 확인/복구는 여전히 미구현 또는 검증 전** |
-| **6** | Summary Overlay·Handoff 실제 UI | 경량 근거 요약·포커스 아웃 30초/종료 시 Overlay·공유 후보/대상 선택·메시지 Sidebar 통합 미구현 |
+| **6 (현재)** | Summary Overlay·Handoff 실제 UI | Pi 1.4.0 원래 TUI의 non-capturing Overlay와 포커스 30초/비포커스 응답 종료 조건, 근거 엔트리 투영 및 Overview `v` 조회 코드 작성. **경량 LLM 의미 요약·중요 결정 자동 후보·Overlay 직접 공유·완성 메시지 Sidebar는 미구현**. 실행 미검증 |
 | **7** | 설치·사용 흐름 정리와 전체 실사용 검증 | 사용자 직접 실제 Ghostty/Pi 흐름 검증 및 후속 관찰 개선. 자동 PR 병합/CI 추가 없음 |
 
 ### Main 생성·명시적 재개 구현 — 2026-11-01
@@ -118,6 +118,15 @@
 - 종료 요청은 **Surface 닫기 응답**까지의 처리이며 Pi 자식 프로세스 exit 확인은 별도 영수증에서 판단합니다. 불명확한 상태가 남으면 Overview를 유지해 확인할 수 있도록 합니다. Pi 대화·Git 파일·Worktree는 자동 삭제하지 않습니다.
 - **같은 Pi Main 세션의 중복 재개 보호:** 저장된 Main을 열 때 현재 Ghostty의 Native Surface가 있으면 그 Surface로 이동합니다. Surface는 없지만 **동일 OS Pi 프로세스가 관찰**되면 중복 재개를 차단하고, 생존이 불분명하다면 사용자가 위험을 알고 명시적으로 `RESUME`을 입력한 경우에만 실행을 허용합니다. 이는 Pi 세션 파일에 대한 범용 프로세스 잠금이 아니라 실측 근거 기반 보호이며, 비-Compose/manual Pi 프로세스까지 완전 차단하지는 못합니다.
 - **남은 5단계:** 기존 외부에서 실행한 Pi 세션의 실행 여부, 중단/크래시/Wrapper 종료 시 정확한 복구 및 동시 실행 감지, 실시간 Pi turn/UI Prompt 상태, 확정 종료 후 복구 UX, 수동 Ghostty Tab 이동 검증은 미완성입니다. 본 변경은 **코드 작성만 완료**, 타입·실행·macOS 실사용 검증 전입니다.
+
+### 6단계 구현 진척 — Pi 원본 TUI 위 Summary Overlay (2026-11-01)
+
+- **Pi 1.4.0 공식 TUI 재사용:** `extensions/summary-overlay.ts`가 `ctx.ui.custom({overlay:true, overlayOptions:{nonCapturing:true}})`로 각 Agent의 **실제 Pi TUI 위에 직접** 패시브 정보층을 구성하는 코드를 작성했습니다. 기존 Pi 프로세스/Terminal을 복제·Resume·미러링하지 않으며 새 데스크톱 GUI/멀티플렉서를 추가하지 않습니다. 해당 Agent의 `session_start`에 정확한 Pi Session ID와 Ghostty Terminal UUID를 확인할 수 없으면 Overlay를 실행하지 않습니다.
+- **표시 조건:** Ghostty 1.3.1 AppleScript의 `frontmost` + selected Tab의 focused Terminal UUID를 읽기 전용으로 관찰합니다. 포커스 아웃 시작점을 **단조 증가 시간**으로 잡고 30초가 경과하면 표시하며, 포커스 없는 상태의 `agent_settled`가 정상 완료면 30초 대기 없이 표시합니다. 재포커스하면 Overlay를 닫고 타이머를 초기화합니다. **현 코드의 포커스 관찰은 Agent당 1초 폴링**이므로 '즉시' 전환의 실제 지연/다수 Agent에서 AppleScript 부하·권한 실패는 사용자 실사용 검증 전입니다. 정확한 이벤트 기반 포커스 전환이 필요하면 기존 Ghostty/터미널 포커스 이벤트 재사용을 별도 검토합니다.
+- **현재 사실 기반 Summary:** `src/summary-evidence.ts`는 Pi 활성 분기의 마지막 사용자 요청, 실제 Tool 결과, 최근 Assistant 답변을 **원본 Entry ID가 붙은 사실**로만 보여주고 `responding`/`waiting-for-ui`/`response-ended` 등 이벤트 출처만 표시합니다. `agent_settled`는 응답 종료일 뿐 기능 구현/검증 완료가 아닙니다. Overlay는 Pi 대화에 기록되거나 Main 모델 컨텍스트에 자동 주입되지 않습니다.
+- **Overview에서 근거 확인:** `src/overview.ts`의 Agent 행 선택 후 `v`로 같은 Pi Session ID의 근거를 직접 조회합니다. 이는 읽기 전용 정보 확인 기능이며 Agent의 현재 모델 상태를 추측하지 않습니다. 기존 `/compose handoff`는 사용자가 Pi TUI에서 직접 원본·수신자·전달 내용을 선택하는 별개 전송 경로를 유지합니다.
+- **현재 미구현 핵심:** 승인된 **경량 모델의 의미 Summary**, 중요 결정 **자동 공유 후보**, 후보 항목을 Overview/Overlay에서 사용자 선택해 바로 pi-intercom Outbox로 보내는 화면, 메시지 Sidebar의 전체 상태·필터/보관, 실제 빠른 포커스 복원/IME/좁은 Split. 이 단계는 UI·근거 수집 기반의 **일부 코드 작성**이며 제품 6단계 완료가 아닙니다.
+- **검증:** AppleScript 1초 폴링/동시 Agent 수에 따른 비용, `ctx.ui.custom` 비차단 렌더링과 Pi의 `ui_prompt_*` 이벤트 상호작용, `agent_settled` 표시 시점, 포커스 재획득/원본 TUI 표시, 한글 텍스트/줄바꿈은 모두 사용자 로컬 통합 검증 전입니다.
 
 ### 이후 사용자 실사용 검증
 
