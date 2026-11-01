@@ -63,8 +63,10 @@ async function chooseForkSource(
  * Pi provider (including its standard @file behavior) runs unchanged.
  */
 export function registerDelegationAutocomplete(pi: ExtensionAPI): void {
+  let registered = false;
   pi.on('session_start', (_event, ctx) => {
-    if (!ctx.hasUI) return;
+    if (!ctx.hasUI || registered) return;
+    registered = true;
     ctx.ui.addAutocompleteProvider(previous => ({
       ...previous,
       triggerCharacters: [...new Set([...(previous.triggerCharacters || []), '@'])],
@@ -174,7 +176,7 @@ export function registerDirectDelegation(pi: ExtensionAPI): void {
         role: direct.role,
         workspace: direct.workspace,
         product: product.trim(),
-        label: direct.task.split('\n')[0].trim().slice(0, 120),
+        label: direct.task.trimStart().split('\n')[0].trim().slice(0, 120),
         task: direct.task,
         requesterSessionId,
         requesterSessionFile,
