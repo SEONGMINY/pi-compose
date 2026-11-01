@@ -95,7 +95,7 @@
 - **Ghostty 1.3.1 공식 계약:** `new surface configuration`, `split terminal direction right with configuration`, `terminal.id`, `focus`를 재사용합니다. 1.3.1에 없는 Terminal TTY/PID를 요구하지 않고, `GHOSTTY_SURFACE_ID`를 AppleScript UUID로 취급하지 않습니다.
 - **작성한 코드:** `extensions/direct-delegation.ts`는 `>w`/`>s`를 선처리하고, `src/native-agent-launch.ts`는 **실제 pic Overview Terminal UUID를 인자로 받을 때만** 새 Split을 생성합니다. Split이 반환한 UUID를 임시 전용 Launch Ticket에 기록한 뒤 `bin/native-agent-entry.mjs`가 실제 자식 Pi를 시작합니다. `extensions/agent-identity.ts`는 자식 Pi 세션에서만 역할·프로덕트·요청자·Fork 원본·Surface 연결을 기록합니다. 발신 Main JSONL에 위임 작업 지시나 상태 메타데이터를 추가하지 않습니다.
 - **코드 안전 경계:** 준비 단계에서 원본 Pi 세션을 변경하거나 기존 Surface를 복제하지 않습니다. Split 생성 결과는 Pi 실행 성공/초기 프롬프트 수신 완료를 증명하지 않습니다. 반환이 불확실하면 무단 재시도하지 않습니다. Split이 포커스를 가져온 경우에만 기존 포커스를 복원합니다.
-- **미연결:** 확정된 `pic` Overview 관리 TUI 및 실제 Overview Terminal UUID 공급, `@세션` 같은 프로덕트 검색, `>>` Git Worktree 생성, Main 명시적 세션 진입, 전체 Agent Sidebar/상태·Summary·Handoff UI. `>w`/`>s`는 Overview 식별자가 없으면 입력 원문만 복원하고 실행하지 않습니다. **코드 작성이며 실행·타입·통합 검증 전**입니다.
+- **미연결:** 확정된 `pic` Overview 관리 TUI 및 실제 Overview Terminal UUID 공급, `@세션` 같은 프로덕트 검색과 `>>` Git Worktree 연결은 후속 Draft 코드가 작성됐지만 통합 검증 전이며, Main 명시적 세션 진입, 전체 Agent Sidebar/상태·Summary·Handoff UI. `>w`/`>s`는 Overview 식별자가 없으면 입력 원문만 복원하고 실행하지 않습니다. **코드 작성이며 실행·타입·통합 검증 전**입니다.
 
 ### `pic` Overview 공식 Pi TUI 사용 (Draft PR #15)
 
@@ -120,6 +120,13 @@
 - Skill은 모델에게 특정 맥락 로드 절차를 요청할 때, Extension은 Pi TUI/명령·이벤트 연결이 실제로 필요할 때 검토합니다.
 - MCP는 외부 데이터/시스템 연동이 필요할 때 고려합니다. 로컬 프로젝트 문서를 다룬다는 이유만으로 MCP 서버를 만들지 않습니다.
 - 외부 도구를 재구현하거나 범용 상태 관리자/계약 DB/문서 감시기를 만드는 것은 현재 범위가 아닙니다.
+
+### Native 세션 선택과 Git Worktree 연결 (Draft PR #15)
+
+- Pi 1.4.0 `ExtensionContext.ui.addAutocompleteProvider()`와 `SessionManager.listAll()`를 사용해 **직접 위임 입력 첫머리의 `>w @` / `>>w @`에서만** 프로덕트 소속 세션 이름·Pi Session ID·최근 사용자 지시·작업 경로를 표시합니다. 일반 파일 `@` 자동완성은 원래 Provider로 그대로 전달합니다. 최종 원본은 **Session ID + 경로 + 마지막 완료 leaf**로 정하고, 생성 요청자와 Fork 원본을 별도 기록합니다.
+- Git 공식 `worktree add -b`는 별도 브랜치/작업 디렉터리를 생성합니다. `src/native-worktree.ts`는 호출 Agent의 `rev-parse HEAD` 및 `symbolic-ref --short HEAD` 결과를 사용합니다. Detached HEAD·Git 저장소 아님·중복 경로는 실패 처리하고, 미커밋 파일을 새 Worktree로 복사하거나 강제 커밋하지 않습니다. <https://git-scm.com/docs/git-worktree>
+- 새 자식 Pi의 identity custom entry에 Worktree path, 생성 branch, 호출 Agent의 baseBranch/baseCommit을 보존합니다. 명령 입력 Agent의 cwd 하위 디렉터리를 공유할 수 있으며 `>>`는 같은 상대 디렉터리를 새 Worktree에서 사용합니다. 폴더가 커밋에 존재하지 않는 경우 연결 실패가 발생할 수 있으므로 결과를 추측하지 않습니다.
+- **중요:** Worktree 생성 후 Pi/Ghostty 실행 실패 시 Worktree를 무단 삭제하거나 무조건 재시도하지 않습니다. 실제 Git Worktree 생성/입력 자동완성/정확한 Leaf/맥락 상속/오류·중단 검증은 사용자에게 남깁니다. 현재 코드를 실사용 통합 완료로 표시하지 않습니다.
 
 ## 4. 아직 해결되지 않은 기술·제품 질문
 
