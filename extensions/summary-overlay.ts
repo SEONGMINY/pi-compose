@@ -28,6 +28,7 @@ export function registerSummaryOverlay(pi: ExtensionAPI): void {
   let status: SummaryEvidence['status'] = 'idle-or-unknown';
   let currentTool: string | undefined;
   let overlayActive = false;
+  let closingPassivePrompt = false;
   let closingOverlay: (() => void) | undefined;
   let textComponent: Text | undefined;
   let redraw: (() => void) | undefined;
@@ -66,6 +67,7 @@ export function registerSummaryOverlay(pi: ExtensionAPI): void {
     if (!overlayActive) return;
     overlayActive = false;
     const done = closingOverlay;
+    closingPassivePrompt = true;
     closingOverlay = undefined;
     textComponent = undefined;
     redraw = undefined;
@@ -133,6 +135,7 @@ export function registerSummaryOverlay(pi: ExtensionAPI): void {
     wasFocused = undefined;
     status = 'idle-or-unknown';
     currentTool = undefined;
+    closingPassivePrompt = false;
   }
 
   pi.on('session_start', (_ev, current) => {
@@ -157,7 +160,10 @@ export function registerSummaryOverlay(pi: ExtensionAPI): void {
     status = 'waiting-for-ui'; update();
   });
   pi.on('ui_prompt_end', e => {
-    if (overlayActive && e.kind === 'custom') return;
+    if (e.kind === 'custom' && (overlayActive || closingPassivePrompt)) {
+      closingPassivePrompt = false;
+      return;
+    }
     status = 'responding'; update();
   });
   pi.on('message_end', () => { update(); });
