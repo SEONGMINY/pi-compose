@@ -55,7 +55,7 @@ Support · 탐색 / 자료 조사 / 테스트 실행 / 독립 검증
 
 **모든 항목은 코드 작성이며 타입체크·macOS Ghostty/Pi/Git 실사용 통합 검증 전입니다.** 실제 Pi 프로세스/Agent 수명 관리, Summary Overlay, 완성된 메시지 Sidebar와 Handoff UX, 설치·종료·복구 흐름은 남았습니다. 코드가 작성됐다는 이유로 제품 전체 동작을 보장하지 않습니다. 남은 순서는 [Implementation Plan](docs/IMPLEMENTATION_PLAN.md)을 확인해 주세요.
 
-**5단계 Draft 코드:** Native Pi 자식 실행 래퍼에 OS 프로세스 시작/종료 영수증을 남기고, Overview에서 **Session ID + Launch ID + Terminal UUID + PID 시작 시각**을 대조해 확인된 실행 사실만 표시하도록 추가했습니다. `q` 종료 선택에서는 Agent 유지·Ghostty 숨김, **재확인된 Pi 프로세스의 Surface만 사용자 승인 후 닫기**, 취소를 구분합니다. 상태 불명 Agent를 임의로 종료하거나 저장된 Pi 대화/Git Worktree를 삭제하지 않습니다. **실시간 모델 상태·완전한 종료/복구·Summary Overlay는 미구현이고 타입/실사용 검증 전입니다.**
+**5단계 Draft 코드:** Native Pi 자식 실행 래퍼에 OS 프로세스 시작/종료 영수증을 남기고, Overview에서 **Session ID + Launch ID + Terminal UUID + PID 시작 시각**을 대조해 확인된 실행 사실만 표시하도록 추가했습니다. `q` 종료 선택에서는 Agent 유지·Ghostty 숨김, **재확인된 Pi 프로세스의 Surface만 사용자 승인 후 닫기**, 취소를 구분합니다. 상태 불명 Agent를 임의로 종료하거나 저장된 Pi 대화/Git Worktree를 삭제하지 않습니다. Main 저장 세션 재개 시 실제 OS 프로세스가 관찰되면 **중복 실행을 거부**하고, 실행 여부가 불명확하면 위험을 명시적으로 확인한 사용자에게만 재개를 허용하도록 보완했습니다. **실시간 모델 상태·완전한 종료/복구·Summary Overlay는 미구현이고 타입/실사용 검증 전입니다.**
 
 **이 README는 새 제품 방향을 설명하는 설계 문서입니다.** 기존 코드에는 이전 tmux/workmux 기반 CLI와 Orca 실험이 남아 있고, 위 Ghostty 중심 흐름, 제품/Agent 사이드바, 메시지 관리, 종료 선택 UX와 Summary Overlay가 실제로 완성·검증됐다는 뜻은 아닙니다. 과거 설치·명령을 새 제품의 사용법처럼 안내하지 않습니다.
 
