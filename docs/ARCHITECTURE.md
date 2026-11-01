@@ -153,7 +153,7 @@ Ghostty가 새 Split의 Terminal UUID를 돌려준 후 해당 ID와 Overview UUI
 
 **현재 구현 코드 (Draft PR #15):** Overview는 Pi 원본 Session JSONL에 기록된 신원·Surface 바인딩을 읽고, 추가로 해당 Launch Request의 **일회성 자식 Pi 프로세스 실행 영수증**을 참조합니다. `src/agent-lifecycle.ts`에서 Session/Launch/Terminal 식별자가 같고, OS PID와 시작 시각을 재확인한 경우만 `process-observed`로 구분합니다. 자식 Pi의 시작·종료를 기록하지 못했다면 프로세스가 실행 중이라고 추측하지 않습니다. 영수증은 상태 확인용 단발 실행 기록이며 Pi 대화의 별도 기억 DB가 아닙니다.
 
-`pic`의 `q` 종료에서 백그라운드 유지 선택은 Ghostty를 Quit하지 않고 OS 숨김을 시도합니다. 종료를 선택하면 정확히 관찰된 실행 중 프로세스의 Terminal ID에 대해서만 **사용자의 추가 확인→Ghostty Native close**를 요청하며, 결과 불명확 Surface와 저장 세션·Git 파일은 보존합니다. 실제 종료 이벤트가 관찰되기 전에는 종료 완료로 표현하지 않습니다. 이 선택 UI는 Ghostty Cmd+Q/창 종료까지 가로채지 않습니다. **실시간 Pi 작업 상태, 프로세스 복구, 완료된 Agent의 종료·재개, Tab 이동 등 제품 요구사항은 여전히 남습니다.**
+`pic`의 `q` 종료에서 백그라운드 유지 선택은 Ghostty를 Quit하지 않고 OS 숨김을 시도합니다. 종료를 선택하면 정확히 관찰된 실행 중 프로세스의 Terminal ID에 대해서만 **사용자의 추가 확인→Ghostty Native close**를 요청하며, 결과 불명확 Surface와 저장 세션·Git 파일은 보존합니다. 실제 종료 이벤트가 관찰되기 전에는 종료 완료로 표현하지 않습니다. 이 선택 UI는 Ghostty Cmd+Q/창 종료까지 가로채지 않습니다. 동일 저장 Main 세션에 연결된 OS 프로세스가 발견되면 재개하지 않습니다. 기존 Surface가 없더라도 실행 여부가 불확실하면 명시적인 위험 확인을 요구하고, 사용자가 확인하지 않으면 세션 파일을 다시 열지 않습니다. **실시간 Pi 작업 상태, 프로세스 복구, 완료된 Agent의 종료·재개, Tab 이동 등 제품 요구사항은 여전히 남습니다.**
 
 ## 5. Ghostty 터미널과 세션 수명
 
