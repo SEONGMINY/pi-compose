@@ -319,6 +319,27 @@ export async function openOverview(): Promise<void> {
         return;
       }
 
+      const runtime = await observeAgentLifecycle(existing?.runtimeReceiptFile, {
+        sessionId: chosen.id,
+        launchRequestId: existing?.runtimeLaunchRequestId,
+        terminalId: existing?.terminalId,
+      });
+      if (runtime.state === 'process-observed') {
+        status = 'This Main has an observed OS process. Duplicate Pi session resume blocked.';
+        return;
+      }
+      const needsAcknowledgement =
+        runtime.state !== 'exited-observed' && runtime.state !== 'launch-failed';
+      if (needsAcknowledgement) {
+        const acknowledgement = await ask(
+          'Pi process status is not confirmed. Another Pi may still write this session. ' +
+          'Type RESUME to accept the risk, or Escape to cancel.',
+        );
+        if (acknowledgement !== 'RESUME') {
+          status = 'Main resume cancelled; process identity is unconfirmed.';
+          return;
+        }
+      }
       const product = existing?.product || await ask('Assign a product to this selected Main');
       if (!product) return;
       const label = existing?.label || await ask('Assign this selected Main a display name');
@@ -326,7 +347,10 @@ export async function openOverview(): Promise<void> {
       if (!chosen.cwd) throw new Error('Saved Pi session has no known working directory.');
       const receipt = await startNativeMainInOverview({
         product, label, targetCwd: chosen.cwd, overviewAnchorTerminalId: overviewId,
-        resume: { sessionId: chosen.id, sessionFile: chosen.path },
+        resume: {
+          sessionId: chosen.id, sessionFile: chosen.path,
+          allowUnconfirmedProcess: needsAcknowledgement,
+        },
       });
       pendingMains.set(receipt.sessionId, {
         identity: {
