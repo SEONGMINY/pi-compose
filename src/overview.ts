@@ -427,11 +427,102 @@ export async function openOverview(): Promise<void> {
     }
   }
 
-  const finish = () => { tui.stop(); };
+  // 'q' is an explicit product-exit decision, not a silent terminal close.
+  // Hidden Ghostty remains alive; the full TUI state and native Pi processes
+  // stay in their original Surfaces until the user restores the app.
+  function chooseExitOption(title: string, options: Array<{ value: string; label: string; description?: string }>): Promise<string | undefined> {
+    return new Promise(resolve => {
+      modalActive = true;
+      const list = new SelectList(options, 9, selectionTheme);
+      const finish = (value?: string) => {
+        modalActive = false;
+        render();
+        resolve(value);
+      };
+      list.onSelect = item => finish(item.value);
+      list.onCancel = () => finish();
+      tui.clear();
+      tui.addChild(new Text(title + '\\nEscape: return to Overview', 0, 0));
+      tui.addChild(list);
+      tui.setFocus(list);
+      tui.requestRender();
+    });
+  }
+
+  async function requestExit(): Promise<void> {
+    if (busy || modalActive) return;
+    const decision = await chooseExitOption('Exit Pi Compose — what should happen to running Agents?', [
+      { value: 'keep', label: 'Keep Agent sessions running (hide Ghostty)', description: 'No Pi session or Surface is closed' },
+      { value: 'terminate', label: 'Terminate observed Pi Agents', description: 'Close only exact, rechecked live Compose Surfaces' },
+      { value: 'cancel', label: 'Cancel and return to Overview' },
+    ]);
+    if (decision === 'keep') {
+      try {
+        await hideGhosttyWithoutQuit();
+        status = 'Ghostty hidden. Native Pi Surfaces and this Overview remain alive.';
+      } catch (error) {
+        status = 'Could not hide Ghostty automatically; Overview and Agents remain open. ' +
+          'Use Ghostty Cmd+H if desired. ' + String(error);
+      }
+      statusText.setText(status); tui.requestRender();
+      return;
+    }
+    if (decision !== 'terminate') return;
+    await refresh(true);
+    const eligible = agents.filter(a => a.terminal && a.lifecycle.state === 'process-observed');
+    const unknownCount = agents.filter(a => a.terminal && a.lifecycle.state !== 'process-observed').length;
+    const confirmed = await chooseExitOption(
+      'Close ' + eligible.length + ' confirmed-process Surface(s)? ' +
+      unknownCount + ' unknown/unverified Surface(s) will remain untouched.',
+      [
+        { value: 'confirm', label: 'Yes, close only these confirmed Pi Agent Surfaces' },
+        { value: 'cancel', label: 'No, return to Overview' },
+      ],
+    );
+    if (confirmed !== 'confirm') return;
+    busy = true;
+    let issued = 0;
+    let notClosed = 0;
+    try {
+      for (const agent of eligible) {
+        if (!agent.terminal) continue;
+        // Revalidate identity and OS process fingerprint immediately before
+        // Ghostty's close command (which has no native confirmation prompt).
+        const currentTerminals = await listGhosttyTerminals();
+        const observation = await observeAgentLifecycle(agent.identity.runtimeReceiptFile, {
+          sessionId: agent.identity.sessionId,
+          launchRequestId: agent.identity.runtimeLaunchRequestId ?? agent.identity.launchRequestId,
+          terminalId: agent.identity.terminalId,
+        });
+        if (!currentTerminals.some(t => t.id === agent.terminal!.id) ||
+            observation.state !== 'process-observed') {
+          notClosed++;
+          continue;
+        }
+        try {
+          await closeGhosttyTerminal(agent.terminal.id);
+          issued++;
+        } catch {
+          notClosed++;
+        }
+      }
+    } finally {
+      busy = false;
+    }
+    await refresh(true);
+    status = 'Ghostty close acknowledged for ' + issued + ' Surface(s); ' +
+      (notClosed + unknownCount) + ' unconfirmed or not closed. ' +
+      'Pi exit is determined by its child exit receipt, not by close acknowledgement. ' +
+      'Saved conversations and Git Worktrees were not deleted.';
+    statusText.setText(status); tui.requestRender();
+    // Keep Overview active for inspection. Never quit Ghostty or silently
+    // discard ambiguous processes after a partial closure.
+  }
+
   tui.addInputListener(data => {
     if (modalActive) return undefined;
     if (matchesKey(data, 'ctrl+c') || matchesKey(data, 'q')) {
-      finish(); return { consume: true };
+      void requestExit(); return { consume: true };
     }
     if (matchesKey(data, '1') || matchesKey(data, '2') || matchesKey(data, '3')) {
       view = matchesKey(data, '1') ? 'products' : matchesKey(data, '2') ? 'agents' : 'messages';
