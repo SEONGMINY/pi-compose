@@ -125,6 +125,12 @@ flowchart TD
 
 `src/native-agent-launch.ts`는 **Overview Terminal ID가 확인된 경우에만** Split을 요청합니다. 현재 `pic` 관리 TUI가 해당 ID를 제공하는 기능은 아직 없으므로 직접 위임 경로는 비활성 상태입니다. 시작 실패/결과 불명확 상황에서 중복 생성이나 원문 재전송은 하지 않습니다. 임시 Launch Ticket는 자식 프로세스 시작 허가를 위한 단발 자료이며 Agent 계약 데이터베이스가 아닙니다. 코드가 실제로 순서와 원본 불변을 지키는지는 사용자 통합 검증 전입니다. 기존 Main/Work Tab 안에 새 Agent를 배치하는 우회 구현은 허용하지 않습니다.
 
+### 3.5 Main 생성과 기존 세션 선택 (Draft 코드, 실사용 검증 전)
+
+`pic` Overview 내부 `n` 생성과 `o` 저장 세션 선택은 **원본 Pi 세션을 구분**합니다. 새로운 Main은 사용자 선택 제품·이름·cwd로만 생성하고 초기 프롬프트를 보내지 않습니다. 기존 Main은 Pi의 정확한 Session ID/파일을 지정해 **이전 대화만 재개**하며 Work/Support를 자동 실행하지 않습니다. 사용자가 고른 기존 비-Compose Pi 세션은 별도 역할 추측 없이 명시적으로 Main 제품/이름을 부여해야 합니다.
+
+Ghostty가 새 Split의 Terminal UUID를 돌려준 후 해당 ID와 Overview UUID를 **자식 Pi Launch Ticket에만** 전달합니다. Main identity는 새 Pi 세션이 시작될 때 기록하고, 기존 Main의 identity는 그대로 두며 Surface 바인딩만 갱신합니다. 새 Main의 첫 대화 전 임시 항목은 Overview 프로세스 메모리에만 있으며 Native Pi 세션 파일이 만들어지면 기록으로 대체합니다. 원본 Main 채팅을 임의 수정하거나 작업 지시를 재생하지 않습니다. **실제 사용/프로세스 상태/중복 감지/생성 실패의 지속 기록은 아직 완성되지 않았습니다.**
+
 ## 4. Fork / Independent / Workspace
 
 | Agent | `>` — Shared Directory | `>>` — Git Worktree |
