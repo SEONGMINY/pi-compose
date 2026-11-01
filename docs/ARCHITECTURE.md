@@ -131,6 +131,12 @@ flowchart TD
 
 Ghostty가 새 Split의 Terminal UUID를 돌려준 후 해당 ID와 Overview UUID를 **자식 Pi Launch Ticket에만** 전달합니다. Main identity는 새 Pi 세션이 시작될 때 기록하고, 기존 Main의 identity는 그대로 두며 Surface 바인딩만 갱신합니다. 새 Main의 첫 대화 전 임시 항목은 Overview 프로세스 메모리에만 있으며 Native Pi 세션 파일이 만들어지면 기록으로 대체합니다. 원본 Main 채팅을 임의 수정하거나 작업 지시를 재생하지 않습니다. **실제 사용/프로세스 상태/중복 감지/생성 실패의 지속 기록은 아직 완성되지 않았습니다.**
 
+### 3.6 세션 Fork 출처와 Git Workspace 독립 선택 (Draft 코드)
+
+`>w @` / `>>w @`는 **현재 프로덕트의 저장된 Pi 세션 중 완료 지점이 확인된 세션**만 후보로 보여주고 실제 Session ID + leaf를 선택합니다. Pi SessionManager가 원본 기록을 소유하며 선택된 Fork 원본의 cwd는 새 파일 작업 공간을 바꾸지 않습니다. 입력자 Pi의 cwd에서 `>w`는 Shared Directory, `>>w`는 입력 Agent Git HEAD 기준 새 Worktree를 만듭니다. `>s`와 `>>s`는 독립 Support이며 Fork 원본을 읽지 않습니다.
+
+`src/product-sessions.ts`는 원본 후보 식별, `extensions/direct-delegation.ts`는 기존 Pi 에디터 자동완성/직접 위임, `src/native-worktree.ts`는 Git의 브랜치·Worktree 생성, `src/native-agent-launch.ts`는 Pi 세션과 실제 Ghostty Split을 연결합니다. 둘 다 실패/취소 시 중복 실행이나 Worktree 자동 삭제를 피하고, 작업 지시 원문은 **수신 자식 Pi**로만 전달합니다. 자식 identity에는 원본 Git Branch/HEAD와 새 Workspace를 저장합니다. 이 범위는 **코드 작성 완료 / 타입·실행·실사용 검증 전**입니다.
+
 ## 4. Fork / Independent / Workspace
 
 | Agent | `>` — Shared Directory | `>>` — Git Worktree |
