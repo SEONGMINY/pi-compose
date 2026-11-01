@@ -57,6 +57,7 @@ export function registerAgentIdentity(pi: ExtensionAPI): void {
         sessionId: ticket.sessionId,
         terminalId: ticket.terminalId,
         launchRequestId: ticket.launchRequestId,
+        runtimeReceiptFile: ticket.runtimeReceiptFile,
         recordedAt: new Date().toISOString(),
       });
     }
