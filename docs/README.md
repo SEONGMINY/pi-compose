@@ -1,6 +1,6 @@
 # Pi Compose 설계 문서
 
-> 기준: 2026-10-31 확정 PRD 및 2026-11-01 Draft PR #15 Native Handoff·Ghostty Overview TUI 코드 현황. **확정 정책과 코드 작성/실행·통합 검증은 별개입니다.**
+> 기준: 2026-10-31 확정 PRD 및 2026-11-01 Draft PR #15 Native Handoff·Ghostty Overview TUI·Main 생성/명시적 재개 코드 현황. **확정 정책과 코드 작성/실행·통합 검증은 별개입니다.**
 
 문서는 업무 목적에 맞게 구분합니다. 같은 계약을 여러 문서에 복제하지 않고, 변경할 때 해당 문서의 원본을 갱신합니다.
 
