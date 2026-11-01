@@ -14,6 +14,14 @@ export type ComposeAgentBootstrap = {
   label: string;
   workspaceCwd: string;
   terminalId?: string;
+  gitWorktree?: {
+    path: string;
+    sourceRoot: string;
+    branch: string;
+    baseBranch: string;
+    baseCommit: string;
+    hadUncommittedChanges: boolean;
+  };
   requesterSessionId?: string;
   requesterSessionFile?: string;
   forkSourceSessionId?: string;
@@ -42,6 +50,16 @@ export function parseAgentBootstrap(value: unknown): ComposeAgentBootstrap | und
   if (raw.terminalId !== undefined &&
       (typeof raw.terminalId !== 'string' ||
        !/^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$/.test(raw.terminalId))) return;
+  const wt = raw.gitWorktree;
+  if (wt !== undefined) {
+    if (!wt || typeof wt !== 'object' || Array.isArray(wt)) return;
+    const info = wt as Record<string, unknown>;
+    if (!requiredText(info.path, 4096) || !isAbsolute(info.path) ||
+        !requiredText(info.sourceRoot, 4096) || !isAbsolute(info.sourceRoot) ||
+        !requiredText(info.branch, 256) || !requiredText(info.baseBranch, 256) ||
+        !/^[a-f0-9]{40,64}$/.test(String(info.baseCommit)) ||
+        typeof info.hadUncommittedChanges !== 'boolean') return;
+  }
   for (const name of ['requesterSessionId', 'forkSourceSessionId', 'forkSourceLeafId']) {
     if (raw[name] !== undefined && !validId(raw[name])) return;
   }
@@ -58,6 +76,15 @@ export function parseAgentBootstrap(value: unknown): ComposeAgentBootstrap | und
     label: raw.label,
     workspaceCwd: raw.workspaceCwd,
     terminalId: typeof raw.terminalId === 'string' ? raw.terminalId : undefined,
+    gitWorktree: wt && typeof wt === 'object' && !Array.isArray(wt)
+      ? {
+          path: (wt as Record<string, string>).path,
+          sourceRoot: (wt as Record<string, string>).sourceRoot,
+          branch: (wt as Record<string, string>).branch,
+          baseBranch: (wt as Record<string, string>).baseBranch,
+          baseCommit: (wt as Record<string, string>).baseCommit,
+          hadUncommittedChanges: (wt as Record<string, boolean>).hadUncommittedChanges,
+        } : undefined,
     requesterSessionId: typeof raw.requesterSessionId === 'string' ? raw.requesterSessionId : undefined,
     requesterSessionFile: typeof raw.requesterSessionFile === 'string' ? raw.requesterSessionFile : undefined,
     forkSourceSessionId: typeof raw.forkSourceSessionId === 'string' ? raw.forkSourceSessionId : undefined,
