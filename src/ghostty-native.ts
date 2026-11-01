@@ -85,6 +85,38 @@ on run argv
 end run
 `;
 
+const CLOSE_TERMINAL = `
+on run argv
+  set wantedId to item 1 of argv
+  tell application "Ghostty"
+    repeat with w in windows
+      repeat with t in tabs of w
+        repeat with term in terminals of t
+          if ((id of term) as text) is wantedId then
+            close term
+            return wantedId
+          end if
+        end repeat
+      end repeat
+    end repeat
+  end tell
+  error "Exact Ghostty Terminal not found; nothing closed" number 1001
+end run
+`;
+
+// macOS System Events may require Accessibility/Automation permission.
+// If unavailable, Overview stays active and the user can press Cmd+H manually.
+const HIDE_GHOSTTY = `
+on run argv
+  tell application "System Events"
+    set targetProcesses to every application process whose name is "Ghostty"
+    if (count of targetProcesses) is 0 then error "Ghostty process not found" number 1001
+    set visible of item 1 of targetProcesses to false
+  end tell
+  return "hidden"
+end run
+`;
+
 const SPLIT_TERMINAL = `
 on run argv
   set wantedId to item 1 of argv
@@ -190,4 +222,19 @@ export async function splitGhosttyTerminal(
   }
   const newId = await runAppleScript(SPLIT_TERMINAL, [validId(anchorTerminalId), cwd, command, ...environmentVariables]);
   return validId(newId);
+}
+
+/**
+ * Ghostty 1.3.1 close has no additional confirmation. Call only after the
+ * user explicitly selects termination, never for an unverified process.
+ */
+export async function closeGhosttyTerminal(id: string): Promise<void> {
+  const closed = await runAppleScript(CLOSE_TERMINAL, [validId(id)]);
+  if (closed !== id) throw new GhosttyAutomationError('Targeted terminal closure was not confirmed.');
+}
+
+/** Hide Ghostty itself while leaving all native Surfaces and Pi processes alive. */
+export async function hideGhosttyWithoutQuit(): Promise<void> {
+  const value = await runAppleScript(HIDE_GHOSTTY);
+  if (value !== 'hidden') throw new GhosttyAutomationError('Ghostty hide was not acknowledged.');
 }
