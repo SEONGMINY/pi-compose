@@ -18,6 +18,7 @@ export type AgentRelationship = {
   gitWorktree?: { path: string; branch: string; baseCommit: string; baseBranch: string; hadUncommittedChanges: boolean };
   launchRequestId?: string;
   terminalId?: string;
+  runtimeReceiptFile?: string;
 };
 
 function object(value: unknown): Record<string, unknown> | undefined {
@@ -81,15 +82,19 @@ export function readAgentRelationship(
   // A binding is valid only if it explicitly identifies this Pi session and a
   // real UUID. No mapping from GHOSTTY_SURFACE_ID, cwd, title, or foreground PID.
   let terminalId: string | undefined;
+  let runtimeReceiptFile: string | undefined;
   for (const raw of entries) {
     const entry = object(raw);
     if (entry?.type !== 'custom' || entry.customType !== 'compose_surface_binding') continue;
     const d = object(entry.data);
     if (str(d?.sessionId) !== currentSessionId) continue;
     const id = str(d?.terminalId);
-    if (id && /^[0-9a-fA-F-]{36}$/.test(id)) terminalId = id;
+    if (id && /^[0-9a-fA-F-]{36}$/.test(id)) {
+      terminalId = id;
+      runtimeReceiptFile = str(d?.runtimeReceiptFile);
+    }
   }
-  return { ...relationship, terminalId };
+  return { ...relationship, terminalId, runtimeReceiptFile };
 }
 
 /**
