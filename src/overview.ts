@@ -15,6 +15,7 @@ import {
 } from './agent-lifecycle.ts';
 import { projectHandoffHistory, type HandoffHistoryRow } from './handoff-history.ts';
 import { startNativeMainInOverview } from './native-agent-launch.ts';
+import { projectSummaryEvidence } from './summary-evidence.ts';
 
 type View = 'products' | 'agents' | 'messages';
 type VisibleAgent = {
@@ -181,7 +182,7 @@ export async function openOverview(): Promise<void> {
     statusText.setText(
       status + '\n' +
       'Enter: focus Surface / inspect message · n: New Main · o: Open Main\n' +
-      'r: refresh status · q: leave running / terminate Agents\n' +
+      'v: inspect grounded Summary · r: refresh · q: exit options\n' +
       'Pi session records are evidence; Surface presence is not Agent running/readiness proof.',
     );
     tui.clear();
@@ -416,6 +417,37 @@ export async function openOverview(): Promise<void> {
     }
   }
 
+  async function inspectSelectedAgentSummary(): Promise<void> {
+    if (busy || modalActive || !selection) return;
+    const item = selection.getSelectedItem();
+    const action = entries.find(row => row.item.value === item?.value)?.action;
+    if (action?.type !== 'agent') {
+      status = 'Select an Agent row to inspect its source-backed Summary.';
+      statusText.setText(status); tui.requestRender();
+      return;
+    }
+    const agent = agents.find(a => a.identity.sessionId === action.sessionId);
+    if (!agent || !agent.sessionPath) {
+      status = 'Agent has no persisted Pi transcript yet; Summary unavailable.';
+      statusText.setText(status); tui.requestRender();
+      return;
+    }
+    try {
+      const manager = SessionManager.open(agent.sessionPath);
+      if (manager.getSessionId() !== action.sessionId) throw new Error('Pi session identity changed');
+      const evidence = projectSummaryEvidence(
+        manager.getBranch(), action.sessionId, manager.getLeafId(), 'idle-or-unknown',
+      );
+      status = 'Source-backed Summary (no semantic model): ' +
+        evidence.facts.map(f => f.text + ' [' + f.sourceEntryId.slice(0, 8) + ']').join(' | ') +
+        ' — select the real Pi Agent and use /compose handoff for sharing.';
+      statusText.setText(status); tui.requestRender();
+    } catch (error) {
+      status = 'Cannot read exact Pi transcript: ' + String(error);
+      statusText.setText(status); tui.requestRender();
+    }
+  }
+
   async function refresh(force = false): Promise<void> {
     if (busy && !force) return;
     busy = true;
@@ -557,6 +589,9 @@ export async function openOverview(): Promise<void> {
     }
     if (matchesKey(data, 'o')) {
       void openSavedMain(); return { consume: true };
+    }
+    if (matchesKey(data, 'v')) {
+      void inspectSelectedAgentSummary(); return { consume: true };
     }
     if (matchesKey(data, 'r')) {
       void refresh(); return { consume: true };
