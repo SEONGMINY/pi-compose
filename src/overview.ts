@@ -6,7 +6,13 @@ import {
 import {
   findLiveTerminal, readAgentRelationship, type AgentRelationship,
 } from './agent-relationships.ts';
-import { getFocusedGhosttyTerminalId, listGhosttyTerminals, focusGhosttyTerminal, type GhosttyTerminal } from './ghostty-native.ts';
+import {
+  getFocusedGhosttyTerminalId, listGhosttyTerminals, focusGhosttyTerminal,
+  closeGhosttyTerminal, hideGhosttyWithoutQuit, type GhosttyTerminal,
+} from './ghostty-native.ts';
+import {
+  observeAgentLifecycle, type AgentLifecycleObservation,
+} from './agent-lifecycle.ts';
 import { projectHandoffHistory, type HandoffHistoryRow } from './handoff-history.ts';
 import { startNativeMainInOverview } from './native-agent-launch.ts';
 
@@ -18,6 +24,7 @@ type VisibleAgent = {
   terminal?: GhosttyTerminal;
   messages: HandoffHistoryRow[];
   pending?: boolean;
+  lifecycle: AgentLifecycleObservation;
 };
 
 const selectionTheme: SelectListTheme = {
@@ -37,7 +44,13 @@ async function discoverAgents(terminals: readonly GhosttyTerminal[]): Promise<Vi
     try { manager = SessionManager.open(session.path); } catch { continue; }
     const identity = readAgentRelationship(manager.getSessionId(), manager.getEntries());
     if (!identity) continue;
+    const lifecycle = await observeAgentLifecycle(identity.runtimeReceiptFile, {
+      sessionId: identity.sessionId,
+      launchRequestId: identity.runtimeLaunchRequestId,
+      terminalId: identity.terminalId,
+    });
     result.push({
+      lifecycle,
       identity,
       sessionPath: session.path,
       createdAt: session.created.getTime(),
@@ -84,7 +97,7 @@ function toEntries(view: View, agents: readonly VisibleAgent[]): Array<{ item: S
             value: 'agent/' + id,
             label: '  '.repeat(Math.min(depth + 1, 12)) + agent.identity.label,
             description: (agent.identity.role === 'main' ? '' : agent.identity.role + ' · ') +
-              (agent.terminal ? 'Surface 확인' : 'Surface 미확인'),
+              agent.lifecycle.state + (agent.terminal ? ' · Surface 확인' : ' · Surface 미확인'),
           },
           action: { type: 'agent', sessionId: id },
         });
@@ -109,7 +122,8 @@ function toEntries(view: View, agents: readonly VisibleAgent[]): Array<{ item: S
       value: 'agent/' + agent.identity.sessionId,
       label: agent.identity.label,
       description: agent.identity.product + ' / ' + agent.identity.role +
-        (agent.terminal ? ' / Pi Surface 확인' : ' / Surface 미확인'),
+        ' / ' + agent.lifecycle.state +
+        (agent.terminal ? ' / Surface 확인' : ' / Surface 미확인'),
     },
     action: { type: 'agent', sessionId: agent.identity.sessionId },
   }));
@@ -167,7 +181,7 @@ export async function openOverview(): Promise<void> {
     statusText.setText(
       status + '\n' +
       'Enter: focus Surface / inspect message · n: New Main · o: Open Main\n' +
-      'r: refresh · q: quit overview\n' +
+      'r: refresh status · q: leave running / terminate Agents\n' +
       'Pi session records are evidence; Surface presence is not Agent running/readiness proof.',
     );
     tui.clear();
@@ -249,12 +263,15 @@ export async function openOverview(): Promise<void> {
           product, role: 'main', label,
           workspaceCwd: cwd,
           launchRequestId: receipt.launchRequestId,
+          runtimeLaunchRequestId: receipt.launchRequestId,
+          runtimeReceiptFile: receipt.runtimeReceiptFile,
           terminalId: receipt.terminalId,
         },
         sessionPath: '',
         createdAt: Date.now(),
         terminal: undefined, // Filled by the next read-only Ghostty inventory.
         messages: [], pending: true,
+        lifecycle: { state: 'starting-unverified', source: 'Ghostty Split receipt; Pi not confirmed' },
       });
       status = 'Main Split created [' + receipt.sessionId.slice(0, 8) +
         ']. Pi readiness is unverified; blank session persists after its first message.';
@@ -316,12 +333,15 @@ export async function openOverview(): Promise<void> {
           sessionId: receipt.sessionId, product, role: 'main', label,
           workspaceCwd: chosen.cwd,
           launchRequestId: receipt.launchRequestId,
+          runtimeLaunchRequestId: receipt.launchRequestId,
+          runtimeReceiptFile: receipt.runtimeReceiptFile,
           terminalId: receipt.terminalId,
         },
         sessionPath: chosen.path,
         createdAt: chosen.created.getTime(),
         terminal: undefined, // Filled by the next read-only Ghostty inventory.
         messages: [], pending: true,
+        lifecycle: { state: 'starting-unverified', source: 'Ghostty Split receipt; Pi not confirmed' },
       });
       status = 'Existing Pi session selected and Main Split created. No task replayed; startup unverified.';
       await refresh(true);
@@ -385,7 +405,15 @@ export async function openOverview(): Promise<void> {
         if (known.has(id)) {
           pendingMains.delete(id);
         } else {
-          agents.push({ ...pending, terminal: terminalList.find(t => t.id === pending.identity.terminalId) });
+          agents.push({
+            ...pending,
+            terminal: terminalList.find(t => t.id === pending.identity.terminalId),
+            lifecycle: await observeAgentLifecycle(pending.identity.runtimeReceiptFile, {
+              sessionId: pending.identity.sessionId,
+              launchRequestId: pending.identity.runtimeLaunchRequestId,
+              terminalId: pending.identity.terminalId,
+            }),
+          });
         }
       }
       agents.sort((a, b) => a.createdAt - b.createdAt);
