@@ -106,6 +106,14 @@
 - **미구현:** 첫 Main 생성/기존 Main 명시 선택·Resume, `pic` Overview Terminal UUID를 새 Agent에게 안전하게 제공하는 제어 경로, 원본 Pi 프로세스가 실제 살아 있는지에 대한 상태, 생성 순서 Split, 파일/워크트리 넘나드는 관계 발견, 실시간 Summary/메시지 UI. 현재 이 TUI만으로 제품 실사용은 불가능합니다.
 - 코드 작성 완료, 실제 macOS Ghostty/Pi 시작·타입·실사용 검증 전입니다.
 
+### Main 새 세션/재개 경계 (Draft PR #15)
+
+- Pi 1.4.0 `SessionManager._hasConversation()`와 `_persist()`는 **첫 사용자/Assistant 대화 메시지가 생기기 전까지 세션 파일을 기록하지 않습니다**. custom identity 기록만으로 새 Main의 JSONL이 즉시 생성됐다고 주장하지 않습니다. 새 Main은 Overview TUI 실행 중에만 임시 목록으로 유지하며, 첫 실제 메시지가 저장된 이후 Native Pi 세션에서 탐색합니다.
+- `src/native-agent-launch.ts`의 `startNativeMainInOverview`는 사용자가 명시한 제품·Main 이름·cwd로 새 Pi ID를 만들거나, 정확한 저장 Session ID/파일을 선택해 동일 Pi 세션을 **초기 프롬프트 없이** Ghostty Split의 새로운 TUI로 엽니다. 기등록 역할·제품·표시 이름이 충돌하면 실패합니다. 기존 Ghostty UUID가 발견되면 중복 재개를 중단하고 기존 Surface 포커스를 권장합니다.
+- `src/overview.ts`는 `n` 생성·`o` 저장 세션 선택 UI와 임시 Main 항목을 제공하며, 저장된 세션을 user-facing Main으로 채택할 때만 관계를 기록합니다. `bin/native-agent-entry.mjs`는 Main에 초기 작업 지시를 전달하지 않고 `PI_COMPOSE_OVERVIEW_TERMINAL_ID`를 **자식 Pi 프로세스**에 전달해 이후 직접 위임의 Overview anchor로 사용합니다.
+- `extensions/agent-identity.ts`는 명시된 같은 세션을 재개하는 경우 기존 Compose Main identity를 유지하고 **새 Terminal 바인딩만** 기록합니다.
+- Native Pi 초기 응답·세션 생성/복원·설정/실사용 성공은 **미검증**입니다. Ghostty 1.3.1의 AppleScript Terminal UUID 존재만으로 Pi 프로세스 생존을 판정하지 않습니다. 대화가 없는 Main의 영속적 생성 실패/임시 항목 복구와 다른 실행 중 프로세스 중복 방지는 후속 검증·수명 관리 범위입니다.
+
 ## 3. 구현 수단 선택 기준
 
 - **기능의 필요성은 제품 요구사항**, 구현 수단은 기존 Pi·Git·Ghostty의 API로 먼저 검증합니다.
