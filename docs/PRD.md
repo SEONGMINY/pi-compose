@@ -144,7 +144,7 @@ Draft PR #15에서 Pi 직접 입력의 `>w`/`>s`를 모델 처리 전 구분하�
 
 ### Overview 구현 진척 (Draft PR #15)
 
-인자 없는 `pic` 명령이 현재 Ghostty Terminal에 Pi 1.4.0 공식 TUI 기반 **관리 화면을 여는 코드**를 추가했습니다. 프로덕트별/전체 Agent/메시지 3개 탐색 방식과, 명시적인 Compose 기록에 존재하는 Agent를 실제 Ghostty Terminal UUID로 포커스하는 경로를 작성했습니다. **코드 작성 단계이며 macOS 실사용·완료 검증 전**입니다. Pi의 과거 세션 이름/cwd로 소속이나 역할을 추측하지 않습니다. 후속 코드에서 Main 생성/명시적 재개와 직접 위임 Split 연결을 작성했습니다. Sidebar 실시간 상태·Summary Overlay·종료 선택은 미구현입니다. 기존 PRD의 필수 요구사항을 축소하거나 대체하지 않습니다.
+인자 없는 `pic` 명령이 현재 Ghostty Terminal에 Pi 1.4.0 공식 TUI 기반 **관리 화면을 여는 코드**를 추가했습니다. 프로덕트별/전체 Agent/메시지 3개 탐색 방식과, 명시적인 Compose 기록에 존재하는 Agent를 실제 Ghostty Terminal UUID로 포커스하는 경로를 작성했습니다. **코드 작성 단계이며 macOS 실사용·완료 검증 전**입니다. Pi의 과거 세션 이름/cwd로 소속이나 역할을 추측하지 않습니다. 후속 코드에서 Main 생성/명시적 재개와 직접 위임 Split 연결을 작성했습니다. 후속 단계에서 Sidebar 실행 증거·Summary Overlay의 **사실 표시 기반 코드**·종료 선택은 작성했지만, 전체 의미 요약/공유 후보 UI 및 실사용 검증은 미완료입니다. 기존 PRD의 필수 요구사항을 축소하거나 대체하지 않습니다.
 
 ### Main 생성·재개 구현 현황 (2026-11-01, Draft PR #15)
 
@@ -167,6 +167,14 @@ Native Ghostty Split에서 새 Pi를 실행하는 기존 일회성 래퍼에 **P
 `pic` 내부 `q` 종료 선택에서 **Ghostty/Agent 유지(숨김)**, **확인 가능한 Agent 종료 요청**, 취소를 구분하도록 코드를 작성했습니다. 숨김 실패 시 기존 화면과 프로세스는 유지합니다. 종료 시 재확인된 정확한 Native Surface만 사용자 최종 확인 후 닫고, 상태 불명 세션은 닫거나 삭제하지 않습니다. 저장된 Pi 대화와 Git Worktree는 보존합니다. 저장된 Main 재개 시 기존 Native Pi 프로세스가 아직 관찰되면 중복 실행을 차단하며, 실행 여부가 불확실한 세션은 사용자의 명시적인 위험 인지 후에만 재개하도록 코드에 반영했습니다. 이는 기존 확정 제품 정책의 **부분 구현**으로, 전체 실행 중 Agent의 일괄 정상 종료·프로세스 생존 판정·자동 종료 확인·중복 실행 복구·Summary 상태 등은 아직 보장하지 않습니다.
 
 **전체 코드 실행/타입 및 Ghostty 1.3.1/macOS 실사용 검증 전입니다.** Ghostty 자체 Quit/창 닫기를 이 UI가 가로챈다고 주장하지 않습니다.
+
+### 6단계 구현 진척 — 원본 Pi TUI Summary (Draft PR #15)
+
+Pi 1.4.0 공식 `ctx.ui.custom({ overlay: true, overlayOptions: { nonCapturing: true } })`를 이용해 원래 Pi TUI를 유지하면서 같은 Surface 위에 Summary 정보층을 그리는 **코드**를 작성했습니다. Ghostty의 현재 실제 Terminal UUID를 1초 간격으로 읽어 **포커스 아웃 30초** 또는 **비포커스 정상 `agent_settled`**에서 보여주고 다시 포커스했을 때 닫도록 설계했습니다. 실제 '즉시' 종료·표시 지연/폴링 비용은 실사용 미검증입니다.
+
+현재 Summary의 내용은 `src/summary-evidence.ts`가 Pi 활성 분기 원본 엔트리 ID를 근거로 **최근 요청·실제 Tool 결과·Assistant 답변 발췌**만 표시합니다. 이는 경량 모델의 **의미 기반 핵심 활동/결과 요약이 아니며**, 중요 결정 **자동 공유 후보** 생성도 구현하지 않았습니다. Overview에서 `v`로 해당 Agent의 사실 근거를 확인할 수 있지만 자동 Main 반영이나 메시지 전송은 발생하지 않습니다. 사용자의 기존 `/compose handoff` 명시적 선택 경로는 유지합니다.
+
+**코드 작성 상태이며 Ghostty/Pi 실제 Overlay·성능/IME/이벤트 검증 전**입니다. 이 구현으로 Summary 필수 요구사항 전체를 충족했다고 판단하지 않습니다.
 
 ## 7. 아직 확정되지 않은 결정
 
