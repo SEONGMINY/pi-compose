@@ -95,7 +95,7 @@
 - **Ghostty 1.3.1 공식 계약:** `new surface configuration`, `split terminal direction right with configuration`, `terminal.id`, `focus`를 재사용합니다. 1.3.1에 없는 Terminal TTY/PID를 요구하지 않고, `GHOSTTY_SURFACE_ID`를 AppleScript UUID로 취급하지 않습니다.
 - **작성한 코드:** `extensions/direct-delegation.ts`는 `>w`/`>s`를 선처리하고, `src/native-agent-launch.ts`는 **실제 pic Overview Terminal UUID를 인자로 받을 때만** 새 Split을 생성합니다. Split이 반환한 UUID를 임시 전용 Launch Ticket에 기록한 뒤 `bin/native-agent-entry.mjs`가 실제 자식 Pi를 시작합니다. `extensions/agent-identity.ts`는 자식 Pi 세션에서만 역할·프로덕트·요청자·Fork 원본·Surface 연결을 기록합니다. 발신 Main JSONL에 위임 작업 지시나 상태 메타데이터를 추가하지 않습니다.
 - **코드 안전 경계:** 준비 단계에서 원본 Pi 세션을 변경하거나 기존 Surface를 복제하지 않습니다. Split 생성 결과는 Pi 실행 성공/초기 프롬프트 수신 완료를 증명하지 않습니다. 반환이 불확실하면 무단 재시도하지 않습니다. Split이 포커스를 가져온 경우에만 기존 포커스를 복원합니다.
-- **현재 구현 경계:** 후속 Draft 코드에서 `pic` Overview와 Terminal UUID 전달, `@세션` 선택 및 `>>` Git Worktree, Main 명시적 세션 진입을 작성했지만 **통합 검증 전**입니다. Agent의 실제 생존 상태·Summary Overlay·완성된 Handoff UI·종료/복구는 미구현입니다. `>w`/`>s`는 Overview 식별자가 없으면 입력 원문만 복원하고 실행하지 않습니다. **코드 작성이며 실행·타입·통합 검증 전**입니다.
+- **현재 구현 경계:** 후속 Draft 코드에서 `pic` Overview와 Terminal UUID 전달, `@세션` 선택 및 `>>` Git Worktree, Main 명시적 세션 진입을 작성했지만 **통합 검증 전**입니다. Agent 실행 증거 조회와 사실 기반 Summary Overlay 코드는 후속 단계에서 작성됐으나 실행 미검증이며, 경량 의미 요약·자동 공유 후보·완성 Handoff UI·복구는 미구현입니다. `>w`/`>s`는 Overview 식별자가 없으면 입력 원문만 복원하고 실행하지 않습니다. **코드 작성이며 실행·타입·통합 검증 전**입니다.
 
 ### `pic` Overview 공식 Pi TUI 사용 (Draft PR #15)
 
@@ -136,6 +136,14 @@
 - `q`에서는 사용자에게 Ghostty 숨김 유지 또는 명시적인 Agent 종료를 선택하게 합니다. 후자는 재확인한 Native Surface+OS 프로세스 증거가 있는 Agent만 `close`를 호출하고, 상태 불명 Surface는 남깁니다. OS 숨김은 System Events 권한에 실패할 수 있으며 그때는 Overview를 유지하고 Ghostty `Cmd+H`를 안내합니다. 실제 Pi child 종료는 `close` 응답이 아닌 **별도 exit 영수증**으로 확인합니다.
 - **중복 Main 재개 방어:** 정확히 선택된 세션의 Ghostty Surface가 존재하면 재실행을 거부하고, Surface가 없어도 Native Pi PID+OS 시작 시각이 확인되면 새 Pi 인스턴스를 만들지 않습니다. 유휴/외부 Pi 프로세스 여부를 알 수 없는 기존 세션은 Overview에서 **명시적 위험 확인(`RESUME`)**을 받아야 합니다. 자동 복구나 무조건 재실행은 하지 않습니다.
 - **미완료:** 전 Agent의 실제 종료 확인/강제 종료 복구/다중 Pi 동시 세션 충돌·기존 터미널 내부에서 수동 재개한 Pi/세션 실시간 생존 감지/완전한 background exit UX/Surface 이동. Pi 세션·Git Worktree는 삭제하지 않습니다. 별도 Broker/daemon/DB를 도입하지 않습니다. 이 구현의 타입·실행 검증은 사용자 범위입니다.
+
+### Pi 1.4.0 내장 Overlay와 사실 기반 Summary (Draft PR #15)
+
+- 공식 `packages/coding-agent/docs/tui.md`는 기존 Pi TUI 위의 임시 정보층을 **`ctx.ui.custom({overlay:true})`**로 구현할 수 있음을 명시합니다. `OverlayOptions.nonCapturing`은 키보드 포커스를 가져오지 않습니다. 별도의 Ghostty 내용 캡처/미러링, 외부 창, 인터컴 메시징을 Overlay 생성에 사용하지 않습니다.
+- `extensions/summary-overlay.ts`는 Agent 시작/도구 실행/실제 UI Prompt/`agent_settled`에 반응합니다. Ghostty 1.3.1 AppleScript의 frontmost/selected Tab/focused Terminal UUID를 **Agent당 1초 읽기 전용 폴링**해 포커스 아웃을 확인하고, `performance.now()`로 30초를 측정합니다. 비포커스 `agent_settled` 정상 완료 시 즉시 표시 요청, 재포커스 관찰 시 `done()`으로 Overlay 해제를 요청합니다. **폴링 간격 이하로 실제 즉시 해제될지는 별도 검증 필요**합니다.
+- `src/summary-evidence.ts`는 현재 Pi 분기에서 최근 실제 사용자 입력, Tool 결과/에러, Assistant 답변 발췌와 원본 Entry ID를 근거로 두 문장 이하의 사실 표시를 구성합니다. 확인할 수 없는 진행률/성공/정책 승인/중요 결정은 자동 추측하지 않습니다. Pi 세션이나 모델 컨텍스트에 Summary를 삽입하지 않습니다.
+- `src/overview.ts`의 `v` 근거 조회는 동일 Pi Session ID의 저장된 세션 원본을 읽기 전용으로 확인합니다. Overlay 자체의 공유 버튼 및 경량 LLM 의미 요약/후보 자동 추출·수신자 선택/메시지 Sidebar 통합은 미구현이며, 현행 사용자 명시적 `/compose handoff`를 유지합니다.
+- **통합·성능 위험:** `ctx.ui.custom`과 `ui_prompt_start/end`의 비차단 동작, 다수 Agent에서 1초 AppleScript subprocess 비용, TUI 좁은 폭/IME, Ghostty focus 지연/터미널 재배치, `agent_settled` 최종 응답 이벤트 순서를 실제 Pi 1.4.0 + Ghostty 1.3.1에서 확인해야 합니다. 실사용/타입 검증은 아직 수행하지 않았습니다.
 
 ## 4. 아직 해결되지 않은 기술·제품 질문
 
