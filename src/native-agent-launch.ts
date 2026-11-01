@@ -1,6 +1,8 @@
-import { mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { SessionManager } from '@earendil-works/pi-coding-agent';
+import { readAgentRelationship } from './agent-relationships.ts';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   createAgentBootstrap,
@@ -16,6 +18,24 @@ import {
 import { createNativeWorkFork } from './native-work-fork.ts';
 
 const launcher = fileURLToPath(new URL('../bin/native-agent-entry.mjs', import.meta.url));
+
+
+export type NativeMainLaunchRequest = {
+  product: string;
+  label: string;
+  targetCwd: string;
+  overviewAnchorTerminalId: string;
+  /** A user-selected persisted Pi session, NOT the most recent session. */
+  resume?: { sessionFile: string; sessionId: string };
+};
+
+export type NativeMainLaunchReceipt = {
+  launchRequestId: string;
+  sessionId: string;
+  terminalId: string;
+  state: 'ghostty-split-created-pi-unverified';
+  mode: 'new-main' | 'resume-main';
+};
 
 export type NativeAgentLaunchRequest = {
   role: 'work' | 'support';
@@ -50,6 +70,108 @@ async function writeTicketAtomic(path: string, ticket: unknown): Promise<void> {
   const staged = path + '.next';
   await writeFile(staged, JSON.stringify(ticket), { mode: 0o600 });
   await rename(staged, path);
+}
+
+
+async function launchNativeSplit(
+  bootstrap: ComposeAgentBootstrap,
+  task: string | undefined,
+  sessionFile: string | undefined,
+  overviewAnchorTerminalId: string,
+  targetCwd: string,
+): Promise<string> {
+  const existing = await listGhosttyTerminals();
+  if (!existing.some(term => term.id === overviewAnchorTerminalId)) {
+    throw new Error('The exact pic Overview anchor Terminal no longer exists.');
+  }
+  const ticketDir = await mkdtemp(join(tmpdir(), 'pi-compose-launch-'));
+  const ticketPath = join(ticketDir, 'ticket.json');
+  const base = {
+    bootstrap, task, sessionFile,
+    overviewTerminalId: overviewAnchorTerminalId,
+    composeExtensionFile: fileURLToPath(new URL('../extensions/compose.ts', import.meta.url)),
+  };
+  await writeTicketAtomic(ticketPath, { ...base, ready: false });
+  const previousFocusedId = await getFocusedGhosttyTerminalId().catch(() => undefined);
+  const command = shellWord(process.execPath) + ' ' + shellWord(launcher);
+  let terminalId: string;
+  try {
+    terminalId = await splitGhosttyTerminal(
+      overviewAnchorTerminalId, targetCwd, command,
+      ['PI_COMPOSE_LAUNCH_TICKET=' + ticketPath],
+    );
+    await writeTicketAtomic(ticketPath, {
+      ...base, ready: true,
+      bootstrap: { ...bootstrap, terminalId },
+    });
+  } catch (error) {
+    // Unknown split outcome must never cause an automatic second attempt.
+    await rm(ticketDir, { recursive: true, force: true }).catch(() => undefined);
+    throw error;
+  }
+
+  if (previousFocusedId && previousFocusedId !== terminalId) {
+    const current = await getFocusedGhosttyTerminalId().catch(() => undefined);
+    if (current === terminalId) {
+      await focusGhosttyTerminal(previousFocusedId).catch(() => undefined);
+    }
+  }
+  return terminalId;
+}
+
+/**
+ * User-created Main or explicit existing-Main resume. Never generate an
+ * initial prompt. Pi keeps a new blank session in memory until first chat.
+ */
+export async function startNativeMainInOverview(
+  request: NativeMainLaunchRequest,
+): Promise<NativeMainLaunchReceipt> {
+  if (process.platform !== 'darwin') throw new Error('Ghostty Main creation requires macOS.');
+  if (!request.overviewAnchorTerminalId) throw new Error('An exact Overview Terminal is required.');
+  if (!request.product.trim() || !request.label.trim()) {
+    throw new Error('Main product and display name must be user-selected.');
+  }
+  const cwd = await realpath(request.targetCwd);
+  let sessionId: string;
+  let sessionFile: string | undefined;
+  if (request.resume) {
+    sessionFile = await realpath(request.resume.sessionFile);
+    const old = SessionManager.open(sessionFile);
+    if (old.getSessionId() !== request.resume.sessionId || old.getCwd() !== cwd) {
+      throw new Error('The exact Main session ID or working directory did not match.');
+    }
+    const existing = readAgentRelationship(sessionId = old.getSessionId(), old.getEntries());
+    if (existing && (existing.role !== 'main' ||
+        existing.product !== request.product || existing.label !== request.label)) {
+      throw new Error('The saved Pi session has a conflicting Compose Agent identity.');
+    }
+    // If this exact session already owns a live Ghostty Surface, the caller
+    // must focus it instead of duplicating a running Pi process.
+    if (existing?.terminalId &&
+        (await listGhosttyTerminals()).some(term => term.id === existing.terminalId)) {
+      throw new Error('Main has an existing Ghostty Surface. Focus it instead of resuming.');
+    }
+  } else {
+    sessionId = createAgentBootstrap({
+      role: 'main', product: request.product,
+      label: request.label, workspaceCwd: cwd,
+    }).sessionId;
+  }
+
+  const bootstrap = createAgentBootstrapForSession({
+    sessionId, role: 'main', product: request.product,
+    label: request.label, workspaceCwd: cwd,
+  });
+  const terminalId = await launchNativeSplit(
+    bootstrap, undefined, sessionFile, request.overviewAnchorTerminalId, cwd,
+  );
+  return {
+    launchRequestId: bootstrap.launchRequestId,
+    sessionId: bootstrap.sessionId,
+    terminalId,
+    mode: request.resume ? 'resume-main' : 'new-main',
+    state: 'ghostty-split-created-pi-unverified',
+  };
 }
 
 /**
@@ -113,51 +235,10 @@ export async function startNativeAgentInOverview(
     });
   }
 
-  // Private one-shot ticket. The child Pi waits until Ghostty's own AppleScript
-  // call returns the exact Terminal UUID. This is NOT a project contract DB.
-  const ticketDir = await mkdtemp(join(tmpdir(), 'pi-compose-launch-'));
-  const ticketPath = join(ticketDir, 'ticket.json');
-  const base = {
-    bootstrap,
-    task: request.task,
-    sessionFile,
-    composeExtensionFile: fileURLToPath(new URL('../extensions/compose.ts', import.meta.url)),
-  };
-  await writeTicketAtomic(ticketPath, { ...base, ready: false });
-  const previousFocusedId = await getFocusedGhosttyTerminalId().catch(() => undefined);
-
-  const command = shellWord(process.execPath) + ' ' + shellWord(launcher);
-  let terminalId: string;
-  try {
-    terminalId = await splitGhosttyTerminal(
-      request.overviewAnchorTerminalId,
-      targetCwd,
-      command,
-      ['PI_COMPOSE_LAUNCH_TICKET=' + ticketPath],
-    );
-
-    // The child starts its real Pi process only after it sees this receipt.
-    // If writing it fails, the child times out and does not start Pi. We never
-    // blindly recreate the split or retransmit the initial user prompt.
-    await writeTicketAtomic(ticketPath, {
-      ...base, ready: true,
-      bootstrap: { ...bootstrap, terminalId },
-    });
-  } catch (error) {
-    // A split might exist even when the AppleScript response was lost. Remove
-    // the permit, causing any waiting child to fail closed; never retry it.
-    await rm(ticketDir, { recursive: true, force: true }).catch(() => undefined);
-    throw error;
-  }
-
-  // Splitting may move focus. Return it ONLY if Ghostty still focuses the
-  // just-created Surface. Never steal focus back after the user switched tabs.
-  if (previousFocusedId && previousFocusedId !== terminalId) {
-    const current = await getFocusedGhosttyTerminalId().catch(() => undefined);
-    if (current === terminalId) {
-      await focusGhosttyTerminal(previousFocusedId).catch(() => undefined);
-    }
-  }
+  const terminalId = await launchNativeSplit(
+    bootstrap, request.task, sessionFile,
+    request.overviewAnchorTerminalId, targetCwd,
+  );
 
   return {
     launchRequestId: bootstrap.launchRequestId,
