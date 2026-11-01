@@ -55,6 +55,17 @@ on run argv
 end run
 `;
 
+const FOCUSED_TERMINAL = `
+on run argv
+  tell application "Ghostty"
+    set focusedTab to selected tab of front window
+    set focusedTerm to focused terminal of focusedTab
+    if focusedTerm is missing value then error "No Ghostty terminal is focused" number 1003
+    return (id of focusedTerm) as text
+  end tell
+end run
+`;
+
 const FOCUS_TERMINAL = `
 on run argv
   set wantedId to item 1 of argv
@@ -79,6 +90,7 @@ on run argv
   set wantedId to item 1 of argv
   set newCwd to item 2 of argv
   set newCommand to item 3 of argv
+  set environmentLines to items 4 thru -1 of argv
   tell application "Ghostty"
     repeat with w in windows
       repeat with t in tabs of w
@@ -87,6 +99,9 @@ on run argv
             set cfg to new surface configuration
             set initial working directory of cfg to newCwd
             set command of cfg to newCommand
+            if (count of environmentLines) > 0 then
+              set environment variables of cfg to environmentLines
+            end if
             set createdTerm to split term direction right with configuration cfg
             if createdTerm is missing value then error "Ghostty did not create the split" number 1002
             return (id of createdTerm) as text
@@ -140,6 +155,11 @@ export async function listGhosttyTerminals(): Promise<GhosttyTerminal[]> {
 }
 
 /** Focus the *same* existing Ghostty Surface, even after manual Tab dragging. */
+export async function getFocusedGhosttyTerminalId(): Promise<string> {
+  const id = await runAppleScript(FOCUSED_TERMINAL);
+  return validId(id);
+}
+
 export async function focusGhosttyTerminal(id: string): Promise<void> {
   const focused = await runAppleScript(FOCUS_TERMINAL, [validId(id)]);
   if (focused !== id) {
@@ -159,10 +179,14 @@ export async function splitGhosttyTerminal(
   anchorTerminalId: string,
   cwd: string,
   command: string,
+  environmentVariables: string[] = [],
 ): Promise<string> {
   if (!cwd.startsWith('/') || !command.trim()) {
     throw new GhosttyAutomationError('Split requires an absolute cwd and a command.');
   }
-  const newId = await runAppleScript(SPLIT_TERMINAL, [validId(anchorTerminalId), cwd, command]);
+  if (environmentVariables.some(value => !/^[A-Z_][A-Z0-9_]*=[^\\r\\n\\0]*$/.test(value))) {
+    throw new GhosttyAutomationError('Invalid Ghostty split environment entry.');
+  }
+  const newId = await runAppleScript(SPLIT_TERMINAL, [validId(anchorTerminalId), cwd, command, ...environmentVariables]);
   return validId(newId);
 }
