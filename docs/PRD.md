@@ -134,17 +134,17 @@ Work는 실제 구현에 따라 필요한 설명을 보완할 수 있다는 **�
 
 자체 Pi 런타임·Compaction·Git 병합 엔진·프로젝트 계약 DB·범용 문서 동기화/주기적 Agent 감시/전체 메시지 버스·자동 Agent 스케줄러·Orca 호환 UI·새 데스크톱 GUI는 초기 범위가 아닙니다. 기존 Pi·Git·Ghostty에서 재사용 가능한 기능을 우선합니다.
 
-> **구현 현황(2026-11-01, Draft PR #15):** Pi Extension의 임시 `/compose handoff`에서 사용자가 수신 세션·활성 분기 원본 메시지·전달 내용을 선택해 pi-intercom Outbox로 전송 요청하는 경로와, `/compose messages`에서 Pi 기록의 발송·결과·수신 메시지를 읽기 전용으로 조회하는 경로를 작성했습니다. 원본 Session/Leaf/Entry ID와 Outbox 결과를 Pi 엔트리에 기록합니다. Ghostty 1.3.1 AppleScript 기반 실제 Terminal 조회·포커스 기능(`/compose surfaces`) 및 명시적인 Agent 관계만 수용하는 조회 구조를 작성했습니다. 선택 완료 분기만을 Pi 네이티브 새 세션으로 추출하는 함수와 새 Pi 세션의 신원 정보를 기록하는 Hook도 추가했습니다. **이 함수와 실제 Ghostty 새 Agent 실행은 아직 연결되지 않았으며, Overview Sidebar도 없습니다.** **코드 작성 완료, 실행·통합 검증 전**이며 Ghostty Overview/Summary 공유 UI·제품별 대상 제한·메시지 Sidebar는 아직 구현되지 않았습니다. 현재 임시 명령이 제품의 최종 UX를 대신하지 않습니다. 사용자의 공유 선택은 내용의 정책 승인과 구분합니다.
+> **구현 현황(2026-11-01, Draft PR #15):** Pi Extension의 임시 `/compose handoff`에서 사용자가 수신 세션·활성 분기 원본 메시지·전달 내용을 선택해 pi-intercom Outbox로 전송 요청하는 경로와, `/compose messages`에서 Pi 기록의 발송·결과·수신 메시지를 읽기 전용으로 조회하는 경로를 작성했습니다. 원본 Session/Leaf/Entry ID와 Outbox 결과를 Pi 엔트리에 기록합니다. Ghostty 1.3.1 AppleScript 기반 실제 Terminal 조회·포커스 기능(`/compose surfaces`) 및 명시적인 Agent 관계만 수용하는 조회 구조를 작성했습니다. 선택 완료 분기만을 Pi 네이티브 새 세션으로 추출하는 함수와 새 Pi 세션의 신원 정보를 기록하는 Hook도 추가했습니다. **후속 단계에서 Native Ghostty Split·Overview 탐색 코드와 연결했으나 실제 실행·통합 검증 전입니다.** **코드 작성 완료, 실행·통합 검증 전**이며 Ghostty Overview의 탐색 골격은 코드 작성됐지만, Summary 공유 UI·제품별 메시지 대상 제한·완성된 메시지 Sidebar는 아직 구현되지 않았습니다. 현재 임시 명령이 제품의 최종 UX를 대신하지 않습니다. 사용자의 공유 선택은 내용의 정책 승인과 구분합니다.
 
 ### 코드 구현 현황 — 2026-11-01 Native Agent 실행 연결
 
 Draft PR #15에서 Pi 직접 입력의 `>w`/`>s`를 모델 처리 전 구분하고 원문을 보존하는 Hook, 활성 완료 분기 Native Work Fork, Support 새 Pi ID, Ghostty 1.3.1의 실제 Split, 반환된 Terminal UUID와 자식 Pi 신원 기록, 초기 작업 지시 원문 전달을 위한 일회성 Launch Ticket 기반 실행 경로를 작성했습니다. **이것은 코드 작성 완료이며 기능의 실행·통합·요구사항 충족 검증은 아닙니다.**
 
-**Overview는 실행의 필수 전제**입니다. 새 Split이 현재 Main/Work의 별도 작업 Tab에 만들어지는 우회 구현은 하지 않습니다. 기존 `pic`은 아직 전용 Overview 관리 TUI가 아니므로 실제 Overview Terminal ID를 제공할 수 없어 `>w`/`>s`의 현재 코드 경로는 **실행하지 않고 편집기 원문을 복원**합니다. `>>w`/`>>s` Worktree와 `>w @세션`/`>>w @세션`의 선택형 Fork 코드는 후속 Draft 단계에서 작성됐지만, 실제 Pi/Git/Ghostty 통합 검증 전입니다. 잘못된 작업 디렉터리 실행이나 자동 전송으로 대체하지 않습니다. 입력 실패 시 Main 모델에 직접 위임 요청을 기록하지 않으며 사용자가 원문을 재편집할 수 있게 둡니다.
+**Overview는 실행의 필수 전제**입니다. 새 Split이 현재 Main/Work의 별도 작업 Tab에 만들어지는 우회 구현은 하지 않습니다. 현재 `pic` Overview 관리 TUI와 자식 Pi에 정확한 Overview Terminal ID를 전달하는 코드가 작성돼 있습니다. 실제 ID가 없으면 `>w`/`>s` 등 직접 위임을 실행하지 않고 입력 원문을 복원합니다. `>>w`/`>>s` Worktree와 `>w @세션`/`>>w @세션`의 선택형 Fork 코드는 후속 Draft 단계에서 작성됐지만, 실제 Pi/Git/Ghostty 통합 검증 전입니다. 잘못된 작업 디렉터리 실행이나 자동 전송으로 대체하지 않습니다. 입력 실패 시 Main 모델에 직접 위임 요청을 기록하지 않으며 사용자가 원문을 재편집할 수 있게 둡니다.
 
 ### Overview 구현 진척 (Draft PR #15)
 
-인자 없는 `pic` 명령이 현재 Ghostty Terminal에 Pi 1.4.0 공식 TUI 기반 **관리 화면을 여는 코드**를 추가했습니다. 프로덕트별/전체 Agent/메시지 3개 탐색 방식과, 명시적인 Compose 기록에 존재하는 Agent를 실제 Ghostty Terminal UUID로 포커스하는 경로를 작성했습니다. **코드 작성 단계이며 macOS 실사용·완료 검증 전**입니다. Pi의 과거 세션 이름/cwd로 소속이나 역할을 추측하지 않습니다. 현재 `pic` Overview에 Main 생성/명시적 재개·Agent 실행·Sidebar 실시간 상태·Summary Overlay·종료 선택은 미연결입니다. 기존 PRD의 필수 요구사항을 축소하거나 대체하지 않습니다.
+인자 없는 `pic` 명령이 현재 Ghostty Terminal에 Pi 1.4.0 공식 TUI 기반 **관리 화면을 여는 코드**를 추가했습니다. 프로덕트별/전체 Agent/메시지 3개 탐색 방식과, 명시적인 Compose 기록에 존재하는 Agent를 실제 Ghostty Terminal UUID로 포커스하는 경로를 작성했습니다. **코드 작성 단계이며 macOS 실사용·완료 검증 전**입니다. Pi의 과거 세션 이름/cwd로 소속이나 역할을 추측하지 않습니다. 후속 코드에서 Main 생성/명시적 재개와 직접 위임 Split 연결을 작성했습니다. Sidebar 실시간 상태·Summary Overlay·종료 선택은 미구현입니다. 기존 PRD의 필수 요구사항을 축소하거나 대체하지 않습니다.
 
 ### Main 생성·재개 구현 현황 (2026-11-01, Draft PR #15)
 
