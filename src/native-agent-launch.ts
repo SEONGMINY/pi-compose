@@ -276,6 +276,12 @@ export async function startNativeAgentInOverview(
     throw new Error('The specified pic Overview Terminal no longer exists.');
   }
 
+  // Confirm the RIGHT workspace anchor before Git/Pi mutations. A lost
+  // workspace must never create an orphan Worktree or Fork transcript.
+  const workspaceAnchorId = await chooseRightWorkspaceAnchor(
+    request.overviewAnchorTerminalId, request.requesterTerminalId, request.product,
+  );
+
   // The calling Agent's workspace remains the Git source of truth even when
   // the selected Fork transcript belongs to a different workspace.
   const callerCwd = await realpath(request.targetCwd);
@@ -326,9 +332,6 @@ export async function startNativeAgentInOverview(
     });
   }
 
-  const workspaceAnchorId = await chooseRightWorkspaceAnchor(
-    request.overviewAnchorTerminalId, request.requesterTerminalId, request.product,
-  );
   const { terminalId, runtimeReceiptFile } = await launchNativeSplit(
     bootstrap, request.task, sessionFile,
     workspaceAnchorId, targetCwd,
