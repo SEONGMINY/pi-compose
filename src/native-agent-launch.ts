@@ -103,11 +103,19 @@ async function launchNativeSplit(
   await writeTicketAtomic(ticketPath, { ...base, ready: false });
   const previousFocusedId = await getFocusedGhosttyTerminalId().catch(() => undefined);
   const command = shellWord(process.execPath) + ' ' + shellWord(launcher);
+  // Ghostty creates a fresh login-managed Surface. Its default PATH may not
+  // include the nvm/npm Pi executable found by the invoking terminal. Preserve
+  // the explicit caller PATH, rather than guessing where `pi` is installed.
+  const callerPath = process.env.PATH;
+  if (!callerPath) {
+    throw new Error('Cannot launch Pi: the invoking terminal has no PATH.');
+  }
+  const splitEnvironment = ['PI_COMPOSE_LAUNCH_TICKET=' + ticketPath, 'PATH=' + callerPath];
   let terminalId: string;
   try {
     terminalId = await splitGhosttyTerminal(
       overviewAnchorTerminalId, targetCwd, command,
-      ['PI_COMPOSE_LAUNCH_TICKET=' + ticketPath],
+      splitEnvironment,
     );
     await writeTicketAtomic(ticketPath, {
       ...base, ready: true,

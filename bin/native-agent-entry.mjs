@@ -107,6 +107,8 @@ if (!launchFile || !launchFile.startsWith('/')) {
         });
         child.once('error', error => {
           failed = true;
+          console.error('Pi Compose: could not start the Pi executable:', String(error));
+          console.error('Pi Compose: check whether pi is installed and available on the launch PATH.');
           void record('pi-spawn-failed', { detail: String(error) });
           process.exitCode = 127;
         });
