@@ -99,7 +99,11 @@ function toEntries(view: View, agents: readonly VisibleAgent[]): Array<{ item: S
           item: {
             value: 'agent/' + id,
             label: ' '.repeat(Math.min(depth + 1, 6)) +
-              (agent.identity.role === 'main' ? '◆ ' : '↳ ') + agent.identity.label,
+              (agent.lifecycle.state === 'process-observed' ? '●' :
+                agent.lifecycle.state === 'launch-failed' ? '×' : '○') + ' ' +
+              (agent.identity.role === 'main' ? '◆ ' : '↳ ') +
+              (agent.identity.label.length > 21
+                ? agent.identity.label.slice(0, 20) + '…' : agent.identity.label),
             description: undefined,
           },
           action: { type: 'agent', sessionId: id },
@@ -188,12 +192,13 @@ export async function openOverview(): Promise<void> {
     };
     // This is a NARROW navigation Sidebar, not a separate Overview page.
     // Long logs/errors belong in Agent Pi TUI or the explicit detail action.
-    const helper = 'n New  o Open\n' +
+    const helper = '● Pi found · ○ unverified\n' +
+      'n New  o Open\n' +
       'r Sync  v Detail\n' +
       'q Exit';
     statusText.setText(
       helper + (status && !status.startsWith('Registered Agents:') &&
-        !status.startsWith('Refreshing native') ? '\n' + status.slice(0, 180) : ''),
+        !status.startsWith('Refreshing native') ? '\n' + status.slice(0, 100) : ''),
     );
     tui.clear();
     tui.addChild(title);
@@ -286,8 +291,8 @@ export async function openOverview(): Promise<void> {
       status = 'Main Split created [' + receipt.sessionId.slice(0, 8) +
         ']. Pi readiness is unverified; blank session persists after its first message.';
       await refresh(true);
-      status = 'Main Split created [' + receipt.sessionId.slice(0, 8) +
-        ']. Pi readiness unverified; first user message persists blank session.';
+      status = 'Main opened. Pi readiness is not yet verified.';
+      await focusGhosttyTerminal(receipt.terminalId).catch(() => undefined);
     } catch (error) {
       status = 'Main creation failed or is unconfirmed: ' + String(error) +
         '. Inspect Ghostty Surfaces before trying again.';
@@ -379,7 +384,8 @@ export async function openOverview(): Promise<void> {
       });
       status = 'Existing Pi session selected and Main Split created. No task replayed; startup unverified.';
       await refresh(true);
-      status = 'Selected Main Split created without replaying prior tasks; Pi readiness unverified.';
+      status = 'Saved Main opened; previous task not replayed.';
+      await focusGhosttyTerminal(receipt.terminalId).catch(() => undefined);
     } catch (error) {
       status = 'Main selection/resume failed or is unconfirmed: ' + String(error) +
         '. No automatic retry.';
