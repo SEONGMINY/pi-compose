@@ -186,12 +186,14 @@ export function registerSummaryOverlay(
           // Reuse the existing human-selected recipient/source/type/editor flow.
           // Merely pressing H never sends anything.
           await handoff(source);
+        } catch (error) {
+          source.ui.notify('Summary Handoff failed: ' + String(error), 'error');
         } finally {
           handoffRunning = false;
-        }
-        if (generation === thisGeneration && ctx === source &&
-            source.sessionManager.getSessionId() === activeSessionId) {
-          show(); // Preserve the Summary after success, failure, or cancellation.
+          if (generation === thisGeneration && ctx === source &&
+              source.sessionManager.getSessionId() === activeSessionId) {
+            show(); // Keep Summary on cancellation, error, or Outbox request.
+          }
         }
       }
     }).catch(error => {
