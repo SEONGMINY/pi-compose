@@ -389,6 +389,85 @@ export async function openOverview(): Promise<void> {
     }
   }
 
+  /**
+   * Main-first entry: opening pic in a fresh directory never requires going
+   * through 'n' + three modal prompts. Existing saved sessions are matched
+   * by their EXACT Pi cwd and recorded Compose role, not guessed from titles.
+   */
+  async function openInitialMain(): Promise<void> {
+    if (busy || modalActive) return;
+    const cwd = await realpath(process.cwd());
+    const existing = agents.filter(a => a.identity.role === 'main' &&
+      a.identity.workspaceCwd === cwd);
+    if (existing.length > 1) {
+      status = 'Multiple saved Main sessions. Press o to choose one.';
+      render();
+      return;
+    }
+    if (existing.length === 1) {
+      const main = existing[0];
+      if (main.terminal) {
+        const side = terminalList.find(t => t.id === overviewId);
+        if (side?.tabId === main.terminal.tabId &&
+            side.windowId === main.terminal.windowId) {
+          await focusGhosttyTerminal(main.terminal.id).catch(() => undefined);
+          status = '';
+        } else {
+          status = 'Main already exists in another Ghostty tab. Use o / focus existing.';
+        }
+        render();
+        return;
+      }
+      if (!main.sessionPath || main.lifecycle.state === 'process-observed' ||
+          (main.lifecycle.state !== 'exited-observed' &&
+           main.lifecycle.state !== 'launch-failed')) {
+        status = 'Saved Main status is uncertain. Press o to select safely.';
+        render();
+        return;
+      }
+    }
+    const old = existing[0];
+    const product = old?.identity.product ?? (basename(cwd) || 'Project');
+    const label = old?.identity.label ?? 'Main';
+    busy = true;
+    status = '';
+    render();
+    try {
+      const receipt = await startNativeMainInOverview({
+        product, label, targetCwd: cwd, overviewAnchorTerminalId: overviewId,
+        ...(old ? { resume: { sessionFile: old.sessionPath, sessionId: old.identity.sessionId } } : {}),
+      });
+      pendingMains.set(receipt.sessionId, {
+        identity: {
+          sessionId: receipt.sessionId, product, label, role: 'main',
+          workspaceCwd: cwd,
+          terminalId: receipt.terminalId,
+          launchRequestId: receipt.launchRequestId,
+          runtimeLaunchRequestId: receipt.launchRequestId,
+          runtimeReceiptFile: receipt.runtimeReceiptFile,
+        },
+        sessionPath: old?.sessionPath ?? '',
+        createdAt: old?.createdAt ?? Date.now(),
+        messages: [], pending: true,
+        lifecycle: { state: 'starting-unverified', source: 'Main Ghostty Split created; Pi startup unverified' },
+      });
+      await refresh(true);
+      if (!receipt.sidebarResizeApplied) {
+        status = 'Main opened. Sidebar resize not confirmed; drag the divider if needed.';
+      } else {
+        status = '';
+      }
+      render();
+      // Make the actual Pi conversation the user's entry point.
+      await focusGhosttyTerminal(receipt.terminalId).catch(() => undefined);
+    } catch (error) {
+      status = 'Main startup failed/uncertain. Inspect Ghostty before retry: ' + String(error);
+      render();
+    } finally {
+      busy = false;
+    }
+  }
+
   async function select(id: string): Promise<void> {
     const entry = entries.find(e => e.item.value === id);
     if (!entry) return;
