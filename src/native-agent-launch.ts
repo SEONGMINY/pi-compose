@@ -53,6 +53,8 @@ export type NativeAgentLaunchRequest = {
   // Must be supplied by the actual pic Overview. A Main/Work tab is not an
   // acceptable fallback anchor, even if it is the focused terminal.
   overviewAnchorTerminalId: string;
+  /** Exact calling Pi Surface; Work splits here only when it is in the pic tab. */
+  requesterTerminalId?: string;
   source?: { sessionFile: string; sessionId: string; leafId: string };
 };
 
@@ -86,10 +88,18 @@ async function launchNativeSplit(
   sessionFile: string | undefined,
   overviewAnchorTerminalId: string,
   targetCwd: string,
+  workAreaAnchorId?: string,
 ): Promise<{ terminalId: string; runtimeReceiptFile: string }> {
   const existing = await listGhosttyTerminals();
-  if (!existing.some(term => term.id === overviewAnchorTerminalId)) {
+  const overview = existing.find(term => term.id === overviewAnchorTerminalId);
+  if (!overview) {
     throw new Error('The exact pic Overview anchor Terminal no longer exists.');
+  }
+  const targetAnchor = workAreaAnchorId
+    ? existing.find(term => term.id === workAreaAnchorId) : overview;
+  if (!targetAnchor || targetAnchor.tabId !== overview.tabId ||
+      targetAnchor.windowId !== overview.windowId) {
+    throw new Error('Native Work anchor is not in the exact pic Overview Tab; no Split created.');
   }
   const ticketDir = await mkdtemp(join(tmpdir(), 'pi-compose-launch-'));
   const ticketPath = join(ticketDir, 'ticket.json');
@@ -114,7 +124,7 @@ async function launchNativeSplit(
   let terminalId: string;
   try {
     terminalId = await splitGhosttyTerminal(
-      overviewAnchorTerminalId, targetCwd, command,
+      targetAnchor.id, targetCwd, command,
       splitEnvironment,
     );
     await writeTicketAtomic(ticketPath, {
@@ -226,9 +236,19 @@ export async function startNativeAgentInOverview(
     throw new Error('A real pic Overview Ghostty Terminal anchor is required.');
   }
   const existing = await listGhosttyTerminals();
-  if (!existing.some(term => term.id === request.overviewAnchorTerminalId)) {
+  const overview = existing.find(term => term.id === request.overviewAnchorTerminalId);
+  if (!overview) {
     throw new Error('The specified pic Overview Terminal no longer exists.');
   }
+  // Preserve the Sidebar's containing split: split the real requesting Pi
+  // terminal when it still belongs to the pic tab, not the sidebar itself.
+  // An Agent moved to a separate Ghostty tab cannot be used as a parent here.
+  const requesterTerminal = existing.find(term => term.id === request.requesterTerminalId);
+  const workAreaAnchorId = requesterTerminal &&
+    requesterTerminal.tabId === overview.tabId &&
+    requesterTerminal.windowId === overview.windowId
+    ? requesterTerminal.id
+    : undefined;
 
   // The calling Agent's workspace remains the Git source of truth even when
   // the selected Fork transcript belongs to a different workspace.
@@ -282,7 +302,7 @@ export async function startNativeAgentInOverview(
 
   const { terminalId, runtimeReceiptFile } = await launchNativeSplit(
     bootstrap, request.task, sessionFile,
-    request.overviewAnchorTerminalId, targetCwd,
+    request.overviewAnchorTerminalId, targetCwd, workAreaAnchorId,
   );
 
   return {
