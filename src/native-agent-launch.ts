@@ -29,6 +29,8 @@ export type NativeMainLaunchRequest = {
   label: string;
   targetCwd: string;
   overviewAnchorTerminalId: string;
+  /** Existing right-side Pi Surface for another Main; never use Sidebar if present. */
+  workspaceAnchorTerminalId?: string;
   /** A user-selected persisted Pi session, NOT the most recent session. */
   resume?: { sessionFile: string; sessionId: string; allowUnconfirmedProcess?: boolean };
 };
@@ -189,16 +191,26 @@ export async function startNativeMainInOverview(
     sessionId = randomUUID();
   }
 
+  const terminals = await listGhosttyTerminals();
+  const overview = terminals.find(t => t.id === request.overviewAnchorTerminalId);
+  const anchorId = request.workspaceAnchorTerminalId ?? request.overviewAnchorTerminalId;
+  const anchor = terminals.find(t => t.id === anchorId);
+  if (!overview || !anchor ||
+      anchor.windowId !== overview.windowId || anchor.tabId !== overview.tabId) {
+    throw new Error('Selected Main workspace anchor is outside the exact pic Tab.');
+  }
+
   const bootstrap = createAgentBootstrapForSession({
     sessionId, role: 'main', product: request.product,
     label: request.label, workspaceCwd: cwd,
   });
   const { terminalId, runtimeReceiptFile } = await launchNativeSplit(
-    bootstrap, undefined, sessionFile, request.overviewAnchorTerminalId, cwd,
+    bootstrap, undefined, sessionFile, anchorId, cwd,
   );
-  // Never mistake a layout failure for failed Pi creation. Exactly one
-  // split was already made, and re-launching would create duplicates.
-  const sidebarResizeApplied = await shrinkSidebarForMain(terminalId).catch(() => false);
+  // Resize only when establishing the FIRST right-hand workspace group.
+  // Additional Main agents split an existing Pi Surface and preserve the root.
+  const sidebarResizeApplied = anchorId !== request.overviewAnchorTerminalId ||
+    await shrinkSidebarForMain(terminalId).catch(() => false);
   return {
     launchRequestId: bootstrap.launchRequestId,
     sessionId: bootstrap.sessionId,
