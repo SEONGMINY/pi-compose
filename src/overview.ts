@@ -160,7 +160,7 @@ export async function openOverview(): Promise<void> {
   let modalActive = false;
   let selection: SelectList | undefined;
   let entries: ReturnType<typeof toEntries> = [];
-  let status = '';
+  let status = 'Opening Main…';
   let busy = false;
   const statusText = new Text('', 0, 0);
 
@@ -458,7 +458,7 @@ export async function openOverview(): Promise<void> {
     const product = old?.identity.product ?? (basename(cwd) || 'Project');
     const label = old?.identity.label ?? 'Main';
     busy = true;
-    status = '';
+    status = 'Starting Main…';
     render();
     try {
       terminalList = await listGhosttyTerminals();
@@ -725,7 +725,7 @@ export async function openOverview(): Promise<void> {
   });
   render();
   tui.start();
-  await refresh();
+  await refresh(false, true);
   await openInitialMain();
   // The Sidebar observes native Pi records, not a synthetic agent registry.
   // Never interrupt a modal or reset keyboard selection during background sync.
