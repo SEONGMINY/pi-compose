@@ -1,4 +1,6 @@
 import { SessionManager, type SessionInfo } from '@earendil-works/pi-coding-agent';
+import { realpath } from 'node:fs/promises';
+import { basename } from 'node:path';
 import {
   ProcessTerminal, SelectList, Input, Text, TuiMainScreen, matchesKey,
   type TUI, type SelectItem, type SelectListTheme,
@@ -96,9 +98,13 @@ function toEntries(view: View, agents: readonly VisibleAgent[]): Array<{ item: S
         hierarchy.push({
           item: {
             value: 'agent/' + id,
-            label: '  '.repeat(Math.min(depth + 1, 12)) + agent.identity.label,
-            description: (agent.identity.role === 'main' ? '' : agent.identity.role + ' · ') +
-              agent.lifecycle.state + (agent.terminal ? ' · Surface 확인' : ' · Surface 미확인'),
+            label: ' '.repeat(Math.min(depth + 1, 6)) +
+              (agent.lifecycle.state === 'process-observed' ? '●' :
+                agent.lifecycle.state === 'launch-failed' ? '×' : '○') + ' ' +
+              (agent.identity.role === 'main' ? '◆ ' : '↳ ') +
+              (agent.identity.label.length > 21
+                ? agent.identity.label.slice(0, 20) + '…' : agent.identity.label),
+            description: undefined,
           },
           action: { type: 'agent', sessionId: id },
         });
@@ -121,10 +127,10 @@ function toEntries(view: View, agents: readonly VisibleAgent[]): Array<{ item: S
   return agents.map(agent => ({
     item: {
       value: 'agent/' + agent.identity.sessionId,
-      label: agent.identity.label,
-      description: agent.identity.product + ' / ' + agent.identity.role +
-        ' / ' + agent.lifecycle.state +
-        (agent.terminal ? ' / Surface 확인' : ' / Surface 미확인'),
+      label: (agent.lifecycle.state === 'process-observed' ? '● ' :
+        agent.lifecycle.state === 'launch-failed' ? '× ' : '○ ') +
+        agent.identity.label,
+      description: undefined,
     },
     action: { type: 'agent', sessionId: agent.identity.sessionId },
   }));
@@ -154,36 +160,45 @@ export async function openOverview(): Promise<void> {
   let modalActive = false;
   let selection: SelectList | undefined;
   let entries: ReturnType<typeof toEntries> = [];
-  let status = 'Pi Compose · read-only native Overview';
+  let status = 'Opening Main…';
   let busy = false;
   const statusText = new Text('', 0, 0);
 
   function render(): void {
+    if (modalActive) return; // Modal owns input focus; never erase it during sync.
+    const previouslySelected = selection?.getSelectedItem()?.value;
     const title = new Text(
-      'PI COMPOSE  /  [1] Products   [2] Agents   [3] Messages\n' +
-      '────────────────────────────────────────────────\n' +
-      (view === 'products' ? 'PRODUCTS' : view === 'agents' ? 'ALL AGENTS' : 'MESSAGES'),
+      'PI COMPOSE\n' +
+      '[1] Projects  [2] All\n' +
+      '[3] Messages\n' +
+      '─────────────────────',
       0, 0,
     );
     entries = toEntries(view, agents);
     if (entries.length === 0) {
       entries = [{
-        item: { value: 'empty', label: view === 'messages' ? 'No recorded Handoff messages' : 'No registered Compose Agents' },
+        item: { value: 'empty', label: view === 'messages' ? 'No messages' : 'No Agents' },
         action: { type: 'refresh' },
       }];
     }
-    selection = new SelectList(entries.map(e => e.item), 16, selectionTheme);
+    selection = new SelectList(entries.map(e => e.item), 14, selectionTheme);
+    const oldIndex = entries.findIndex(e => e.item.value === previouslySelected);
+    if (oldIndex >= 0) selection.setSelectedIndex(oldIndex);
     selection.onSelect = item => { void select(item.value); };
     selection.onCancel = () => {
-      status = 'Choose an Agent, [1-3] to switch view, or [r] to refresh.';
+      status = 'Select an Agent or [1–3]';
       statusText.setText(status);
       tui.requestRender();
     };
+    // This is a NARROW navigation Sidebar, not a separate Overview page.
+    // Long logs/errors belong in Agent Pi TUI or the explicit detail action.
+    const helper = '● Pi found · ○ unverified\n' +
+      'n New  o Open\n' +
+      'r Sync  v Detail\n' +
+      'q Exit';
     statusText.setText(
-      status + '\n' +
-      'Enter: focus Surface / inspect message · n: New Main · o: Open Main\n' +
-      'v: inspect grounded Summary · r: refresh · q: exit options\n' +
-      'Pi session records are evidence; Surface presence is not Agent running/readiness proof.',
+      helper + (status && !status.startsWith('Registered Agents:') &&
+        !status.startsWith('Refreshing native') ? '\n' + status.slice(0, 100) : ''),
     );
     tui.clear();
     tui.addChild(title);
@@ -192,7 +207,6 @@ export async function openOverview(): Promise<void> {
     tui.setFocus(selection);
     tui.requestRender();
   }
-
 
   // All UI operations stay in this exact pic Terminal, never in a Main model
   // conversation. These are user interactions, not guessed default decisions.
@@ -243,6 +257,24 @@ export async function openOverview(): Promise<void> {
     });
   }
 
+  /**
+   * Find a REAL right-hand Pi Surface in this exact pic Tab. This is layout
+   * placement only; it never changes a Main's Context or Fork source.
+   */
+  function rightMainAnchor(product: string): string | undefined {
+    const overview = terminalList.find(t => t.id === overviewId);
+    if (!overview) return;
+    const peers = agents.filter(a => a.terminal &&
+      a.terminal.windowId === overview.windowId &&
+      a.terminal.tabId === overview.tabId && a.terminal.id !== overviewId);
+    const selectedId = selection?.getSelectedItem()?.value;
+    const current = peers.find(a => selectedId === 'agent/' + a.identity.sessionId);
+    const preferred = current || peers.find(a =>
+      a.identity.product === product && a.identity.role === 'main') ||
+      peers.find(a => a.identity.role === 'main') || peers[0];
+    return preferred?.terminal?.id;
+  }
+
   async function createMain(): Promise<void> {
     if (busy || modalActive) return;
     busy = true;
@@ -255,8 +287,10 @@ export async function openOverview(): Promise<void> {
       if (!cwd) return;
       status = 'Requesting native Ghostty Split for a new Main…';
       statusText.setText(status);
+      terminalList = await listGhosttyTerminals();
       const receipt = await startNativeMainInOverview({
         product, label, targetCwd: cwd, overviewAnchorTerminalId: overviewId,
+        workspaceAnchorTerminalId: rightMainAnchor(product),
       });
       pendingMains.set(receipt.sessionId, {
         identity: {
@@ -277,8 +311,8 @@ export async function openOverview(): Promise<void> {
       status = 'Main Split created [' + receipt.sessionId.slice(0, 8) +
         ']. Pi readiness is unverified; blank session persists after its first message.';
       await refresh(true);
-      status = 'Main Split created [' + receipt.sessionId.slice(0, 8) +
-        ']. Pi readiness unverified; first user message persists blank session.';
+      status = 'Main opened. Pi readiness is not yet verified.';
+      await focusGhosttyTerminal(receipt.terminalId).catch(() => undefined);
     } catch (error) {
       status = 'Main creation failed or is unconfirmed: ' + String(error) +
         '. Inspect Ghostty Surfaces before trying again.';
@@ -346,8 +380,10 @@ export async function openOverview(): Promise<void> {
       const label = existing?.label || await ask('Assign this selected Main a display name');
       if (!label) return;
       if (!chosen.cwd) throw new Error('Saved Pi session has no known working directory.');
+      terminalList = await listGhosttyTerminals();
       const receipt = await startNativeMainInOverview({
         product, label, targetCwd: chosen.cwd, overviewAnchorTerminalId: overviewId,
+        workspaceAnchorTerminalId: rightMainAnchor(product),
         resume: {
           sessionId: chosen.id, sessionFile: chosen.path,
           allowUnconfirmedProcess: needsAcknowledgement,
@@ -370,13 +406,95 @@ export async function openOverview(): Promise<void> {
       });
       status = 'Existing Pi session selected and Main Split created. No task replayed; startup unverified.';
       await refresh(true);
-      status = 'Selected Main Split created without replaying prior tasks; Pi readiness unverified.';
+      status = 'Saved Main opened; previous task not replayed.';
+      await focusGhosttyTerminal(receipt.terminalId).catch(() => undefined);
     } catch (error) {
       status = 'Main selection/resume failed or is unconfirmed: ' + String(error) +
         '. No automatic retry.';
     } finally {
       busy = false;
       render();
+    }
+  }
+
+  /**
+   * Main-first entry: opening pic in a fresh directory never requires going
+   * through 'n' + three modal prompts. Existing saved sessions are matched
+   * by their EXACT Pi cwd and recorded Compose role, not guessed from titles.
+   */
+  async function openInitialMain(): Promise<void> {
+    if (busy || modalActive) return;
+    const cwd = await realpath(process.cwd());
+    const existing = agents.filter(a => a.identity.role === 'main' &&
+      a.identity.workspaceCwd === cwd);
+    if (existing.length > 1) {
+      status = 'Multiple saved Main sessions. Press o to choose one.';
+      render();
+      return;
+    }
+    if (existing.length === 1) {
+      const main = existing[0];
+      if (main.terminal) {
+        const side = terminalList.find(t => t.id === overviewId);
+        if (side?.tabId === main.terminal.tabId &&
+            side.windowId === main.terminal.windowId) {
+          await focusGhosttyTerminal(main.terminal.id).catch(() => undefined);
+          status = '';
+        } else {
+          status = 'Main already exists in another Ghostty tab. Use o / focus existing.';
+        }
+        render();
+        return;
+      }
+      if (!main.sessionPath || main.lifecycle.state === 'process-observed' ||
+          (main.lifecycle.state !== 'exited-observed' &&
+           main.lifecycle.state !== 'launch-failed')) {
+        status = 'Saved Main status is uncertain. Press o to select safely.';
+        render();
+        return;
+      }
+    }
+    const old = existing[0];
+    const product = old?.identity.product ?? (basename(cwd) || 'Project');
+    const label = old?.identity.label ?? 'Main';
+    busy = true;
+    status = 'Starting Main…';
+    render();
+    try {
+      terminalList = await listGhosttyTerminals();
+      const receipt = await startNativeMainInOverview({
+        product, label, targetCwd: cwd, overviewAnchorTerminalId: overviewId,
+        workspaceAnchorTerminalId: rightMainAnchor(product),
+        ...(old ? { resume: { sessionFile: old.sessionPath, sessionId: old.identity.sessionId } } : {}),
+      });
+      pendingMains.set(receipt.sessionId, {
+        identity: {
+          sessionId: receipt.sessionId, product, label, role: 'main',
+          workspaceCwd: cwd,
+          terminalId: receipt.terminalId,
+          launchRequestId: receipt.launchRequestId,
+          runtimeLaunchRequestId: receipt.launchRequestId,
+          runtimeReceiptFile: receipt.runtimeReceiptFile,
+        },
+        sessionPath: old?.sessionPath ?? '',
+        createdAt: old?.createdAt ?? Date.now(),
+        messages: [], pending: true,
+        lifecycle: { state: 'starting-unverified', source: 'Main Ghostty Split created; Pi startup unverified' },
+      });
+      await refresh(true);
+      if (!receipt.sidebarResizeApplied) {
+        status = 'Main opened. Sidebar resize not confirmed; drag the divider if needed.';
+      } else {
+        status = '';
+      }
+      render();
+      // Make the actual Pi conversation the user's entry point.
+      await focusGhosttyTerminal(receipt.terminalId).catch(() => undefined);
+    } catch (error) {
+      status = 'Main startup failed/uncertain. Inspect Ghostty before retry: ' + String(error);
+      render();
+    } finally {
+      busy = false;
     }
   }
 
@@ -448,11 +566,16 @@ export async function openOverview(): Promise<void> {
     }
   }
 
-  async function refresh(force = false): Promise<void> {
+  async function refresh(force = false, silent = false): Promise<void> {
     if (busy && !force) return;
     busy = true;
-    status = 'Refreshing native Pi/Ghostty evidence…';
-    statusText.setText(status); tui.requestRender();
+    const before = agents.map(a =>
+      a.identity.sessionId + '/' + a.lifecycle.state + '/' + (a.terminal?.id ?? ''),
+    ).join('|');
+    if (!silent) {
+      status = 'Refreshing native Pi/Ghostty evidence…';
+      statusText.setText(status); tui.requestRender();
+    }
     try {
       terminalList = await listGhosttyTerminals();
       agents = await discoverAgents(terminalList);
@@ -473,13 +596,15 @@ export async function openOverview(): Promise<void> {
         }
       }
       agents.sort((a, b) => a.createdAt - b.createdAt);
-      status = 'Registered Agents: ' + agents.length +
-        '. Overview Terminal: ' + overviewId.slice(0, 8);
+      if (!silent) status = '';
     } catch (error) {
-      status = 'Read-only refresh failed: ' + String(error);
+      status = 'Agent sync failed: ' + String(error);
     } finally {
+      const after = agents.map(a =>
+        a.identity.sessionId + '/' + a.lifecycle.state + '/' + (a.terminal?.id ?? ''),
+      ).join('|');
       busy = false;
-      render();
+      if (!silent || before !== after || status.startsWith('Agent sync failed')) render();
     }
   }
 
@@ -600,5 +725,12 @@ export async function openOverview(): Promise<void> {
   });
   render();
   tui.start();
-  await refresh();
+  await refresh(false, true);
+  await openInitialMain();
+  // The Sidebar observes native Pi records, not a synthetic agent registry.
+  // Never interrupt a modal or reset keyboard selection during background sync.
+  const sync = setInterval(() => {
+    if (!busy && !modalActive) void refresh(false, true);
+  }, 4000);
+  sync.unref?.();
 }

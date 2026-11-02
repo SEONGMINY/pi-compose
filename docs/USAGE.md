@@ -93,6 +93,14 @@ Agent가 자기 Ghostty Terminal 포커스를 벗어난 뒤 **30초**가 지나�
 
 `pic` Overview의 Agent 행에서 `v`는 저장된 Pi 원본의 최근 사실 근거를 읽기 전용으로 확인합니다. 이 역시 Agent의 현재 진행 중 모델 상태를 추측하지 않습니다.
 
+### Main-first Sidebar 시작 흐름 (2026-11-02, 신규 Draft 코드)
+
+프로젝트 디렉터리에서 `pic`을 실행하면 **왼쪽에는 짧은 Sidebar, 오른쪽에는 곧바로 Main Pi TUI**가 나타나도록 시작 코드를 변경했습니다. 최초 생성 Main에는 자동 업무 프롬프트를 넣지 않습니다. 같은 cwd의 실행 중 Main이 확인되면 중복 Pi를 생성하지 않고, 여러 Main/불확실한 실행 상태라면 Sidebar에서 `o`를 통해 정확한 원본을 선택합니다. 기존 `n`은 추가 Main 생성용입니다.
+
+Main/Work/Support의 `>w`/`>s`는 Sidebar가 아니라 **오른쪽 기존 Pi 작업 영역**을 Split합니다. 생성 후 Sidebar 목록은 자동으로 다시 읽습니다. `r`은 수동 새로고침 보조 기능입니다. 왼쪽 Divider 크기는 자동 조절을 한 번 시도하지만, 실제 Ghostty 동작에 따라 사용자가 수동으로 조절할 수 있습니다.
+
+**현재는 신규 브랜치의 코드 작성 상태이며 macOS Ghostty 1.3.1/Pi 1.4.0 실사용 검증 전입니다.** 기존 설정 중복 Extension, PATH, AppleScript 오류 수정은 별도 PR #18의 코드를 기반으로 하며 아직 main 병합 전입니다. README PR #16의 대표 화면은 이번 구조가 검증된 뒤 촬영합니다.
+
 ## 7. 현재 구현과의 차이
 
 새로운 Ghostty 분할/세션 제어·**프로덕트/Agent 및 메시지 관리 사이드바·종료 선택 UX**·Summary Overlay·선택적 문서 맥락 로드·전체 Handoff 경험은 아직 제품으로 완성되지 않았습니다. Draft PR #15에는 Native Pi Fork·Ghostty Overview·Main/Work/Support 실행 경로·Git Worktree·Handoff의 코드가 포함됐지만 실사용·타입 검증을 진행하지 않았습니다. 이 저장소의 이전 CLI/설치 스크립트를 새 방향의 실행 방법으로 사용하지 마세요. 개발 순서와 남은 기술 검증은 [Implementation Plan](IMPLEMENTATION_PLAN.md)과 [TRD](TRD.md)에서 확인할 수 있습니다.

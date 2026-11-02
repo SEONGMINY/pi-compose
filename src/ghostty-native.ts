@@ -97,6 +97,28 @@ on run argv
 end run
 `;
 
+const RESIZE_SIDEBAR = `
+on run argv
+  set wantedId to item 1 of argv
+  set amount to item 2 of argv
+  tell application "Ghostty"
+    repeat with w in windows
+      repeat with t in tabs of w
+        repeat with term in terminals of t
+          if ((id of term) as text) is wantedId then
+            if perform action ("resize_split:left," & amount) on term then
+              return "applied"
+            end if
+            return "unsupported"
+          end if
+        end repeat
+      end repeat
+    end repeat
+  end tell
+  error "Main Terminal missing for Sidebar resize" number 1001
+end run
+`;
+
 const CLOSE_TERMINAL = `
 on run argv
   set wantedId to item 1 of argv
@@ -260,4 +282,18 @@ export async function closeGhosttyTerminal(id: string): Promise<void> {
 export async function hideGhosttyWithoutQuit(): Promise<void> {
   const value = await runAppleScript(HIDE_GHOSTTY);
   if (value !== 'hidden') throw new GhosttyAutomationError('Ghostty hide was not acknowledged.');
+}
+
+/**
+ * Best-effort size adjustment after creating the FIRST Main on the right.
+ * Uses Ghostty 1.3.1's native resize_split action, never fake resize keys.
+ * Returns false if the action is rejected. User may resize manually.
+ *
+ * Direction 'left' applied to the right-hand Main requests expanding its
+ * workspace toward the Sidebar. The actual resulting width is controlled
+ * by Ghostty's native split tree and terminal minimum width.
+ */
+export async function shrinkSidebarForMain(mainTerminalId: string): Promise<boolean> {
+  const result = await runAppleScript(RESIZE_SIDEBAR, [validId(mainTerminalId), '260']);
+  return result === 'applied';
 }
