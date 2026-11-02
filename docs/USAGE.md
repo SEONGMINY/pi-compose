@@ -85,6 +85,12 @@ Draft PR #15는 Pi 1.4.0 `input` 이벤트로 입력 첫머리의 `>w 작업`, `
 
 **코드 작성 상태이며 macOS 실사용/타입 검증 전입니다.** Ghostty의 Cmd+Q나 일반 창 닫기에는 이 선택지가 개입하지 않으며, 실제 모델 작업 상태·자동 재개·실시간 업데이트도 아직 미구현입니다.
 
+### 전체 Agent Terminal Summary (2026-11-02 Draft)
+
+Agent에 포커스가 없을 때 **30초 경과 또는 해당 Agent의 응답 종료** 시, 그 Agent의 기존 Pi Terminal 전체를 불투명 Summary가 덮습니다. 다시 해당 Agent에 포커스하면 원래 Pi TUI가 표시됩니다. Sidebar/다른 Agent의 Terminal은 가리지 않습니다. 사용자 입력과 원본 프로세스는 유지됩니다.
+
+기존 48% 폭/45% 높이 Overlay에서 벗어나 글자 줄바꿈과 Pi 원본 텍스트가 섞이는 문제를 개선하는 **코드 변경**입니다. 현재 내용은 Pi 기록 기반 factual fallback이며 완료/성공을 판정하거나 Main에 자동 전달하지 않습니다. 중요 결정 요약·공유 선택 UI·Sidebar 완료 안내는 여전히 미구현입니다. macOS 실사용 검증 전입니다.
+
 ### Summary 정보층 — Draft 코드
 
 Agent가 자기 Ghostty Terminal 포커스를 벗어난 뒤 **30초**가 지나거나 **비포커스 Pi 응답이 정상 종료**되면, 같은 Pi TUI 위에 **포커스를 가져가지 않는 Summary 정보층**을 보여주는 코드를 작성했습니다. Agent Terminal을 다시 선택하면 Overlay를 닫습니다. 이 부분은 AppleScript로 1초마다 실제 포커스를 관찰하는 방식이므로 **즉시 사라지는 타이밍/OS 리소스/실제 Pi TUI에서의 UI 안정성은 검증 전**입니다.
