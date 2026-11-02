@@ -27,7 +27,7 @@ const LIST_TERMINALS = `
 on run argv
   set fieldDelimiter to ASCII character 31
   set rowDelimiter to ASCII character 30
-  set records to {}
+  set terminalRows to {}
   tell application "Ghostty"
     repeat with w in windows
       set windowIdentifier to (id of w) as text
@@ -43,13 +43,13 @@ on run argv
           try
             set terminalDirectory to (working directory of term) as text
           end try
-          set end of records to terminalIdentifier & fieldDelimiter & windowIdentifier & fieldDelimiter & tabIdentifier & fieldDelimiter & terminalName & fieldDelimiter & terminalDirectory
+          set end of terminalRows to terminalIdentifier & fieldDelimiter & windowIdentifier & fieldDelimiter & tabIdentifier & fieldDelimiter & terminalName & fieldDelimiter & terminalDirectory
         end repeat
       end repeat
     end repeat
   end tell
   set AppleScript's text item delimiters to rowDelimiter
-  set rendered to records as text
+  set rendered to terminalRows as text
   set AppleScript's text item delimiters to ""
   return rendered
 end run
