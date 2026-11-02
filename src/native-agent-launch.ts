@@ -28,6 +28,8 @@ export type NativeMainLaunchRequest = {
   label: string;
   targetCwd: string;
   overviewAnchorTerminalId: string;
+  /** An existing native Agent in the same pic tab; absent for the first Main. */
+  workAreaAnchorId?: string;
   /** A user-selected persisted Pi session, NOT the most recent session. */
   resume?: { sessionFile: string; sessionId: string; allowUnconfirmedProcess?: boolean };
 };
@@ -202,6 +204,7 @@ export async function startNativeMainInOverview(
   });
   const { terminalId, runtimeReceiptFile } = await launchNativeSplit(
     bootstrap, undefined, sessionFile, request.overviewAnchorTerminalId, cwd,
+    request.workAreaAnchorId,
   );
   return {
     launchRequestId: bootstrap.launchRequestId,
@@ -244,11 +247,29 @@ export async function startNativeAgentInOverview(
   // terminal when it still belongs to the pic tab, not the sidebar itself.
   // An Agent moved to a separate Ghostty tab cannot be used as a parent here.
   const requesterTerminal = existing.find(term => term.id === request.requesterTerminalId);
-  const workAreaAnchorId = requesterTerminal &&
+  let workAreaAnchorId = requesterTerminal &&
     requesterTerminal.tabId === overview.tabId &&
     requesterTerminal.windowId === overview.windowId
     ? requesterTerminal.id
     : undefined;
+  // A Main can be dragged to another tab without losing its native process.
+  // In that case attach Work to the latest verified Agent still inside pic,
+  // rather than splitting the Sidebar if another work-area Surface exists.
+  if (!workAreaAnchorId) {
+    const sessions = await SessionManager.listAll();
+    for (const info of sessions) {
+      try {
+        const manager = SessionManager.open(info.path);
+        const identity = readAgentRelationship(manager.getSessionId(), manager.getEntries());
+        if (identity?.product !== request.product || !identity.terminalId) continue;
+        const surface = existing.find(term => term.id === identity.terminalId);
+        if (surface && surface.tabId === overview.tabId &&
+            surface.windowId === overview.windowId) {
+          workAreaAnchorId = surface.id;
+        }
+      } catch { /* No guessed Agent/surface relationship. */ }
+    }
+  }
 
   // The calling Agent's workspace remains the Git source of truth even when
   // the selected Fork transcript belongs to a different workspace.
