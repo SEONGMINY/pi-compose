@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { readAgentRelationship } from '../src/agent-relationships.ts';
+import { AGENT_BOOTSTRAP_ENV, decodeAgentBootstrap } from '../src/agent-bootstrap.ts';
 import { startNativeAgentInOverview } from '../src/native-agent-launch.ts';
 import {
   listProductForkSessions,
@@ -185,6 +186,10 @@ export function registerDirectDelegation(pi: ExtensionAPI): void {
         requesterSessionFile,
         targetCwd: ctx.cwd, // File workspace is ALWAYS the caller's.
         overviewAnchorTerminalId: overviewId,
+        requesterTerminalId: (() => {
+          const ticket = decodeAgentBootstrap(process.env[AGENT_BOOTSTRAP_ENV]);
+          return ticket?.sessionId === requesterSessionId ? ticket.terminalId : undefined;
+        })(),
         ...(source ? { source } : {}),
       });
       const workspaceNote = receipt.worktree

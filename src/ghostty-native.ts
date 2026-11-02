@@ -261,3 +261,39 @@ export async function hideGhosttyWithoutQuit(): Promise<void> {
   const value = await runAppleScript(HIDE_GHOSTTY);
   if (value !== 'hidden') throw new GhosttyAutomationError('Ghostty hide was not acknowledged.');
 }
+
+const RESIZE_WORK_AREA = `
+on run argv
+  set wantedId to item 1 of argv
+  set wantedPixels to item 2 of argv
+  tell application "Ghostty"
+    repeat with w in windows
+      repeat with t in tabs of w
+        repeat with term in terminals of t
+          if ((id of term) as text) is wantedId then
+            if perform action ("resize_split:left," & wantedPixels) on term then
+              return "resized"
+            end if
+            return "not-performed"
+          end if
+        end repeat
+      end repeat
+    end repeat
+  end tell
+  error "Exact Main Terminal not found for resizing" number 1001
+end run
+`;
+
+/**
+ * Best-effort initial sidebar sizing. Resize the MAIN to the left so the
+ * separate Overview Surface becomes narrower. This never creates/mirrors
+ * an Agent, and a failed resize must not interrupt a successfully launched Pi.
+ */
+export async function widenGhosttyWorkArea(mainTerminalId: string, pixels = 240): Promise<boolean> {
+  if (!Number.isInteger(pixels) || pixels < 1 || pixels > 1000) {
+    throw new GhosttyAutomationError('Invalid initial Ghostty split resize size.');
+  }
+  return (await runAppleScript(RESIZE_WORK_AREA, [
+    validId(mainTerminalId), String(pixels),
+  ])) === 'resized';
+}

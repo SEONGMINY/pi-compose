@@ -3,6 +3,14 @@
 - 기준: [PRD](PRD.md), 2026-10-31 합의
 - 상태: **기술 방향은 일부 확정, 새 Ghostty 구현과 실사용은 미검증**
 
+## 2026-11-02 Main-first 기술 경계
+
+- Ghostty 1.3.x AppleScript `split terminal direction right with configuration ...`는 **지정된 실제 Terminal**에 새 Native Pi Surface를 추가합니다. 새 Main(첫 진입)은 `pic` Sidebar를 분할하고, 이후 Main/Work/Support는 해당 **작업 영역의 실제 Pi Surface**를 분할합니다. 확인 가능한 요청자 Terminal이 다른 Tab으로 이동한 경우 같은 `pic` Tab에 남아 있는 **명시적 Compose Agent Terminal**을 찾고, 없으면 Sidebar를 최초 기준으로 사용합니다. 제목/cwd로 Session-ID를 추측하지 않습니다.
+- Ghostty `perform action "resize_split:left,240" on term`로 초기 Pi 작업 영역을 넓히는 **최선형(best-effort)** 레이아웃 조절 경로를 작성했습니다. API 존재가 실제 macOS 레이아웃 보장을 뜻하지 않으며 실패는 성공한 Pi 세션 생성의 재시도 트리거가 아닙니다.
+- `pic` 시작 정책은 **현재 cwd의 Compose-owned Main이 0/1/여럿인지**를 Pi 원본 세션 메타데이터로 구분합니다. 0개 신규 빈 Main, 1개 기존 Surface 포커스 또는 안전한 저장 세션 재개, 여러 개는 사용자 선택. 단순히 cwd가 같은 비-Compose 세션을 자동 승격하지 않습니다.
+- Sidebar는 좁은 Ghostty Terminal에 실행되는 Pi TUI 구성 요소입니다. 별도 GUI/전역 Ghostty 탭 주입이 아니며, 기존 Pi 터미널 렌더링을 재구현하지 않습니다. 등록된 Agent의 Session/실행 영수증을 주기적으로 읽기만 하고, 임의로 모델 진행률을 추측하지 않습니다.
+- **실사용 미검증:** AppleScript 리사이즈 방향·픽셀/상위 Split 유지, 새 Split 중첩 위치/크기, 상호작용 중 Sidebar 재렌더링, 여러 프로젝트/다중 Main/별도 Tab 이동, 기존 nvm/Pi 설치와 Extension 충돌. 실행 코드 작성만으로 UX 요구를 충족한 것으로 선언하지 않습니다.
+
 ## 1. 도구와 책임
 
 | 도구 | 역할 | 현재 상태 |
@@ -18,7 +26,7 @@
 
 ## 2. 반드시 검증할 기술 계약
 
-**2026-11-01 기술 조사·코드 진척:** Pi 1.4.0 CLI `--fork`/`SessionManager.forkFrom()`는 JSONL 전체 엔트리를 복사하므로, 이를 선택한 활성 완료 분기의 정확한 Fork로 바로 간주하지 않습니다. Native `createBranchedSession(leafId)`는 명시적으로 지정한 분기의 엔트리·Compaction·ContextEdit 등을 복제할 수 있습니다. Draft PR #15의 `src/native-work-fork.ts`는 원본을 읽기 전용으로 열고 새 대상 세션 파일을 만들며, 헤더 ID·leaf·마지막 Assistant `stop`을 확인합니다. `src/agent-bootstrap.ts` + `extensions/agent-identity.ts`는 새 세션의 ID와 launch ticket가 맞을 때만 Agent 역할/프로덕트/생성 요청자/Fork 출처를 해당 **새 Pi 세션에만** custom entry로 기록합니다. `src/agent-relationships.ts`는 명시적인 native Split 생성 영수증(request ID + 자식 세션 ID + Terminal UUID)이 있는 경우에만 Surface를 결합합니다. **각 코드의 실행·통합 검증 전이며 현재 Ghostty Split 실행 경로는 아직 연결되지 않았습니다.**
+**2026-11-01 기술 조사·코드 진척:** Pi 1.4.0 CLI `--fork`/`SessionManager.forkFrom()`는 JSONL 전체 엔트리를 복사하므로, 이를 선택한 활성 완료 분기의 정확한 Fork로 바로 간주하지 않습니다. Native `createBranchedSession(leafId)`는 명시적으로 지정한 분기의 엔트리·Compaction·ContextEdit 등을 복제할 수 있습니다. Draft PR #15의 `src/native-work-fork.ts`는 원본을 읽기 전용으로 열고 새 대상 세션 파일을 만들며, 헤더 ID·leaf·마지막 Assistant `stop`을 확인합니다. `src/agent-bootstrap.ts` + `extensions/agent-identity.ts`는 새 세션의 ID와 launch ticket가 맞을 때만 Agent 역할/프로덕트/생성 요청자/Fork 출처를 해당 **새 Pi 세션에만** custom entry로 기록합니다. `src/agent-relationships.ts`는 명시적인 native Split 생성 영수증(request ID + 자식 세션 ID + Terminal UUID)이 있는 경우에만 Surface를 결합합니다. **Native Ghostty Split 실행 경로까지 연결한 코드는 존재합니다. 실제 사용에서는 시작 오류를 수정해 Main Pi TUI 실행이 확인됐고, 새 Main-first 중첩 Split·정확한 Fork·Agent lifecycle의 전체 통합 검증은 아직 미완료입니다.**
 
 ### 정확한 Pi 세션 Fork
 

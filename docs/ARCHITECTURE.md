@@ -3,6 +3,23 @@
 - 기준: [PRD](PRD.md) (2026-10-31 합의)
 - 상태: **책임 경계 설계 / Ghostty 중심 구현·실사용 검증 전**
 
+## 최신 화면·실행 구조 (2026-11-02)
+
+```text
+pic (현재 프로젝트)
+┌────────────────┬────────────────────────────────┐
+│ 관리 Sidebar   │ 실제 Pi Main                   │
+│ · 프로젝트     │ 설계 대화·입력창               │
+│ · Agent 계층   ├────────────────┬───────────────┤
+│ · 상태/메시지  │ Main Pi TUI    │ Work/Support  │
+│                │ (기존 프로세스)│ (새 Pi Surface)│
+└────────────────┴────────────────┴───────────────┘
+```
+
+이 그림은 **목표 토폴로지**입니다. 처음에는 오른쪽에 Main만 있습니다. `>w`/`>s` 이후에만 그 작업 영역을 Ghostty Native Split으로 확장합니다. Sidebar는 별도의 `pic` Pi TUI 관리 Surface이며 **Ghostty 자체의 네이티브 Sidebar UI나 별도 데스크톱 앱이 아닙니다.** 새 Main·Work/Support의 위치를 선택할 때 Sidebar Surface ID가 아닌 검증된 **기존 작업 Pi Surface**를 우선 Split Anchor로 사용합니다. 첫 Main만 Sidebar 옆에 생성하고 크기 조절을 요청합니다.
+
+Pi 세션(원본 Fork/Resume), 실제 Ghostty Terminal UUID, Git 작업 디렉터리를 서로 혼동하지 않습니다. 이미 존재하는 Pi 프로세스는 자동 재실행하지 않습니다. Split 이동으로 프로세스를 복제하지 않습니다. Ghostty 1.3.1의 `perform action resize_split`은 초기 레이아웃 조절에 활용할 수 있으나 실제 픽셀/중첩 Split 유지 여부는 macOS에서 확인해야 합니다.
+
 ## 1. 설계 원칙
 
 Pi Compose는 **Pi 위에 얇게 얹는 Harness**입니다. 새로운 대화 엔진·터미널 관리자·독립 Git 엔진·상시 문서 동기화 서비스를 만들지 않습니다.

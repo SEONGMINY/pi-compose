@@ -2,7 +2,19 @@
 
 [← README](../README.md) · [확정 정책](PRD.md)
 
-> **Ghostty 중심 Overview 경험은 아직 미구현입니다.** 아래 흐름 대부분은 목표 UX이며, Draft PR #15의 임시 Pi 명령 `/compose handoff`·`/compose messages`·`/compose surfaces`는 코드가 작성됐지만 실제 실행 검증 전입니다. 오래된 tmux/workmux CLI는 이전 구현입니다.
+> **2026-11-02 Main-first 개선은 코드 작성 단계입니다.** 첫 `pic`에 Sidebar+Main을 제공하고 `>w`/`>s`로 오른쪽 Pi 작업 영역을 나누는 방향으로 수정했지만, Ghostty Split 중첩/너비 유지 및 전체 실제 사용은 검증 전입니다. 과거 tmux/workmux CLI는 현행 사용법이 아닙니다.
+
+## 0. `pic`을 실행하면 바로 Main으로 시작합니다 (코드 작성·검증 전)
+
+프로젝트 폴더 안에서 `pic`을 실행하면 별도 `n` 생성 화면 없이 **왼쪽은 좁은 Sidebar, 오른쪽은 실제 Pi Main**으로 진입하도록 변경했습니다.
+
+- 저장된 Compose-owned Main이 **0개**라면 현재 폴더 이름을 프로젝트 이름으로 쓰고 빈 `Main`을 시작해 첫 입력을 기다립니다.
+- **1개**라면 기존 Pi 세션/실제 Terminal을 재사용하고, 살아 있는 세션을 이중 실행하지 않습니다.
+- **여러 개**라면 사용할 Main을 먼저 선택합니다. 아무 Main이나 임의로 이어받지 않습니다.
+- `n`은 새 Main을 **추가로** 만들 때만 사용합니다. `o`로 저장된 Pi 세션을 명시적으로 열 수 있습니다.
+- Main Pi 입력에서 `>w 작업`/`>s 작업`을 입력하면 **Main 옆 Native Split을 추가**하고, Sidebar의 목록은 새 Agent를 반영하도록 작성했습니다. `>>w`/`>>s`는 같은 화면 흐름에 별도 Git Worktree를 사용합니다.
+
+**화면이 실제로 검증된 것은 아닙니다.** Ghostty의 Split 생성/포커스/Resize와 Pi 상태가 안정적으로 동작하는지 Mac에서 확인해야 합니다. 기존 Agent와 세션을 자동 종료·삭제하지 않습니다.
 
 ## 1. Main에서 설계를 논의합니다
 
