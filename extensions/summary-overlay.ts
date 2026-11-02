@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { Text } from '@earendil-works/pi-tui';
+import { Text, type Component } from '@earendil-works/pi-tui';
 import { performance } from 'node:perf_hooks';
 import { decodeAgentBootstrap, AGENT_BOOTSTRAP_ENV } from '../src/agent-bootstrap.ts';
 import { isGhosttyTerminalFocused } from '../src/ghostty-native.ts';
@@ -7,6 +7,36 @@ import { projectSummaryEvidence, type SummaryEvidence } from '../src/summary-evi
 
 const UNFOCUSED_DELAY_MS = 30_000;
 const FOCUS_OBSERVATION_INTERVAL_MS = 1_000;
+ 
+// The Summary takes visual priority within an UNFOCUSED Pi Surface.
+// A non-capturing overlay keeps the original Pi TUI and process untouched;
+// focusing that exact Surface closes it and reveals the original screen.
+const PANEL_BACKGROUND = '\x1b[48;2;29;35;46m\x1b[38;2;242;246;252m';
+const PANEL_RESET = '\x1b[0m';
+const paintPanel = (text: string): string => PANEL_BACKGROUND + text + PANEL_RESET;
+
+class FullTerminalSummary implements Component {
+  constructor(
+    private readonly content: Text,
+    private readonly terminalRows: () => number,
+  ) {}
+
+  render(width: number): string[] {
+    const height = Math.max(1, this.terminalRows());
+    const contentRows = this.content.render(width).slice(0, height);
+    // Painting every row with opaque spaces prevents underlying Pi text/tool
+    // output from visually bleeding through when the Summary is short.
+    const empty = paintPanel(' '.repeat(Math.max(1, width)));
+    return [
+      ...contentRows,
+      ...Array.from({ length: height - contentRows.length }, () => empty),
+    ];
+  }
+
+  invalidate(): void {
+    this.content.invalidate();
+  }
+}
 
 /**
  * The Summary lives in the original Pi TUI's *own* renderer.
@@ -49,13 +79,18 @@ export function registerSummaryOverlay(pi: ExtensionAPI): void {
     const evidence = currentEvidence();
     if (!evidence) return 'Pi Compose — source session changed';
     return [
-      'PI COMPOSE · SUMMARY (factual fallback)',
-      '───────────────',
+      'PI COMPOSE  /  ' + ticket!.label,
+      'SUMMARY  ·  확인된 Pi 기록',
+      '────────────────────────────────',
+      '',
       evidence.headline,
+      '',
       ...evidence.facts.map(fact => '• ' + fact.text + ' [' + fact.sourceEntryId.slice(0, 8) + ']'),
       '',
-      '응답 종료 ≠ 작업 완료/검증 완료',
-      '공유: 사용자가 /compose handoff에서 직접 선택',
+      '────────────────────────────────',
+      '해당 Agent를 선택하면 원래 Pi 화면으로 돌아갑니다.',
+      'Main/다른 Agent 공유: /compose handoff에서 직접 선택',
+      '응답 종료는 실제 작업 완료나 검증 완료를 뜻하지 않습니다.',
     ].join('\n');
   }
   function update(): void {
@@ -81,16 +116,17 @@ export function registerSummaryOverlay(pi: ExtensionAPI): void {
     const promise = ctx.ui.custom<void>((tui, _theme, _keys, done) => {
       if (generation !== thisGeneration) { done(); return new Text('', 0, 0); }
       closingOverlay = () => done();
-      textComponent = new Text(visual(), 0, 0);
+      textComponent = new Text(visual(), 2, 1, paintPanel);
       redraw = () => tui.requestRender();
-      return textComponent;
+      return new FullTerminalSummary(textComponent, () => tui.terminal.rows);
     }, {
       overlay: true,
       overlayOptions: {
-        anchor: 'top-right',
-        width: '48%',
-        maxHeight: '45%',
-        margin: 1,
+        row: 0,
+        col: 0,
+        width: '100%',
+        maxHeight: '100%',
+        margin: 0,
         nonCapturing: true,
       },
     });
