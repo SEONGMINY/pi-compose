@@ -257,6 +257,24 @@ export async function openOverview(): Promise<void> {
     });
   }
 
+  /**
+   * Find a REAL right-hand Pi Surface in this exact pic Tab. This is layout
+   * placement only; it never changes a Main's Context or Fork source.
+   */
+  function rightMainAnchor(product: string): string | undefined {
+    const overview = terminalList.find(t => t.id === overviewId);
+    if (!overview) return;
+    const peers = agents.filter(a => a.terminal &&
+      a.terminal.windowId === overview.windowId &&
+      a.terminal.tabId === overview.tabId && a.terminal.id !== overviewId);
+    const selectedId = selection?.getSelectedItem()?.value;
+    const current = peers.find(a => selectedId === 'agent/' + a.identity.sessionId);
+    const preferred = current || peers.find(a =>
+      a.identity.product === product && a.identity.role === 'main') ||
+      peers.find(a => a.identity.role === 'main') || peers[0];
+    return preferred?.terminal?.id;
+  }
+
   async function createMain(): Promise<void> {
     if (busy || modalActive) return;
     busy = true;
@@ -269,8 +287,10 @@ export async function openOverview(): Promise<void> {
       if (!cwd) return;
       status = 'Requesting native Ghostty Split for a new Main…';
       statusText.setText(status);
+      terminalList = await listGhosttyTerminals();
       const receipt = await startNativeMainInOverview({
         product, label, targetCwd: cwd, overviewAnchorTerminalId: overviewId,
+        workspaceAnchorTerminalId: rightMainAnchor(product),
       });
       pendingMains.set(receipt.sessionId, {
         identity: {
@@ -360,8 +380,10 @@ export async function openOverview(): Promise<void> {
       const label = existing?.label || await ask('Assign this selected Main a display name');
       if (!label) return;
       if (!chosen.cwd) throw new Error('Saved Pi session has no known working directory.');
+      terminalList = await listGhosttyTerminals();
       const receipt = await startNativeMainInOverview({
         product, label, targetCwd: chosen.cwd, overviewAnchorTerminalId: overviewId,
+        workspaceAnchorTerminalId: rightMainAnchor(product),
         resume: {
           sessionId: chosen.id, sessionFile: chosen.path,
           allowUnconfirmedProcess: needsAcknowledgement,
@@ -439,8 +461,10 @@ export async function openOverview(): Promise<void> {
     status = '';
     render();
     try {
+      terminalList = await listGhosttyTerminals();
       const receipt = await startNativeMainInOverview({
         product, label, targetCwd: cwd, overviewAnchorTerminalId: overviewId,
+        workspaceAnchorTerminalId: rightMainAnchor(product),
         ...(old ? { resume: { sessionFile: old.sessionPath, sessionId: old.identity.sessionId } } : {}),
       });
       pendingMains.set(receipt.sessionId, {
