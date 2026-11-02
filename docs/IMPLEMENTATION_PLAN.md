@@ -134,7 +134,7 @@
 
 **이번 코드 범위 (별도 Draft PR):**
 1. cwd 기준 첫 Main 자동 생성/안전한 명시적 Resume, 일반 `n`/`o`는 보조 관리 동작.
-2. Main 초기 Split 시 Ghostty 기본 Native `resize_split`으로 Sidebar 축소 1회 요청. 실제 폭 픽셀 보장 없음.
+2. Main 초기 Split 시 Ghostty 기본 Native `resize_split`으로 Sidebar 축소 1회 요청. 추가 Main은 화면의 기록된 기존 오른쪽 Pi Surface를 기준으로 Split해 Sidebar를 다시 분할하지 않음. 실제 폭 픽셀 보장 없음.
 3. `>w`·`>s`·`>>w`·`>>s`는 정확한 기존 오른쪽 작업 영역 Pi Terminal에서 새 Split. Sidebar Terminal을 직접 Split anchor로 재사용하지 않음.
 4. Sidebar의 긴 텍스트·설명을 정리하고 자동 기록 조회 간격을 두되 Agent 선택과 Modal 입력을 유지. Ghostty Native Terminal UUID/Pi Session Manager에 의존하며 별도 DB/Agent runtime 도입 없음.
 5. 오류 시 임의 중복 생성·Worktree 삭제/재시도 금지; Git Worktree/Pi Fork 돌입 **전** 실제 Workspace Split anchor를 검증.
