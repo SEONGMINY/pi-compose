@@ -1,4 +1,6 @@
 import { SessionManager, type SessionInfo } from '@earendil-works/pi-coding-agent';
+import { realpath } from 'node:fs/promises';
+import { basename } from 'node:path';
 import {
   ProcessTerminal, SelectList, Input, Text, TuiMainScreen, matchesKey,
   type TUI, type SelectItem, type SelectListTheme,
@@ -96,9 +98,9 @@ function toEntries(view: View, agents: readonly VisibleAgent[]): Array<{ item: S
         hierarchy.push({
           item: {
             value: 'agent/' + id,
-            label: '  '.repeat(Math.min(depth + 1, 12)) + agent.identity.label,
-            description: (agent.identity.role === 'main' ? '' : agent.identity.role + ' · ') +
-              agent.lifecycle.state + (agent.terminal ? ' · Surface 확인' : ' · Surface 미확인'),
+            label: ' '.repeat(Math.min(depth + 1, 6)) +
+              (agent.identity.role === 'main' ? '◆ ' : '↳ ') + agent.identity.label,
+            description: undefined,
           },
           action: { type: 'agent', sessionId: id },
         });
@@ -121,10 +123,10 @@ function toEntries(view: View, agents: readonly VisibleAgent[]): Array<{ item: S
   return agents.map(agent => ({
     item: {
       value: 'agent/' + agent.identity.sessionId,
-      label: agent.identity.label,
-      description: agent.identity.product + ' / ' + agent.identity.role +
-        ' / ' + agent.lifecycle.state +
-        (agent.terminal ? ' / Surface 확인' : ' / Surface 미확인'),
+      label: (agent.lifecycle.state === 'process-observed' ? '● ' :
+        agent.lifecycle.state === 'launch-failed' ? '× ' : '○ ') +
+        agent.identity.label,
+      description: undefined,
     },
     action: { type: 'agent', sessionId: agent.identity.sessionId },
   }));
@@ -154,36 +156,44 @@ export async function openOverview(): Promise<void> {
   let modalActive = false;
   let selection: SelectList | undefined;
   let entries: ReturnType<typeof toEntries> = [];
-  let status = 'Pi Compose · read-only native Overview';
+  let status = '';
   let busy = false;
   const statusText = new Text('', 0, 0);
 
   function render(): void {
+    if (modalActive) return; // Modal owns input focus; never erase it during sync.
+    const previouslySelected = selection?.getSelectedItem()?.value;
     const title = new Text(
-      'PI COMPOSE  /  [1] Products   [2] Agents   [3] Messages\n' +
-      '────────────────────────────────────────────────\n' +
-      (view === 'products' ? 'PRODUCTS' : view === 'agents' ? 'ALL AGENTS' : 'MESSAGES'),
+      'PI COMPOSE\\n' +
+      '[1] Projects  [2] All\\n' +
+      '[3] Messages\\n' +
+      '─────────────────────',
       0, 0,
     );
     entries = toEntries(view, agents);
     if (entries.length === 0) {
       entries = [{
-        item: { value: 'empty', label: view === 'messages' ? 'No recorded Handoff messages' : 'No registered Compose Agents' },
+        item: { value: 'empty', label: view === 'messages' ? 'No messages' : 'No Agents' },
         action: { type: 'refresh' },
       }];
     }
-    selection = new SelectList(entries.map(e => e.item), 16, selectionTheme);
+    selection = new SelectList(entries.map(e => e.item), 14, selectionTheme);
+    const oldIndex = entries.findIndex(e => e.item.value === previouslySelected);
+    if (oldIndex >= 0) selection.setSelectedIndex(oldIndex);
     selection.onSelect = item => { void select(item.value); };
     selection.onCancel = () => {
-      status = 'Choose an Agent, [1-3] to switch view, or [r] to refresh.';
+      status = 'Select an Agent or [1–3]';
       statusText.setText(status);
       tui.requestRender();
     };
+    // This is a NARROW navigation Sidebar, not a separate Overview page.
+    // Long logs/errors belong in Agent Pi TUI or the explicit detail action.
+    const helper = 'n New  o Open\\n' +
+      'r Sync  v Detail\\n' +
+      'q Exit';
     statusText.setText(
-      status + '\n' +
-      'Enter: focus Surface / inspect message · n: New Main · o: Open Main\n' +
-      'v: inspect grounded Summary · r: refresh · q: exit options\n' +
-      'Pi session records are evidence; Surface presence is not Agent running/readiness proof.',
+      helper + (status && !status.startsWith('Registered Agents:') &&
+        !status.startsWith('Refreshing native') ? '\\n' + status.slice(0, 180) : ''),
     );
     tui.clear();
     tui.addChild(title);
@@ -192,7 +202,6 @@ export async function openOverview(): Promise<void> {
     tui.setFocus(selection);
     tui.requestRender();
   }
-
 
   // All UI operations stay in this exact pic Terminal, never in a Main model
   // conversation. These are user interactions, not guessed default decisions.
