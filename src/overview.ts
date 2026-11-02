@@ -266,8 +266,14 @@ export async function openOverview(): Promise<void> {
       if (!cwd) return;
       status = 'Requesting native Ghostty Split for a new Main…';
       statusText.setText(status);
+      const overview = terminalList.find(t => t.id === overviewId);
+      const workAreaAnchorId = [...agents].reverse().find(a =>
+        a.terminal && overview && a.terminal.tabId === overview.tabId &&
+        a.terminal.windowId === overview.windowId,
+      )?.terminal?.id;
       const receipt = await startNativeMainInOverview({
         product, label, targetCwd: cwd, overviewAnchorTerminalId: overviewId,
+        workAreaAnchorId,
       });
       pendingMains.set(receipt.sessionId, {
         identity: {
@@ -292,7 +298,7 @@ export async function openOverview(): Promise<void> {
       // Sidebar should not capture initial keyboard focus or take half the
       // screen. Size the real work area first; never hide a successful launch
       // when Ghostty cannot resize a constrained window.
-      await widenGhosttyWorkArea(receipt.terminalId).catch(() => false);
+      if (!workAreaAnchorId) await widenGhosttyWorkArea(receipt.terminalId).catch(() => false);
       await focusGhosttyTerminal(receipt.terminalId).catch(() => undefined);
     } catch (error) {
       status = 'Main creation failed or is unconfirmed: ' + String(error) +
@@ -361,8 +367,14 @@ export async function openOverview(): Promise<void> {
       const label = existing?.label || await ask('Assign this selected Main a display name');
       if (!label) return;
       if (!chosen.cwd) throw new Error('Saved Pi session has no known working directory.');
+      const overview = terminalList.find(t => t.id === overviewId);
+      const workAreaAnchorId = [...agents].reverse().find(a =>
+        a.terminal && overview && a.terminal.tabId === overview.tabId &&
+        a.terminal.windowId === overview.windowId,
+      )?.terminal?.id;
       const receipt = await startNativeMainInOverview({
         product, label, targetCwd: chosen.cwd, overviewAnchorTerminalId: overviewId,
+        workAreaAnchorId,
         resume: {
           sessionId: chosen.id, sessionFile: chosen.path,
           allowUnconfirmedProcess: needsAcknowledgement,
@@ -386,7 +398,7 @@ export async function openOverview(): Promise<void> {
       status = 'Existing Pi session selected and Main Split created. No task replayed; startup unverified.';
       await refresh(true);
       status = 'Selected Main resumed; Pi readiness unverified.';
-      await widenGhosttyWorkArea(receipt.terminalId).catch(() => false);
+      if (!workAreaAnchorId) await widenGhosttyWorkArea(receipt.terminalId).catch(() => false);
       await focusGhosttyTerminal(receipt.terminalId).catch(() => undefined);
     } catch (error) {
       status = 'Main selection/resume failed or is unconfirmed: ' + String(error) +
