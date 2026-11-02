@@ -1,7 +1,7 @@
 # Implementation Plan — Pi + Ghostty 재설계
 
 - 기준: [PRD](PRD.md) · [Architecture](ARCHITECTURE.md) · [TRD](TRD.md), 최신 UX 합의 2026-10-31
-- 상태: **새 방향의 일부 기능을 Draft PR #15에서 구현 중**. 사용자 선택형 Handoff의 Pi Extension 연결 코드는 작성됐지만 실사용·통합 검증 전입니다. Ghostty Overview와 Summary Overlay 기초 코드는 Draft로 작성됐고, 실제 제품 Sidebar·경량 의미 요약·Handoff 공유 UI 및 레거시 실행 경로는 여전히 미구현/재설계 대상입니다. 이전 tmux/workmux/Orca Phase 0–6 계획은 현행 작업 순서가 아닙니다.
+- 상태: **Native Pi/Ghostty 기초 구현 PR #15는 2026-11-01 main에 병합됨**. macOS 실행 중 발견한 부팅 오류 수정은 **Draft PR #18**, Main-first Sidebar UX 재설계는 **Stacked Draft PR #19**에서 코드 작성 중입니다. 사용자 실사용은 초기 Pi TUI 실행까지 확인됐으며 새 Sidebar·중첩 Split UX는 아직 미검증입니다. 의미 Summary·완성 Handoff Sidebar·복구 UX는 미완성입니다. 과거 tmux/workmux/Orca Phase 0–6 계획은 현행 순서가 아닙니다.
 - 원칙: 사용자 검증을 위해 기능 구현과 별도로 테스트/CI/PR 병합을 자동 실행하지 않습니다. 이전 구현 코드와 사용자 세션·Worktree는 보존합니다.
 
 ## 2026-11-02 실제 촬영 시도에서 확인한 문제와 Main-first 개선
