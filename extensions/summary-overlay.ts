@@ -255,21 +255,32 @@ export function registerSummaryOverlay(
   });
   pi.on('session_before_switch', () => { cleanup(); });
   pi.on('session_shutdown', () => { cleanup(); });
-  pi.on('agent_start', () => { status = 'responding'; currentTool = undefined; update(); });
+  pi.on('agent_start', () => {
+    turnNumber++;
+    dismissedOnTurn = -1;
+    status = 'responding';
+    currentTool = undefined;
+    update();
+  });
   pi.on('tool_execution_start', e => {
     status = 'responding'; currentTool = e.toolName; update();
   });
   pi.on('tool_execution_end', () => { currentTool = undefined; update(); });
   pi.on('ui_prompt_start', e => {
-    // Our passive custom overlay is NOT a Pi request for user decision.
-    if (overlayActive && e.kind === 'custom') return;
+    // A Summary custom overlay isn't a model-initiated request for approval.
+    if (e.kind === 'custom' && overlayActive) return;
+    // The real Handoff UI owns the user's focus; never cover its selectors
+    // or misclassify Handoff's selection prompts as an Agent work status.
+    if (handoffRunning) return;
+    if (overlayActive) close();
     status = 'waiting-for-ui'; update();
   });
   pi.on('ui_prompt_end', e => {
-    if (e.kind === 'custom' && (overlayActive || closingPassivePrompt)) {
-      closingPassivePrompt = false;
+    if (e.kind === 'custom' && closingSummaryPrompt) {
+      closingSummaryPrompt = false;
       return;
     }
+    if (handoffRunning) return;
     status = 'responding'; update();
   });
   pi.on('message_end', () => { update(); });
