@@ -47,11 +47,13 @@ async function chooseForkSource(ctx: ExtensionContext, { includeCurrent = true }
 
 export default function composeExtension(pi: ExtensionAPI): void {
   registerAgentIdentity(pi);
-  registerSummaryOverlay(pi);
+  // Handoff must be registered before Summary so its explicit user flow
+  // can be invoked directly from the focused Summary without fake Pi input.
+  const showHandoff = registerHandoff(pi);
+  registerSummaryOverlay(pi, showHandoff);
   registerDirectDelegation(pi);
   registerDelegationAutocomplete(pi);
   registerWorkReturn(pi);
-  const showHandoff = registerHandoff(pi);
   pi.registerCommand('compose', {
     description: 'Pi Compose: /compose surfaces, /compose handoff, /compose messages, /compose launch [task], /compose preview [task], /compose back [query], /compose resume',
     handler: async (args, ctx) => {
