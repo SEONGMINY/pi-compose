@@ -232,6 +232,7 @@ async function chooseRightWorkspaceAnchor(
     return requesterTerminalId;
   }
   const saved = await SessionManager.listAll();
+  const matchingMains = new Set<string>();
   for (const info of saved) {
     try {
       const manager = SessionManager.open(info.path);
@@ -239,9 +240,13 @@ async function chooseRightWorkspaceAnchor(
       const identity = readAgentRelationship(info.id, manager.getEntries());
       if (identity?.product === product && identity.role === 'main' &&
           identity.terminalId && peers.some(t => t.id === identity.terminalId)) {
-        return identity.terminalId;
+        matchingMains.add(identity.terminalId);
       }
     } catch { /* Never infer Pi owner from a stale session. */ }
+  }
+  if (matchingMains.size === 1) return [...matchingMains][0];
+  if (matchingMains.size > 1) {
+    throw new Error('Multiple Main Surfaces are in this pic tab. Select the active Agent before delegating.');
   }
   throw new Error(
     'No exact Main/Agent workspace Surface is in the pic tab. ' +
