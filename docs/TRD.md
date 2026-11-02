@@ -30,7 +30,7 @@
 ### Ghostty와 Pi UI
 
 - Overview에서는 여러 Agent의 **실제 Pi TUI**를 Split으로 보여줍니다. Main도 Work/Support처럼 별도 작업 Tab에 이동할 수 있으며, Overview 관리 TUI는 그대로 남아야 합니다. **모든 Agent를 Overview에 상시 표시한다는 과거 정책은 적용하지 않습니다.**
-- Summary Overlay는 **실제 Agent의 Pi TUI 위에 겹쳐 보이는 사용자용 정보층**입니다. Pi TUI/Surface는 계속 살아 있어야 합니다. 포커스가 오면 즉시 해제하고, 별도 토글·'터미널 열기' 버튼·가짜 터미널 미러링은 만들지 않습니다. **Ghostty Surface 위 Overlay/포커스 전달을 실제로 구현할 수 있는지 미검증**입니다.
+- Summary Overlay는 **실제 Agent의 Pi TUI 위에 겹쳐 보이는 사용자용 정보층**입니다. Pi TUI/Surface는 계속 살아 있어야 합니다. 포커스만으로 해제하지 않습니다. **Handoff 또는 원래 Pi 화면 보기**를 사용자 입력으로 명시적으로 선택하며, 가짜 터미널 미러링은 만들지 않습니다. **Ghostty Surface 위 Overlay/포커스 전달을 실제로 구현할 수 있는지 미검증**입니다.
 - **`pic` Overview Tab에만 사이드바를 표시**합니다. 프로덕트별/전체 Agent별 보기와 별도 메시지 관리를 그 안에서 전환합니다. 별도 작업 Tab에는 사이드바를 주입하지 않으며, Overview로 돌아오면 기존 관리 TUI를 확인할 수 있어야 합니다.
 - **구현 방향 확정**: `pic` Overview의 관리 TUI와, 각 Main·Work·Support의 **고유 Ghostty Surface에서 실행 중인 Pi TUI**를 분리합니다. 초기 Overview에는 여러 Pi TUI가 Split으로 표시됩니다. 사용자가 **Ghostty 기본 드래그로 기존 Surface를 다른 Tab에 이동하거나 Overview로 복귀**할 수 있습니다. Agent 선택은 현재 Surface가 속한 Tab/Window에 포커스하며, 어느 경우에도 Pi를 새로 실행하거나 Resume하여 이동을 흉내 내지 않습니다. **메뉴 한 번으로 자동 이동하는 기능·동일 TUI 미러링·별도 멀티플렉서는 초기 범위 밖**입니다.
 - **식별자 검증 주의**: Ghostty 1.4의 프로세스 환경변수 `GHOSTTY_SURFACE_ID`는 내부 `u64` 값을 16진수 문자열로 내보내지만, macOS AppleScript의 `terminal.id`는 `SurfaceView` UUID를 내보냅니다. **둘을 같은 ID로 취급하면 안 됩니다.** 실행 중 실제 Pi의 TTY와 AppleScript `terminal.tty` 등을 이용해 매핑을 검증하고, 이동 후 같은 `terminal.id`/TTY가 다른 Tab 아래 존재하는지 확인해야 합니다. `terminal.pid`는 *foreground PID*여서 영구적인 Agent 식별자로 사용하지 않습니다. Tab/Window ID도 재실행 후 유효하다고 가정하지 않습니다.
@@ -58,7 +58,7 @@
 
 ### 상태 이벤트·경량 Summary 생성
 - 실행 중/입력 대기/선택 대기/정상 종료/비정상 종료/오류를 실제 Pi/프로세스 이벤트로 추적합니다. `agent_end`만으로 종료를 확정하지 않습니다. 자동 재시도·followUp 종료 후의 `agent_settled`를 참고하되 **Pi 응답 종료와 도메인 작업 완료를 구분**합니다. 명시적 `ui_prompt_start/end`는 사용자 조작 대기의 근거가 됩니다.
-- Overview에서 Agent가 포커스를 잃으면 단조 증가 시간 기준 **30초 후** Summary Overlay 표시, 재포커스 때 타이머 취소·Overlay 즉시 제거, 포커스 아웃 재발생 시 타이머 재시작. 포커스가 없는 Agent에서 응답이 완료되면 즉시 결과 Summary를 보여줍니다. 포커스 최우선이며 완료 이벤트가 입력 화면을 가리지 않습니다.
+- Overview에서 Agent가 포커스를 잃으면 단조 증가 시간 기준 **30초 후** Summary Overlay 표시, 재포커스 때 타이머를 취소하되 **기존 Overlay는 유지**하고 Handoff/Pi 복귀를 사용자에게 선택하도록 합니다. Pi 복귀를 직접 선택하면 이전 Summary가 새 응답 전까지 자동 재표시되지 않습니다. 포커스가 없는 Agent에서 응답이 완료되면 즉시 결과 Summary를 보여줍니다. 포커스 최우선이며 완료 이벤트가 입력 화면을 가리지 않습니다.
 - Tool 시작/종료, 메시지/최종 답변, 원래 지시, 검증 가능한 Git 정보를 **근거 이벤트로 수집**합니다. 별도 **경량 모델**은 제한된 최근 사실을 바탕으로 가장 중요한 현재 활동/결과/필요한 결정 한 줄과 핵심 근거 1~2개를 생성합니다. 중요한 활동 변화 또는 응답 종료에만 갱신하고 반복 호출·30초 주기 폴링·매 Tool 호출 요약은 금지합니다. 요약은 Main/Work의 Pi 대화에 넣지 않습니다.
 - 모델이 생성한 설명은 **사실 확인 신호를 대체하지 않습니다**. Shared Directory에서는 Git 변경을 특정 Agent 성과로 단정하지 않습니다. 작업 진행률 수치·검증 성공·실제 구현 완료를 추측하지 않습니다. 사용자 선택 UI나 실제 막힘 근거가 없으면 일반적인 질문을 `확인 필요`로 오분류하지 않습니다.
 - `새 응답`은 사용자가 포커스해 확인할 때 해제할 수 있지만 `확인 필요`는 클릭만으로 사라지지 않습니다. 답변 이후 실제 진행 신호를 확인합니다. 요약 정확도·지연·요금·동시 Agent 수·요약 실패 시 기존 사실 표시·정보 보호 정책을 기술 조사에서 구체화해야 합니다.
@@ -137,12 +137,18 @@
 - **중복 Main 재개 방어:** 정확히 선택된 세션의 Ghostty Surface가 존재하면 재실행을 거부하고, Surface가 없어도 Native Pi PID+OS 시작 시각이 확인되면 새 Pi 인스턴스를 만들지 않습니다. 유휴/외부 Pi 프로세스 여부를 알 수 없는 기존 세션은 Overview에서 **명시적 위험 확인(`RESUME`)**을 받아야 합니다. 자동 복구나 무조건 재실행은 하지 않습니다.
 - **미완료:** 전 Agent의 실제 종료 확인/강제 종료 복구/다중 Pi 동시 세션 충돌·기존 터미널 내부에서 수동 재개한 Pi/세션 실시간 생존 감지/완전한 background exit UX/Surface 이동. Pi 세션·Git Worktree는 삭제하지 않습니다. 별도 Broker/daemon/DB를 도입하지 않습니다. 이 구현의 타입·실행 검증은 사용자 범위입니다.
 
+### 비포커스 Agent 전체 영역 Summary Overlay — 2026-11-02
+
+Pi 1.4.0 `OverlayOptions.width = "100%"`, `maxHeight = "100%"`, `row = 0`, `col = 0`, `margin = 0`, `nonCapturing = false`를 사용합니다. 포커스된 Summary에서 키 입력(H, P/Esc, 방향키/Enter)을 받기 위함입니다. **`maxHeight`는 실제 높이가 아니라 상한**이므로 `Text` 컴포넌트만 100%로 지정하면 기존 Pi 화면이 아래로 드러납니다. 현재 Native Pi TUI의 `tui.terminal.rows`를 사용해 Component의 `render(width)`가 터미널 높이만큼 배경이 채워진 행을 반환하도록 구현했습니다. Terminal resize 시 렌더마다 폭/행 수를 다시 계산합니다.
+
+표시 대상은 **각 Agent의 기존 Ghostty Terminal 내부**입니다. Pi 프로세스/대화를 종료·Resume·미러링하지 않습니다. 포커스가 돌아와도 Summary가 유지되고 사용자 선택(Handoff/Pi)에 따라 `close()`로 해당 정보층을 해제합니다. 실제 Mac에서 Pi 키보드 포커스, 좁은 Split 높이·폭, ANSI 배경색/줄바꿈, TUI의 일반 화면 렌더 지연을 반드시 검증해야 합니다. Summary에서 기존 `/compose handoff`의 사용자 선택형 수신자/근거/종류/본문 검토로 연결했습니다. 자동 전송 및 의미 요약은 여전히 제공하지 않습니다.
+
 ### Pi 1.4.0 내장 Overlay와 사실 기반 Summary (Draft PR #15)
 
-- 공식 `packages/coding-agent/docs/tui.md`는 기존 Pi TUI 위의 임시 정보층을 **`ctx.ui.custom({overlay:true})`**로 구현할 수 있음을 명시합니다. `OverlayOptions.nonCapturing`은 키보드 포커스를 가져오지 않습니다. 별도의 Ghostty 내용 캡처/미러링, 외부 창, 인터컴 메시징을 Overlay 생성에 사용하지 않습니다.
-- `extensions/summary-overlay.ts`는 Agent 시작/도구 실행/실제 UI Prompt/`agent_settled`에 반응합니다. Ghostty 1.3.1 AppleScript의 frontmost/selected Tab/focused Terminal UUID를 **Agent당 1초 읽기 전용 폴링**해 포커스 아웃을 확인하고, `performance.now()`로 30초를 측정합니다. 비포커스 `agent_settled` 정상 완료 시 즉시 표시 요청, 재포커스 관찰 시 `done()`으로 Overlay 해제를 요청합니다. **폴링 간격 이하로 실제 즉시 해제될지는 별도 검증 필요**합니다.
+- 공식 `packages/coding-agent/docs/tui.md`는 기존 Pi TUI 위의 임시 정보층을 **`ctx.ui.custom({overlay:true})`**로 구현할 수 있음을 명시합니다. 현재 Summary는 사용자가 직접 Handoff/Pi를 선택해야 하므로 `OverlayOptions.nonCapturing:false`로 **해당 Agent 터미널 내부의** 입력을 받습니다. 별도의 Ghostty 내용 캡처/미러링, 외부 창, 인터컴 메시징을 Overlay 생성에 사용하지 않습니다.
+- `extensions/summary-overlay.ts`는 Agent 시작/도구 실행/실제 UI Prompt/`agent_settled`에 반응합니다. Ghostty 1.3.1 AppleScript의 frontmost/selected Tab/focused Terminal UUID를 **Agent당 1초 읽기 전용 폴링**해 포커스 아웃을 확인하고, `performance.now()`로 30초를 측정합니다. 비포커스 `agent_settled` 정상 완료 시 즉시 표시 요청, 재포커스 시 Overlay를 유지하고, 선택된 Handoff/Pi 행동에서만 `done()`으로 해제합니다. Pi의 다른 명시적 사용자 프롬프트는 요약보다 우선합니다. **폴링 간격 이하로 실제 즉시 해제될지는 별도 검증 필요**합니다.
 - `src/summary-evidence.ts`는 현재 Pi 분기에서 최근 실제 사용자 입력, Tool 결과/에러, Assistant 답변 발췌와 원본 Entry ID를 근거로 두 문장 이하의 사실 표시를 구성합니다. 확인할 수 없는 진행률/성공/정책 승인/중요 결정은 자동 추측하지 않습니다. Pi 세션이나 모델 컨텍스트에 Summary를 삽입하지 않습니다.
-- `src/overview.ts`의 `v` 근거 조회는 동일 Pi Session ID의 저장된 세션 원본을 읽기 전용으로 확인합니다. Overlay 자체의 공유 버튼 및 경량 LLM 의미 요약/후보 자동 추출·수신자 선택/메시지 Sidebar 통합은 미구현이며, 현행 사용자 명시적 `/compose handoff`를 유지합니다.
+- `src/overview.ts`의 `v` 근거 조회는 동일 Pi Session ID의 저장된 세션 원본을 읽기 전용으로 확인합니다. Overlay의 H 키에서 기존 사용자 명시적 `/compose handoff` 선택 UI(수신자·근거·본문 검토)로 연결합니다. 경량 LLM 의미 요약/자동 후보 추출·완성 메시지 Sidebar 통합은 미구현이며, 사용자 승인 없는 자동 발신은 하지 않습니다.
 - **통합·성능 위험:** `ctx.ui.custom`과 `ui_prompt_start/end`의 비차단 동작, 다수 Agent에서 1초 AppleScript subprocess 비용, TUI 좁은 폭/IME, Ghostty focus 지연/터미널 재배치, `agent_settled` 최종 응답 이벤트 순서를 실제 Pi 1.4.0 + Ghostty 1.3.1에서 확인해야 합니다. 실사용/타입 검증은 아직 수행하지 않았습니다.
 
 ### Main-first Ghostty Sidebar·작업 영역 (2026-11-02, Draft)

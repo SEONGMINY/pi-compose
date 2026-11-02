@@ -85,11 +85,17 @@ Draft PR #15는 Pi 1.4.0 `input` 이벤트로 입력 첫머리의 `>w 작업`, `
 
 **코드 작성 상태이며 macOS 실사용/타입 검증 전입니다.** Ghostty의 Cmd+Q나 일반 창 닫기에는 이 선택지가 개입하지 않으며, 실제 모델 작업 상태·자동 재개·실시간 업데이트도 아직 미구현입니다.
 
+### 전체 Agent Terminal Summary (2026-11-02 Draft)
+
+Agent에 포커스가 없을 때 **30초 경과 또는 해당 Agent의 응답 종료** 시, 그 Agent의 기존 Pi Terminal 전체를 불투명 Summary가 덮습니다. 다시 해당 Agent에 포커스하면 **Summary가 유지되고**, H(명시적 Handoff 선택) 또는 P/Esc(원래 Pi TUI 보기)를 선택할 수 있습니다. Sidebar/다른 Agent의 Terminal은 가리지 않습니다. 사용자 입력과 원본 프로세스는 유지됩니다.
+
+기존 48% 폭/45% 높이 Overlay에서 벗어나 글자 줄바꿈과 Pi 원본 텍스트가 섞이는 문제를 개선하는 **코드 변경**입니다. 현재 내용은 Pi 기록 기반 factual fallback이며 완료/성공을 판정하거나 Main에 자동 전달하지 않습니다. 중요 결정 자동 요약·Sidebar 완료 안내는 미구현입니다. 단, **Handoff 진입은 Summary에 연결돼 기존 /compose handoff의 사용자 수신자/근거/본문 선택 흐름을 재사용**합니다. macOS 실사용 검증 전입니다.
+
 ### Summary 정보층 — Draft 코드
 
-Agent가 자기 Ghostty Terminal 포커스를 벗어난 뒤 **30초**가 지나거나 **비포커스 Pi 응답이 정상 종료**되면, 같은 Pi TUI 위에 **포커스를 가져가지 않는 Summary 정보층**을 보여주는 코드를 작성했습니다. Agent Terminal을 다시 선택하면 Overlay를 닫습니다. 이 부분은 AppleScript로 1초마다 실제 포커스를 관찰하는 방식이므로 **즉시 사라지는 타이밍/OS 리소스/실제 Pi TUI에서의 UI 안정성은 검증 전**입니다.
+Agent가 자기 Ghostty Terminal 포커스를 벗어난 뒤 **30초**가 지나거나 **비포커스 Pi 응답이 정상 종료**되면, 같은 Pi TUI 위에 **해당 Pi Terminal 안에서 사용자 키 입력을 받는 Summary 정보층**을 보여주는 코드를 작성했습니다. Agent Terminal을 다시 선택해도 Overlay는 유지하고, 사용자가 Handoff 또는 Pi 화면 보기를 직접 선택하면 해당 화면으로 전환합니다. 이 부분은 AppleScript로 1초마다 실제 포커스를 관찰하는 방식이므로 **즉시 사라지는 타이밍/OS 리소스/실제 Pi TUI에서의 UI 안정성은 검증 전**입니다.
 
-현재 정보층은 Pi 대화의 마지막 실제 지시·Tool 결과·Assistant 답변을 원본 Entry ID와 함께 발췌하는 **사실 정보**입니다. 아직 경량 모델이 생성하는 의미 요약이나 **중요 결정 자동 공유 후보가 아닙니다**. Main 자동 반영/전송은 없으며, 사용자가 원본 Pi를 포커스한 뒤 `/compose handoff`에서 직접 공유 항목/대상을 고릅니다.
+현재 정보층은 Pi 대화의 마지막 실제 지시·Tool 결과·Assistant 답변을 원본 Entry ID와 함께 발췌하는 **사실 정보**입니다. 아직 경량 모델이 생성하는 의미 요약이나 **중요 결정 자동 공유 후보가 아닙니다**. Main 자동 반영/전송은 없으며, Summary에서 H를 선택하면 원본 Pi의 **기존 `/compose handoff` 흐름**으로 수신자/원본 근거/본문을 직접 고릅니다. 취소·전송 요청 후에는 Summary로 돌아올 수 있으며 P/Esc로 원래 Pi TUI를 엽니다.
 
 `pic` Overview의 Agent 행에서 `v`는 저장된 Pi 원본의 최근 사실 근거를 읽기 전용으로 확인합니다. 이 역시 Agent의 현재 진행 중 모델 상태를 추측하지 않습니다.
 

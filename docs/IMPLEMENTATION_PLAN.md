@@ -35,7 +35,7 @@
 | **Agent 생성·위임** | Main·Work·Support의 Pi 기본 입력에서 **`>w`, `>s`, `>>w`, `>>s`**, 일반 자연어 위임, 현재/`@` 선택 Pi 세션의 정확한 완료 지점 Work Fork와 독립 Support, 지시 원문 전달 | **입력한 Agent 모델 대화에 직접 위임 기록 없음**. 역할·계층 깊이 임의 제한 없음. 일반 자연어는 입력한 Agent 대화에 남을 수 있음. 기존 키 변경 제외; Pi·IME 호환성 검증 |
 | **세션 검색·Workspace** | `>w @`·`>>w @`에서 **현재 프로덕트 세션만** 이름+최근 작업+Workspace 정보로 자동완성. `>`는 호출 Agent cwd 공유, `>>`는 호출 Agent 브랜치 HEAD에서 새 Worktree 생성 | 실행 중·종료된 세션 포함, 실제 Pi 세션 ID 식별. 다른 프로덕트 제외, 일반 Pi `@` 기능 보존, 미커밋 파일 자동 복사 없음. 마지막 선택 기억·Workspace 선택창·자동 Git 통합 없음 |
 | **Surface·화면 배치** | 생성 순서대로 새 Ghostty Split 추가, 포커스 유지, Sidebar로 위치 탐색, 수동 Tab 드래그 왕복, Resize/Zoom | Agent 수 인위적 제한·완료에 따른 이동/닫기 없음; 공간 부족이면 실패를 알리고 무단 정리 금지. 동일 Pi 프로세스 유지 |
-| **상태·Summary** | Sidebar 상태만 간결 표시, 비포커스 30초 또는 응답 종료 즉시 Summary Overlay, 포커스 시 즉시 Pi TUI | 현재 하는 일/결과/필요한 결정 한 줄 + 근거 1~2개; 경량 모델의 근거·비용 제한. 추측 진행률/성공 판정 금지 |
+| **상태·Summary** | Sidebar 상태만 간결 표시, 비포커스 30초 또는 응답 종료 즉시 Summary Overlay, 포커스 시 Summary 유지 후 사용자 Handoff/Pi 명시 선택 | 현재 하는 일/결과/필요한 결정 한 줄 + 근거 1~2개; 경량 모델의 근거·비용 제한. 추측 진행률/성공 판정 금지 |
 | **Agent 실행 수명** | Pi `Esc` 중단, 개별 Agent 종료, 정상/비정상 종료 반영, 종료된 Agent 행 클릭 즉시 같은 Pi 세션을 **입력 대기로 복원**, 종료된 Agent만 Compose 목록에서 제거 | 실행 중 종료 확인, 유휴 종료 바로 처리. **작업 재개는 사용자 새 지시 이후에만** 실행. Pi 세션/Git 보존, 재-Fork·이전 지시·실패 명령 자동 재실행 금지 |
 | **`pic` 수명·복구** | 내부 종료에서 백그라운드 유지/실행 Agent 종료 선택, 완전 종료 후 Main 명시 선택·Main만 재개, **생성 실패 Agent를 Sidebar에 유지** | Cmd+Q/일반 창 닫기 가로채지 않음. 새 Work/Support 자동 시작 금지. **중복 생성·자동 재시도·Sidebar 복구 버튼 제외**; 가능한 오류 정보는 기존 Overview/터미널에 표시 |
 | **프로젝트 문서** | 승인한 중요한 결정만 기존 docs에 바로 기록, 사용자 요청 시 선택적 문서 조회 | 신규 문서 사전 확인, 계약 중복·자동 감시 DB 금지. Work 문서 갱신 권한은 미확정 |
@@ -88,7 +88,7 @@
 | **3 (코드 작성)** | Main 명시 생성·저장 세션 선택·재개 및 Work/Support 직접 위임 | `n` 새 Main / `o` 저장 Pi 세션 선택→Main Resume 코드 작성. Ghostty Split UUID를 자식 Pi에 전달해 Overview 직접 위임 Anchor로 사용. **실제 Main·위임 통합 미검증**, 생성 실패·미저장 세션의 영구 목록/중복 실행 보호 보완 필요 |
 | **4 (현재)** | `@세션`·Git Worktree | 같은 프로덕트 저장 Pi 세션 선택, 입력창 전용 자동완성, 호출 Agent HEAD 기반 `>>` Worktree 생성 코드 작성. macOS/Pi/Git 통합 검증 전 |
 | **5 (현재)** | Agent 수명·상태·종료 선택 | 일회성 Pi 자식 프로세스의 PID+OS 시작 시각·exit 이벤트 영수증, Overview 관찰 상태, `q` 백그라운드 숨김/명시적 확인 후 **확인된 프로세스만** Ghostty Surface 닫기 코드 작성. **실시간 Pi 모델 상태/동시 실행/종료 완료 확인/복구는 여전히 미구현 또는 검증 전** |
-| **6 (현재)** | Summary Overlay·Handoff 실제 UI | Pi 1.4.0 원래 TUI의 non-capturing Overlay와 포커스 30초/비포커스 응답 종료 조건, 근거 엔트리 투영 및 Overview `v` 조회 코드 작성. **경량 LLM 의미 요약·중요 결정 자동 후보·Overlay 직접 공유·완성 메시지 Sidebar는 미구현**. 실행 미검증 |
+| **6 (현재)** | Summary Overlay·Handoff 실제 UI | Pi 1.4.0 원래 TUI의 사용자 입력형 Overlay와 포커스 30초/비포커스 응답 종료 조건, 근거 엔트리 투영 및 Overview `v` 조회 코드 작성. **경량 LLM 의미 요약·중요 결정 자동 후보·Overlay 직접 공유·완성 메시지 Sidebar는 미구현**. 실행 미검증 |
 | **7** | 설치·사용 흐름 정리와 전체 실사용 검증 | 사용자 직접 실제 Ghostty/Pi 흐름 검증 및 후속 관찰 개선. 자동 PR 병합/CI 추가 없음 |
 
 ### Main 생성·명시적 재개 구현 — 2026-11-01
@@ -121,8 +121,8 @@
 
 ### 6단계 구현 진척 — Pi 원본 TUI 위 Summary Overlay (2026-11-01)
 
-- **Pi 1.4.0 공식 TUI 재사용:** `extensions/summary-overlay.ts`가 `ctx.ui.custom({overlay:true, overlayOptions:{nonCapturing:true}})`로 각 Agent의 **실제 Pi TUI 위에 직접** 패시브 정보층을 구성하는 코드를 작성했습니다. 기존 Pi 프로세스/Terminal을 복제·Resume·미러링하지 않으며 새 데스크톱 GUI/멀티플렉서를 추가하지 않습니다. 해당 Agent의 `session_start`에 정확한 Pi Session ID와 Ghostty Terminal UUID를 확인할 수 없으면 Overlay를 실행하지 않습니다.
-- **표시 조건:** Ghostty 1.3.1 AppleScript의 `frontmost` + selected Tab의 focused Terminal UUID를 읽기 전용으로 관찰합니다. 포커스 아웃 시작점을 **단조 증가 시간**으로 잡고 30초가 경과하면 표시하며, 포커스 없는 상태의 `agent_settled`가 정상 완료면 30초 대기 없이 표시합니다. 재포커스하면 Overlay를 닫고 타이머를 초기화합니다. **현 코드의 포커스 관찰은 Agent당 1초 폴링**이므로 '즉시' 전환의 실제 지연/다수 Agent에서 AppleScript 부하·권한 실패는 사용자 실사용 검증 전입니다. 정확한 이벤트 기반 포커스 전환이 필요하면 기존 Ghostty/터미널 포커스 이벤트 재사용을 별도 검토합니다.
+- **Pi 1.4.0 공식 TUI 재사용:** `extensions/summary-overlay.ts`가 `ctx.ui.custom({overlay:true, overlayOptions:{nonCapturing:false}})`로 각 Agent의 **실제 Pi TUI 위에 직접** 패시브 정보층을 구성하는 코드를 작성했습니다. 기존 Pi 프로세스/Terminal을 복제·Resume·미러링하지 않으며 새 데스크톱 GUI/멀티플렉서를 추가하지 않습니다. 해당 Agent의 `session_start`에 정확한 Pi Session ID와 Ghostty Terminal UUID를 확인할 수 없으면 Overlay를 실행하지 않습니다.
+- **표시 조건:** Ghostty 1.3.1 AppleScript의 `frontmost` + selected Tab의 focused Terminal UUID를 읽기 전용으로 관찰합니다. 포커스 아웃 시작점을 **단조 증가 시간**으로 잡고 30초가 경과하면 표시하며, 포커스 없는 상태의 `agent_settled`가 정상 완료면 30초 대기 없이 표시합니다. 재포커스 시에는 타이머만 초기화하고 Summary는 유지합니다. 사용자가 Handoff 또는 Pi 화면 보기를 직접 선택합니다. **현 코드의 포커스 관찰은 Agent당 1초 폴링**이므로 '즉시' 전환의 실제 지연/다수 Agent에서 AppleScript 부하·권한 실패는 사용자 실사용 검증 전입니다. 정확한 이벤트 기반 포커스 전환이 필요하면 기존 Ghostty/터미널 포커스 이벤트 재사용을 별도 검토합니다.
 - **현재 사실 기반 Summary:** `src/summary-evidence.ts`는 Pi 활성 분기의 마지막 사용자 요청, 실제 Tool 결과, 최근 Assistant 답변을 **원본 Entry ID가 붙은 사실**로만 보여주고 `responding`/`waiting-for-ui`/`response-ended` 등 이벤트 출처만 표시합니다. `agent_settled`는 응답 종료일 뿐 기능 구현/검증 완료가 아닙니다. Overlay는 Pi 대화에 기록되거나 Main 모델 컨텍스트에 자동 주입되지 않습니다.
 - **Overview에서 근거 확인:** `src/overview.ts`의 Agent 행 선택 후 `v`로 같은 Pi Session ID의 근거를 직접 조회합니다. 이는 읽기 전용 정보 확인 기능이며 Agent의 현재 모델 상태를 추측하지 않습니다. 기존 `/compose handoff`는 사용자가 Pi TUI에서 직접 원본·수신자·전달 내용을 선택하는 별개 전송 경로를 유지합니다.
 - **현재 미구현 핵심:** 승인된 **경량 모델의 의미 Summary**, 중요 결정 **자동 공유 후보**, 후보 항목을 Overview/Overlay에서 사용자 선택해 바로 pi-intercom Outbox로 보내는 화면, 메시지 Sidebar의 전체 상태·필터/보관, 실제 빠른 포커스 복원/IME/좁은 Split. 이 단계는 UI·근거 수집 기반의 **일부 코드 작성**이며 제품 6단계 완료가 아닙니다.
@@ -149,7 +149,7 @@
 
 - 사용자 실행 선택 없이 Work/Support 자동 시작 금지. **명시적 빠른 위임/자연어 실행 요청 자체는 시작 승인**이므로 별도의 중복 확인을 강제하지 않음. **Agent 스스로 자율적으로 다단계 위임하는 권한**은 사용자 직접 위임과 별개이며, 추가 설계 전 임의 활성화 금지.
 - Fork를 요약 프롬프트/같은 세션 Resume로 위장 금지. Main 원본 변경 금지.
-- Summary가 모델 컨텍스트에 자동 삽입되는 것 금지. **화면 표시와 정보 전달 분리**. 경량 요약은 30초 정기 호출/매 Tool 호출이 아니며, 포커스 시 즉시 Overlay를 해제해야 함.
+- Summary가 모델 컨텍스트에 자동 삽입되는 것 금지. **화면 표시와 정보 전달 분리**. 경량 요약은 30초 정기 호출/매 Tool 호출이 아니며, 포커스만으로 Overlay를 해제하지 않고 Handoff 또는 Pi 화면 보기를 사용자에게 선택시켜야 함.
 - 새 Work 생성 시 미전달 중요 결정 자동 경고·동기화 금지. Work 간 전달은 **사용자가 대상과 전송을 선택할 때만** 실행하며, 수신 Work가 응답 중이면 **현재 Pi 턴 종료 후** 모델에 반영. 기능 개발 완료를 별도로 판별하거나 대기하지 않음. `pi-intercom` 재사용 범위를 넘는 범용 메시지 시스템을 만들지 않음.
 - **Agent별 고유 Ghostty Surface·Pi 프로세스를 유지**합니다. 새 Work/Support는 Overview에 생성 순서대로 추가하지만 기존 입력 포커스를 가져오지 않습니다. Sidebar는 계층·위치를 유지하고 상태만 갱신합니다. Overview의 Split 또는 별도 작업 Tab은 **표시 위치**일 뿐입니다. 기존 Pi 실행을 재시작하거나 Resume/미러링해 이동을 흉내 내지 않습니다. **첫 버전은 Ghostty 기본 수동 드래그**를 사용하고 메뉴 한 번으로 자동 Surface 이동하는 기능은 후속 과제로 둡니다. Herdr App·herdr-core 및 별도 멀티플렉서/실행 관리 계층은 도입하지 않습니다.
 - 문서 자동 갱신은 사용자 승인과 중요한 기존 제약의 변경 여부에 근거. 새 문서 생성은 확인.
@@ -162,7 +162,7 @@
 2. Overview에서는 여러 **실제 Pi TUI Split**을 볼 수 있고, **Main 포함 Agent를 기존 Surface 그대로 다른 작업 Tab으로 옮긴 뒤 다시 Overview로 배치**할 수 있어야 합니다. 이동 전후 Pi 프로세스/세션 연속성이 유지되고, 사이드바에서 실제 Tab 위치로 포커스해야 합니다. Main이 이동해도 Overview 관리 TUI가 유지되며, **프로덕트 안 여러 Main, 전체 Agent 보기, 별도 메시지 관리 사이드바**를 탐색할 수 있어야 합니다.
 3. 종료 요청에서 사용자가 **백그라운드 유지 또는 Agent 종료**를 선택할 수 있어야 하며, 각 선택의 실제 프로세스 동작·다시 열기·기존 기록 보존이 의도대로 동작해야 합니다.
 4. Work에서 여러 번 개발·수정해도 Main에 긴 실행 로그가 자동 유입되지 않습니다. 직접 위임은 명령을 입력한 **어느 Agent의 모델 대화에도** 지시를 기록하지 않고 원문을 새 Agent에 보냅니다. 일반 자연어 위임은 입력한 Agent 대화에 남을 수 있습니다.
-5. Summary는 포커스 아웃 30초·비포커스 응답 종료 시 나타나고, 포커스 시 즉시 사라집니다. **현재 활동·결과·필요한 결정**이 확인 가능한 근거와 함께 보이며, 중요한 결정 후보는 자동 표시해도 Main 수신은 사용자 요청 없이 일어나지 않습니다.
+5. Summary는 포커스 아웃 30초·비포커스 응답 종료 시 나타나고, 포커스돼도 유지되며 사용자가 명시적으로 Pi로 돌아갈 때 닫힙니다. **현재 활동·결과·필요한 결정**이 확인 가능한 근거와 함께 보이며, 중요한 결정 후보는 자동 표시해도 Main 수신은 사용자 요청 없이 일어나지 않습니다.
 6. Sidebar의 위치/계층이 상태에 따라 바뀌지 않고, **생성 실패한 Agent도 Sidebar에 남습니다**. Agent 종료가 Pi 기록·Git 데이터 삭제로 이어지지 않으며, 종료/오류 Agent 클릭 시 **기존 Pi 세션만 입력 대기로 열고** 작업은 자동으로 재시작하지 않습니다. 임의의 새 Fork·자동 재전송을 하지 않습니다.
 7. 명령별 Workspace가 예측 가능합니다: `>`는 입력 Agent cwd 공유, `>>`는 입력 Agent 현재 브랜치 HEAD에서 새 Worktree를 생성합니다. 미커밋 파일은 복사하지 않으며 Git 병합/삭제를 자동 실행하지 않습니다.
 8. 문서화로 새 문서·중복 계약·불필요한 사용자 승인 Gate가 무분별하게 늘지 않습니다.
