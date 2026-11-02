@@ -16,6 +16,7 @@ import {
   getFocusedGhosttyTerminalId,
   listGhosttyTerminals,
   splitGhosttyTerminal,
+  shrinkSidebarForMain,
 } from './ghostty-native.ts';
 import { createNativeWorkFork } from './native-work-fork.ts';
 import { createNativeWorktree, type NativeWorktreeReceipt } from './native-worktree.ts';
@@ -39,6 +40,7 @@ export type NativeMainLaunchReceipt = {
   runtimeReceiptFile: string;
   state: 'ghostty-split-created-pi-unverified';
   mode: 'new-main' | 'resume-main';
+  sidebarResizeApplied: boolean;
 };
 
 export type NativeAgentLaunchRequest = {
@@ -53,6 +55,7 @@ export type NativeAgentLaunchRequest = {
   // Must be supplied by the actual pic Overview. A Main/Work tab is not an
   // acceptable fallback anchor, even if it is the focused terminal.
   overviewAnchorTerminalId: string;
+  requesterTerminalId?: string;
   source?: { sessionFile: string; sessionId: string; leafId: string };
 };
 
@@ -193,14 +196,57 @@ export async function startNativeMainInOverview(
   const { terminalId, runtimeReceiptFile } = await launchNativeSplit(
     bootstrap, undefined, sessionFile, request.overviewAnchorTerminalId, cwd,
   );
+  // Never mistake a layout failure for failed Pi creation. Exactly one
+  // split was already made, and re-launching would create duplicates.
+  const sidebarResizeApplied = await shrinkSidebarForMain(terminalId).catch(() => false);
   return {
     launchRequestId: bootstrap.launchRequestId,
     sessionId: bootstrap.sessionId,
     terminalId,
     runtimeReceiptFile,
     mode: request.resume ? 'resume-main' : 'new-main',
+    sidebarResizeApplied,
     state: 'ghostty-split-created-pi-unverified',
   };
+}
+
+/**
+ * Split within the existing RIGHT workspace group, not the Sidebar pane.
+ * The requester is preferred if it is still inside the pic tab. If moved
+ * to another tab, fall back to a recorded Main in the same product/tab.
+ * Never guess a Main from its title or directory.
+ */
+async function chooseRightWorkspaceAnchor(
+  overviewTerminalId: string,
+  requesterTerminalId: string | undefined,
+  product: string,
+): Promise<string> {
+  const terminals = await listGhosttyTerminals();
+  const overview = terminals.find(t => t.id === overviewTerminalId);
+  if (!overview) throw new Error('Pi Compose Sidebar Surface no longer exists.');
+  const peers = terminals.filter(t =>
+    t.tabId === overview.tabId && t.windowId === overview.windowId &&
+    t.id !== overviewTerminalId,
+  );
+  if (requesterTerminalId && peers.some(t => t.id === requesterTerminalId)) {
+    return requesterTerminalId;
+  }
+  const saved = await SessionManager.listAll();
+  for (const info of saved) {
+    try {
+      const manager = SessionManager.open(info.path);
+      if (manager.getSessionId() !== info.id) continue;
+      const identity = readAgentRelationship(info.id, manager.getEntries());
+      if (identity?.product === product && identity.role === 'main' &&
+          identity.terminalId && peers.some(t => t.id === identity.terminalId)) {
+        return identity.terminalId;
+      }
+    } catch { /* Never infer Pi owner from a stale session. */ }
+  }
+  throw new Error(
+    'No exact Main/Agent workspace Surface is in the pic tab. ' +
+    'Return a Main to that tab; the Sidebar will not be split.',
+  );
 }
 
 /**
@@ -280,9 +326,12 @@ export async function startNativeAgentInOverview(
     });
   }
 
+  const workspaceAnchorId = await chooseRightWorkspaceAnchor(
+    request.overviewAnchorTerminalId, request.requesterTerminalId, request.product,
+  );
   const { terminalId, runtimeReceiptFile } = await launchNativeSplit(
     bootstrap, request.task, sessionFile,
-    request.overviewAnchorTerminalId, targetCwd,
+    workspaceAnchorId, targetCwd,
   );
 
   return {
