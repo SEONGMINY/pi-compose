@@ -4,6 +4,25 @@
 - 상태: **새 방향의 일부 기능을 Draft PR #15에서 구현 중**. 사용자 선택형 Handoff의 Pi Extension 연결 코드는 작성됐지만 실사용·통합 검증 전입니다. Ghostty Overview와 Summary Overlay 기초 코드는 Draft로 작성됐고, 실제 제품 Sidebar·경량 의미 요약·Handoff 공유 UI 및 레거시 실행 경로는 여전히 미구현/재설계 대상입니다. 이전 tmux/workmux/Orca Phase 0–6 계획은 현행 작업 순서가 아닙니다.
 - 원칙: 사용자 검증을 위해 기능 구현과 별도로 테스트/CI/PR 병합을 자동 실행하지 않습니다. 이전 구현 코드와 사용자 세션·Worktree는 보존합니다.
 
+## 2026-11-02 실제 촬영 시도에서 확인한 문제와 Main-first 개선
+
+사용자가 README 영상 촬영을 위해 macOS Ghostty에서 `pic`을 실제 실행하면서 아래를 확인했습니다.
+
+1. `LIST_TERMINALS` AppleScript `records`가 `every record`로 해석돼 Overview 실행 실패. 수정 후 **사용자 Overview 실행 확인**.
+2. Split 환경변수 regex에서 `r/n/0`을 거부하여 Main 생성 실패. 수정 후 **실제 Ghostty Split 생성 확인**.
+3. 새 Split의 PATH에서 npm/nvm `pi`를 찾지 못할 가능성으로 런처 실패. 원래 터미널 PATH 전달과 오류 메시지 표시를 작성. **사용자 Pi TUI 실행 확인**.
+4. 전역 설치된 이전 Pi Compose `navigator.ts`와 로컬 Compose Extension 도구명이 충돌. 사용자가 Pi 설정에서 중복 Extension을 조정한 뒤 **Pi Main TUI 실행 확인**.
+5. 실제 화면은 **Overview(반쪽) → `n` → Main(반쪽)**이어서 목표 Sidebar가 아닌 관리 TUI에 가까웠습니다. **README 미디어 촬영 중단, UX 재정의 승인.**
+
+**새 Draft 구현 배치(실행/UX 검증 전):**
+- `pic` 초기 Main 자동 준비: 현재 디렉터리의 신원 확인된 Compose Main 0/1/복수에 따라 신규/기존/명시 선택.
+- 첫 Main 옆에 폭이 좁은 Sidebar를 유지하도록 Ghostty 기존 Split의 `resize_split`을 요청(실패해도 Agent 재시도 금지). Pi 입력에 포커스를 두고 시작.
+- 후속 `>w`/`>s`/`>>w`/`>>s`는 요청자의 **진짜 Pi Terminal UUID**를 기준으로 같은 pic Tab 내 작업 영역을 Split; Main이 다른 Tab이면 pic Tab에 남은 확인 가능한 Agent를 우선 사용.
+- Sidebar는 프로덕트/Agent/메시지의 간결한 목록, 원본 영수증 근거 상태, 5초 간격의 조용한 조회를 사용. 원본 Pi TUI를 Sidebar에서 미러링하지 않음.
+- 새 PR은 시작 오류 수정 PR #18 위에 쌓는 **stacked PR**로 분리. README 미디어 Draft PR #16과 별도.
+
+**남은 실사용 검증:** `pic` 직후 Main 포커스, 실제 Sidebar 초기 폭, 두 번째·세 번째 Native Split이 오른쪽에서만 중첩되는지, Sidebar 폭 유지, 다중 Main 선택/실행 중 Main 재사용, `>w` Native Fork/Worktree 실제 동작, 메시지/상태 표시/Resizing/이동 UX. **테스트 코드·타입체크·CI는 사용자 요청에 따라 이번 구현에서 실행하지 않음.**
+
 ## 1. 구현 목표
 
 **Main에서 설계·의사결정 → 현재 Agent 또는 같은 프로덕트의 선택한 Pi 세션을 정확히 Fork해 Work에서 개발 → 필요할 때 독립 Support 위임 → Work 결과 Summary 확인 → 사용자가 필요한 결정만 Main에 반영**하는 흐름을 Pi와 Ghostty만으로 사용할 수 있게 합니다.
