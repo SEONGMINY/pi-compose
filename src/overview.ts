@@ -164,9 +164,9 @@ export async function openOverview(): Promise<void> {
     if (modalActive) return; // Modal owns input focus; never erase it during sync.
     const previouslySelected = selection?.getSelectedItem()?.value;
     const title = new Text(
-      'PI COMPOSE\\n' +
-      '[1] Projects  [2] All\\n' +
-      '[3] Messages\\n' +
+      'PI COMPOSE\n' +
+      '[1] Projects  [2] All\n' +
+      '[3] Messages\n' +
       '─────────────────────',
       0, 0,
     );
@@ -188,12 +188,12 @@ export async function openOverview(): Promise<void> {
     };
     // This is a NARROW navigation Sidebar, not a separate Overview page.
     // Long logs/errors belong in Agent Pi TUI or the explicit detail action.
-    const helper = 'n New  o Open\\n' +
-      'r Sync  v Detail\\n' +
+    const helper = 'n New  o Open\n' +
+      'r Sync  v Detail\n' +
       'q Exit';
     statusText.setText(
       helper + (status && !status.startsWith('Registered Agents:') &&
-        !status.startsWith('Refreshing native') ? '\\n' + status.slice(0, 180) : ''),
+        !status.startsWith('Refreshing native') ? '\n' + status.slice(0, 180) : ''),
     );
     tui.clear();
     tui.addChild(title);
@@ -536,11 +536,16 @@ export async function openOverview(): Promise<void> {
     }
   }
 
-  async function refresh(force = false): Promise<void> {
+  async function refresh(force = false, silent = false): Promise<void> {
     if (busy && !force) return;
     busy = true;
-    status = 'Refreshing native Pi/Ghostty evidence…';
-    statusText.setText(status); tui.requestRender();
+    const before = agents.map(a =>
+      a.identity.sessionId + '/' + a.lifecycle.state + '/' + (a.terminal?.id ?? ''),
+    ).join('|');
+    if (!silent) {
+      status = 'Refreshing native Pi/Ghostty evidence…';
+      statusText.setText(status); tui.requestRender();
+    }
     try {
       terminalList = await listGhosttyTerminals();
       agents = await discoverAgents(terminalList);
@@ -561,13 +566,15 @@ export async function openOverview(): Promise<void> {
         }
       }
       agents.sort((a, b) => a.createdAt - b.createdAt);
-      status = 'Registered Agents: ' + agents.length +
-        '. Overview Terminal: ' + overviewId.slice(0, 8);
+      if (!silent) status = '';
     } catch (error) {
-      status = 'Read-only refresh failed: ' + String(error);
+      status = 'Agent sync failed: ' + String(error);
     } finally {
+      const after = agents.map(a =>
+        a.identity.sessionId + '/' + a.lifecycle.state + '/' + (a.terminal?.id ?? ''),
+      ).join('|');
       busy = false;
-      render();
+      if (!silent || before !== after || status.startsWith('Agent sync failed')) render();
     }
   }
 
@@ -689,4 +696,11 @@ export async function openOverview(): Promise<void> {
   render();
   tui.start();
   await refresh();
+  await openInitialMain();
+  // The Sidebar observes native Pi records, not a synthetic agent registry.
+  // Never interrupt a modal or reset keyboard selection during background sync.
+  const sync = setInterval(() => {
+    if (!busy && !modalActive) void refresh(false, true);
+  }, 4000);
+  sync.unref?.();
 }
