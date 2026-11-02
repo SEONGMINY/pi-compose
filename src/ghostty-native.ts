@@ -240,7 +240,7 @@ export async function splitGhosttyTerminal(
   if (!cwd.startsWith('/') || !command.trim()) {
     throw new GhosttyAutomationError('Split requires an absolute cwd and a command.');
   }
-  if (environmentVariables.some(value => !/^[A-Z_][A-Z0-9_]*=[^\\r\\n\\0]*$/.test(value))) {
+  if (environmentVariables.some(value => !/^[A-Z_][A-Z0-9_]*=[^\r\n\0]*$/.test(value))) {
     throw new GhosttyAutomationError('Invalid Ghostty split environment entry.');
   }
   const newId = await runAppleScript(SPLIT_TERMINAL, [validId(anchorTerminalId), cwd, command, ...environmentVariables]);
