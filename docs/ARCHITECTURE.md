@@ -137,6 +137,23 @@ Ghostty가 새 Split의 Terminal UUID를 돌려준 후 해당 ID와 Overview UUI
 
 `src/product-sessions.ts`는 원본 후보 식별, `extensions/direct-delegation.ts`는 기존 Pi 에디터 자동완성/직접 위임, `src/native-worktree.ts`는 Git의 브랜치·Worktree 생성, `src/native-agent-launch.ts`는 Pi 세션과 실제 Ghostty Split을 연결합니다. 둘 다 실패/취소 시 중복 실행이나 Worktree 자동 삭제를 피하고, 작업 지시 원문은 **수신 자식 Pi**로만 전달합니다. 자식 identity에는 원본 Git Branch/HEAD와 새 Workspace를 저장합니다. 이 범위는 **코드 작성 완료 / 타입·실행·실사용 검증 전**입니다.
 
+### 3.7 첫 Main 자동 진입과 오른쪽 작업 그룹 (Draft 설계 구현)
+
+```text
+pic Ghostty Tab
+├── Sidebar: pic Pi-TUI 관리 Surface (좁게 유지)
+└── Workspace: Native Ghostty Split 영역
+    ├── Main: 원본 Pi TUI
+    ├── Work: Main/Work를 Fork한 다른 Native Pi TUI
+    └── Support: 독립 Native Pi TUI
+```
+
+`pic`은 **먼저 Sidebar를 표시한 뒤 즉시 첫 Main Split을 생성·포커스**합니다. 기존 Main은 정확한 cwd/저장 Pi 신원으로 재사용하며, 세션 프로세스 생존이 불명확한 경우 사용자에게 선택을 남깁니다. 첫 Main에 이전 작업 프롬프트를 자동 전송하지 않습니다.
+
+첫 Main Split은 Sidebar Terminal을 기준으로 생성합니다. 이후에는 Sidebar가 아니라 **동일 Ghostty Tab의 요청 Agent 또는 기록된 Main Terminal을 Split anchor로 사용**하여 오른쪽 작업 그룹을 확장합니다. Ghostty 자체의 Split tree와 Native Terminal UUID를 사용하며 Pi 실행/대화는 기존 프로세스가 유지합니다. 최초 Sidebar 폭 축소는 `perform action resize_split` best-effort이고 픽셀 보장은 없습니다.
+
+제품 정책·Git Workspace 선택·Main 컨텍스트 자동 오염 금지·Agent 간 Fork 원본·Handoff 선택 기준은 변경하지 않습니다. 새 엔진·데이터베이스·화면 미러링은 도입하지 않습니다. **중첩 Split resize 결과는 실제 macOS Ghostty에서 검증하기 전까지 미확정입니다.**
+
 ## 4. Fork / Independent / Workspace
 
 | Agent | `>` — Shared Directory | `>>` — Git Worktree |
