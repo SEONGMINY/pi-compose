@@ -145,6 +145,15 @@
 - `src/overview.ts`의 `v` 근거 조회는 동일 Pi Session ID의 저장된 세션 원본을 읽기 전용으로 확인합니다. Overlay 자체의 공유 버튼 및 경량 LLM 의미 요약/후보 자동 추출·수신자 선택/메시지 Sidebar 통합은 미구현이며, 현행 사용자 명시적 `/compose handoff`를 유지합니다.
 - **통합·성능 위험:** `ctx.ui.custom`과 `ui_prompt_start/end`의 비차단 동작, 다수 Agent에서 1초 AppleScript subprocess 비용, TUI 좁은 폭/IME, Ghostty focus 지연/터미널 재배치, `agent_settled` 최종 응답 이벤트 순서를 실제 Pi 1.4.0 + Ghostty 1.3.1에서 확인해야 합니다. 실사용/타입 검증은 아직 수행하지 않았습니다.
 
+### Main-first Ghostty Sidebar·작업 영역 (2026-11-02, Draft)
+
+- **공식 근거:** Ghostty 1.3.1 `Ghostty.sdef`의 `split <terminal> direction right` 및 `perform action`과 `resize_split:left,<pixels>`. Pi의 TUI는 여전히 각 Native Ghostty Terminal의 Pi 프로세스가 소유합니다. 별도 GUI·tmux/workmux·에이전트 복제는 추가하지 않습니다.
+- `src/overview.ts`: cwd의 **기록된 Compose Main identity**를 탐색하고, 없으면 현재 cwd와 기본 제품명으로 Main을 먼저 실행. 이미 실행 중인 Main의 세션/프로세스를 복제하거나 기존 대화의 원문 작업 지시를 재전송하지 않습니다. 여러 후보·불명확한 생존 상태는 사용자의 명시 선택으로만 진행합니다. Overview는 TUI 전체 화면이 아니라 **짧은 프로젝트/Agent 탐색 목록인 왼쪽 Sidebar**입니다.
+- `src/native-agent-launch.ts`: 첫 Main만 Sidebar Terminal에서 오른쪽 Split으로 생성합니다. 이후 Work·Support는 정확한 요청 Agent의 Terminal이 같은 `pic` Tab에 있으면 그 Terminal을 Split하고, 다른 Tab에 있다면 **동일 프로덕트의 명시적으로 기록된 Main**을 같은 Tab에서 찾아 오른쪽 작업 영역만 Split합니다. 유효한 작업 영역이 없으면 임의로 Sidebar를 Split하거나 다른 Tab에 생성하지 않고 중단합니다. Workspace Split anchor를 **Git Worktree/Pi Fork 생성 이전에** 검증합니다.
+- `src/ghostty-native.ts`: 첫 Main 생성 후 Ghostty `perform action`으로 Sidebar 너비 축소를 1회 요청합니다. 액션이 거절되거나 OS 환경에서 실패해도 새 Main을 다시 생성하지 않으며 사용자가 Divider를 직접 조절할 수 있습니다. 정확한 너비는 하드코딩된 보장값이 아닙니다.
+- Sidebar Agent 목록은 Pi 세션/OS 증거를 일정 간격으로 읽지만 수동 선택 중인 Modal을 지우지 않고, 기존 선택 항목을 가능한 한 유지합니다. **실제 사용 중 리프레시 UI 흔들림, AppleScript 크기 적용 방향, 새로운 Work 추가 후 Sidebar 폭 및 4초 polling 비용 검증은 미수행**입니다.
+- 새 Main 최초 사용자 메시지 전 Pi JSONL이 없는 Native Pi 정책, 수동 Tab 이동과 기존 프로세스 중복 보호·실패 항목 기록 등 기존 제약은 그대로 유지됩니다.
+
 ## 4. 아직 해결되지 않은 기술·제품 질문
 
 1. `pi-intercom` 0.18.1 `human-first` 정상 턴 종료 경계는 **외부 TUI 실행 1회 관찰**. **Compose Outbox와 실제 설치/설정 조합은 미검증**이며, 중단·오류의 수신 및 Broker 전송·대기·주입·실제 모델 처리의 관찰 범위는 구현 연결 시 확인합니다. Outbox `sent`는 수신 모델이 읽음/승인함을 뜻하지 않습니다.
