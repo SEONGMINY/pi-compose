@@ -176,6 +176,16 @@ Pi 1.4.0 공식 `ctx.ui.custom({ overlay: true, overlayOptions: { nonCapturing: 
 
 **코드 작성 상태이며 Ghostty/Pi 실제 Overlay·성능/IME/이벤트 검증 전**입니다. 이 구현으로 Summary 필수 요구사항 전체를 충족했다고 판단하지 않습니다.
 
+### 실사용 재설계 — Main-first Sidebar (2026-11-02)
+
+실제 macOS에서 `pic → n → 제품·이름·cwd 입력 → Main` 방식과 화면 너비 절반을 점유하는 Overview가 사용자 기대에 맞지 않는 것을 확인했습니다. **제품의 기본 진입점은 `pic → 좁은 왼쪽 Sidebar + 즉시 사용 가능한 오른쪽 Main Pi TUI`**입니다. 첫 Main 생성은 추가 사용자 입력 없이 현재 cwd를 기본 프로덕트로 사용하며, Main의 최초 프롬프트/대화는 자동 생성하지 않습니다.
+
+`>w`/`>s`와 `>>w`/`>>s`가 실행되면 Sidebar는 유지하고 **오른쪽의 기존 Pi 작업 영역 내부를 Split**합니다. Agent 생성/상태는 Sidebar에 자동 반영하며, 사용자 수동 `r`이 새 Agent를 등록하는 필수 절차가 되어서는 안 됩니다. `n`과 `o`는 추가 Main/기존 저장 세션을 명시적으로 다루는 보조 동작으로 남습니다.
+
+**자동 Resume 안전선:** 현재 cwd와 신원이 일치하는 Main이 하나이고 기존 Ghostty Surface에 연결됐다면 재실행하지 않고 사용합니다. 여러 Main이 있거나 OS 프로세스 생존이 불명확하면 임의로 하나를 선택하거나 중복 실행하지 않고 명시적인 Main 선택을 요구합니다. 실제 Ghostty Tab을 이동한 Main을 새 Pi로 가장하지 않습니다.
+
+Ghostty 1.3.1은 지정 Terminal에 대한 Split과 `perform action "resize_split:left,<pixels>"`를 제공하지만, Sidebar 정확한 px 크기/중첩 Split의 너비 유지 여부는 Mac 실사용 검증이 필요합니다. **현재 기능은 Draft 코드이며 검증 완료가 아닙니다.** README PR #16의 영상 촬영은 이 UX가 실제 동작한 뒤 진행합니다.
+
 ## 7. 아직 확정되지 않은 결정
 
 1. **전달 경계:** `pi-intercom` 0.18.1 `human-first`는 실제 Pi TUI 정상 턴 종료 뒤 메시지를 주입한 1회 실행 근거가 있습니다. 전체 오류·중단 경계나 Compose Outbox 통합이 검증된 것은 아닙니다. **현재 Pi 턴 종료 후 전달**이라는 확정 기준은 유지하며, 수신 확인·모델 처리 완료의 의미를 구분합니다.
