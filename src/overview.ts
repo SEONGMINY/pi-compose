@@ -100,8 +100,9 @@ function toEntries(view: View, agents: readonly VisibleAgent[]): Array<{ item: S
           item: {
             value: 'agent/' + id,
             label: '  '.repeat(Math.min(depth + 1, 12)) + agent.identity.label,
-            description: (agent.identity.role === 'main' ? '' : agent.identity.role + ' · ') +
-              agent.lifecycle.state + (agent.terminal ? ' · Surface 확인' : ' · Surface 미확인'),
+            description: agent.lifecycle.state === 'process-observed' ? 'running (OS)' :
+              agent.lifecycle.state === 'launch-failed' ? 'start failed' :
+              agent.lifecycle.state === 'exited-observed' ? 'exited' : 'unverified',
           },
           action: { type: 'agent', sessionId: id },
         });
@@ -125,9 +126,8 @@ function toEntries(view: View, agents: readonly VisibleAgent[]): Array<{ item: S
     item: {
       value: 'agent/' + agent.identity.sessionId,
       label: agent.identity.label,
-      description: agent.identity.product + ' / ' + agent.identity.role +
-        ' / ' + agent.lifecycle.state +
-        (agent.terminal ? ' / Surface 확인' : ' / Surface 미확인'),
+      description: agent.identity.role + ' · ' +
+        (agent.lifecycle.state === 'process-observed' ? 'running (OS)' : agent.lifecycle.state),
     },
     action: { type: 'agent', sessionId: agent.identity.sessionId },
   }));
@@ -164,7 +164,7 @@ export async function openOverview(): Promise<void> {
   function render(): void {
     const title = new Text(
       'PI COMPOSE\n' +
-      '[1] Projects  [2] Agents  [3] Inbox\n' +
+      '[1] P  [2] A  [3] M\n' +
       (view === 'products' ? 'PROJECTS' : view === 'agents' ? 'AGENTS' : 'MESSAGES'),
       0, 0,
     );
@@ -193,9 +193,9 @@ export async function openOverview(): Promise<void> {
       ? status.slice(0, Math.max(8, width - 6)) + '… [?]'
       : status);
     statusText.setText((abbreviated ? abbreviated + '\n' : '') +
-      'Enter: Focus  n: +Main\n' +
-      'o: Open  v: Info  r: ↻\n' +
-      '?: Details  q: Exit');
+      'Enter Focus · n New Main\n' +
+      'o Open · v Info · r ↻\n' +
+      '? Details · q Exit');
     tui.clear();
     tui.addChild(title);
     tui.addChild(selection);
@@ -502,11 +502,15 @@ export async function openOverview(): Promise<void> {
     }
   }
 
-  async function refresh(force = false): Promise<void> {
+  let previousAgentSnapshot = '';
+  async function refresh(force = false, quiet = false): Promise<void> {
     if (busy && !force) return;
     busy = true;
-    status = 'Refreshing native Pi/Ghostty evidence…';
-    statusText.setText(status); tui.requestRender();
+    if (!quiet) {
+      status = 'Refreshing native Pi/Ghostty evidence…';
+      statusText.setText(status); tui.requestRender();
+    }
+    let changed = true;
     try {
       terminalList = await listGhosttyTerminals();
       agents = await discoverAgents(terminalList);
@@ -527,13 +531,21 @@ export async function openOverview(): Promise<void> {
         }
       }
       agents.sort((a, b) => a.createdAt - b.createdAt);
-      status = 'Registered Agents: ' + agents.length +
+      const snapshot = JSON.stringify(agents.map(agent => [
+        agent.identity.sessionId, agent.identity.requesterSessionId,
+        agent.identity.label, agent.lifecycle.state,
+        agent.terminal?.id, agent.messages.length,
+      ]));
+      changed = snapshot !== previousAgentSnapshot;
+      previousAgentSnapshot = snapshot;
+      if (!quiet) status = 'Registered Agents: ' + agents.length +
         '. Overview Terminal: ' + overviewId.slice(0, 8);
     } catch (error) {
+      changed = true;
       status = 'Read-only refresh failed: ' + String(error);
     } finally {
       busy = false;
-      render();
+      if (!quiet || changed) render();
     }
   }
 
@@ -629,6 +641,28 @@ export async function openOverview(): Promise<void> {
     // discard ambiguous processes after a partial closure.
   }
 
+  function showDetails(): void {
+    if (busy || modalActive) return;
+    modalActive = true;
+    const back = new SelectList([{ value: 'back', label: 'Return to Sidebar' }], 1, selectionTheme);
+    back.onSelect = () => { modalActive = false; render(); };
+    back.onCancel = () => { modalActive = false; render(); };
+    tui.clear();
+    tui.addChild(new Text(
+      'PI COMPOSE / DETAILS\n' +
+      'This Sidebar controls native Ghostty Pi terminals.\n' +
+      'Main opens automatically for the current project.\n' +
+      'Use >w / >s within Pi to add an Agent to its work area.\n' +
+      'n New Main | o Saved Main | Enter Focus | v Evidence\n' +
+      'Status: ' + status + '\n' +
+      'OS process presence is NOT model readiness or task success.',
+      0, 0,
+    ));
+    tui.addChild(back);
+    tui.setFocus(back);
+    tui.requestRender();
+  }
+
   tui.addInputListener(data => {
     if (modalActive) return undefined;
     if (matchesKey(data, 'ctrl+c') || matchesKey(data, 'q')) {
@@ -650,6 +684,9 @@ export async function openOverview(): Promise<void> {
     if (matchesKey(data, 'r')) {
       void refresh(); return { consume: true };
     }
+    if (matchesKey(data, '?')) {
+      showDetails(); return { consume: true };
+    }
     return undefined;
   });
   render();
@@ -658,4 +695,10 @@ export async function openOverview(): Promise<void> {
   // A pic invocation starts directly with the real native Pi Main. The
   // Overview is a secondary, compact companion rather than a creation gate.
   await startProjectMain();
+  // Quiet read-only observation updates agent membership/status without a
+  // user refresh. Do not recreate the list while a selector is open or reset
+  // its active selection when the same evidence is returned.
+  setInterval(() => {
+    if (!modalActive && !busy) void refresh(false, true);
+  }, 5000).unref();
 }
