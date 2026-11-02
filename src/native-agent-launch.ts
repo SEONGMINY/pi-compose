@@ -54,9 +54,11 @@ export type NativeAgentLaunchRequest = {
   requesterSessionFile?: string;
   targetCwd: string;
   workspace?: 'shared' | 'worktree';
-  // Must be supplied by the actual pic Overview. A Main/Work tab is not an
-  // acceptable fallback anchor, even if it is the focused terminal.
+  // The exact owning pic Sidebar, propagated unchanged across every Fork.
   overviewAnchorTerminalId: string;
+  // The caller's native Pi Terminal; may anchor the RIGHT workspace Split.
+  // Never replace overviewAnchorTerminalId with this value.
+
   requesterTerminalId?: string;
   source?: { sessionFile: string; sessionId: string; leafId: string };
 };
@@ -91,10 +93,14 @@ async function launchNativeSplit(
   sessionFile: string | undefined,
   overviewAnchorTerminalId: string,
   targetCwd: string,
+  splitAnchorTerminalId: string = overviewAnchorTerminalId,
 ): Promise<{ terminalId: string; runtimeReceiptFile: string }> {
   const existing = await listGhosttyTerminals();
-  if (!existing.some(term => term.id === overviewAnchorTerminalId)) {
-    throw new Error('The exact pic Overview anchor Terminal no longer exists.');
+  const sidebar = existing.find(term => term.id === overviewAnchorTerminalId);
+  const anchor = existing.find(term => term.id === splitAnchorTerminalId);
+  if (!sidebar || !anchor || sidebar.tabId !== anchor.tabId ||
+      sidebar.windowId !== anchor.windowId) {
+    throw new Error('Split requires the original pic Sidebar and a workspace Terminal in its Tab.');
   }
   const ticketDir = await mkdtemp(join(tmpdir(), 'pi-compose-launch-'));
   const ticketPath = join(ticketDir, 'ticket.json');
@@ -119,7 +125,7 @@ async function launchNativeSplit(
   let terminalId: string;
   try {
     terminalId = await splitGhosttyTerminal(
-      overviewAnchorTerminalId, targetCwd, command,
+      splitAnchorTerminalId, targetCwd, command,
       splitEnvironment,
     );
     await writeTicketAtomic(ticketPath, {
@@ -205,7 +211,7 @@ export async function startNativeMainInOverview(
     label: request.label, workspaceCwd: cwd,
   });
   const { terminalId, runtimeReceiptFile } = await launchNativeSplit(
-    bootstrap, undefined, sessionFile, anchorId, cwd,
+    bootstrap, undefined, sessionFile, request.overviewAnchorTerminalId, cwd, anchorId,
   );
   // Resize only when establishing the FIRST right-hand workspace group.
   // Additional Main agents split an existing Pi Surface and preserve the root.
@@ -351,7 +357,7 @@ export async function startNativeAgentInOverview(
 
   const { terminalId, runtimeReceiptFile } = await launchNativeSplit(
     bootstrap, request.task, sessionFile,
-    workspaceAnchorId, targetCwd,
+    request.overviewAnchorTerminalId, targetCwd, workspaceAnchorId,
   );
 
   return {
