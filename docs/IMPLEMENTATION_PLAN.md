@@ -128,6 +128,19 @@
 - **현재 미구현 핵심:** 승인된 **경량 모델의 의미 Summary**, 중요 결정 **자동 공유 후보**, 후보 항목을 Overview/Overlay에서 사용자 선택해 바로 pi-intercom Outbox로 보내는 화면, 메시지 Sidebar의 전체 상태·필터/보관, 실제 빠른 포커스 복원/IME/좁은 Split. 이 단계는 UI·근거 수집 기반의 **일부 코드 작성**이며 제품 6단계 완료가 아닙니다.
 - **검증:** AppleScript 1초 폴링/동시 Agent 수에 따른 비용, `ctx.ui.custom` 비차단 렌더링과 Pi의 `ui_prompt_*` 이벤트 상호작용, `agent_settled` 표시 시점, 포커스 재획득/원본 TUI 표시, 한글 텍스트/줄바꿈은 모두 사용자 로컬 통합 검증 전입니다.
 
+### 실사용 발견 UX 문제에 따른 진입/배치 구조 수정 (2026-11-02)
+
+**문제 증거:** 실제 Mac에서 `pic` 실행 → Overview가 화면 너비 약 절반 점유 → `n` 및 제품·Main·cwd 입력 → Main Pi Split 실행. 작동 여부와 별개로 **Sidebar가 메인 개발 영역을 침범**했고 사용자가 기대한 `pic → Sidebar + Main`과 다릅니다.
+
+**이번 코드 범위 (별도 Draft PR):**
+1. cwd 기준 첫 Main 자동 생성/안전한 명시적 Resume, 일반 `n`/`o`는 보조 관리 동작.
+2. Main 초기 Split 시 Ghostty 기본 Native `resize_split`으로 Sidebar 축소 1회 요청. 추가 Main은 화면의 기록된 기존 오른쪽 Pi Surface를 기준으로 Split해 Sidebar를 다시 분할하지 않음. 실제 폭 픽셀 보장 없음.
+3. `>w`·`>s`·`>>w`·`>>s`는 정확한 기존 오른쪽 작업 영역 Pi Terminal에서 새 Split. Sidebar Terminal을 직접 Split anchor로 재사용하지 않음.
+4. Sidebar의 긴 텍스트·설명을 정리하고 자동 기록 조회 간격을 두되 Agent 선택과 Modal 입력을 유지. Ghostty Native Terminal UUID/Pi Session Manager에 의존하며 별도 DB/Agent runtime 도입 없음.
+5. 오류 시 임의 중복 생성·Worktree 삭제/재시도 금지; Git Worktree/Pi Fork 돌입 **전** 실제 Workspace Split anchor를 검증.
+
+**아직 검증할 것:** Ghostty `perform action resize_split`의 실제 방향·효과, 첫 Main 자동 포커스, 이미 실행 중 Main 처리, Sidebar 폭과 다중 Work/Support 중첩 Split 유지, 상태 갱신/입력 포커스, 오류/중복/재접속. 전체 README 촬영 중단. 타입체크·CI·Mac 통합 테스트 수행하지 않음.
+
 ### 이후 사용자 실사용 검증
 
 전체 구현 배치를 마친 뒤 사용자가 실제 개발 흐름(위임→Overview의 새 Split→포커스·30초 Overlay→결과·확인 필요→종료·재개→Handoff)으로 확인합니다. **새 테스트 코드/CI 작성, PR 병합, 기능별 검증 반복은 사용자가 별도로 요청하기 전까지 진행하지 않습니다.** 실사용에서 발견한 실패/불편 사항을 모아 후속 개선합니다.
