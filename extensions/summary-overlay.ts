@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { Text, type Component } from '@earendil-works/pi-tui';
+import { Text, matchesKey, type Component } from '@earendil-works/pi-tui';
 import { performance } from 'node:perf_hooks';
 import { decodeAgentBootstrap, AGENT_BOOTSTRAP_ENV } from '../src/agent-bootstrap.ts';
 import { isGhosttyTerminalFocused } from '../src/ghostty-native.ts';
@@ -8,18 +8,35 @@ import { projectSummaryEvidence, type SummaryEvidence } from '../src/summary-evi
 const UNFOCUSED_DELAY_MS = 30_000;
 const FOCUS_OBSERVATION_INTERVAL_MS = 1_000;
  
-// The Summary takes visual priority within an UNFOCUSED Pi Surface.
-// A non-capturing overlay keeps the original Pi TUI and process untouched;
-// focusing that exact Surface closes it and reveals the original screen.
+// Summary takes priority within its own Pi Surface while it remains open.
+// On focus it offers explicit Handoff or a return to the original Pi TUI.
+// It never overlays neighboring Ghostty Splits or the Compose Sidebar.
 const PANEL_BACKGROUND = '\x1b[48;2;29;35;46m\x1b[38;2;242;246;252m';
 const PANEL_RESET = '\x1b[0m';
 const paintPanel = (text: string): string => PANEL_BACKGROUND + text + PANEL_RESET;
 
+type SummaryAction = 'handoff' | 'pi';
+
 class FullTerminalSummary implements Component {
+  private choice: SummaryAction = 'handoff';
+
   constructor(
     private readonly content: Text,
     private readonly terminalRows: () => number,
+    private readonly setChoice: (choice: SummaryAction) => void,
+    private readonly onAction: (action: SummaryAction) => void,
   ) {}
+
+  handleInput(data: string): void {
+    if (matchesKey(data, 'h')) return this.onAction('handoff');
+    if (matchesKey(data, 'p') || matchesKey(data, 'escape')) return this.onAction('pi');
+    if (matchesKey(data, 'up') || matchesKey(data, 'down') || matchesKey(data, 'tab')) {
+      this.choice = this.choice === 'handoff' ? 'pi' : 'handoff';
+      this.setChoice(this.choice);
+      return;
+    }
+    if (matchesKey(data, 'enter')) this.onAction(this.choice);
+  }
 
   render(width: number): string[] {
     const height = Math.max(1, this.terminalRows());
@@ -46,7 +63,10 @@ class FullTerminalSummary implements Component {
  * separately bounded model and decision candidate detection are NOT supplied
  * by this extension yet.
  */
-export function registerSummaryOverlay(pi: ExtensionAPI): void {
+export function registerSummaryOverlay(
+  pi: ExtensionAPI,
+  handoff: (ctx: ExtensionContext) => Promise<void>,
+): void {
   const ticket = decodeAgentBootstrap(process.env[AGENT_BOOTSTRAP_ENV]);
   if (!ticket?.terminalId) return;
 
@@ -58,8 +78,12 @@ export function registerSummaryOverlay(pi: ExtensionAPI): void {
   let status: SummaryEvidence['status'] = 'idle-or-unknown';
   let currentTool: string | undefined;
   let overlayActive = false;
-  let closingPassivePrompt = false;
-  let closingOverlay: (() => void) | undefined;
+  let closingSummaryPrompt = false;
+  let closingOverlay: ((action?: SummaryAction) => void) | undefined;
+  let handoffRunning = false;
+  let overlaySequence = 0;
+  let dismissedOnTurn = -1;
+  let turnNumber = 0;
   let textComponent: Text | undefined;
   let redraw: (() => void) | undefined;
   let polling = false;
@@ -75,7 +99,7 @@ export function registerSummaryOverlay(pi: ExtensionAPI): void {
       currentTool,
     );
   }
-  function visual(): string {
+  function visual(choice: SummaryAction = 'handoff'): string {
     const evidence = currentEvidence();
     if (!evidence) return 'Pi Compose — source session changed';
     return [
@@ -88,9 +112,12 @@ export function registerSummaryOverlay(pi: ExtensionAPI): void {
       ...evidence.facts.map(fact => '• ' + fact.text + ' [' + fact.sourceEntryId.slice(0, 8) + ']'),
       '',
       '────────────────────────────────',
-      '해당 Agent를 선택하면 원래 Pi 화면으로 돌아갑니다.',
-      'Main/다른 Agent 공유: /compose handoff에서 직접 선택',
-      '응답 종료는 실제 작업 완료나 검증 완료를 뜻하지 않습니다.',
+      choice === 'handoff' ? '> H  Main/다른 Agent에 Handoff' : '  H  Main/다른 Agent에 Handoff',
+      choice === 'pi' ? '> P  원래 Pi 화면 보기' : '  P  원래 Pi 화면 보기',
+      '↑/↓ 선택 · Enter 실행 · Esc 원래 Pi 화면',
+      '',
+      'Handoff는 수신자·근거·본문을 사용자가 검토한 뒤에만 요청합니다.',
+      '응답 종료 ≠ 실제 작업 완료/검증 완료',
     ].join('\n');
   }
   function update(): void {
