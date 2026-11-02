@@ -137,6 +137,12 @@
 - **중복 Main 재개 방어:** 정확히 선택된 세션의 Ghostty Surface가 존재하면 재실행을 거부하고, Surface가 없어도 Native Pi PID+OS 시작 시각이 확인되면 새 Pi 인스턴스를 만들지 않습니다. 유휴/외부 Pi 프로세스 여부를 알 수 없는 기존 세션은 Overview에서 **명시적 위험 확인(`RESUME`)**을 받아야 합니다. 자동 복구나 무조건 재실행은 하지 않습니다.
 - **미완료:** 전 Agent의 실제 종료 확인/강제 종료 복구/다중 Pi 동시 세션 충돌·기존 터미널 내부에서 수동 재개한 Pi/세션 실시간 생존 감지/완전한 background exit UX/Surface 이동. Pi 세션·Git Worktree는 삭제하지 않습니다. 별도 Broker/daemon/DB를 도입하지 않습니다. 이 구현의 타입·실행 검증은 사용자 범위입니다.
 
+### 비포커스 Agent 전체 영역 Summary Overlay — 2026-11-02
+
+Pi 1.4.0 `OverlayOptions.width = "100%"`, `maxHeight = "100%"`, `row = 0`, `col = 0`, `margin = 0`, `nonCapturing = true`를 사용합니다. **`maxHeight`는 실제 높이가 아니라 상한**이므로 `Text` 컴포넌트만 100%로 지정하면 기존 Pi 화면이 아래로 드러납니다. 현재 Native Pi TUI의 `tui.terminal.rows`를 사용해 Component의 `render(width)`가 터미널 높이만큼 배경이 채워진 행을 반환하도록 구현했습니다. Terminal resize 시 렌더마다 폭/행 수를 다시 계산합니다.
+
+표시 대상은 **각 Agent의 기존 Ghostty Terminal 내부**입니다. Pi 프로세스/대화를 종료·Resume·미러링하지 않습니다. 포커스가 돌아오면 기존 `close()` 호출이 Overlay를 해제합니다. 실제 Mac에서 Pi 키보드 포커스, 좁은 Split 높이·폭, ANSI 배경색/줄바꿈, TUI의 일반 화면 렌더 지연을 반드시 검증해야 합니다. 사용자 직접 Handoff와 의미 요약은 후속 작업입니다.
+
 ### Pi 1.4.0 내장 Overlay와 사실 기반 Summary (Draft PR #15)
 
 - 공식 `packages/coding-agent/docs/tui.md`는 기존 Pi TUI 위의 임시 정보층을 **`ctx.ui.custom({overlay:true})`**로 구현할 수 있음을 명시합니다. `OverlayOptions.nonCapturing`은 키보드 포커스를 가져오지 않습니다. 별도의 Ghostty 내용 캡처/미러링, 외부 창, 인터컴 메시징을 Overlay 생성에 사용하지 않습니다.
