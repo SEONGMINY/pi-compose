@@ -125,27 +125,41 @@ export function registerSummaryOverlay(
     textComponent.setText(visual());
     redraw?.();
   }
-  function close(): void {
+  function close(action?: SummaryAction): void {
     if (!overlayActive) return;
     overlayActive = false;
     const done = closingOverlay;
-    closingPassivePrompt = true;
+    closingSummaryPrompt = true;
     closingOverlay = undefined;
     textComponent = undefined;
     redraw = undefined;
-    done?.();
+    done?.(action);
   }
+
   function show(): void {
-    if (!ctx || !ctx.hasUI || overlayActive || status === 'idle-or-unknown' &&
-        !ctx.sessionManager.getBranch().some(e => e.type === 'message')) return;
+    if (!ctx || !ctx.hasUI || overlayActive || handoffRunning ||
+        dismissedOnTurn === turnNumber ||
+        (status === 'idle-or-unknown' &&
+         !ctx.sessionManager.getBranch().some(e => e.type === 'message'))) return;
     overlayActive = true;
     const thisGeneration = generation;
-    const promise = ctx.ui.custom<void>((tui, _theme, _keys, done) => {
-      if (generation !== thisGeneration) { done(); return new Text('', 0, 0); }
-      closingOverlay = () => done();
+    const thisOverlay = ++overlaySequence;
+    const source = ctx;
+    const promise = ctx.ui.custom<SummaryAction | undefined>((tui, _theme, _keys, done) => {
+      if (generation !== thisGeneration) {
+        done(undefined);
+        return new Text('', 0, 0);
+      }
+      closingOverlay = done;
       textComponent = new Text(visual(), 2, 1, paintPanel);
       redraw = () => tui.requestRender();
-      return new FullTerminalSummary(textComponent, () => tui.terminal.rows);
+      const setChoice = (choice: SummaryAction) => {
+        textComponent?.setText(visual(choice));
+        redraw?.();
+      };
+      return new FullTerminalSummary(
+        textComponent, () => tui.terminal.rows, setChoice, action => close(action),
+      );
     }, {
       overlay: true,
       overlayOptions: {
@@ -154,12 +168,37 @@ export function registerSummaryOverlay(
         width: '100%',
         maxHeight: '100%',
         margin: 0,
-        nonCapturing: true,
+        // The focused Summary owns its own Terminal's keyboard, allowing the
+        // user to choose Handoff or Pi. Neighboring Ghostty Splits are untouched.
+        nonCapturing: false,
       },
     });
-    // Do not await: the passive UI must never block the running Pi turn.
-    void promise.catch(() => {}).finally(() => {
-      if (generation === thisGeneration) close();
+    // Opening Summary does not await or block the Agent's model turn.
+    void promise.then(async action => {
+      if (generation !== thisGeneration || ctx !== source) return;
+      if (action === 'pi') {
+        // An explicit Pi return suppresses this stale Summary on the next blur.
+        // A subsequent Agent response may produce a new Summary.
+        dismissedOnTurn = turnNumber;
+      } else if (action === 'handoff') {
+        handoffRunning = true;
+        try {
+          // Reuse the existing human-selected recipient/source/type/editor flow.
+          // Merely pressing H never sends anything.
+          await handoff(source);
+        } finally {
+          handoffRunning = false;
+        }
+        if (generation === thisGeneration && ctx === source &&
+            source.sessionManager.getSessionId() === activeSessionId) {
+          show(); // Preserve the Summary after success, failure, or cancellation.
+        }
+      }
+    }).catch(error => {
+      source.ui.notify('Summary Handoff failed: ' + String(error), 'error');
+    }).finally(() => {
+      // A stale overlay resolution must not dismiss the newer Summary.
+      if (overlayActive && overlaySequence === thisOverlay) close();
     });
   }
   async function observeFocus(): Promise<void> {
@@ -171,7 +210,8 @@ export function registerSummaryOverlay(
       if (focused) {
         wasFocused = true;
         lastBlurAt = undefined;
-        close();
+        // Focus is an opportunity to interact with Summary, not a dismissal.
+        // Explicit Pi return is available via P / Escape.
       } else {
         if (wasFocused !== false) lastBlurAt = performance.now();
         wasFocused = false;
@@ -198,7 +238,10 @@ export function registerSummaryOverlay(
     wasFocused = undefined;
     status = 'idle-or-unknown';
     currentTool = undefined;
-    closingPassivePrompt = false;
+    closingSummaryPrompt = false;
+    handoffRunning = false;
+    dismissedOnTurn = -1;
+    turnNumber = 0;
   }
 
   pi.on('session_start', (_ev, current) => {
