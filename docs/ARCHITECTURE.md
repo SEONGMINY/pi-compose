@@ -190,6 +190,19 @@ pic Ghostty Tab
 - **원본 근거:** `src/summary-evidence.ts`는 활성 분기의 Pi user/assistant/toolResult 엔트리와 원본 Entry ID를 투영합니다. **현재는 증거 패널이며 경량 모델 의미 요약·중요 결정 자동 후보는 아닙니다.** Overview `v` 조회 또한 같은 Pi 원본에 근거합니다. 사용자 요청 없이 Main이나 다른 Work에 정보를 주입하거나 Git Merge하지 않습니다.
 - **추가 구현 필요:** 승인된 경량 요약 모델의 정확도·비용 제한, 자동 공유 후보와 명시적 수신자 선택, 메시지 Sidebar 상태의 최종 통합. 기술적으로 UI 구조를 구성한 것과 제품 요구사항 충족을 구분합니다.
 
+### 5.2 Handoff 반대 방향 단축 입력
+
+\`\`\`text
+Pi input: < / < @same-product-session
+  -> direct-handoff.ts (interactive only)
+  -> verified Compose product + recorded requester/Main chain
+  -> Pi intercom LIVE peers (exact Pi Session ID == intercom peer ID)
+  -> handoff.ts existing recipient/source/kind/editor UI
+  -> user reviewed message -> intercom Outbox request
+\`\`\`
+
+\`>w\`는 정확한 Pi 대화를 Fork해 개발 Agent를 생성하지만, \`<\`는 **기존 Agent에게 보내는 명시적 정보 공유 요청**입니다. \`<<\`는 없으며 Git Worktree와 무관합니다. Work의 부모 Main은 \`requesterSessionId\` 계층으로 확인하며 \`forkSourceSessionId\`로 대체하지 않습니다. 정확한 원본 Pi Session ID와 연결 peer가 일치하지 않으면 대상 수신을 막습니다. 사용자 승인 전에는 Main 모델 컨텍스트나 다른 Agent에 메시지가 삽입되지 않습니다.
+
 ## 6. 문서와 맥락의 경계
 
 `AGENTS.md`는 짧은 프로젝트 문서 안내자이며, 실제 확정 계약은 기존 `docs/*`의 해당 원본에 유지합니다. 중요한 승인 결정은 Main의 짧은 지침과 Pi 기본 파일 도구로 **즉시 기존 문서를 갱신**하는 방향입니다. 신규 문서 생성은 사용자 확인이 필요합니다.
