@@ -78,3 +78,72 @@ export function searchProductForkSessions(
       text.toLocaleLowerCase().includes(normalized),
     ));
 }
+
+
+/**
+ * Handoff destinations do NOT need a completed Assistant turn. The role and
+ * creation parent come from this session's own Compose identity, never from
+ * a directory, title, Fork source, or the intercom display name.
+ */
+export type HandoffSessionCandidate = {
+  id: string;
+  name: string;
+  role: 'main' | 'work' | 'support';
+  product: string;
+  cwd: string;
+  recentTask: string;
+  requesterSessionId?: string;
+};
+
+export async function listProductHandoffSessions(product: string): Promise<HandoffSessionCandidate[]> {
+  const sessions = await SessionManager.listAll();
+  const result: HandoffSessionCandidate[] = [];
+  for (const info of sessions) {
+    let manager: SessionManager;
+    try { manager = SessionManager.open(info.path); } catch { continue; }
+    if (manager.getSessionId() !== info.id) continue;
+    const identity = readAgentRelationship(info.id, manager.getEntries());
+    if (!identity || identity.product !== product) continue;
+    result.push({
+      id: info.id, name: identity.label, role: identity.role,
+      product, cwd: identity.workspaceCwd,
+      recentTask: lastGroundedTask(manager, info),
+      requesterSessionId: identity.requesterSessionId,
+    });
+  }
+  return result;
+}
+
+export function searchProductHandoffSessions(
+  candidates: readonly HandoffSessionCandidate[],
+  query: string,
+): HandoffSessionCandidate[] {
+  const normalized = query.trim().toLocaleLowerCase();
+  if (!normalized) return [...candidates];
+  return candidates.filter(session =>
+    [session.id, session.name, session.recentTask].some(value =>
+      value.toLocaleLowerCase().includes(normalized),
+    ));
+}
+
+/** The requester chain is not necessarily the Fork chain. Never guess a Main. */
+export function findParentMainSessionId(
+  candidates: readonly HandoffSessionCandidate[],
+  senderSessionId: string,
+): string | undefined {
+  const byId = new Map(candidates.map(candidate => [candidate.id, candidate]));
+  const sender = byId.get(senderSessionId);
+  if (!sender) return;
+  let current = sender;
+  const visited = new Set([senderSessionId]);
+  while (current.requesterSessionId) {
+    const nextId = current.requesterSessionId;
+    if (visited.has(nextId)) return;
+    visited.add(nextId);
+    const parent = byId.get(nextId);
+    if (!parent || parent.product !== sender.product) return;
+    if (parent.role === 'main') return parent.id;
+    current = parent;
+  }
+  return;
+}
