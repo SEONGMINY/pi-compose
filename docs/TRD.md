@@ -160,6 +160,15 @@ Pi 1.4.0 `OverlayOptions.width = "100%"`, `maxHeight = "100%"`, `row = 0`, `col 
 - Sidebar Agent 목록은 Pi 세션/OS 증거를 일정 간격으로 읽지만 수동 선택 중인 Modal을 지우지 않고, 기존 선택 항목을 가능한 한 유지합니다. **실제 사용 중 리프레시 UI 흔들림, AppleScript 크기 적용 방향, 새로운 Work 추가 후 Sidebar 폭 및 4초 polling 비용 검증은 미수행**입니다.
 - 새 Main 최초 사용자 메시지 전 Pi JSONL이 없는 Native Pi 정책, 수동 Tab 이동과 기존 프로세스 중복 보호·실패 항목 기록 등 기존 제약은 그대로 유지됩니다.
 
+### 직접 Handoff \`<\` / \`< @세션\` (2026-11-06, main 반영)
+
+- \`extensions/direct-handoff.ts\`에서 Pi \`input\` 중 \`source === 'interactive'\`인 정확한 \`<\` 또는 \`< @token\`만 수신합니다. 기타 일반 Pi 메시지, \`<<\` 및 기존 \`>w\`는 그대로 둡니다. 입력은 발신 Agent의 모델 대화로 들어가지 않으며 실패 시 가급적 입력 복구/경고하고 자동 전송하지 않습니다.
+- Pi의 \`ctx.ui.addAutocompleteProvider\`를 기존 \`>w @\` 래퍼와 합성해 \`< @\`에만 같은 프로덕트 세션 ID/이름/최근 작업을 추천합니다. 평소 \`@파일\`의 기본 완성에는 개입하지 않습니다.
+- \`src/product-sessions.ts\`는 기존 Pi SessionManager의 **해당 세션 자신의** \`compose_agent_identity\`를 읽어 프로덕트·생성 요청 부모 \`requesterSessionId\`를 확인합니다. Handoff 수신자 후보는 응답 종료 여부와 무관하게 조회합니다. 부모 Main 추천은 **Fork 출처가 아니라 요청 생성 계층**만 따라갑니다.
+- \`extensions/handoff.ts\`의 선택형 동작에 \`sameProductOnly\`·검색어·상위 Main 우선 제안을 추가했습니다. 실제 \`pi-intercom\` 연결 수신자 ID와 저장 Pi Session ID의 **정확한 일치**가 있는 대상만 허용합니다. intercom의 기본 ID는 Pi Session ID이지만 별도 Stable ID 설정이 있으면 다를 수 있으므로 추측 매칭을 하지 않습니다. 기존 \`/compose handoff\` 및 Summary \`H\`는 수신자 선택·원본/종류/본문 편집 기존 계약을 유지합니다.
+- 전송 요청은 이전 pi-intercom Outbox 이벤트를 재사용합니다. 대상이 불명확하거나 연결되지 않았으면 자동 발신 금지. \`<<\`는 사용하지 않습니다.
+- 실제 Mac에서 **Pi IME, \`< @\` 자동완성의 Enter/취소/Tab, 저장 세션의 중복 이름, 상위 Main 계층, 연결/비연결 교체, 사용자가 세션을 변경한 경우, intercom Stable ID, Pi Overlay \`H\`와 동시에 입력**을 확인해야 합니다. 타입·실행 통합 검증 전입니다.
+
 ## 4. 아직 해결되지 않은 기술·제품 질문
 
 1. `pi-intercom` 0.18.1 `human-first` 정상 턴 종료 경계는 **외부 TUI 실행 1회 관찰**. **Compose Outbox와 실제 설치/설정 조합은 미검증**이며, 중단·오류의 수신 및 Broker 전송·대기·주입·실제 모델 처리의 관찰 범위는 구현 연결 시 확인합니다. Outbox `sent`는 수신 모델이 읽음/승인함을 뜻하지 않습니다.
