@@ -1,6 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { projectHandoffHistory } from '../src/handoff-history.ts';
+import { readAgentRelationship } from '../src/agent-relationships.ts';
+import {
+  listProductHandoffSessions,
+  searchProductHandoffSessions,
+  findParentMainSessionId,
+  type HandoffSessionCandidate,
+} from '../src/product-sessions.ts';
 
 // Pi Compose only coordinates explicit user sharing. Pi owns the transcript and
 // pi-intercom owns routing, queuing and delivery.
@@ -10,6 +17,13 @@ const OUTBOX_RESULT_EVENT = 'intercom:outbox-result';
 
 type Peer = { id: string; name?: string; cwd?: string };
 type Channel = { listSessions(): Promise<Peer[]> };
+
+/** Shortcut-only routing. Legacy /compose handoff retains its existing picker. */
+export type HandoffOptions = {
+  sameProductOnly?: boolean;
+  recipientQuery?: string;
+  preferParentMain?: boolean;
+};
 type OutboxResult = {
   requestId?: unknown;
   status?: unknown;
@@ -45,7 +59,9 @@ function activeSources(ctx: ExtensionContext): Source[] {
  * Returns a user-driven Handoff action for the existing Compose command.
  * No model tool, auto-send, new broker, or context mutation is registered.
  */
-export function registerHandoff(pi: ExtensionAPI): (ctx: ExtensionContext) => Promise<void> {
+export function registerHandoff(pi: ExtensionAPI): (
+  ctx: ExtensionContext, options?: HandoffOptions,
+) => Promise<void> {
   let channel: Channel | undefined;
   let currentSessionId: string | undefined;
   let notify: ExtensionContext['ui']['notify'] | undefined;
@@ -95,7 +111,7 @@ export function registerHandoff(pi: ExtensionAPI): (ctx: ExtensionContext) => Pr
     }
   });
 
-  return async (ctx: ExtensionContext): Promise<void> => {
+  return async (ctx: ExtensionContext, options: HandoffOptions = {}): Promise<void> => {
     if (!ctx.hasUI) {
       ctx.ui.notify('Handoff requires an interactive user selection.', 'warning');
       return;
@@ -120,14 +136,54 @@ export function registerHandoff(pi: ExtensionAPI): (ctx: ExtensionContext) => Pr
       ctx.ui.notify('Cannot list intercom recipients: ' + String(error), 'error');
       return;
     }
+
+    let candidates: HandoffSessionCandidate[] = [];
+    let suggestedParentId: string | undefined;
+    if (options.sameProductOnly) {
+      const owner = readAgentRelationship(senderSessionId, ctx.sessionManager.getEntries());
+      if (!owner) {
+        ctx.ui.notify('Cannot verify the current Compose product. Nothing was sent.', 'warning');
+        return;
+      }
+      try {
+        candidates = await listProductHandoffSessions(owner.product);
+      } catch (error) {
+        ctx.ui.notify('Cannot verify same-product Pi recipients: ' + String(error), 'warning');
+        return;
+      }
+      const allowed = searchProductHandoffSessions(candidates, options.recipientQuery ?? '');
+      const ids = new Set(allowed.map(candidate => candidate.id));
+      // pi-intercom normally uses the Pi session ID. A custom stable intercom
+      // address may differ: never route by a guessed name/cwd in that case.
+      peers = peers.filter(peer => ids.has(peer.id));
+      if (options.preferParentMain && options.recipientQuery === undefined) {
+        suggestedParentId = findParentMainSessionId(candidates, senderSessionId);
+        peers.sort((a, b) =>
+          Number(b.id === suggestedParentId) - Number(a.id === suggestedParentId));
+      }
+    }
     if (!peers.length) {
-      ctx.ui.notify('No connected intercom recipients are available.', 'warning');
+      ctx.ui.notify(options.sameProductOnly
+        ? 'No matching connected Compose session in this product. If intercom uses a custom ID, the exact Pi identity cannot be verified; nothing was sent.'
+        : 'No connected intercom recipients are available.', 'warning');
       return;
     }
 
-    const targetLabels = peers.map((peer, i) =>
-      String(i + 1) + '. ' + (peer.name || 'Unnamed') + ' [' + peer.id + '] ' + (peer.cwd || ''));
-    const targetLabel = await ctx.ui.select('Share with which connected Pi session?', targetLabels);
+    const recipientById = new Map(candidates.map(candidate => [candidate.id, candidate]));
+    const targetLabels = peers.map((peer, i) => {
+      const identity = recipientById.get(peer.id);
+      const mainHint = peer.id === suggestedParentId ? ' · parent Main suggested' : '';
+      return String(i + 1) + '. ' + (identity?.name || peer.name || 'Unnamed') +
+        ' [' + peer.id + '] ' +
+        (identity ? identity.role + ' · ' + identity.recentTask.slice(0, 55) : '') +
+        mainHint + ' · ' + (identity?.cwd || peer.cwd || '');
+    });
+    const targetLabel = await ctx.ui.select(
+      options.sameProductOnly
+        ? 'Confirm the exact connected recipient (same product)'
+        : 'Share with which connected Pi session?',
+      targetLabels,
+    );
     if (!targetLabel) return;
     const target = peers[targetLabels.indexOf(targetLabel)];
     if (!target) return;
