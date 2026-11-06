@@ -192,16 +192,16 @@ pic Ghostty Tab
 
 ### 5.2 Handoff 반대 방향 단축 입력
 
-\`\`\`text
+```text
 Pi input: < / < @same-product-session
   -> direct-handoff.ts (interactive only)
   -> verified Compose product + recorded requester/Main chain
   -> Pi intercom LIVE peers (exact Pi Session ID == intercom peer ID)
   -> handoff.ts existing recipient/source/kind/editor UI
   -> user reviewed message -> intercom Outbox request
-\`\`\`
+```
 
-\`>w\`는 정확한 Pi 대화를 Fork해 개발 Agent를 생성하지만, \`<\`는 **기존 Agent에게 보내는 명시적 정보 공유 요청**입니다. \`<<\`는 없으며 Git Worktree와 무관합니다. Work의 부모 Main은 \`requesterSessionId\` 계층으로 확인하며 \`forkSourceSessionId\`로 대체하지 않습니다. 정확한 원본 Pi Session ID와 연결 peer가 일치하지 않으면 대상 수신을 막습니다. 사용자 승인 전에는 Main 모델 컨텍스트나 다른 Agent에 메시지가 삽입되지 않습니다.
+`>w`는 정확한 Pi 대화를 Fork해 개발 Agent를 생성하지만, `<`는 **기존 Agent에게 보내는 명시적 정보 공유 요청**입니다. `<<`는 없으며 Git Worktree와 무관합니다. Work의 부모 Main은 `requesterSessionId` 계층으로 확인하며 `forkSourceSessionId`로 대체하지 않습니다. 정확한 원본 Pi Session ID와 연결 peer가 일치하지 않으면 대상 수신을 막습니다. 사용자 승인 전에는 Main 모델 컨텍스트나 다른 Agent에 메시지가 삽입되지 않습니다.
 
 ## 6. 문서와 맥락의 경계
 
