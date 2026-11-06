@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
+import { generateHandoffDraft, reviewHandoffDraft } from './handoff-draft.ts';
 import { projectHandoffHistory } from '../src/handoff-history.ts';
 import { readAgentRelationship } from '../src/agent-relationships.ts';
 import {
@@ -23,6 +24,8 @@ export type HandoffOptions = {
   sameProductOnly?: boolean;
   recipientQuery?: string;
   preferParentMain?: boolean;
+  exactRecipientId?: string;
+  draft?: boolean;
 };
 type OutboxResult = {
   requestId?: unknown;
@@ -59,9 +62,7 @@ function activeSources(ctx: ExtensionContext): Source[] {
  * Returns a user-driven Handoff action for the existing Compose command.
  * No model tool, auto-send, new broker, or context mutation is registered.
  */
-export function registerHandoff(pi: ExtensionAPI): (
-  ctx: ExtensionContext, options?: HandoffOptions,
-) => Promise<void> {
+export function registerHandoff(pi: ExtensionAPI) {
   let channel: Channel | undefined;
   let currentSessionId: string | undefined;
   let notify: ExtensionContext['ui']['notify'] | undefined;
@@ -111,7 +112,7 @@ export function registerHandoff(pi: ExtensionAPI): (
     }
   });
 
-  return async (ctx: ExtensionContext, options: HandoffOptions = {}): Promise<void> => {
+  async function showHandoff(ctx: ExtensionContext, options: HandoffOptions = {}): Promise<void> {
     if (!ctx.hasUI) {
       ctx.ui.notify('Handoff requires an interactive user selection.', 'warning');
       return;
@@ -151,7 +152,11 @@ export function registerHandoff(pi: ExtensionAPI): (
         ctx.ui.notify('Cannot verify same-product Pi recipients: ' + String(error), 'warning');
         return;
       }
-      const allowed = searchProductHandoffSessions(candidates, options.recipientQuery ?? '');
+      const exactId = options.exactRecipientId ??
+        candidates.find(candidate => candidate.id === options.recipientQuery)?.id;
+      const allowed = exactId
+        ? candidates.filter(candidate => candidate.id === exactId)
+        : searchProductHandoffSessions(candidates, options.recipientQuery ?? '');
       const ids = new Set(allowed.map(candidate => candidate.id));
       // pi-intercom normally uses the Pi session ID. A custom stable intercom
       // address may differ: never route by a guessed name/cwd in that case.
@@ -170,82 +175,119 @@ export function registerHandoff(pi: ExtensionAPI): (
     }
 
     const recipientById = new Map(candidates.map(candidate => [candidate.id, candidate]));
-    const targetLabels = peers.map((peer, i) => {
-      const identity = recipientById.get(peer.id);
-      const mainHint = peer.id === suggestedParentId ? ' · parent Main suggested' : '';
-      return String(i + 1) + '. ' + (identity?.name || peer.name || 'Unnamed') +
-        ' [' + peer.id + '] ' +
-        (identity ? identity.role + ' · ' + identity.recentTask.slice(0, 55) : '') +
-        mainHint + ' · ' + (identity?.cwd || peer.cwd || '');
-    });
-    const targetLabel = await ctx.ui.select(
-      options.sameProductOnly
-        ? 'Confirm the exact connected recipient (same product)'
-        : 'Share with which connected Pi session?',
-      targetLabels,
-    );
-    if (!targetLabel) return;
-    const target = peers[targetLabels.indexOf(targetLabel)];
-    if (!target) return;
-
-    const sources = activeSources(ctx);
-    if (!sources.length) {
-      ctx.ui.notify('No user or assistant source messages on the active branch.', 'warning');
-      return;
+    let target: Peer | undefined = options.exactRecipientId
+      ? peers.find(peer => peer.id === options.exactRecipientId)
+      : options.draft && options.recipientQuery && peers.length === 1 ? peers[0] : undefined;
+    if (!target) {
+      const targetLabels = peers.map((peer, i) => {
+        const identity = recipientById.get(peer.id);
+        const mainHint = peer.id === suggestedParentId ? ' · parent Main suggested' : '';
+        return String(i + 1) + '. ' + (identity?.name || peer.name || 'Unnamed') +
+          ' [' + peer.id + '] ' +
+          (identity ? identity.role + ' · ' + identity.recentTask.slice(0, 55) : '') +
+          mainHint + ' · ' + (identity?.cwd || peer.cwd || '');
+      });
+      const selected = await ctx.ui.select(
+        options.sameProductOnly
+          ? 'Confirm the exact connected recipient (same product)'
+          : 'Share with which connected Pi session?',
+        targetLabels,
+      );
+      if (!selected) return;
+      target = peers[targetLabels.indexOf(selected)];
+      if (!target) return;
     }
-    const sourceLabels = sources.map((source, i) =>
-      String(i + 1) + '. ' + source.role + ' [' + source.id + '] ' +
-      source.text.replace(/\s+/g, ' ').slice(0, 78));
-    const sourceLabel = await ctx.ui.select('Select the source entry on this active branch', sourceLabels);
-    if (!sourceLabel) return;
-    const source = sources[sourceLabels.indexOf(sourceLabel)];
-    if (!source) return;
 
-    const types = ['Finding / result (verification not inferred)', 'Proposal (not approved)'];
-    const selectedType = await ctx.ui.select('What is being shared?', types);
-    if (!selectedType) return;
-    const kind = selectedType === types[1] ? 'proposal' : 'reported-finding';
-
-    // Human reviews the exact source excerpt and authors what to share.
-    // We never ask a model to strengthen, weaken or invent an approval.
-    const authored = await ctx.ui.editor('Review the Handoff report before sharing', source.text.slice(0, 2500));
-    if (!authored?.trim()) return;
-    if (authored.length > 8000) {
-      ctx.ui.notify('Handoff message is too long (maximum 8000 characters). Nothing was sent.', 'warning');
+    const sameSource = () => currentSessionId === senderSessionId &&
+      ctx.sessionManager.getSessionId() === senderSessionId &&
+      ctx.sessionManager.getLeafId() === sourceLeafId;
+    if (!sameSource()) {
+      ctx.ui.notify('Source session changed. Open Handoff again.', 'warning');
       return;
     }
 
-    // Fail closed if the user switched sessions or the source leaf changed.
-    if (ctx.sessionManager.getSessionId() !== senderSessionId ||
-        ctx.sessionManager.getLeafId() !== sourceLeafId ||
-        !ctx.sessionManager.getBranch().some(entry => entry.id === source.id)) {
+    let kind: 'proposal' | 'reported-finding' | 'work-evidence';
+    let message: string;
+    let sourceEntryId: string;
+    let sourceEntryIds: string[];
+    if (options.draft && ctx.mode === 'tui') {
+      const draft = await generateHandoffDraft(ctx, senderSessionId, sourceLeafId);
+      if (!sameSource()) {
+        ctx.ui.notify('Source session changed. Open Handoff again.', 'warning');
+        return;
+      }
+      if (!draft) {
+        ctx.ui.notify('No source-backed draft is available. Use /compose handoff to share manually.', 'warning');
+        return;
+      }
+      const identity = recipientById.get(target.id);
+      const label = identity ? identity.role + ' · ' + identity.name : target.name || target.id;
+      if (!await reviewHandoffDraft(ctx, label, draft)) return;
+      kind = 'work-evidence';
+      message = draft.message;
+      sourceEntryId = draft.report.id;
+      sourceEntryIds = draft.sources.map(source => source.id);
+    } else {
+      const sources = activeSources(ctx);
+      if (!sources.length) {
+        ctx.ui.notify('No user or assistant source messages on the active branch.', 'warning');
+        return;
+      }
+      const sourceLabels = sources.map((source, i) =>
+        String(i + 1) + '. ' + source.role + ' [' + source.id + '] ' +
+        source.text.replace(/\s+/g, ' ').slice(0, 78));
+      const sourceLabel = await ctx.ui.select('Select the source entry on this active branch', sourceLabels);
+      if (!sourceLabel) return;
+      const source = sources[sourceLabels.indexOf(sourceLabel)];
+      if (!source) return;
+
+      const types = ['Finding / result (verification not inferred)', 'Proposal (not approved)'];
+      const selectedType = await ctx.ui.select('What is being shared?', types);
+      if (!selectedType) return;
+      kind = selectedType === types[1] ? 'proposal' : 'reported-finding';
+      const authored = await ctx.ui.editor('Review the Handoff report before sharing', source.text.slice(0, 2500));
+      if (!authored?.trim()) return;
+      if (authored.length > 8000) {
+        ctx.ui.notify('Handoff message is too long (maximum 8000 characters). Nothing was sent.', 'warning');
+        return;
+      }
+      sourceEntryId = source.id;
+      sourceEntryIds = [source.id];
+      message = [
+        'Pi Compose Handoff — explicitly selected by a user',
+        'Kind: ' + kind,
+        'Approval: the act of sharing does not approve the proposal or change recipient policy.',
+        'Verification: not independently established by this handoff.',
+        '',
+        authored.trim(),
+        '',
+        'Source (read-only reference, not a replacement for the original):',
+        'Pi session ID: ' + senderSessionId,
+        'Pi session file: ' + senderSessionFile,
+        'Active source leaf ID: ' + sourceLeafId,
+        'Source entry ID: ' + source.id,
+        'Source role: ' + source.role,
+        '',
+        'Recipient: compare with current decisions; consult the original before changing a contract.',
+      ].join('\n');
+    }
+
+    // A review is valid only for the session, leaf, and sources it displayed.
+    if (!sameSource() || (options.draft && !ctx.isIdle())) {
+      ctx.ui.notify('Source session changed or is busy. Nothing was sent.', 'warning');
+      return;
+    }
+    const activeIds = new Set(ctx.sessionManager.getBranch().map(entry => entry.id));
+    if (sourceEntryIds.some(id => !activeIds.has(id))) {
       ctx.ui.notify('Source session changed while composing. Nothing was sent.', 'warning');
       return;
     }
 
     const requestId = randomUUID();
-    const message = [
-      'Pi Compose Handoff — explicitly selected by a user',
-      'Kind: ' + kind,
-      'Approval: the act of sharing does not approve the proposal or change recipient policy.',
-      'Verification: not independently established by this handoff.',
-      '',
-      authored.trim(),
-      '',
-      'Source (read-only reference, not a replacement for the original):',
-      'Pi session ID: ' + senderSessionId,
-      'Pi session file: ' + senderSessionFile,
-      'Active source leaf ID: ' + sourceLeafId,
-      'Source entry ID: ' + source.id,
-      'Source role: ' + source.role,
-      '',
-      'Recipient: compare with current decisions; consult the original before changing a contract.',
-    ].join('\n');
-
     pending.set(requestId, { sessionId: senderSessionId, sessionFile: senderSessionFile });
     pi.appendEntry('compose_handoff_request', {
       requestId, senderSessionId, recipientIntercomId: target.id,
-      sourceLeafId, sourceEntryId: source.id, kind,
+      sourceLeafId, sourceEntryId, sourceEntryIds, kind,
       timestamp: new Date().toISOString(),
     });
     try {
@@ -266,9 +308,16 @@ export function registerHandoff(pi: ExtensionAPI): (
       });
       ctx.ui.notify('Handoff request failed: ' + String(error), 'error');
     }
+  }
+
+  return {
+    showHandoff,
+    async connectedRecipientIds(): Promise<Set<string>> {
+      const peers = await channel?.listSessions() ?? [];
+      return new Set(peers.map(peer => peer.id));
+    },
   };
 }
-
 
 /**
  * Temporary native Pi TUI reader until the approved Ghostty Overview message

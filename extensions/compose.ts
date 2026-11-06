@@ -4,11 +4,10 @@ import { planLaunch, executeLaunch } from '../src/launch.ts';
 import { planResume, executeResume } from '../src/resume.ts';
 import { registerWorkReturn, showWorkPicker } from './work-return.ts';
 import { registerHandoff, showHandoffHistory } from './handoff.ts';
-import { registerDirectHandoff, registerHandoffAutocomplete } from './direct-handoff.ts';
+import { registerDirectHandoff } from './direct-handoff.ts';
 import { showGhosttySurfaces } from './ghostty-surfaces.ts';
 import { registerAgentIdentity } from './agent-identity.ts';
 import { registerDirectDelegation, registerDelegationAutocomplete } from './direct-delegation.ts';
-import { registerSummaryOverlay } from './summary-overlay.ts';
 import { fileURLToPath } from 'node:url';
 
 const baseExtension = fileURLToPath(import.meta.url);
@@ -48,14 +47,10 @@ async function chooseForkSource(ctx: ExtensionContext, { includeCurrent = true }
 
 export default function composeExtension(pi: ExtensionAPI): void {
   registerAgentIdentity(pi);
-  // Handoff must be registered before Summary so its explicit user flow
-  // can be invoked directly from the focused Summary without fake Pi input.
-  const showHandoff = registerHandoff(pi);
-  registerSummaryOverlay(pi, showHandoff);
+  const { showHandoff, connectedRecipientIds } = registerHandoff(pi);
   registerDirectDelegation(pi);
   registerDelegationAutocomplete(pi);
-  registerDirectHandoff(pi, showHandoff);
-  registerHandoffAutocomplete(pi);
+  registerDirectHandoff(pi, showHandoff, connectedRecipientIds);
   registerWorkReturn(pi);
   pi.registerCommand('compose', {
     description: 'Pi Compose: /compose surfaces, /compose handoff, /compose messages, /compose launch [task], /compose preview [task], /compose back [query], /compose resume',

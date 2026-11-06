@@ -15,7 +15,7 @@ Pi Compose는 **실제 Pi 세션 Fork**로 두 문제를 분리합니다.
 ```text
 Main  ── 실제 Pi 세션 Fork ──▶ Work · 구현 / 테스트 코드 작성
   │                              │
-  │                              └─ 결과 Summary Overlay
+  │                              └─ Handoff 검토
   │                                 └─ 사용자가 선택해 Main에 필요한 결정 전달
   └─ 설계와 다음 의사결정을 이어감
 
@@ -26,7 +26,7 @@ Support · 탐색 / 자료 조사 / 테스트 실행 / 독립 검증
 - **Main:** 문제 정의, 도메인 스토리텔링, 기획, API, 아키텍처, 제약, 결정과 그 이유를 축적합니다. 여러 Main을 사용할 수 있습니다.
 - **Work:** 사용자가 지정한 Main의 활성 완료 대화 지점을 정확히 Fork합니다. 개발과 디버깅의 전체 기록을 Main에 자동으로 쌓지 않습니다.
 - **Support:** 전체 Main 맥락이 필요 없는 독립 조사·테스트 실행 등을 처리합니다.
-- **Summary Overlay:** Work의 결과와 공유할 만한 중요한 결정을 **사용자에게 자동으로 표시**합니다. 선택하면 원본 Pi 터미널 화면을 확인합니다. Main으로의 전달은 사용자 요청이 있을 때만 이루어집니다.
+- **Handoff 검토:** Work의 Pi 입력창에서 `<`로 받는 곳을 고릅니다. Pi 원본을 근거로 만든 초안을 사용자가 확인한 뒤 Main에 전송을 요청합니다.
 
 ## 현재 제품 방향
 
@@ -57,8 +57,8 @@ Support · 탐색 / 자료 조사 / 테스트 실행 / 독립 검증
 
 **5단계 Draft 코드:** Native Pi 자식 실행 래퍼에 OS 프로세스 시작/종료 영수증을 남기고, Overview에서 **Session ID + Launch ID + Terminal UUID + PID 시작 시각**을 대조해 확인된 실행 사실만 표시하도록 추가했습니다. `q` 종료 선택에서는 Agent 유지·Ghostty 숨김, **재확인된 Pi 프로세스의 Surface만 사용자 승인 후 닫기**, 취소를 구분합니다. 상태 불명 Agent를 임의로 종료하거나 저장된 Pi 대화/Git Worktree를 삭제하지 않습니다. Main 저장 세션 재개 시 실제 OS 프로세스가 관찰되면 **중복 실행을 거부**하고, 실행 여부가 불명확하면 위험을 명시적으로 확인한 사용자에게만 재개를 허용하도록 보완했습니다. **실시간 모델 상태·완전한 종료/복구는 미완성이며 Summary 사실 정보층 코드는 작성됐으나 타입/실사용 검증 전입니다.**
 
-**6단계 Draft 코드:** 기존 Pi TUI에 `ctx.ui.custom`의 **non-capturing Overlay**를 연결해 포커스 아웃 30초 또는 비포커스 정상 응답 종료 시 표시하고 재포커스하면 닫는 경로를 작성했습니다. 화면에는 Pi 활성 분기에서 확인한 요청·Tool 결과·Assistant 답변과 원본 Entry ID를 표시합니다. Overview에는 Agent 행에서 `v`로 근거를 읽는 기능을 추가했습니다. **이는 경량 모델 의미 요약·중요 결정 자동 공유 후보가 아니며, 실사용 검증 전입니다.** 수신자 선택형 Summary 공유 UI/메시지 Sidebar의 완전한 통합은 남았습니다. Overlay는 Main 컨텍스트를 변경하지 않습니다.
+**Handoff 초안:** Work의 `<`에 같은 프로덕트의 수신자 추천과 원문 발췌 초안 검토를 연결했습니다. `/compose handoff`로 기존 수동 본문과 비교할 수 있습니다. Overview의 `v`는 저장된 근거 조회용입니다.
 
-**이 README는 새 제품 방향을 설명하는 설계 문서입니다.** 기존 코드에는 이전 tmux/workmux 기반 CLI와 Orca 실험이 남아 있고, 위 Ghostty 중심 흐름, 제품/Agent 사이드바, 메시지 관리, 종료 선택 UX와 Summary Overlay가 실제로 완성·검증됐다는 뜻은 아닙니다. 과거 설치·명령을 새 제품의 사용법처럼 안내하지 않습니다.
+**이 README는 새 제품 방향을 설명하는 설계 문서입니다.** 기존 코드에는 이전 tmux/workmux 기반 CLI와 Orca 실험이 남아 있고, 위 Ghostty 중심 흐름, 제품/Agent 사이드바, 메시지 관리, 종료 선택 UX와 Handoff가 실제로 완성·검증됐다는 뜻은 아닙니다. 과거 설치·명령을 새 제품의 사용법처럼 안내하지 않습니다.
 
 현재 확정된 계약과 결정하지 않은 항목은 [PRD](docs/PRD.md)를 기준으로 확인해 주세요. 기술적 책임과 검증 범위는 [Architecture](docs/ARCHITECTURE.md)와 [TRD](docs/TRD.md), 앞으로의 구현 순서는 [Implementation Plan](docs/IMPLEMENTATION_PLAN.md)에 정리했습니다. 기존 CLI 구현과 기록은 Git 이력에 보존합니다.
