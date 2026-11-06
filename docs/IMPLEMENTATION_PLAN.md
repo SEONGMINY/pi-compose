@@ -4,6 +4,8 @@
 - 상태: **새 방향의 일부 기능을 Draft PR #15에서 구현 중**. 사용자 선택형 Handoff의 Pi Extension 연결 코드는 작성됐지만 실사용·통합 검증 전입니다. Ghostty Overview와 Summary Overlay 기초 코드는 Draft로 작성됐고, 실제 제품 Sidebar·경량 의미 요약·Handoff 공유 UI 및 레거시 실행 경로는 여전히 미구현/재설계 대상입니다. 이전 tmux/workmux/Orca Phase 0–6 계획은 현행 작업 순서가 아닙니다.
 - 원칙: 사용자 검증을 위해 기능 구현과 별도로 테스트/CI/PR 병합을 자동 실행하지 않습니다. 이전 구현 코드와 사용자 세션·Worktree는 보존합니다.
 
+> 이전 Summary Overlay 설계·진척 기록은 이 문서에 남아 있습니다. 현재 Work Handoff는 [사용 흐름](USAGE.md#work에서-handoff-검토-열기)의 Pi 입력창 안내와 사용자 선택형 초안 검토를 따릅니다.
+
 ## 1. 구현 목표
 
 **Main에서 설계·의사결정 → 현재 Agent 또는 같은 프로덕트의 선택한 Pi 세션을 정확히 Fork해 Work에서 개발 → 필요할 때 독립 Support 위임 → Work 결과 Summary 확인 → 사용자가 필요한 결정만 Main에 반영**하는 흐름을 Pi와 Ghostty만으로 사용할 수 있게 합니다.
