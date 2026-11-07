@@ -13,6 +13,7 @@ import {
 // Pi Compose only coordinates explicit user sharing. Pi owns the transcript and
 // pi-intercom owns routing, queuing and delivery.
 const REGISTER_EVENT = 'intercom:extension-register';
+const REGISTRY_READY_EVENT = 'intercom:extension-registry-ready';
 const OUTBOX_REQUEST_EVENT = 'intercom:outbox-request';
 const OUTBOX_RESULT_EVENT = 'intercom:outbox-result';
 
@@ -68,20 +69,25 @@ export function registerHandoff(pi: ExtensionAPI) {
   let notify: ExtensionContext['ui']['notify'] | undefined;
   const pending = new Map<string, { sessionId: string; sessionFile: string }>();
 
-  pi.on('session_start', (_event, ctx) => {
-    currentSessionId = ctx.sessionManager.getSessionId();
-    notify = ctx.ui.notify.bind(ctx.ui);
-
-    // pi-intercom retains channel registrations across Pi session switches.
-    // Register once per Extension lifecycle; duplicate namespaces are rejected.
+  // pi-intercom announces that its registration listener is installed, but
+  // extension load order is not a routing guarantee. session_start covers
+  // the case where the ready event happened before Compose was loaded.
+  // onReady runs synchronously in pi-intercom 0.18.1, so the channel guard
+  // prevents a duplicate namespace registration across either path.
+  const requestChannel = () => {
     if (channel) return;
-    // Without pi-intercom this event has no listener and the command fails closed.
     pi.events.emit(REGISTER_EVENT, {
       namespace: 'pi-compose/handoff/v1',
       ownerEligible: false,
       onEvent: (_event: unknown) => {},
       onReady: (ready: Channel) => { channel = ready; },
     });
+  };
+  pi.events.on(REGISTRY_READY_EVENT, requestChannel);
+  pi.on('session_start', (_event, ctx) => {
+    currentSessionId = ctx.sessionManager.getSessionId();
+    notify = ctx.ui.notify.bind(ctx.ui);
+    requestChannel();
   });
 
   pi.events.on(OUTBOX_RESULT_EVENT, (raw: unknown) => {
@@ -313,7 +319,10 @@ export function registerHandoff(pi: ExtensionAPI) {
   return {
     showHandoff,
     async connectedRecipientIds(): Promise<Set<string>> {
-      const peers = await channel?.listSessions() ?? [];
+      // Do not silently turn a failed registration into "zero recipients".
+      // The autocomplete UI can now distinguish unavailable from offline.
+      if (!channel) throw new Error('pi-intercom Handoff channel is not registered');
+      const peers = await channel.listSessions();
       return new Set(peers.map(peer => peer.id));
     },
   };
