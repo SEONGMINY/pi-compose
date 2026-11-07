@@ -9,6 +9,7 @@ import {
 import type { HandoffOptions } from './handoff.ts';
 
 export type DirectHandoff = { recipientQuery?: string };
+const STATUS_ITEM_VALUE = 'pi-compose:handoff-status-only';
 
 /**
  * "<" opens Handoff, "< @session" searches a same-product recipient.
@@ -40,35 +41,70 @@ function registerHandoffAutocomplete(
         const before = (lines[cursorLine] || '').slice(0, cursorCol);
         const bare = before === '<' && lines.length === 1 && lines[0] === '<';
         const match = /^<[ \t]+(@[^\s]*)$/.exec(before);
-        if ((!bare && !match) || cursorLine !== 0 || options.signal.aborted) {
+        if ((!bare && !match) || cursorLine !== 0) {
           return previous.getSuggestions(lines, cursorLine, cursorCol, options);
         }
+        if (options.signal.aborted) return null;
+        // A status row is never an intercom destination. Do not conceal missing
+        // identity, session discovery errors, or connectivity as a blank menu.
+        const status = (label: string, description: string) => ({
+          prefix: match?.[1] ?? '<',
+          items: [{ value: STATUS_ITEM_VALUE, label, description }],
+        });
         const sessionId = ctx.sessionManager.getSessionId();
         const owner = readAgentRelationship(sessionId, ctx.sessionManager.getEntries());
-        if (!owner || (bare && (owner.role !== 'work' || !ctx.isIdle()))) return null;
-        let candidates;
-        let parent: string | undefined;
-        try {
-          const [sessions, connected] = await Promise.all([
-            listProductHandoffSessions(owner.product),
-            bare ? connectedRecipientIds() : undefined,
-          ]);
-          parent = bare ? findParentMainSessionId(sessions, sessionId) : undefined;
-          candidates = searchProductHandoffSessions(sessions, match?.[1].slice(1) ?? '')
-            .filter(candidate => candidate.id !== sessionId && (!connected || connected.has(candidate.id)))
-            .sort((a, b) => Number(b.id === parent) - Number(a.id === parent));
-        } catch {
-          return null; // No cross-product or guessed suggestions on load failure.
+        if (!owner) {
+          return status('Compose identity unavailable',
+            'This Pi session has no verified Compose product. Nothing was sent.');
         }
-        if (options.signal.aborted || candidates.length === 0) return null;
+        if (bare && owner.role !== 'work') {
+          return status('Open Handoff from a Work session',
+            'Bare < is for Work. Use /compose handoff for manual sharing.');
+        }
+        if (bare && !ctx.isIdle()) {
+          return status('Finish the current Pi turn',
+            'Handoff is available after the Work response settles.');
+        }
+
+        // Discover only persisted, precisely identified same-product sessions.
+        // Connection state is independent: even an offline Main is shown as
+        // offline, and the final handoff still blocks an unmatched intercom ID.
+        let sessions: Awaited<ReturnType<typeof listProductHandoffSessions>>;
+        try {
+          sessions = await listProductHandoffSessions(owner.product);
+        } catch {
+          return status('Cannot inspect Compose sessions',
+            'Pi session discovery failed. No destination was inferred or contacted.');
+        }
+        let connected: Set<string> | undefined;
+        let connectionProblem = false;
+        if (bare) {
+          try { connected = await connectedRecipientIds(); }
+          catch { connectionProblem = true; }
+        }
+        if (options.signal.aborted) return null;
+        const parent = bare ? findParentMainSessionId(sessions, sessionId) : undefined;
+        const candidates = searchProductHandoffSessions(sessions, match?.[1].slice(1) ?? '')
+          .filter(candidate => candidate.id !== sessionId)
+          .sort((a, b) =>
+            Number(connected?.has(b.id) === true) - Number(connected?.has(a.id) === true) ||
+            Number(b.id === parent) - Number(a.id === parent));
+        if (!candidates.length) {
+          return status(match ? 'No matching Compose recipient' : 'No other Compose session in this product',
+            'Only saved sessions with exact Compose identity are shown. Nothing was sent.');
+        }
         return {
           prefix: match?.[1] ?? '<',
           items: candidates.slice(0, 20).map(candidate => ({
             value: candidate.id,
-            label: candidate.name + ' [' + candidate.id.slice(0, 12) + ']',
+            label: candidate.name + ' [' + candidate.id.slice(0, 12) + ']' +
+              (bare && !connected?.has(candidate.id) ? ' · unavailable' : ''),
             description: (candidate.id === parent ? '상위 Main 추천 · ' : candidate.role + ' · ') +
-              (bare ? '검토 · ' : '') + candidate.recentTask.slice(0, 70) +
-              ' · ' + candidate.cwd,
+              (bare
+                ? connected?.has(candidate.id) ? 'intercom connected'
+                  : connectionProblem ? 'intercom unavailable' : 'no exact intercom ID match (offline or custom ID)'
+                : 'connection checked before sending') +
+              ' · ' + candidate.recentTask.slice(0, 70) + ' · ' + candidate.cwd,
           })),
         };
       },
@@ -79,6 +115,11 @@ function registerHandoffAutocomplete(
         return previous.shouldTriggerFileCompletion?.(lines, cursorLine, cursorCol) ?? false;
       },
       applyCompletion(lines, cursorLine, cursorCol, item, prefix) {
+        if (item.value === STATUS_ITEM_VALUE) {
+          // Selecting an informational row never creates a recipient or message.
+          queueMicrotask(() => ctx.ui.notify(item.description || item.label, 'warning'));
+          return { lines: [...lines], cursorLine, cursorCol };
+        }
         if (prefix === '<' && cursorLine === 0 && cursorCol === 1 && lines.length === 1 && lines[0] === '<') {
           const command = '< @' + item.value;
           // Native Pi applies completion before it can open another editor UI.
