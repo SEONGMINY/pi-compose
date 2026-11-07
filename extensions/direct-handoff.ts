@@ -87,7 +87,7 @@ function registerHandoffAutocomplete(
         const candidates = searchProductHandoffSessions(sessions, match?.[1].slice(1) ?? '')
           .filter(candidate => candidate.id !== sessionId)
           .sort((a, b) =>
-            Number(connected?.has(b.id)) - Number(connected?.has(a.id)) ||
+            Number(connected?.has(b.id) === true) - Number(connected?.has(a.id) === true) ||
             Number(b.id === parent) - Number(a.id === parent));
         if (!candidates.length) {
           return status(match ? 'No matching Compose recipient' : 'No other Compose session in this product',
