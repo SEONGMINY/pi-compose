@@ -58,7 +58,7 @@ Main / Work / Support의 Pi 입력창
 
 관련 코드: `extensions/direct-delegation.ts`, `src/native-agent-launch.ts`, `src/native-work-fork.ts`, `src/native-worktree.ts`, `src/ghostty-native.ts`, `bin/native-agent-entry.mjs`.
 
-## 4. 진행 중 Work Handoff 요청
+## 4. 완료된 Work의 공유 후보 자동 준비와 검토
 
 ```text
 Work 실행 중 입력 "<" / "< @session"
@@ -77,7 +77,10 @@ Work 실행 중 입력 "<" / "< @session"
 ```
 
 - 대기 요청은 Work 대화에 기록하는 모델 지시가 아니며, 다른 Main/Work 세션으로 자동 이관하지 않습니다.
-- 모델 초안 생성 시점은 **사용자의 검토 진입 이후**입니다. 응답 종료 시 자동 모델 호출을 하지 않습니다.
+- **A안(2026-11-09):** Work가 과제 완료를 명시적으로 보고한 경우 실행 종료 뒤 별도 모델 호출로 완료 여부를 분류하고 공유 후보를 추출합니다. 후보·원문 Entry ID는 Work 세션의 `compose_handoff_candidates` custom entry에 기록하며 Main 모델에 전송하지 않습니다.
+- `ask_user`가 활성화돼 있으면 Work의 별도 모델 턴에서 기존 모델 전용 도구를 호출해 다중 선택·자유 입력·추가 의견을 받습니다. 이 턴에는 `ask_user`만 활성화하며 사용자 반응 전까지 다른 Agent의 포커스를 가져오지 않습니다. 이후 Work 모델이 작성한 초안은 별도 custom entry에 보관합니다.
+- `<` 수동 전송은 저장된 후보/검토된 본문을 우선 사용하며 Pi 기본 `ctx.ui.editor`와 명시적인 전송 확인을 거칩니다. 후보 선택/생성만으로 intercom 전송·Main 정책 변경은 발생하지 않습니다.
+- 작업 완료를 확정하는 것은 아닙니다. `agent_settled`는 Pi run 정리 시점일 뿐이고, 완료 판정은 Work의 마지막 완료 보고와 그 주장에 근거한 모델의 분류 결과입니다. 사용자 실사용에서 완료 오분류를 검증해야 합니다.
 - 새 Work run 또는 활성 분기가 변하면 이전 응답에 연결된 미검토 초안을 잘못 전송하지 않도록 요청을 무효화합니다.
 - sourceEntryId/active leaf 및 정확한 session ID를 확인하며, 검토와 전송 사이에 변했을 때는 실패 처리합니다.
 - 전송 요청, broker 전달, 수신 Agent의 모델 처리·승인은 각기 다른 증거입니다.
@@ -103,7 +106,7 @@ Work 실행 중 입력 "<" / "< @session"
 - [pi-ask-user](https://github.com/edlsh/pi-ask-user): 모델이 호출하는 `ask_user`를 이용해 사용자에게 질문·선택·자유 입력을 받습니다. 도구의 `exposure: model-only` 때문에 별도 Compose `streamSimple()` 내부에서 자동 호출되지는 않습니다.
 - [Pi 1.4.0 Extension](https://github.com/earendil-works/pi/blob/v1.4.0/packages/coding-agent/docs/extensions.md): 모델 호출, `input`, `agent_settled`, `ctx.ui`를 재사용합니다.
 
-**미구현:** 사용자가 수정 방향을 설명하면 Agent가 Handoff 초안을 근거와 함께 반복 재작성하는 UX. 원본에서 완성된 연결을 확인하기 전에는 새 UI를 설계하거나 구현하지 않습니다.
+**코드 구현:** `ask_user`가 활성화되면 Work 모델 턴에서 자동 질문을 시작하고, 사용자의 후보 선택/추가 의견을 Work 보고 초안으로 저장하도록 작성했습니다. 이 모델-도구 경로 및 실제 TUI 통합 동작은 **아직 macOS 실행 검증 전**입니다.
 
 ## 7. 제외된 과거 설계
 
