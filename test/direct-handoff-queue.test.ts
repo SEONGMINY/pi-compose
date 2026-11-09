@@ -9,6 +9,7 @@ function setup() {
   const handlers = new Map<string, EventHandler[]>();
   const notifications: string[] = [];
   const widget: string[] = [];
+  const widgetsByKey = new Map<string, string[]>();
   const calls: Array<Record<string, unknown>> = [];
   const sessionId = 'work-session-1';
   let idle = false;
@@ -35,7 +36,8 @@ function setup() {
       addAutocompleteProvider: () => undefined,
       setEditorText: () => undefined,
       notify: (text: string) => { notifications.push(text); },
-      setWidget: (_key: string, value?: string[]) => {
+      setWidget: (key: string, value?: string[]) => {
+        widgetsByKey.set(key, value ?? []);
         widget.splice(0, widget.length, ...(value ?? []));
       },
     },
@@ -66,23 +68,24 @@ function setup() {
       message: { role: 'assistant', stopReason: 'stop', content: [{ type: 'text', text: 'Finished' }] },
     });
   };
-  return { ctx, calls, widget, notifications, emit, completeTurn };
+  return { ctx, calls, widget, widgetsByKey, notifications, emit, completeTurn };
 }
 
 test('busy Work < is consumed without model steering and never auto-delivers', async () => {
   const rig = setup();
   await rig.emit('session_start');
+  assert.deepEqual(rig.widgetsByKey.get('pi-compose/manual-handoff-request'), []);
   const result = await rig.emit('input', {
     type: 'input', source: 'interactive', text: '<', streamingBehavior: 'steer',
   });
   assert.deepEqual(result, [{ action: 'handled' }]);
   assert.equal(rig.calls.length, 0);
-  assert.match(rig.widget.join(' '), /요청 접수됨/);
+  assert.match(rig.widget.join(' '), /요청 접수/);
 
   rig.completeTurn();
   await rig.emit('agent_settled', { type: 'agent_settled', aborted: false });
   assert.equal(rig.calls.length, 0, 'agent_settled must not generate/send a handoff');
-  assert.match(rig.widget.join(' '), /검토 가능/);
+  assert.match(rig.widget.join(' '), /보관됨/);
 
   const reviewed = await rig.emit('input', { type: 'input', source: 'interactive', text: '<' });
   assert.deepEqual(reviewed, [{ action: 'handled' }]);
@@ -90,6 +93,18 @@ test('busy Work < is consumed without model steering and never auto-delivers', a
   assert.equal(rig.calls[0]?.draft, true);
   assert.equal(rig.calls[0]?.sameProductOnly, true);
   assert.equal(rig.calls[0]?.preferParentMain, true);
+});
+
+test('normal Work settlement never tells the user to press < and does not overwrite candidate status', async () => {
+  const rig = setup();
+  await rig.emit('session_start');
+  rig.completeTurn();
+  await rig.emit('agent_settled', { type: 'agent_settled', aborted: false });
+  assert.equal(rig.calls.length, 0);
+  assert.ok(!rig.widget.join(' ').includes('<'));
+  assert.deepEqual(rig.widgetsByKey.get('pi-compose/manual-handoff-request'), []);
+  assert.equal(rig.widgetsByKey.has('pi-compose/handoff'), false,
+    'manual extension must not touch the candidate reviewer status');
 });
 
 test('queued explicit recipient survives until review; no send on settle', async () => {
