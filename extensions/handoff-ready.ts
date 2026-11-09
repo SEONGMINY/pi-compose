@@ -21,6 +21,7 @@ type SavedReview = {
   version: 1;
   sessionId: string;
   reportEntryId: string;
+  reviewEntryId: string;
   text: string;
   sourceEntryIds: string[];
   createdAt: string;
@@ -44,6 +45,7 @@ export function latestReviewedDraft(ctx: ExtensionContext, reportEntryId?: strin
     if (raw.version !== 1 || raw.sessionId !== sessionId ||
         typeof raw.reportEntryId !== 'string' ||
         (reportEntryId && raw.reportEntryId !== reportEntryId) ||
+        typeof raw.reviewEntryId !== 'string' || !ids.has(raw.reviewEntryId) ||
         typeof raw.text !== 'string' || !raw.text.trim() ||
         !Array.isArray(raw.sourceEntryIds) ||
         !raw.sourceEntryIds.every(id => typeof id === 'string' && ids.has(id))) continue;
@@ -99,6 +101,9 @@ export function registerHandoffReady(pi: ExtensionAPI) {
     if (!details || typeof details !== 'object' || Array.isArray(details)) return;
     const answer = details as Record<string, unknown>;
     if (answer.cancelled === true || !answer.response) return;
+    const response = answer.response as Record<string, unknown>;
+    if (response.kind === 'selection' && Array.isArray(response.selections) &&
+        response.selections.length === 0 && !response.comment) return;
     const last = [...branch].reverse().find(entry =>
       entry.type === 'message' &&
       (entry.message.role === 'assistant' || entry.message.role === 'user' || entry.message.role === 'toolResult'));
@@ -106,11 +111,11 @@ export function registerHandoffReady(pi: ExtensionAPI) {
         last.message.stopReason !== 'stop') return;
     const text = textContent(last.message.content);
     if (!text || text.length > 14000) return;
-    const sourceEntryIds = [...new Set([prepared.reportEntryId,
+    const sourceEntryIds = [...new Set([prepared.reportEntryId, last.id,
       ...prepared.candidates.map(candidate => candidate.sourceEntryId)])];
     pi.appendEntry(REVIEWED_ENTRY, {
       version: 1, sessionId: active.sessionId, reportEntryId: active.reportEntryId,
-      text, sourceEntryIds, createdAt: new Date().toISOString(),
+      reviewEntryId: last.id, text, sourceEntryIds, createdAt: new Date().toISOString(),
     } satisfies SavedReview);
   }
 
