@@ -93,13 +93,6 @@ const INSTRUCTIONS = [
   'An assistant report cannot establish approval, execution, or test success. Never infer missing results.',
 ].join('\n');
 
-export function showHandoffHint(ctx: ExtensionContext): void {
-  if (ctx.mode !== 'tui') return;
-  const last = latestCompletedReport(ctx.sessionManager.getBranch());
-  const ready = last?.message.role === 'assistant' && Boolean(readText(last.message.content));
-  ctx.ui.setWidget(HANDOFF_HINT, ready ? ['Handoff · < 선택 후 전송 내용 검토'] : undefined);
-}
-
 export async function generateHandoffDraft(
   ctx: ExtensionContext,
   sessionId: string,
@@ -144,8 +137,8 @@ export async function generateHandoffDraft(
   } catch {
     return undefined;
   } finally {
-    if (ctx.sessionManager.getSessionId() === sessionId &&
-        ctx.sessionManager.getLeafId() === leafId) showHandoffHint(ctx);
+    // The Work candidate reviewer owns the completion status widget.
+    // A manual draft must not replace it with an obsolete '<' hint.
   }
 }
 
