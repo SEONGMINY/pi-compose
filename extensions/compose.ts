@@ -20,7 +20,9 @@ export default function composeExtension(pi: ExtensionAPI): void {
   registerDirectDelegation(pi);
   registerDelegationAutocomplete(pi);
   registerDirectHandoff(pi, showHandoff, connectedRecipientIds);
-  const { openSavedReview } = registerHandoffReady(pi);
+  const { openSavedReview } = registerHandoffReady(pi, async (ctx) => {
+    await showHandoff(ctx, { sameProductOnly: true, draft: true, preferParentMain: true });
+  });
 
   pi.registerCommand('compose', {
     description: 'Pi Compose: /compose review, /compose handoff, /compose messages, /compose surfaces',
