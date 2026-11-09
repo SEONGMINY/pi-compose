@@ -73,9 +73,12 @@ export function registerHandoffReady(
     if (!ctx.hasUI || ctx.mode !== 'tui' || !isWork(ctx)) return;
     const prepared = latestPreparedHandoff(ctx);
     if (!prepared) return;
+    const askUserActive = pi.getActiveTools().includes('ask_user');
     ctx.ui.setWidget(HANDOFF_HINT, [
-      'Work · Main 공유 후보 ' + prepared.candidates.length +
-      '개 준비됨 · 편한 시점에 /compose review 또는 < · 자동 전송 없음',
+      'Work · Main 공유 후보 ' + prepared.candidates.length + '개 준비됨 · ' +
+      (askUserActive
+        ? 'ask_user에서 선택·수정 가능 (자동 전송 없음)'
+        : 'ask_user 미활성 · 후보 저장됨 · pi install npm:pi-ask-user 후 /compose review'),
     ]);
   }
 
@@ -131,7 +134,7 @@ export function registerHandoffReady(
     const activeTools = pi.getActiveTools();
     if (!activeTools.includes('ask_user')) {
       ctx.ui.notify(
-        'Candidates are saved. To review them interactively, enable the pi-ask-user ask_user tool.',
+        'Sharing candidates are saved, but ask_user is not active. Install/enable pi-ask-user, then /compose review.',
         'warning',
       );
       return false;
