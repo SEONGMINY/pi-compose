@@ -1,230 +1,110 @@
 # Architecture — Pi Compose
 
-- 기준: [PRD](PRD.md) (2026-10-31 합의)
-- 상태: **책임 경계 설계 / Ghostty 중심 구현·실사용 검증 전**
+- 정책 원본: [PRD](PRD.md) (최신 합의 2026-11-09)
+- 실제 사용: [Usage](USAGE.md)
+- 상태: **직접 실행과 요청 대기 구현 코드 작성, macOS 실사용 검증 전**
 
-> 이전 Summary Overlay 설계·진척 기록은 이 문서에 남아 있습니다. 현재 Work Handoff는 [사용 흐름](USAGE.md#work에서-handoff-검토-열기)의 Pi 입력창 안내와 사용자 선택형 초안 검토를 따릅니다.
+과거 Ghostty Overview/Sidebar/Summary Overlay의 기술적 시도는 Git 이력에 보존합니다. **현행 아키텍처는 Pi TUI를 직접 사용하며 별도의 관리 화면을 만들지 않습니다.**
 
-## 1. 설계 원칙
+## 1. 책임 분리
 
-Pi Compose는 **Pi 위에 얇게 얹는 Harness**입니다. 새로운 대화 엔진·터미널 관리자·독립 Git 엔진·상시 문서 동기화 서비스를 만들지 않습니다.
+| 구성 요소 | 책임 | 재구현하지 않는 부분 |
+|---|---|---|
+| Pi 1.4.0 | 모델, 대화 트리, 저장 세션, Resume, ContextEdit/Compaction, Extension/TUI | Pi 세션/모델 런타임 |
+| Ghostty macOS Native Split | 실제 Agent별 Terminal/Tab과 포커스, 화면 배치 | 터미널 멀티플렉서 |
+| Git | 공유 디렉터리, Git Worktree, 브랜치·병합 | Git/Worktree 관리 엔진 |
+| pi-intercom 0.18.1 | 세션 메시지 전달, 연결 상태 및 Outbox 계약 | 자체 Agent 메시지 브로커 |
+| Pi Compose | 정확한 역할 신원, Fork/Support 생성, 사용자 요청 Handoff 근거·승인 | 별도 서버, DB, Sidebar |
 
-Main의 실제 Pi 대화에 요구사항, 도메인 정책, 설계와 결정 이유를 축적합니다. Work는 **명령어를 입력한 현재 Agent** 또는 **같은 프로덕트에서 `@세션`으로 선택한 Pi 세션**의 활성 완료 분기를 정확히 Fork하고 개발 기록을 별도 세션에 둡니다. 맥락이 불필요한 작업은 Support 독립 세션에 위임합니다. **컨텍스트 원본과 실제 Git 작업 디렉터리는 별개**입니다.
-
-## 2. 책임과 소유권
-
-| 담당 | 소유하는 것 | 소유하지 않는 것 |
-| --- | --- | --- |
-| 사용자 | 중요 계약 변경 승인, Work/Support 시작, Main 수신, **종료/백그라운드 선택**, Git 통합·문서 롤백 선택 | 반복적인 터미널·Git 명령 조합 |
-| **Pi** | 세션 트리·JSONL·Fork·Resume·모델·Extension·Compaction·TUI | Git 작업 공간 복제/병합 |
-| **Ghostty** | **Agent별 고유 터미널(Surface)과 Pi 프로세스 실행**, Overview의 Split·별도 작업 Tab 배치, 포커스·종료·최소화/숨김 | Agent의 의미적 완료·문서 정책 판단 |
-| **Pi Compose** | **프로덕트→여러 Main→관련 Agent 탐색**, 전체 Agent 보기, **별도 메시지 관리 사이드바**, **생성 요청 Agent·Fork 원본 세션·Workspace의 구분**, Summary Overlay/Handoff의 최소 기능 | 별도 LLM 런타임·계약 DB·범용 메시징 Broker |
-| **Git** | 파일·브랜치·Worktree·변경 이력·코드/문서 통합 | Pi 대화 분기/모델 컨텍스트 |
-| **프로젝트 문서** | 승인된 중요한 계약과 선택 이유 | 모든 대화/실행 로그의 영구 사본 |
-
-## 3. 기본 컨텍스트 흐름
-
-```mermaid
-flowchart TD
-    U["사용자 ↔ Main\n기획·도메인·API·설계·제약·결정 이유"]
-    F["현재 Agent 또는 같은 프로덕트에서 선택한\nPi 세션의 활성 완료 분기 Fork"]
-    W["Work\n구현·테스트 코드 작성·반복 수정"]
-    S["Support\n독립 탐색·조사·테스트 실행"]
-    O["Summary Overlay\n작업 결과 + 공유할 중요 결정 후보"]
-    H["사용자 요청 시만 Main 모델에 Handoff"]
-    D["기존 docs/*\n승인된 중요 결정 보존"]
-    U -->|명시적 실행| F --> W --> O
-    U -->|명시적 실행| S
-    O -->|사용자 선택| H --> U
-    U -->|명확한 승인 직후 기존 문서 갱신| D
-    W -.->|Work 문서 수정 범위 미확정| D
-```
-
-- **Summary는 사람에게 표시하는 화면**입니다. 자동으로 Main의 Pi 대화에 메시지를 추가하지 않습니다. Work A의 공유 후보를 다른 Work에 보내려면 **사용자가 수신 Work와 전송을 선택**해야 합니다. 통신은 기존 `pi-intercom`을 재사용하며 Pi Compose의 **작은 Extension은 Summary와 대상 선택·전송 연결**만 담당합니다. 수신 Work가 응답 중이라면 **현재 Pi 턴 종료 후** 모델에 반영하며 진행 중인 턴을 끊거나 조향하지 않습니다. 기능 개발 전체의 완료 여부는 별도로 판정하지 않습니다. Pi 턴 종료 감지는 기술 검증 대상입니다.
-- 중요 결정의 공유 후보는 Work Summary에서 **자동 표시**하지만 'Main에 미반영' 여부를 정확한 근거 없이 확정 표시하지 않습니다.
-- Pi 대화 롤백과 Git 파일 롤백은 별개입니다. 서로를 자동으로 되돌리지 않습니다.
-
-### 3.1 탐색 계층과 메시지 관리
-
-- **프로덕트별 보기**: `Pillo`, `Pi Compose`처럼 프로젝트 또는 제품을 기준으로 묶고, 프로덕트 아래 여러 Main과 관련 Work/Support를 탐색합니다. Main 화면 표기에는 `Main ·` 접두어를 붙이지 않고 `복약관리` 등 이름만 보여줍니다.
-- **전체 Agent 보기**: 프로덕트를 가로질러 실제 Main/Work/Support의 상태와 소속을 파악합니다. 그룹을 바꿔도 같은 세션/관계를 바라봅니다.
-- **메시지 관리 사이드바**: 별도 진입점에서 전달 내역·대기/수신/실패 등 사용자가 조치할 상태를 관리합니다. Summary Overlay의 중요한 결정 **공유 후보**와 실제 `pi-intercom` **전송 메시지**는 별개입니다. 화면에 표시된 메시지가 다른 Agent의 모델에 반영된 것은 아닙니다.
-- **사이드바는 `pic` Overview Tab 내부에만 표시**합니다. 별도 Ghostty 작업 Tab에는 표시하지 않습니다. Overview로 돌아오면 관리 TUI와 그 Tab에 남아 있는 실제 Pi TUI를 다시 볼 수 있어야 합니다. Main의 위치와 Overview의 수명은 독립적입니다.
-- `pic`의 관리 TUI는 Overview에 남고, 각 실행 Main·Work·Support는 **자신의 고유 Ghostty Surface에서 실제 Pi TUI**를 사용합니다. 초기에는 여러 Surface를 Overview Split으로 동시에 표시합니다. 사용자가 Ghostty 기본 드래그로 기존 Surface를 작업 Tab으로 옮기면 Overview의 해당 Split에서만 빠집니다. 사이드바에서 Agent를 선택하면 **그 Surface의 현재 위치로 포커스**합니다. Surface ID/TTY, 실제 Tab 위치와 Pi 세션 연결은 검증 대상입니다.
-- **Agent마다 기존 Surface와 Pi 프로세스를 유지**하며, 새 Agent는 생성 순서에 따라 마지막 생성 Agent 옆에 Split으로 추가합니다. 작업 상태가 바뀌어도 배치·Sidebar 관계를 재정렬하지 않습니다. 별도 Tab 이동은 사용자 선택이며, 인위적인 Agent 수 제한/자동 숨김·이동·정리는 하지 않습니다. Main도 다른 작업 Tab으로 이동할 수 있습니다. 화면 이동을 Pi 재실행/Resume 또는 동일 TUI의 복제로 흉내 내지 않습니다. 첫 버전은 **Ghostty 기본 수동 드래그**를 사용하고 자동 이동 메뉴는 후속 과제로 남깁니다. **Herdr App·herdr-core·별도 멀티플렉서/프로세스 실행 계층** 및 전역 GUI는 도입하지 않습니다.
-
-**코드 기반 (Draft PR #15):** Ghostty 1.3.1 AppleScript는 Terminal UUID를 직접 조회·포커스할 수 있습니다. `src/ghostty-native.ts`는 실제 Terminal 열거/정확한 UUID Focus/명시적인 Split 생성 기능을 분리했으며, `/compose surfaces`는 선택된 실제 Surface에만 포커스합니다. `src/agent-relationships.ts`는 명시적 Pi custom entry에 포함된 관계만 읽어, **Fork 원본과 생성 요청 Agent를 혼동하지 않도록** 구성했습니다. 생성 경로의 관계 기록과 실제 Overview Sidebar/Agent-Surface 결합은 아직 구현 전이므로 역할·프로덕트나 사용 중 Pi 세션을 Ghostty cwd/타이틀에서 추측하지 않습니다. 코드 작성 상태이지 실사용 검증 완료가 아닙니다.
-
-**실행 정체성 계약 (Draft PR #15, 검증 전):** 새 Pi 세션 ID를 포함하는 Launch Ticket를 발급해 자식 Pi가 실제로 그 ID로 시작했을 때만 `compose_agent_identity`를 남기는 Hook을 작성했습니다. 여기에는 프로덕트·Agent 역할·생성 요청 세션·실제 Fork 원본 ID/leaf·Workspace가 각각 별도로 들어갑니다. 실제 Ghostty Split 영수증을 Pi 세션과 연결하는 함수는 정확히 동일한 Launch Request ID와 자식 Session ID를 요구합니다. Work Fork는 Pi 네이티브 `createBranchedSession(leafId)`를 사용한 원본 불변 분기 추출 함수로 구성했습니다. **이것은 Agent 시작 전체, Overview 등록, 영수증 발행, 제품별 조회의 완료를 뜻하지 않습니다.**
-
-**Overview TUI 구현 기반 (Draft PR #15):** `pic` 인자 없는 실행은 `@earendil-works/pi-tui`로 만들어진 전용 관리 화면을 현재 Terminal에서 시작하도록 코드를 작성했습니다. 이 화면의 제품별 보기/전체 Agent 보기/메시지 기록은 동일한 Pi SessionManager 원본을 바라보고, 저장된 `compose_agent_identity`가 실제 자식 세션 ID와 일치할 때만 목록에 포함합니다. Ghostty Terminal UUID가 정확하게 등록되어 현재 Ghostty에 존재하는 Agent만 Surface Focus를 허용합니다. **Pi 프로세스 살아 있음, 종료 상태, Main 승인, 새 응답 확인은 아직 판별하지 않습니다.** 이 TUI는 `pic` Tab에만 있으며 Pi의 실제 TUI를 합성·미러링하지 않습니다. Main 생성·선택과 Overview → Native Launch 연결은 다음 단계이고, 초기 사용 가능한 제품은 아닙니다.
-
-### 3.2 위임 입력에서 실행까지
-```mermaid
-flowchart TD
-    I["Main / Work / Support의 Pi 기본 입력창"]
-    Q{"사용자의 실행 경로"}
-    D["직접 위임\n현재 Agent 모델 호출·대화 기록 없음"]
-    N["일반 자연어 위임\n현재 Agent 모델이 요청을 읽음"]
-    R{"Work 또는 Support"}
-    W["Work: 현재 Agent / 같은 프로덕트 @세션\n활성 완료 Pi 분기 Fork"]
-    S["Support: 독립 Pi 세션"]
-    C[">: 현재 cwd 공유\n>>: 새 Git Worktree"]
-    P["작업 지시 원문 전송·즉시 실행"]
-    G["Overview에 새 Ghostty Surface/Split\n기존 입력 포커스 유지"]
-    I --> Q
-    Q -->|">w, >s, >>w, >>s + 자연어"| D
-    Q -->|"일반 자연어"| N
-    D --> R
-    N --> R
-    R -->|Work| W
-    R -->|Support| S
-    W --> C
-    S --> C
-    C --> P
-    P --> G
-```
-
-- **`>w`, `>s`, `>>w`, `>>s`**는 모든 Main/Work/Support의 Pi 입력 첫머리에 작성하는 확정 위임 문법입니다. `>`는 현재 디렉터리를 공유하고 `>>`는 새 Git Worktree를 생성합니다. **역할·중첩 깊이에 인위적 생성 제한을 두지 않고**, 사용자 직접 위임과 모델의 자율 위임 권한은 구분합니다(자율 위임은 추후 결정). Pi `input` 이벤트 등 기존 Extension API로 **명령을 입력한 Agent 모델 호출 이전**에 처리하고, 단축어/선택용 세션 토큰을 제외한 원본 지시를 전달합니다. 일반 자연어 위임도 유지하며 **Compose 전용 키보드 단축키·기존 Pi/Ghostty 키 변경은 하지 않습니다.**
-- **`>w @` / `>>w @`**는 **같은 프로덕트의 Main·Work·Support 세션**만 자동완성합니다. 실행 중·종료된 저장 세션 모두 포함하고, **이름·최근 작업 한 줄·Workspace 정보**로 구분하며 **Pi 세션 ID**로 정확히 선택합니다. 이름·최근 작업 내용으로 검색하고 기존 Summary 또는 사실에 근거한 최근 지시를 사용하되 입력마다 LLM을 호출하지 않습니다. 일반 Pi `@` 파일 참조를 덮어쓰지 않으며, API 호환성과 종료 세션의 활성 leaf 식별은 검증 대상입니다.
-- `@세션`이 없는 Work 명령은 **명령 입력 Agent 자신의 완료된 Pi 컨텍스트**를 Fork합니다. `@세션`을 붙인 경우에는 해당 저장 세션의 완료 지점을 Fork하되 **Workspace는 명령 입력 Agent 기준**으로 유지합니다. 생성 요청 계층과 실제 Fork 출처는 별도 관계로 관리합니다.
-- 새 Work/Support는 **별도 Pi 세션·프로세스·실제 Ghostty Surface**를 소유합니다. 실행 실패 시 동일 지시의 중복 실행을 피하고 원문을 보존합니다. Main의 원본 Pi 대화 및 진행 중 응답은 손상시키지 않습니다.
-- 개별 Agent 클릭/Overlay 포커스/Sidebar 탐색은 **같은 실행 중 Surface를 찾는 동작**입니다. Tab 이동 때 새 Pi 프로세스 또는 TUI 복제를 만들어서는 안 됩니다. Sidebar는 Overview에만 유지합니다.
-
-### 3.3 실행 상태 → Sidebar와 Summary Overlay
-```mermaid
-flowchart LR
-    E["Pi 실행 이벤트\nTool·메시지·UI Prompt·settled"] --> F["사실 이벤트·실제 프로세스 상태"]
-    F --> B["Sidebar\n위치·계층 고정 / 상태만 갱신"]
-    F --> L["의미 있는 활동 변화·응답 종료"]
-    L --> M["경량 모델\n근거 기반 핵심 문장 + 근거 1~2개"]
-    M --> O["포커스 없는 Agent의\nSummary Overlay"]
-    X["포커스 아웃 30초 또는\n비포커스 응답 종료"] --> O
-```
-
-- Pi `agent_settled`는 안정적인 응답 종료 신호로 사용하지만 구현/테스트의 실질 완료를 의미하지 않습니다. 명시적인 Pi UI Prompt는 사용자 선택 대기의 근거가 되며, 단순 질문은 자동으로 차단 상태가 되지 않습니다.
-- Overlay는 Pi TUI와 독립된 **표시 계층**입니다. 포커스가 없는 Agent에서 30초 후 또는 응답 종료 시 보여줍니다. **포커스가 돌아와도 Summary를 유지**하며 사용자 Handoff 또는 Pi 복귀 선택으로만 닫습니다. 30초는 **시각 표시 타이머**이며 30초 간격 LLM 호출이나 감시가 아닙니다. Ghostty가 실제 Surface 위 겹침을 허용하는지 구현 전 확인해야 합니다.
-- 요약용 모델 호출은 실제 Agent의 모델 대화에 컨텍스트를 삽입하지 않고, Tool·메시지·Git 근거가 충분할 때 제한적으로 사용합니다. 활동 의미를 가공하되 진행률/성공·공유 Directory 변경의 소유권을 추측하지 않습니다. 전체 실행 로그는 해당 Pi 세션에 둡니다.
-- Sidebar의 상태 표시와 Summary의 내용은 분리합니다. `새 응답`은 확인 시 해제할 수 있지만 실제 `확인 필요`는 포커스만으로 해제하지 않습니다. 상태에 따라 Agent 위치/크기/포커스는 바꾸지 않습니다.
-
-### 3.4 Native Agent 실행 경로 (코드 작성 · 검증 전)
-
-```mermaid
-flowchart TD
-    I["Pi 사용자 입력 첫머리 >w / >s"] --> H["Extension input handled: 발신 모델 호출 없음"]
-    H --> Q{"실제 pic Overview Terminal ID 존재?"}
-    Q -->|아니요| R["실행 금지 · 사용자 입력 원문 복원"]
-    Q -->|예| F{"Work 또는 Support"}
-    F -->|Work| W["Pi 원본 완료 leaf만 새 Session으로 Fork"]
-    F -->|Support| S["독립 Pi Session ID 발급"]
-    W --> T["자식 ID/원문 지시/요청 관계 Launch Ticket"]
-    S --> T
-    T --> G["Ghostty Overview native Split"]
-    G --> U["Ghostty Terminal UUID 확인"]
-    U --> E["자식 Pi TUI 실행 및 원문 초기 지시 전달"]
-    E --> C["자식 Pi에만 identity + Surface binding"]
-```
-
-`src/native-agent-launch.ts`는 **Overview Terminal ID가 확인된 경우에만** Split을 요청합니다. 현재 `pic` 관리 TUI가 해당 ID를 제공하는 기능은 아직 없으므로 직접 위임 경로는 비활성 상태입니다. 시작 실패/결과 불명확 상황에서 중복 생성이나 원문 재전송은 하지 않습니다. 임시 Launch Ticket는 자식 프로세스 시작 허가를 위한 단발 자료이며 Agent 계약 데이터베이스가 아닙니다. 코드가 실제로 순서와 원본 불변을 지키는지는 사용자 통합 검증 전입니다. 기존 Main/Work Tab 안에 새 Agent를 배치하는 우회 구현은 허용하지 않습니다.
-
-### 3.5 Main 생성과 기존 세션 선택 (Draft 코드, 실사용 검증 전)
-
-`pic` Overview 내부 `n` 생성과 `o` 저장 세션 선택은 **원본 Pi 세션을 구분**합니다. 새로운 Main은 사용자 선택 제품·이름·cwd로만 생성하고 초기 프롬프트를 보내지 않습니다. 기존 Main은 Pi의 정확한 Session ID/파일을 지정해 **이전 대화만 재개**하며 Work/Support를 자동 실행하지 않습니다. 사용자가 고른 기존 비-Compose Pi 세션은 별도 역할 추측 없이 명시적으로 Main 제품/이름을 부여해야 합니다.
-
-Ghostty가 새 Split의 Terminal UUID를 돌려준 후 해당 ID와 Overview UUID를 **자식 Pi Launch Ticket에만** 전달합니다. Main identity는 새 Pi 세션이 시작될 때 기록하고, 기존 Main의 identity는 그대로 두며 Surface 바인딩만 갱신합니다. 새 Main의 첫 대화 전 임시 항목은 Overview 프로세스 메모리에만 있으며 Native Pi 세션 파일이 만들어지면 기록으로 대체합니다. 원본 Main 채팅을 임의 수정하거나 작업 지시를 재생하지 않습니다. **실제 사용/프로세스 상태/중복 감지/생성 실패의 지속 기록은 아직 완성되지 않았습니다.**
-
-### 3.6 세션 Fork 출처와 Git Workspace 독립 선택 (Draft 코드)
-
-`>w @` / `>>w @`는 **현재 프로덕트의 저장된 Pi 세션 중 완료 지점이 확인된 세션**만 후보로 보여주고 실제 Session ID + leaf를 선택합니다. Pi SessionManager가 원본 기록을 소유하며 선택된 Fork 원본의 cwd는 새 파일 작업 공간을 바꾸지 않습니다. 입력자 Pi의 cwd에서 `>w`는 Shared Directory, `>>w`는 입력 Agent Git HEAD 기준 새 Worktree를 만듭니다. `>s`와 `>>s`는 독립 Support이며 Fork 원본을 읽지 않습니다.
-
-`src/product-sessions.ts`는 원본 후보 식별, `extensions/direct-delegation.ts`는 기존 Pi 에디터 자동완성/직접 위임, `src/native-worktree.ts`는 Git의 브랜치·Worktree 생성, `src/native-agent-launch.ts`는 Pi 세션과 실제 Ghostty Split을 연결합니다. 둘 다 실패/취소 시 중복 실행이나 Worktree 자동 삭제를 피하고, 작업 지시 원문은 **수신 자식 Pi**로만 전달합니다. 자식 identity에는 원본 Git Branch/HEAD와 새 Workspace를 저장합니다. 이 범위는 **코드 작성 완료 / 타입·실행·실사용 검증 전**입니다.
-
-### 3.7 첫 Main 자동 진입과 오른쪽 작업 그룹 (Draft 설계 구현)
+## 2. Main 새 세션 시작과 복구
 
 ```text
-pic Ghostty Tab
-├── Sidebar: pic Pi-TUI 관리 Surface (좁게 유지)
-└── Workspace: Native Ghostty Split 영역
-    ├── Main: 원본 Pi TUI
-    ├── Work: Main/Work를 Fork한 다른 Native Pi TUI
-    └── Support: 독립 Native Pi TUI
+pic (bare)
+  ├─ canonical cwd 확인
+  ├─ cwd에서 stable product ID 계산
+  ├─ 새 Pi session UUID 및 main bootstrap 생성
+  └─ 현재 터미널에서 pi --extension compose.ts --session-id <new UUID>
+       └─ session_start: compose_agent_identity 기록
 ```
 
-`pic`은 **먼저 Sidebar를 표시한 뒤 즉시 첫 Main Split을 생성·포커스**합니다. 기존 Main은 정확한 cwd/저장 Pi 신원으로 재사용하며, 세션 프로세스 생존이 불명확한 경우 사용자에게 선택을 남깁니다. 첫 Main에 이전 작업 프롬프트를 자동 전송하지 않습니다.
+- 새 Main에 자동 지시를 보내지 않습니다.
+- bootstrap은 현재 프로세스의 환경에만 전달합니다. `-r`, `-c`, `--session`은 새 Main 메타데이터를 주입하지 않고 Pi 저장 세션의 신원을 사용합니다.
+- 첫 대화 전에 원본 Pi가 아직 세션 파일을 작성하지 않았을 수 있습니다. 이 상태를 이미 저장된 Main이라고 간주하면 안 됩니다.
+- 복구 중 기존 Main/Work/Support의 역할을 변환하지 않습니다. 동시에 두 프로세스에서 같은 세션을 안전하게 재개한다는 별도 보장은 하지 않습니다.
 
-첫 Main Split은 Sidebar Terminal을 기준으로 생성합니다. 이후에는 Sidebar가 아니라 **동일 Ghostty Tab의 요청 Agent 또는 기록된 Main Terminal을 Split anchor로 사용**하여 오른쪽 작업 그룹을 확장합니다. Ghostty 자체의 Split tree와 Native Terminal UUID를 사용하며 Pi 실행/대화는 기존 프로세스가 유지합니다. 최초 Sidebar 폭 축소는 `perform action resize_split` best-effort이고 픽셀 보장은 없습니다.
+관련 코드: `bin/pic.mjs`, `src/agent-bootstrap.ts`, `extensions/agent-identity.ts`.
 
-제품 정책·Git Workspace 선택·Main 컨텍스트 자동 오염 금지·Agent 간 Fork 원본·Handoff 선택 기준은 변경하지 않습니다. 새 엔진·데이터베이스·화면 미러링은 도입하지 않습니다. **중첩 Split resize 결과는 실제 macOS Ghostty에서 검증하기 전까지 미확정입니다.**
-
-## 4. Fork / Independent / Workspace
-
-| Agent | `>` — Shared Directory | `>>` — Git Worktree |
-| --- | --- | --- |
-| **Work** | 명령 입력 Agent의 cwd에서 현재 Agent/선택된 `@세션`의 완료 분기 Fork | 동일한 Pi Fork + **명령 입력 Agent의 현재 브랜치 HEAD** 기준 독립 Worktree 생성 |
-| **Support** | 명령 입력 Agent의 cwd에서 독립 Pi 세션 생성 | 독립 Pi 세션 + **명령 입력 Agent의 현재 브랜치 HEAD** 기준 독립 Worktree 생성 |
-
-- `@세션`은 **Pi 대화의 Fork 원본만** 바꿉니다. 선택한 세션의 cwd/브랜치가 달라도 명령 입력 Agent의 cwd·HEAD가 Git Workspace 기준이며, 다른 프로덕트의 세션 Fork는 지원하지 않습니다. **Shared Directory는 입력 Agent가 실제 사용 중인 디렉터리**이므로 그 디렉터리가 이미 Worktree여도 그대로 공유합니다.
-- 새 Worktree는 독립 브랜치/체크아웃을 만들고 **기존 디렉터리·브랜치를 수정하지 않습니다**. 미커밋 변경은 새 Worktree에 자동 복사하지 않으며, 변경이 있을 때는 안내만 하고 강제 커밋·반복 승인 Gate를 두지 않습니다. 마지막 Workspace 선택 기억, Git 자동 Merge/삭제를 도입하지 않습니다. 브랜치명·detached HEAD·동시 생성/실패는 기술 검증 대상입니다.
-- **생성 요청 Agent, 실제 Fork 원본 세션 ID와 완료 leaf, 새 Work Pi 세션 ID, Workspace 경로/브랜치**를 각각 식별합니다. 미완성 응답이나 최근 세션을 임의로 원본으로 추측하지 않습니다.
-- Fork는 프로젝트 파일/미커밋 상태를 복제하지 않습니다. Shared Directory의 동시 수정 위험과 Worktree 간 아직 통합되지 않은 변경은 Git 책임입니다. 원본 세션의 후속 결정이나 다른 Work 문서 변경은 새 Work에 자동 반영되지 않습니다.
-
-### 4.1 Agent 실행 증거와 종료 선택의 연결
-
-**현재 구현 코드 (Draft PR #15):** Overview는 Pi 원본 Session JSONL에 기록된 신원·Surface 바인딩을 읽고, 추가로 해당 Launch Request의 **일회성 자식 Pi 프로세스 실행 영수증**을 참조합니다. `src/agent-lifecycle.ts`에서 Session/Launch/Terminal 식별자가 같고, OS PID와 시작 시각을 재확인한 경우만 `process-observed`로 구분합니다. 자식 Pi의 시작·종료를 기록하지 못했다면 프로세스가 실행 중이라고 추측하지 않습니다. 영수증은 상태 확인용 단발 실행 기록이며 Pi 대화의 별도 기억 DB가 아닙니다.
-
-`pic`의 `q` 종료에서 백그라운드 유지 선택은 Ghostty를 Quit하지 않고 OS 숨김을 시도합니다. 종료를 선택하면 정확히 관찰된 실행 중 프로세스의 Terminal ID에 대해서만 **사용자의 추가 확인→Ghostty Native close**를 요청하며, 결과 불명확 Surface와 저장 세션·Git 파일은 보존합니다. 실제 종료 이벤트가 관찰되기 전에는 종료 완료로 표현하지 않습니다. 이 선택 UI는 Ghostty Cmd+Q/창 종료까지 가로채지 않습니다. 동일 저장 Main 세션에 연결된 OS 프로세스가 발견되면 재개하지 않습니다. 기존 Surface가 없더라도 실행 여부가 불확실하면 명시적인 위험 확인을 요구하고, 사용자가 확인하지 않으면 세션 파일을 다시 열지 않습니다. **실시간 Pi 작업 상태, 프로세스 복구, 완료된 Agent의 종료·재개, Tab 이동 등 제품 요구사항은 여전히 남습니다.**
-
-## 5. Ghostty 터미널과 세션 수명
-
-- Overview 기본 화면에는 여러 Agent의 실제 Pi TUI가 Split으로 표시됩니다. 사용자가 **Main·Work·Support 중 어느 Agent든 기존 Surface를 다른 작업 Tab에 드래그**할 수 있습니다. 이동한 Agent의 Surface는 Overview에서 빠져도 실제 Pi 프로세스와 세션, 사이드바 관계는 유지해야 합니다. Overview를 보는 것과 Agent를 Overview로 다시 배치하는 것은 별개입니다. Split을 닫은 채 Pi만 별도로 유지하는 실행 계층은 만들지 않습니다. **새 Tab 준비·드래그 왕복·마지막 Surface 이동·포커스·프로세스 연속성은 실사용 검증 전**입니다.
-- Work/Support의 Summary Overlay는 원래 Pi TUI·프로세스를 대체하지 않는 **임시 가림층**입니다. 포커스 아웃 30초 또는 비포커스 응답 종료에 표시되며, 해당 Surface에 포커스해도 유지되고, Summary 자체에서 **Handoff / Pi 화면 보기**를 명시적으로 선택합니다. 별도의 터미널 미러링 화면은 만들지 않습니다. Summary의 입력 소유권·포커스 전환·Handoff 복귀 동작은 macOS/Pi 실사용 검증 전입니다.
-- **`pic` 내부 종료 UI에서만** **백그라운드로 유지(최소화/숨김)** 또는 **Agent 종료** 중 선택합니다. 유지 시 Ghostty와 기존 Surface·Agent를 살려둡니다. Agent 종료 시 Pi 기록과 Git 파일은 보존합니다. **Ghostty의 `Cmd+Q`와 일반 창 닫기는 가로채지 않으며**, Ghostty 자체 Quit 후 Agent만 별도 생존하는 구조도 범위 밖입니다. 최소화/숨김과 실제 프로세스 수명은 검증 대상입니다.
-- **완전 종료 후 재실행**에서는 사용자가 Main을 **명시적으로 선택**합니다. 선택한 Main만 재개하고 관련 Work/Support를 자동으로 재생성·실행하지 않습니다. **백그라운드로 유지한 뒤 다시 화면을 표시하는 행동은 재실행과 구분**하며, 기존 실행 중인 Agent에 복귀해야 합니다.
-- **개별 Agent의 응답 중단은 Pi의 `Esc`**를 사용하고, 프로세스 종료와 구분합니다. Sidebar의 종료는 실제 Pi 프로세스·Surface를 닫되 Pi 세션 기록·Git 파일/Worktree를 보존합니다. 실행 중 종료는 영향 확인, 유휴 상태 종료는 직접 처리합니다.
-- 종료된 Agent는 기존 생성 요청 Agent·프로덕트 관계와 Sidebar 위치를 유지하며, **행 클릭 즉시 기존 Pi 세션을 새 프로세스/Surface로 열고 포커스**합니다. **세션 재개는 대화 복원·입력 대기**, **작업 재개는 사용자의 새 지시 후 실행**으로 분리합니다. 정상·비정상 종료 모두 **원본 Pi 세션 재-Fork**, 이전 지시·실패 Tool 자동 재전송/재실행을 금지합니다. Compose 목록에서 제거할 수 있는 대상은 종료된 Agent뿐이고 Pi 세션·Git 데이터 자체는 삭제하지 않습니다. 보관함 시스템은 도입하지 않습니다.
-- Pi 자체 종료·Ghostty Surface 닫기까지 실제 프로세스 상태와 연결하고 비정상 종료를 구분합니다. **생성에 실패한 Agent의 Sidebar 항목과 생성 요청 Agent·프로덕트 관계는 유지**하며, 세션 존재/실행 여부가 불명확하다고 자동 중복 생성하거나 최초 지시를 재전송하지 않습니다. Sidebar 재시도 버튼이나 별도 복구 화면은 도입하지 않고 기존 Overview/터미널에서 확인 가능한 오류를 표시합니다. 개별 종료/재개와 `pic` 전체 종료 선택은 별개입니다.
-- 중단된 외부 명령을 자동 재개하는 시스템을 만들지 않습니다.
-
-### 5.1 Summary Overlay 구현 연결 (Draft 코드)
-
-- **렌더링 소유권:** 각 Agent의 **원래 Pi 1.4.0 TUI**가 `ctx.ui.custom({overlay:true,nonCapturing:true})`로 표시합니다. Ghostty Terminal은 하나이며 Pi 프로세스·원본 JSONL/분기 이력은 변하지 않습니다. 별도 TUI 미러링·프로세스 재생성·새 GUI가 아닙니다.
-- **포커스/시간:** 각 자식 Agent는 Launch Ticket의 정확한 AppleScript Terminal UUID를 알고 있으며, Ghostty의 읽기 전용 `frontmost`/선택 Tab의 focused Terminal 관찰로 포커스 아웃 30초와 재포커스 여부를 관찰하되, 열린 Summary는 포커스만으로 닫지 않습니다. 비포커스 Pi 정상 `agent_settled`만 표시 지연을 건너뜁니다. 1초 폴링의 리소스·지연 및 UI prompt 충돌은 아직 검증 전입니다.
-- **원본 근거:** `src/summary-evidence.ts`는 활성 분기의 Pi user/assistant/toolResult 엔트리와 원본 Entry ID를 투영합니다. **현재는 증거 패널이며 경량 모델 의미 요약·중요 결정 자동 후보는 아닙니다.** Overview `v` 조회 또한 같은 Pi 원본에 근거합니다. 사용자 요청 없이 Main이나 다른 Work에 정보를 주입하거나 Git Merge하지 않습니다.
-- **추가 구현 필요:** 승인된 경량 요약 모델의 정확도·비용 제한, 자동 공유 후보와 명시적 수신자 선택, 메시지 Sidebar 상태의 최종 통합. 기술적으로 UI 구조를 구성한 것과 제품 요구사항 충족을 구분합니다.
-
-### 5.2 Handoff 반대 방향 단축 입력
+## 3. 직접 위임과 Native Split
 
 ```text
-Pi input: < / < @same-product-session
-  -> direct-handoff.ts (interactive only)
-  -> verified Compose product + recorded requester/Main chain
-  -> Pi intercom LIVE peers (exact Pi Session ID == intercom peer ID)
-  -> handoff.ts existing recipient/source/kind/editor UI
-  -> user reviewed message -> intercom Outbox request
+Main / Work / Support의 Pi 입력창
+  │
+  └── 입력 이벤트: >w, >s, >>w, >>s
+       ├── 정확한 현재 Compose 신원·활성 분기 확인
+       ├── 현재 Ghostty Terminal UUID 확인
+       ├── Work → 선택한 Pi 세션의 활성 완료 분기 createBranchedSession
+       ├── Support → 독립 Pi Session UUID
+       ├── >> 선택 시 → 현재 Workspace의 HEAD에서 새 Worktree
+       └── 현재 Ghostty Terminal을 anchor로 Native Split
+            └── private launch ticket → 새 Pi 프로세스, 정확한 신원
 ```
 
-`>w`는 정확한 Pi 대화를 Fork해 개발 Agent를 생성하지만, `<`는 **기존 Agent에게 보내는 명시적 정보 공유 요청**입니다. `<<`는 없으며 Git Worktree와 무관합니다. Work의 부모 Main은 `requesterSessionId` 계층으로 확인하며 `forkSourceSessionId`로 대체하지 않습니다. 정확한 원본 Pi Session ID와 연결 peer가 일치하지 않으면 대상 수신을 막습니다. 사용자 승인 전에는 Main 모델 컨텍스트나 다른 Agent에 메시지가 삽입되지 않습니다.
+- `>w @세션`은 프로젝트가 일치하고 정확한 ID가 있는 저장 세션만 출처로 허용합니다. 표기명/cwd에서 Fork ID를 추측하지 않습니다.
+- 원본 Pi JSONL은 불변입니다. Work의 Fork 출처/요청자/파일 작업 디렉터리/새 Pi Session ID를 각각 별도 기록합니다.
+- Support는 Fork하지 않습니다. 처음 생성할 때의 task 외에 자동으로 Main 전체 대화를 전송하지 않습니다.
+- Native Split은 `listGhosttyTerminals`, `getFocusedGhosttyTerminalId`, `splitGhosttyTerminal`을 재사용하고, 실패 시 다른 Tab을 추측하거나 중복 Agent를 자동 생성하지 않습니다.
+- Terminal 생성 영수증은 Pi 프로세스 준비·사용자 지시 처리 완료의 증거가 아닙니다.
+- 기존 `native-agent-entry.mjs`의 Launch Ticket 필드 `overviewTerminalId`는 하위호환 이름입니다. 새 호출에서는 **실제 요청자 Terminal ID를 값으로 사용**하며 Sidebar를 생성하지 않습니다. 이름을 정리하는 후속 리팩터링은 기능 동작 확인 이후 별도로 진행할 수 있습니다.
 
-## 6. 문서와 맥락의 경계
+관련 코드: `extensions/direct-delegation.ts`, `src/native-agent-launch.ts`, `src/native-work-fork.ts`, `src/native-worktree.ts`, `src/ghostty-native.ts`, `bin/native-agent-entry.mjs`.
 
-`AGENTS.md`는 짧은 프로젝트 문서 안내자이며, 실제 확정 계약은 기존 `docs/*`의 해당 원본에 유지합니다. 중요한 승인 결정은 Main의 짧은 지침과 Pi 기본 파일 도구로 **즉시 기존 문서를 갱신**하는 방향입니다. 신규 문서 생성은 사용자 확인이 필요합니다.
+## 4. 진행 중 Work Handoff 요청
 
-Main이 자신의 컨텍스트에서 관련 계약과 변경 이유를 알고 있으므로 먼저 간단한 지침을 사용합니다. 누락이 실제로 확인되기 전에 별도 감지 Extension이나 계약 DB를 도입하지 않습니다.
+```text
+Work 실행 중 입력 "<" / "< @session"
+  ├─ Pi input 이벤트에서 action: handled (Steering/followUp 미전달)
+  ├─ 메모리상 대기 요청: 송신 세션 ID·현재 leaf·수신 조건
+  └─ Work 기존 실행은 계속
+       └─ Pi agent_settled
+            ├─ aborted/error/완료 보고 없음: 요청 폐기, 이유 알림
+            └─ 완료 assistant 보고: 검토 가능 상태 표시
+                 └─ 사용자가 다시 "<" 제출
+                      ├─ 원래 Pi 세션·분기 검증
+                      ├─ 수신자의 정확한 intercom 주소 검증
+                      ├─ 필요한 완료 근거에서 초안 생성
+                      ├─ 사용자 검토·전송 승인
+                      └─ pi-intercom Outbox 요청
+```
 
-맥락이 없는 세션이 관련 문서를 읽는 것은 사용자의 **명시적 요청**으로만 시작합니다. Skill은 가능한 구현 수단이며 모든 `docs/*`를 상시 적재하지 않습니다.
+- 대기 요청은 Work 대화에 기록하는 모델 지시가 아니며, 다른 Main/Work 세션으로 자동 이관하지 않습니다.
+- 모델 초안 생성 시점은 **사용자의 검토 진입 이후**입니다. 응답 종료 시 자동 모델 호출을 하지 않습니다.
+- 새 Work run 또는 활성 분기가 변하면 이전 응답에 연결된 미검토 초안을 잘못 전송하지 않도록 요청을 무효화합니다.
+- sourceEntryId/active leaf 및 정확한 session ID를 확인하며, 검토와 전송 사이에 변했을 때는 실패 처리합니다.
+- 전송 요청, broker 전달, 수신 Agent의 모델 처리·승인은 각기 다른 증거입니다.
 
-### 6.1 Handoff의 현재 구현 경계 (Draft PR #15)
+관련 코드: `extensions/direct-handoff.ts`, `extensions/handoff-draft.ts`, `extensions/handoff.ts`, `src/agent-relationships.ts`.
 
-- Pi Extension에서 **사용자 선택→원본 엔트리 확인→pi-intercom Outbox 요청**을 연결하는 최소 명령 `/compose handoff`와, Pi 세션의 기록만 투영해 읽기 전용 메시지 목록을 보여주는 `/compose messages`를 작성했습니다. Session ID + 활성 Leaf ID + Entry ID로 근거를 표시하고, 기록은 Pi의 custom entry에 남기므로 별도 데이터베이스를 만들지 않습니다. 실행·통합은 미검증입니다.
-- 현재 `main`에는 Ghostty Overview/Summary 공유 후보와 메시지 Sidebar 기반 화면이 구현돼 있지 않습니다. 임시 명령은 UX의 대체가 아니며, 사용자의 공유 선택 없이 Main에 모델 입력을 추가하지 않습니다.
-- pi-intercom Outbox `sent`/`failed` 결과와 수신 Pi가 모델에 반영한 상태는 서로 다릅니다. 수신 완료/모델 읽음은 별도 근거 없이는 표시하지 않습니다.
+## 5. Handoff 출처와 품질
 
-## 7. 다음 설계 질문
+현재 초안 생성은 마지막 완료 Work 보고의 일부 발췌문, 최근 사용자 지시, 관련 도구 결과를 후보로 하여 별도 `streamSimple()` 호출로 인용문을 선택합니다. Pi Entry ID와 **원문 문자열 일치**를 확인합니다.
 
-- Work A의 중요 결정 공유 후보는 Summary에 자동 표시하고, **수신 Work와 전송은 사용자가 명시적으로 선택**합니다. 전달은 **`pi-intercom` + Compose Extension**을 재사용합니다. `human-first` 정상 턴 경계 1회 관찰 및 사용자 선택형 Outbox 코드 작성은 확인됐지만, **Summary/Overview와의 연결, 수신 상태 조회·중복·다른 경계**는 남았습니다.
-- Work에서 기존 문서를 갱신하는 역할의 범위와 다른 Worktree와의 문서 통합 방식.
-- Summary의 **실제 Ghostty Surface Overlay 구현**, 근거 수집과 경량 모델 비용·갱신 제약, 상태 감지·비정상 종료·Resume 복구 구현 및 Handoff 대상과 명시적 수신 방식. 표시 정책·30초·정보 우선순위·종료 후 클릭 재개 자체는 확정.
-- **Pi의 `>w @` 세션 선택 자동완성·현재 프로덕트 판별·실행/종료 세션의 완료 leaf 식별**, 입력 Agent와 원본 세션/실제 Git 작업 공간의 분리, Git Worktree 생성·브랜치 충돌/실패를 안전하게 다루는 API.
-- Ghostty/Pi에서 **기존 Surface의 Split 생성·고유 식별·수동 Tab 이동/복귀·현재 위치 기반 포커스와 프로세스 연속성**, Overlay, `pic` Overview의 **프로덕트/Agent/메시지 사이드바**, `pic` 내부 종료 선택과 Ghostty 숨김·세션 복구를 구현하는 실제 API. **자동 Surface 이동은 후속 과제**입니다.
+이는 인용문이 실제 기록에 존재한다는 검사이지 아래 항목의 의미 정확성까지 검증하지는 않습니다.
 
-긴 실행 로그와 전체 Diff는 원본 Work/Support에 두고, Main에 무단 삽입하거나 모든 세션에 방송하지 않습니다.
+- 금지·허용 조건, 부정문, 승인 주체, 기존 정책과의 충돌
+- 테스트 코드 존재/테스트 실행/테스트 성공의 구분
+- Work 보고/실제 도구 관찰/사용자 명시 승인 구분
+- Compaction·ContextEdit 이후 참조 가능한 원본 범위
+
+이전 실험 자료와 [QMSum](https://aclanthology.org/2021.naacl-main.472/), [FActScore](https://aclanthology.org/2023.emnlp-main.741/), [SummEdits](https://aclanthology.org/2023.emnlp-main.600/), [Lost in the Middle](https://aclanthology.org/2024.tacl-1.9/)은 검증 근거로만 사용합니다. 논문이 Pi Compose 자체를 검증한 것은 아닙니다.
+
+## 6. 검증된 레퍼런스와 남은 공백
+
+- [pi-intercom 0.18.1 `/handover`](https://github.com/nicobailon/pi-intercom/tree/v0.18.1): 대상 선택 → 요약 생성 → Pi 기본 Editor에서 수정 → 전송. 새 작업을 이어받는 용도라 Main의 승인 없는 정책 변경을 방지하는 Compose 계약과 동일하지 않습니다.
+- [pi-ask-user](https://github.com/edlsh/pi-ask-user): 모델이 호출하는 `ask_user`를 이용해 사용자에게 질문·선택·자유 입력을 받습니다. 도구의 `exposure: model-only` 때문에 별도 Compose `streamSimple()` 내부에서 자동 호출되지는 않습니다.
+- [Pi 1.4.0 Extension](https://github.com/earendil-works/pi/blob/v1.4.0/packages/coding-agent/docs/extensions.md): 모델 호출, `input`, `agent_settled`, `ctx.ui`를 재사용합니다.
+
+**미구현:** 사용자가 수정 방향을 설명하면 Agent가 Handoff 초안을 근거와 함께 반복 재작성하는 UX. 원본에서 완성된 연결을 확인하기 전에는 새 UI를 설계하거나 구현하지 않습니다.
+
+## 7. 제외된 과거 설계
+
+멀티프로젝트 Overview, 제품/메시지 Sidebar, 별도 Summary Overlay, Sidebar 기반 프로세스 종료 UI는 최신 결정으로 제외됐습니다. 기존 소스에 남아 있는 Legacy helper는 배포되지 않는 경로로 취급하며, 현행 `pic` 실행·위임에 의존하지 않습니다.
