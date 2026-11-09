@@ -1,7 +1,7 @@
 # Implementation Plan — Pi Compose Main-first 실행과 Handoff
 
 - 기준: [PRD](PRD.md), [Architecture](ARCHITECTURE.md), [TRD](TRD.md)
-- 최신 방향: **bare `pic`은 매번 새 Main / Sidebar 없음 / Native Ghostty Split / 실행 중 Work Handoff 요청 허용**
+- 최신 방향: **bare `pic` 새 Main / Sidebar 없음 / Native Ghostty Split / Work 완료 시 공유 후보 자동 준비(A안) / 나중에 ask_user 검토 및 수동 전송**
 - 상태: 코드 반영 중, macOS Ghostty/Pi 실사용 검증 전
 
 ## 1. 작업 원칙
@@ -24,7 +24,11 @@
 | 3 | `>w`/`>s`의 Sidebar 환경 변수 의존 제거 | `extensions/direct-delegation.ts` | 코드 작성 |
 | 4 | 실행 중 `<`를 모델 입력에서 분리하고 대기, `agent_settled` 뒤 사용자 검토 | `extensions/direct-handoff.ts` | 코드 작성 |
 | 5 | 실행 중 요청·기다림·중단에 대한 회귀 테스트 추가 | `test/direct-handoff-queue.test.ts` | 테스트 코드 작성, 실행 미확인 |
-| 6 | 최신 제품 정책·사용 설명으로 문서 갱신 | `README.md`, `docs/*` | 문서 작성 |
+| 6 | Work 완료 보고 판단 + 공유 후보 자동 준비·비컨텍스트 영속 저장 | `extensions/handoff-candidates.ts` | 코드 작성, 모델 의미 정확성 미검증 |
+| 7 | 자동 ask_user 질문 + 선택 응답/검토 초안 저장 + 도구 제한 | `extensions/handoff-ready.ts` | 코드 작성, Pi 모델 턴 연계 실사용 미검증 |
+| 8 | 저장된 후보를 Pi 에디터에서 수정하고 명시적으로 전송 승인 | `extensions/handoff.ts` | 코드 작성, intercom 실사용 미검증 |
+| 9 | 후보 생성·출처 검증·취소·저장/복구 테스트 | `test/handoff-candidates.test.ts`, `test/handoff-ready.test.ts` | 테스트 코드 작성, 실행 미확인 |
+| 10 | 최신 제품 정책·사용 설명으로 문서 갱신 | `README.md`, `docs/*` | 문서 작성 |
 
 ## 3. 남은 기술 검증 (사용자 Mac)
 
@@ -48,7 +52,7 @@
 
 ### Agent 기반 수정
 
-[pi-ask-user](https://github.com/edlsh/pi-ask-user)의 `ask_user`는 `model-only`입니다. 현재 Compose의 독립적인 `streamSimple()` 생성에서 자동 호출되지 않습니다. 원본 Agent 도구 호출 흐름을 재사용할 수 있는지 먼저 확인하고, 불가능하면 이유·비용·대체 레퍼런스를 사용자에게 제시합니다. 임의의 고정 수정 메뉴나 새로운 질문 UI는 구현하지 않습니다.
+[pi-ask-user](https://github.com/edlsh/pi-ask-user)의 `ask_user`는 `model-only`입니다. 모델 호출과 달리 Work Agent의 일반 Pi 턴을 `triggerTurn`으로 시작하고, 그 턴의 도구를 `ask_user`로 한정하여 원본 질문 UI를 사용하도록 코드 작성했습니다. **실제 Pi의 완료 이벤트 안에서 이 모델 턴이 안전하게 시작되는지**, 사용자 응답을 받은 초안 저장과 도구 복원이 올바른지 검증해야 합니다. 사용자 답변 없이 Main 전송이나 추가 개발을 시작하지 않습니다.
 
 ### 평가
 
