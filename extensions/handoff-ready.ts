@@ -10,6 +10,7 @@ import {
 import { readAgentRelationship } from '../src/agent-relationships.ts';
 
 export const REVIEWED_ENTRY = 'compose_handoff_reviewed_draft';
+export const PREPARATION_STATUS_ENTRY = 'compose_handoff_preparation_status';
 
 type ReviewTurn = {
   sessionId: string;
@@ -65,6 +66,29 @@ export function registerHandoffReady(
 ) {
   let preparing = false;
   let review: ReviewTurn | undefined;
+  let lastAssessment: { status: string; reason?: string; sessionId: string } | undefined;
+
+  function recordAssessment(ctx: ExtensionContext, status: string, reason?: string) {
+    const entry = { version: 1, sessionId: ctx.sessionManager.getSessionId(),
+      status, reason, at: new Date().toISOString() };
+    lastAssessment = entry;
+    // Non-context metadata: never turns classification into a model instruction.
+    pi.appendEntry(PREPARATION_STATUS_ENTRY, entry);
+  }
+
+  function lastAssessmentFor(ctx: ExtensionContext) {
+    if (lastAssessment?.sessionId === ctx.sessionManager.getSessionId()) return lastAssessment;
+    for (const entry of [...ctx.sessionManager.getBranch()].reverse()) {
+      if (entry.type !== 'custom' || entry.customType !== PREPARATION_STATUS_ENTRY) continue;
+      const data = entry.data;
+      if (!data || typeof data !== 'object' || Array.isArray(data)) continue;
+      const value = data as Record<string, unknown>;
+      if (value.sessionId === ctx.sessionManager.getSessionId() && typeof value.status === 'string') {
+        return { status: value.status, reason: typeof value.reason === 'string' ? value.reason : undefined,
+          sessionId: ctx.sessionManager.getSessionId() };
+      }
+    }
+  }
 
   const isWork = (ctx: ExtensionContext) =>
     readAgentRelationship(ctx.sessionManager.getSessionId(), ctx.sessionManager.getEntries())?.role === 'work';
@@ -164,17 +188,64 @@ export function registerHandoffReady(
     }
   }
 
-  function openSavedReview(ctx: ExtensionContext): void {
+  async function openSavedReview(ctx: ExtensionContext): Promise<void> {
     if (!ctx.hasUI || !isWork(ctx)) {
       ctx.ui.notify('Open candidate review from an identified Work session.', 'warning');
       return;
     }
-    const prepared = latestPreparedHandoff(ctx);
+    let prepared = latestPreparedHandoff(ctx);
+    if (!prepared && ctx.isIdle() && !preparing) {
+      // Old Work results or earlier generation failures can be retried without
+      // asking the user to repeat the entire implementation task.
+      preparing = true;
+      try {
+        const result = await prepareWorkHandoffCandidates(ctx);
+        if (result.status === 'prepared' &&
+            ctx.sessionManager.getSessionId() === result.draft.sessionId &&
+            ctx.sessionManager.getLeafId() === result.draft.sourceLeafId) {
+          pi.appendEntry(CANDIDATE_ENTRY, result.draft);
+          prepared = result.draft;
+          recordAssessment(ctx, 'prepared');
+          showReady(ctx);
+        } else {
+          recordAssessment(ctx, result.status, 'reason' in result ? result.reason : undefined);
+        }
+      } finally {
+        preparing = false;
+      }
+    }
     if (!prepared) {
-      ctx.ui.notify('No prepared Work sharing candidates on the active Pi branch.', 'info');
+      const info = lastAssessmentFor(ctx);
+      ctx.ui.notify('No prepared candidates. Assessment: ' +
+        (info?.status ?? 'not-run') + (info?.reason ? ' (' + info.reason + ')' : '') +
+        '. Run /compose handoff-status for diagnostics.', 'warning');
       return;
     }
     beginReview(ctx, prepared);
+  }
+
+  function showHandoffStatus(ctx: ExtensionContext): void {
+    if (!ctx.hasUI) return;
+    const owner = readAgentRelationship(ctx.sessionManager.getSessionId(), ctx.sessionManager.getEntries());
+    const branch = ctx.sessionManager.getBranch();
+    const last = [...branch].reverse().find(entry =>
+      entry.type === 'message' && (entry.message.role === 'assistant' ||
+      entry.message.role === 'user' || entry.message.role === 'toolResult'));
+    const report = last?.type === 'message' && last.message.role === 'assistant'
+      ? last.message.stopReason : 'no-final-assistant-message';
+    const prepared = latestPreparedHandoff(ctx);
+    const assessment = lastAssessmentFor(ctx);
+    const tools = pi.getActiveTools();
+    ctx.ui.notify([
+      'Pi Compose Handoff diagnostics (no sending)',
+      'Role: ' + (owner?.role ?? 'unverified') + ' · Session: ' + ctx.sessionManager.getSessionId().slice(0, 12),
+      'Last assistant stop: ' + report + ' · Idle: ' + String(ctx.isIdle()),
+      'Ask User tool active: ' + String(tools.includes('ask_user')),
+      'Saved candidates: ' + (prepared ? prepared.candidates.length : 0),
+      'Assessment: ' + (assessment?.status ?? 'not-recorded') +
+        (assessment?.reason ? ' (' + assessment.reason + ')' : ''),
+      'Review running: ' + String(Boolean(review)),
+    ].join('\n'), 'info');
   }
 
   pi.on('session_start', (_event, ctx) => {
@@ -217,11 +288,14 @@ export function registerHandoffReady(
     try {
       const result = await prepareWorkHandoffCandidates(ctx);
       if (result.status !== 'prepared') {
+        recordAssessment(ctx, result.status, 'reason' in result ? result.reason : undefined);
         if (result.status === 'complete-no-candidates') {
           ctx.ui.notify('Work reported complete; no Main sharing candidates were identified.', 'info');
         }
         if (result.status === 'failed') {
-          ctx.ui.notify('Work sharing candidate generation failed; no completion or sending was assumed.', 'warning');
+          ctx.ui.notify('Work sharing candidate generation failed (' +
+            ('reason' in result ? (result.reason ?? 'unknown') : 'unknown') +
+            '). Run /compose handoff-status; no delivery occurred.', 'warning');
         }
         return;
       }
@@ -229,6 +303,7 @@ export function registerHandoffReady(
       if (ctx.sessionManager.getSessionId() !== result.draft.sessionId ||
           ctx.sessionManager.getLeafId() !== result.draft.sourceLeafId) return;
       pi.appendEntry(CANDIDATE_ENTRY, result.draft);
+      recordAssessment(ctx, 'prepared');
       showReady(ctx);
       ctx.ui.notify(
         'Work reported complete. Main sharing candidates are saved for later review; nothing was sent.',
@@ -244,5 +319,5 @@ export function registerHandoffReady(
     }
   });
 
-  return { openSavedReview };
+  return { openSavedReview, showHandoffStatus };
 }
