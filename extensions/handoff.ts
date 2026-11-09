@@ -229,8 +229,8 @@ export function registerHandoff(pi: ExtensionAPI) {
             String(i + 1) + '. ' + candidate.title + ' (' + candidate.kind + ')',
             candidate.description,
             'Evidence [' + candidate.sourceEntryId + ']: ' + candidate.quote,
-          ].join('\\n')),
-        ].join('\\n\\n');
+          ].join('\n')),
+        ].join('\n\n');
         sourceEntryId = prepared.reportEntryId;
         sourceEntryIds = [...new Set([prepared.reportEntryId,
           ...prepared.candidates.map(candidate => candidate.sourceEntryId),
@@ -261,7 +261,7 @@ export function registerHandoff(pi: ExtensionAPI) {
       }
       const approved = await ctx.ui.confirm(
         'Send this user-reviewed Handoff?',
-        'Recipient: ' + (target.name || target.id) + ' [' + target.id + ']\\n' +
+        'Recipient: ' + (target.name || target.id) + ' [' + target.id + ']\n' +
         'Sending does not approve a policy, verify implementation, or authorize new tasks.',
       );
       if (approved !== true) return;
@@ -274,7 +274,7 @@ export function registerHandoff(pi: ExtensionAPI) {
         'Original completed Work report: ' + sourceEntryId,
         'Evidence entry IDs: ' + sourceEntryIds.join(', '),
         'Recipient should verify any claims against source and current Main decisions.',
-      ].join('\\n\\n');
+      ].join('\n\n');
     } else {
       const sources = activeSources(ctx);
       if (!sources.length) {
