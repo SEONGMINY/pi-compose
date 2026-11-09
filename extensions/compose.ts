@@ -20,12 +20,12 @@ export default function composeExtension(pi: ExtensionAPI): void {
   registerDirectDelegation(pi);
   registerDelegationAutocomplete(pi);
   registerDirectHandoff(pi, showHandoff, connectedRecipientIds);
-  const { openSavedReview } = registerHandoffReady(pi, async (ctx) => {
+  const { openSavedReview, showHandoffStatus } = registerHandoffReady(pi, async (ctx) => {
     await showHandoff(ctx, { sameProductOnly: true, draft: true, preferParentMain: true });
   });
 
   pi.registerCommand('compose', {
-    description: 'Pi Compose: /compose review, /compose handoff, /compose messages, /compose surfaces',
+    description: 'Pi Compose: /compose review, /compose handoff-status, /compose handoff, /compose messages, /compose surfaces',
     handler: async (args, ctx) => {
       const command = args.trim();
       if (command === 'surfaces') {
@@ -33,7 +33,11 @@ export default function composeExtension(pi: ExtensionAPI): void {
         return;
       }
       if (command === 'review') {
-        openSavedReview(ctx);
+        await openSavedReview(ctx);
+        return;
+      }
+      if (command === 'handoff-status') {
+        showHandoffStatus(ctx);
         return;
       }
       if (command === 'handoff') {
@@ -45,7 +49,7 @@ export default function composeExtension(pi: ExtensionAPI): void {
         return;
       }
       ctx.ui.notify(
-        'Usage: /compose review, /compose handoff, /compose messages, /compose surfaces. ' +
+        'Usage: /compose review, /compose handoff-status, /compose handoff, /compose messages, /compose surfaces. ' +
         'To start an Agent enter >w or >s; to resume use Pi /resume or pic -r.',
         'warning',
       );
