@@ -144,7 +144,8 @@ export function registerHandoffReady(pi: ExtensionAPI) {
       pi.setActiveTools(['ask_user']);
       pi.sendMessage({
         customType: 'compose_handoff_candidate_review',
-        display: true,
+        // The user sees the real ask_user question, not a wall of control text.
+        display: false,
         content: candidateReviewInstruction(draft),
         details: { reportEntryId: draft.reportEntryId },
       }, { triggerTurn: true });
