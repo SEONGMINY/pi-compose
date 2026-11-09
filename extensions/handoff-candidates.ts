@@ -140,7 +140,11 @@ export async function prepareWorkHandoffCandidates(ctx: ExtensionContext): Promi
       messages: [{ role: 'user', content: JSON.stringify({
         workReportEntryId: source.reportEntryId, sources,
       }), timestamp: Date.now() }],
-    }, { maxTokens: 2300, signal: AbortSignal.timeout(30_000) }).result();
+    }, {
+      // Candidate extraction is structured classification, not a coding task.
+      // Avoid consuming the entire output budget on hidden reasoning tokens.
+      reasoning: 'low', maxTokens: 3800, signal: AbortSignal.timeout(40_000),
+    }).result();
     if (answer.stopReason !== 'stop') return { status: 'failed', reason: 'model-stop-' + answer.stopReason };
     const text = readText(answer.content).replace(/^\s*\x60\x60\x60(?:json)?\s*([\s\S]*?)\s*\x60\x60\x60\s*$/i, '$1');
     const parsed = responseSchema.parse(JSON.parse(text));
