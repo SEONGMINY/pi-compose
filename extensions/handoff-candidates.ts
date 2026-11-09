@@ -82,7 +82,7 @@ export function preparedForReport(ctx: ExtensionContext, reportEntryId: string):
 
 export type PreparationResult =
   | { status: 'prepared'; draft: PreparedHandoff }
-  | { status: 'not-complete' | 'complete-no-candidates' | 'no-evidence' | 'already-prepared' | 'stale' | 'failed' };
+  | { status: 'not-complete' | 'complete-no-candidates' | 'no-evidence' | 'already-prepared' | 'stale' | 'failed'; reason?: string };
 
 /**
  * Only an explicit, final Work completion report is eligible. Pi's
@@ -94,12 +94,12 @@ export type PreparationResult =
 export async function prepareWorkHandoffCandidates(ctx: ExtensionContext): Promise<PreparationResult> {
   const source = latestAssistantReport(ctx);
   const model = ctx.model;
-  if (!source || !model) return { status: 'no-evidence' };
+  if (!source || !model) return { status: 'no-evidence', reason: !source ? 'no-final-assistant-report' : 'no-model-selected' };
   if (preparedForReport(ctx, source.reportEntryId)) return { status: 'already-prepared' };
 
   const sessionId = ctx.sessionManager.getSessionId();
   const sourceLeafId = ctx.sessionManager.getLeafId();
-  if (!sourceLeafId) return { status: 'no-evidence' };
+  if (!sourceLeafId) return { status: 'no-evidence', reason: 'no-source-leaf' };
 
   const previous: Source[] = [];
   let users = 0;
@@ -141,25 +141,29 @@ export async function prepareWorkHandoffCandidates(ctx: ExtensionContext): Promi
         workReportEntryId: source.reportEntryId, sources,
       }), timestamp: Date.now() }],
     }, { maxTokens: 2300, signal: AbortSignal.timeout(30_000) }).result();
-    if (answer.stopReason !== 'stop') return { status: 'failed' };
+    if (answer.stopReason !== 'stop') return { status: 'failed', reason: 'model-stop-' + answer.stopReason };
     const text = readText(answer.content).replace(/^\s*\x60\x60\x60(?:json)?\s*([\s\S]*?)\s*\x60\x60\x60\s*$/i, '$1');
     const parsed = responseSchema.parse(JSON.parse(text));
     if (ctx.sessionManager.getSessionId() !== sessionId ||
-        ctx.sessionManager.getLeafId() !== sourceLeafId) return { status: 'stale' };
-    if (parsed.outcome !== 'reported-complete') return { status: 'not-complete' };
+        ctx.sessionManager.getLeafId() !== sourceLeafId) return { status: 'stale', reason: 'source-changed-during-generation' };
+    if (parsed.outcome !== 'reported-complete') return { status: 'not-complete', reason: parsed.outcome };
     if (!parsed.candidates.length) return { status: 'complete-no-candidates' };
     // Reject the entire proposed set on even one ungrounded quote.
     if (parsed.candidates.some(item => {
       const original = sources.find(s => s.id === item.sourceEntryId);
       return !original || !original.text.includes(item.quote);
-    })) return { status: 'failed' };
+    })) return { status: 'failed', reason: 'source-quote-mismatch' };
     const draft: PreparedHandoff = {
       version: 1, sessionId, sourceLeafId, reportEntryId: source.reportEntryId,
       createdAt: new Date().toISOString(), candidates: parsed.candidates,
     };
     return { status: 'prepared', draft };
-  } catch {
-    return { status: 'failed' };
+  } catch (error) {
+    // Don't reveal source text, credentials or provider error messages.
+    const reason = error instanceof SyntaxError ? 'invalid-model-json'
+      : error instanceof z.ZodError ? 'invalid-candidate-schema'
+      : 'model-or-provider-exception';
+    return { status: 'failed', reason };
   }
 }
 
