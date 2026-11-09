@@ -145,6 +145,25 @@ test('prepared results survive missing ask_user without sending or stealing focu
   assert.ok(rig.notifications.some(text => text.includes('pi-ask-user')));
 });
 
+test('handoff-status exposes a failed classifier, and /compose review can retry the finished Work', async () => {
+  const rig = setup();
+  const original = rig.ctx.modelRegistry.streamSimple;
+  (rig.ctx.modelRegistry as any).streamSimple = () => { throw new Error('provider refused'); };
+  await rig.emit('agent_settled', { type: 'agent_settled', aborted: false });
+  assert.equal(latestPreparedHandoff(rig.ctx), undefined);
+  assert.equal(rig.writes[0]?.kind, 'compose_handoff_preparation_status');
+
+  rig.controller.showHandoffStatus(rig.ctx);
+  assert.ok(rig.notifications.some(note =>
+    note.includes('Assessment: failed') && note.includes('model-or-provider-exception')));
+
+  (rig.ctx.modelRegistry as any).streamSimple = original;
+  await rig.controller.openSavedReview(rig.ctx);
+  assert.equal(latestPreparedHandoff(rig.ctx)?.candidates.length, 1);
+  assert.equal(rig.messages.length, 1, 'review should open without replaying the Work task');
+  assert.deepEqual(rig.getTools(), ['ask_user']);
+});
+
 test('ask_user cancellation preserves prepared candidates and creates no reviewed draft', async () => {
   const rig = setup();
   await rig.emit('agent_settled', { type: 'agent_settled', aborted: false });
