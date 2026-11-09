@@ -103,7 +103,6 @@ export async function generateHandoffDraft(
   if (!input || !model) return;
   const { report, sources: candidates } = input;
 
-  ctx.ui.setWidget(HANDOFF_HINT, ['Handoff · 원본 근거에서 초안 준비 중…']);
   try {
     const answer = await ctx.modelRegistry.streamSimple(model, {
       systemPrompt: INSTRUCTIONS,
@@ -136,9 +135,6 @@ export async function generateHandoffDraft(
     return { message, report, sources: [...sources.values()] };
   } catch {
     return undefined;
-  } finally {
-    // The Work candidate reviewer owns the completion status widget.
-    // A manual draft must not replace it with an obsolete '<' hint.
   }
 }
 
