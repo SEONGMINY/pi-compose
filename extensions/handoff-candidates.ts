@@ -200,6 +200,9 @@ export async function prepareWorkHandoffCandidates(ctx: ExtensionContext): Promi
     if (ctx.sessionManager.getSessionId() !== sessionId ||
         ctx.sessionManager.getLeafId() !== sourceLeafId) return { status: 'stale', reason: 'source-changed-during-generation' };
     if (parsed.outcome !== 'reported-complete') return { status: 'not-complete', reason: parsed.outcome };
+    // An explicit empty suggestion set is a legitimate "nothing to share"
+    // result; only recover when the model attempted to propose suggestions.
+    if (!parsed.candidates.length) return { status: 'complete-no-candidates' };
     const normalized = parsed.candidates.slice(0, 5)
       .map(raw => normalizeCandidate(raw, sources));
     // Never silently reinterpret a fabricated or misattributed quotation.
