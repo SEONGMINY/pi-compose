@@ -289,6 +289,13 @@ export function registerHandoffReady(
       const result = await prepareWorkHandoffCandidates(ctx);
       if (result.status !== 'prepared') {
         recordAssessment(ctx, result.status, 'reason' in result ? result.reason : undefined);
+        if (result.status === 'failed' && ctx.mode === 'tui') {
+          ctx.ui.setWidget(HANDOFF_HINT, [
+            'Work · 공유 후보 생성 실패 (' +
+            ('reason' in result ? (result.reason ?? 'unknown') : 'unknown') +
+            ') · /compose handoff-status · /compose review 재시도',
+          ]);
+        }
         if (result.status === 'complete-no-candidates') {
           ctx.ui.notify('Work reported complete; no Main sharing candidates were identified.', 'info');
         }
