@@ -1,17 +1,21 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
 import { constants } from 'node:os';
-import { dirname, resolve } from 'node:path';
+import { basename, dirname, resolve } from 'node:path';
+import { realpathSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { openOverview } from '../src/overview.ts';
+import { createAgentBootstrap, encodeAgentBootstrap, AGENT_BOOTSTRAP_ENV } from '../src/agent-bootstrap.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const coreExtension = resolve(root, 'extensions/compose.ts');
 const optionalPackage = resolve(root, 'packages/optional');
 
-function runPi(args) {
+function runPi(args, options = {}) {
   return new Promise((done) => {
-    const child = spawn('pi', args, { stdio: 'inherit', cwd: process.cwd(), env: process.env });
+    const child = spawn('pi', args, {
+      stdio: 'inherit', cwd: options.cwd ?? process.cwd(), env: options.env ?? process.env,
+    });
     let failed = false;
     child.once('error', (error) => {
       failed = true;
@@ -33,15 +37,22 @@ const command = args[0];
 // A one-time, explicit opt-in to the optional feature bundle. All three features
 // are initially enabled by Pi on installation; pi config owns later selection.
 if (!command) {
-  // A dedicated management TUI in THIS Ghostty terminal only. Existing
-  // Main/Work/Support Pi terminals are separate native Ghostty Surfaces.
-  try {
-    await openOverview();
-  } catch (error) {
-    console.error('pic: Cannot start native Overview: ' +
-      (error instanceof Error ? error.message : String(error)));
-    process.exitCode = 1;
-  }
+  // Every bare 'pic' starts a NEW Main in this terminal, just as bare 'pi'
+  // starts a new session. Resume remains an explicit Pi-owned operation.
+  const cwd = realpathSync(process.cwd());
+  const projectKey = createHash('sha256').update(cwd).digest('hex').slice(0, 24);
+  const bootstrap = createAgentBootstrap({
+    role: 'main',
+    product: 'cwd-' + projectKey,
+    label: basename(cwd) || 'Main',
+    workspaceCwd: cwd,
+  });
+  const env = { ...process.env, [AGENT_BOOTSTRAP_ENV]: encodeAgentBootstrap(bootstrap) };
+  delete env.PI_COMPOSE_OVERVIEW_TERMINAL_ID;
+  process.exitCode = await runPi(
+    ['--extension', coreExtension, '--session-id', bootstrap.sessionId],
+    { cwd, env },
+  );
 } else if (command === 'features') {
   const flags = args.slice(1);
   if (flags.length > 1 || (flags.length === 1 && flags[0] !== '--local' && flags[0] !== '-l')) {
@@ -59,5 +70,10 @@ if (!command) {
 } else {
   // Pi owns cwd, models, providers, session storage, project settings, and TUI.
   // Explicit -e is the only difference from an ordinary "pi" invocation.
-  process.exitCode = await runPi(['--extension', coreExtension, ...args]);
+  // Pi --resume / --continue / --session must load the saved relationship
+  // from its own transcript, not inherit a parent's one-shot bootstrap.
+  const env = { ...process.env };
+  delete env[AGENT_BOOTSTRAP_ENV];
+  delete env.PI_COMPOSE_OVERVIEW_TERMINAL_ID;
+  process.exitCode = await runPi(['--extension', coreExtension, ...args], { env });
 }
