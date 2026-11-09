@@ -17,9 +17,9 @@
 | Git Worktree | Git CLI `worktree add -b` | 원본 HEAD 기준; 미커밋 변경 복사·Merge·자동 삭제 없음 |
 | 새 Agent Split | Ghostty 1.3.1 AppleScript Native Terminal UUID | 현재 입력 Terminal 확인, Mac Automation 권한 필요 |
 | 메시지 교환 | `pi-intercom@0.18.1` Outbox/extension events | 전달 성공과 모델 처리 확인 구분 |
-| Handoff 초안 생성 | Pi `ctx.modelRegistry.streamSimple()` | 별도 모델 호출, 승인된 기록만 사용 |
+| 완료 공유 후보 준비 | Pi `ctx.modelRegistry.streamSimple()` + 비컨텍스트 `pi.appendEntry()` | Work 완료 보고 분류, 최대 5개 근거 후보 자동 저장; 완료 여부는 독립 증명 아님 |
 | Handoff 요청 | Pi `input` 이벤트 + `agent_settled` | busy 요청은 `handled`, Steering/Follow-up 미전달 |
-| Handoff UI | Pi `ctx.ui.select/custom/editor` | 원본 TUI 요소 우선 사용 |
+| Handoff 검토 | pi-ask-user 원본 `ask_user` (model-only) + Pi `ctx.ui.editor/confirm` | Work 별도 모델 턴에서 후보 선택·의견 입력, 편집/전송 확인은 별개 |
 
 ## 2. Main 실행
 
@@ -59,7 +59,7 @@ Pi 복구 명령은 해당 임시 bootstrap 환경을 제거해 **기존 저장 
 
 [pi-intercom 0.18.1](https://github.com/nicobailon/pi-intercom/tree/v0.18.1)의 `performHandover`는 `buildHandoverText` → Cancel 가능한 Loader → `ctx.ui.editor` → 전송을 구현합니다. 이를 **하위호환된 Pi UI/취소 패턴으로 참고**할 수 있으나, 상위 Agent에게 다음 작업을 지시하는 Handover 프롬프트는 Main 컨텍스트 보호 정책과 그대로 호환되지 않습니다.
 
-[pi-ask-user](https://github.com/edlsh/pi-ask-user)는 `ask_user`를 `exposure: 'model-only'`로 등록합니다. 일반 Extension `ctx.executeTool()`에서 직접 호출할 수 없고, Compose의 별도 `streamSimple()`가 이를 자동 호출하지도 않습니다. 모델이 사용자와 상호작용하며 재작성하도록 만드는 방법은 **미검증**입니다. UI를 독자적으로 재작성하기 전에 재사용 가능한 Agent 턴 흐름을 조사해야 합니다.
+[pi-ask-user](https://github.com/edlsh/pi-ask-user)는 `ask_user`를 `exposure: 'model-only'`로 등록합니다. 독립 `streamSimple()`에서 직접 부르지 않고, 저장된 후보를 Work의 모델 `pi.sendMessage(..., { triggerTurn: true })` 턴으로 전달합니다. 해당 검토 턴에는 `pi.setActiveTools(['ask_user'])`로 다른 모델 도구를 막은 뒤 원래 활성 도구를 복원하도록 작성했습니다. 이 연계는 **코드 작성 상태이며 Pi 1.4.0에서 실제 실행 검증 전**입니다.
 
 ## 6. 실제 검증 기준
 
