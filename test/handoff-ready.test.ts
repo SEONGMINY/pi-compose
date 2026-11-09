@@ -112,6 +112,8 @@ test('completed Work prepares durable candidates and triggers only the real ask_
   assert.match(rig.messages[0]?.message.content, /allowMultiple:true/);
   assert.ok(rig.notifications.some(text => text.includes('nothing was sent')));
   assert.ok(rig.widgets.some(widget => widget.some(line => line.includes('1개 준비됨'))));
+  assert.ok(rig.widgets.every(widget => widget.every(line => !line.includes('<'))),
+    'prepared Work must not tell users to press <');
 
   rig.answer();
   await rig.emit('agent_settled', { type: 'agent_settled', aborted: false });
@@ -137,6 +139,7 @@ test('prepared results survive missing ask_user without sending or stealing focu
   await rig.emit('agent_settled', { type: 'agent_settled', aborted: false });
   assert.ok(latestPreparedHandoff(rig.ctx));
   assert.equal(rig.messages.length, 0);
+  assert.ok(rig.widgets.some(widget => widget.some(line => line.includes('ask_user 미활성'))));
   rig.controller.openSavedReview(rig.ctx);
   assert.equal(rig.messages.length, 0);
   assert.ok(rig.notifications.some(text => text.includes('pi-ask-user')));
