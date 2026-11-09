@@ -1,6 +1,6 @@
 # Pi Compose 설계 문서
 
-> 기준: 2026-10-31 확정 PRD 및 2026-11-01 Draft PR #15 Native Handoff·Ghostty Overview·Fork/Git Worktree·수명/종료·Pi 사실 기반 Summary Overlay 코드 현황. **확정 정책과 코드 작성/실행·통합 검증은 별개입니다.**
+> 최신 기준: **2026-11-09 사용자 결정**. bare `pic`은 새 Main을 현재 터미널에서 실행하고, Overview/Sidebar/Summary Overlay는 목표 UX에서 제외합니다. Work/Support는 현재 Pi의 Ghostty Native Split을 사용하며, 실행 중 Handoff는 요청만 대기시킨 뒤 사용자가 검토·승인합니다. **실제 Pi/Ghostty 통합 검증은 별도입니다.**
 
 문서는 업무 목적에 맞게 구분합니다. 같은 계약을 여러 문서에 복제하지 않고, 변경할 때 해당 문서의 원본을 갱신합니다.
 
