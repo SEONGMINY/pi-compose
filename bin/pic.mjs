@@ -44,7 +44,7 @@ if (!command) {
   const bootstrap = createAgentBootstrap({
     role: 'main',
     product: 'cwd-' + projectKey,
-    label: basename(cwd) || 'Main',
+    label: (basename(cwd) || 'Main').slice(0, 120),
     workspaceCwd: cwd,
   });
   const env = { ...process.env, [AGENT_BOOTSTRAP_ENV]: encodeAgentBootstrap(bootstrap) };
