@@ -198,7 +198,14 @@ export function registerHandoffReady(
       // explicit SEND confirmation without requiring another < input.
       // No focus command is issued; the UI remains in this Work terminal.
       if (saved && requestReviewedSend && ctx.hasUI && ctx.mode === 'tui' && ctx.isIdle()) {
-        await requestReviewedSend(ctx);
+        // Do not hold Pi's settlement event open for a human answer.
+        // Open the normal editor/confirmation AFTER the event callback returns.
+        queueMicrotask(() => {
+          if (ctx.sessionManager.getSessionId() !== active.sessionId || !ctx.isIdle()) return;
+          void requestReviewedSend(ctx).catch(error => {
+            ctx.ui.notify('Could not open reviewed Handoff: ' + String(error), 'warning');
+          });
+        });
       }
       return;
     }
