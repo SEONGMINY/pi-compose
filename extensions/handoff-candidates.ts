@@ -82,7 +82,7 @@ export function preparedForReport(ctx: ExtensionContext, reportEntryId: string):
 
 export type PreparationResult =
   | { status: 'prepared'; draft: PreparedHandoff }
-  | { status: 'not-complete' | 'no-evidence' | 'already-prepared' | 'stale' | 'failed' };
+  | { status: 'not-complete' | 'complete-no-candidates' | 'no-evidence' | 'already-prepared' | 'stale' | 'failed' };
 
 /**
  * Only an explicit, final Work completion report is eligible. Pi's
@@ -147,7 +147,7 @@ export async function prepareWorkHandoffCandidates(ctx: ExtensionContext): Promi
     if (ctx.sessionManager.getSessionId() !== sessionId ||
         ctx.sessionManager.getLeafId() !== sourceLeafId) return { status: 'stale' };
     if (parsed.outcome !== 'reported-complete') return { status: 'not-complete' };
-    if (!parsed.candidates.length) return { status: 'no-evidence' };
+    if (!parsed.candidates.length) return { status: 'complete-no-candidates' };
     // Reject the entire proposed set on even one ungrounded quote.
     if (parsed.candidates.some(item => {
       const original = sources.find(s => s.id === item.sourceEntryId);
