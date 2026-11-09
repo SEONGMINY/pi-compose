@@ -71,6 +71,38 @@ test('reported-complete Work with no shareable candidates is still recognized as
   assert.equal((await prepareWorkHandoffCandidates(env.ctx)).status, 'complete-no-candidates');
 });
 
+test('unexpected kind and overlong description are normalized, without weakening quote evidence', async () => {
+  const env = fixture();
+  env.setResponse({ outcome: 'reported-complete', candidates: [{
+    title: 'Implementation finished',
+    kind: 'implementation', // not a member of the strict stored enum
+    description: 'Detail '.repeat(160), // model occasionally ignores length budget
+    sourceEntryId: 'report-1',
+    quote: 'Tests were not run.',
+  }] });
+  const result = await prepareWorkHandoffCandidates(env.ctx);
+  assert.equal(result.status, 'prepared');
+  if (result.status !== 'prepared') return;
+  assert.equal(result.draft.candidates[0]?.kind, 'finding');
+  assert.equal(result.draft.candidates[0]?.description.length, 700);
+  assert.equal(result.draft.candidates[0]?.quote, 'Tests were not run.');
+});
+
+test('incomplete generated candidate shape falls back to quoted Work report after completion was classified', async () => {
+  const env = fixture();
+  env.setResponse({ outcome: 'reported-complete', candidates: [{
+    title: 'Progress notes', description: 'Missing evidence details from model output',
+    kind: 'finding',
+  }] });
+  const result = await prepareWorkHandoffCandidates(env.ctx);
+  assert.equal(result.status, 'prepared');
+  if (result.status !== 'prepared') return;
+  assert.equal(result.draft.candidates.length, 1);
+  assert.equal(result.draft.candidates[0]?.sourceEntryId, 'report-1');
+  assert.match(result.draft.candidates[0]?.description ?? '', /독립|별도/);
+  assert.ok(result.draft.candidates[0]?.quote.includes('implementation is complete'));
+});
+
 test('fabricated evidence is rejected instead of persisted', async () => {
   const env = fixture('reported-complete', 'Tests passed in CI');
   const result = await prepareWorkHandoffCandidates(env.ctx);
