@@ -79,11 +79,16 @@ Work 독립 개발 (사용자는 다른 일에 집중)
 
 ### 자동 질문이 열리지 않을 때
 
+먼저 **해당 Work 터미널**에서 `/compose handoff-status`를 실행합니다. 표시되는 `Role`(Work 인식), `Ask User tool active`, `Saved candidates`, `Assessment`를 확인할 수 있습니다. 개인 정보나 대화 원문을 출력하지 않는 짧은 진단입니다.
+
+이미 완료된 작업은 `/compose review`로 **후보 생성을 재시도**할 수 있으며, 코드를 새로 구현하거나 Work를 다시 시작할 필요가 없습니다. 사용자 승인 없이 Main에 전송하지 않습니다.
+
 1. `pi list`에서 `pi-ask-user`가 설치됐는지 확인합니다. 없다면 사용자 승인 아래 `pi install npm:pi-ask-user@0.17.2`로 설치합니다.
 2. 실행 중이던 Work는 `/reload`로 새 Extension 구성을 읽거나 새 Work에서 재현합니다.
 3. Work가 **명시적으로 과제 완료를 보고하지 않았거나** 완료 분류/근거 추출에 실패하면 질문은 자동 생성되지 않습니다. 단순히 Pi 응답이 종료된 것만으로 완료 표시하지 않습니다.
 4. 후보가 준비되었지만 질문이 취소됐거나 도구가 비활성이라면 `/compose review`로 다시 열 수 있습니다.
 5. **일반 Work 완료 메시지에 `<`를 요구하는 것은 구버전 동작입니다.** `<`는 별도의 수동 Handoff 요청에만 사용합니다.
+6. `Assessment`가 `not-complete`라면 모델이 완료로 분류하지 않았다는 의미이며, `failed`이면 제공자/JSON/스키마/원문 검증 등 실패 원인 코드가 함께 표시됩니다. `prepared`인데 질문이 없으면 `Ask User tool active`와 재검토 동작을 우선 확인합니다.
 
 ## 5. 레퍼런스 재사용과 미구현 사항
 
