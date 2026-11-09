@@ -1,5 +1,4 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { HANDOFF_HINT, showHandoffHint } from './handoff-draft.ts';
 import { readAgentRelationship } from '../src/agent-relationships.ts';
 import {
   findParentMainSessionId,
@@ -10,6 +9,7 @@ import type { HandoffOptions } from './handoff.ts';
 
 export type DirectHandoff = { recipientQuery?: string };
 const STATUS_ITEM_VALUE = 'pi-compose:handoff-status-only';
+const MANUAL_HANDOFF_HINT = 'pi-compose/manual-handoff-request';
 
 /**
  * "<" opens Handoff, "< @session" searches a same-product recipient.
@@ -162,17 +162,16 @@ export function registerDirectHandoff(
   const ownerOf = (ctx: ExtensionContext) =>
     readAgentRelationship(ctx.sessionManager.getSessionId(), ctx.sessionManager.getEntries());
 
+  // Manual < requests must never overwrite the automatic candidate/review
+  // status widget, and must not instruct every Work to press < on settlement.
   const updateHint = (_event: unknown, ctx: ExtensionContext) => {
-    if (ctx.mode !== 'tui' || ownerOf(ctx)?.role !== 'work') return;
-    if (queued?.sessionId === ctx.sessionManager.getSessionId()) {
-      ctx.ui.setWidget(HANDOFF_HINT, [
-        queued.state === 'waiting'
-          ? 'Handoff · 요청 접수됨 · Work 실행 종료 후 검토 가능 (자동 전송 없음)'
-          : 'Handoff · 검토 가능 · < 로 열기 (자동 초안 생성·전송 없음)',
-      ]);
-    } else {
-      showHandoffHint(ctx);
-    }
+    if (ctx.mode !== 'tui') return;
+    const q = queued?.sessionId === ctx.sessionManager.getSessionId() ? queued : undefined;
+    ctx.ui.setWidget(MANUAL_HANDOFF_HINT, q
+      ? [q.state === 'waiting'
+          ? '수동 Handoff 요청 접수 · Work 실행 중 · 자동 전송 없음'
+          : '수동 Handoff 요청 보관됨 · 나중에 검토 가능 · 자동 전송 없음']
+      : undefined);
   };
 
   function remember(ctx: ExtensionContext, shortcut: DirectHandoff, exactRecipientId?: string) {
@@ -191,7 +190,7 @@ export function registerDirectHandoff(
       shortcut, exactRecipientId, state: 'waiting',
     };
     ctx.ui.notify(
-      'Handoff request queued. Work continues; after it settles, use < to review. Nothing was sent.',
+      'Handoff request queued. Work continues; review can be opened later. Nothing was sent.',
       'info',
     );
     updateHint(undefined, ctx);
@@ -266,7 +265,7 @@ export function registerDirectHandoff(
     }
     if (ctx.mode === 'tui' && ownerOf(ctx)?.role === 'work') {
       if (queued) updateHint(undefined, ctx);
-      else ctx.ui.setWidget(HANDOFF_HINT, undefined);
+      else ctx.ui.setWidget(MANUAL_HANDOFF_HINT, undefined);
     }
   });
   pi.on('agent_settled', (event, ctx) => {
@@ -292,7 +291,7 @@ export function registerDirectHandoff(
       return;
     }
     queued = { ...q, state: 'ready', readyLeafId: ctx.sessionManager.getLeafId() ?? undefined };
-    ctx.ui.notify('Work settled. Handoff is ready for review: enter <. No draft generated or sent.', 'info');
+    ctx.ui.notify('Work settled. Manual Handoff request saved; nothing was sent.', 'info');
     updateHint(undefined, ctx);
   });
 
