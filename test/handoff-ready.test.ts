@@ -6,10 +6,11 @@ import { latestPreparedHandoff } from '../extensions/handoff-candidates.ts';
 
 type Handler = (event: any, ctx: ExtensionContext) => unknown;
 
-function setup(withAskUser = true) {
+function setup(withAskUser = true, withSendReview = false) {
   const handlers = new Map<string, Handler[]>();
   const notifications: string[] = [];
   const messages: any[] = [];
+  let sendReviewPromptCount = 0;
   const widgets: string[][] = [];
   const writes: Array<{ kind: string; data: unknown }> = [];
   const workReport = 'Implemented the filter. The implementation is complete. Tests were not run.';
@@ -75,7 +76,8 @@ function setup(withAskUser = true) {
       messages.push({ message, options });
     },
   } as unknown as ExtensionAPI;
-  const controller = registerHandoffReady(pi);
+  const controller = registerHandoffReady(pi, withSendReview
+    ? async () => { sendReviewPromptCount++; } : undefined);
   const emit = async (event: string, payload: unknown = {}) => {
     for (const fn of handlers.get(event) ?? []) await fn(payload, ctx);
   };
@@ -92,7 +94,8 @@ function setup(withAskUser = true) {
     leaf = 'assistant-review';
   };
   return { controller, ctx, emit, answer, messages, widgets, notifications,
-    writes, getTools: () => tools, getGenerated: () => generated };
+    writes, getTools: () => tools, getGenerated: () => generated,
+    getSendReviewPromptCount: () => sendReviewPromptCount };
 }
 
 test('completed Work prepares durable candidates and triggers only the real ask_user tool', async () => {
@@ -115,6 +118,18 @@ test('completed Work prepares durable candidates and triggers only the real ask_
   assert.deepEqual(rig.getTools(), ['read', 'ask_user', 'intercom']);
   assert.equal(rig.getGenerated(), 1, 'ask_user review settlement is not another completed Work task');
   assert.match(latestReviewedDraft(rig.ctx)?.text ?? '', /Tests were not run/);
+});
+
+test('ask_user response automatically opens native Handoff send REVIEW, without requiring <', async () => {
+  const rig = setup(true, true);
+  await rig.emit('agent_settled', { type: 'agent_settled', aborted: false });
+  assert.equal(rig.getSendReviewPromptCount(), 0, 'no send review before user selection');
+  rig.answer();
+  await rig.emit('agent_settled', { type: 'agent_settled', aborted: false });
+  // The UI handoff is deferred to the next microtask, after settlement returns.
+  await new Promise<void>(resolve => queueMicrotask(resolve));
+  assert.equal(rig.getSendReviewPromptCount(), 1);
+  assert.equal(rig.getGenerated(), 1);
 });
 
 test('prepared results survive missing ask_user without sending or stealing focus', async () => {
