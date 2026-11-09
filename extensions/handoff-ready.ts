@@ -59,7 +59,10 @@ export function latestReviewedDraft(ctx: ExtensionContext, reportEntryId?: strin
  * DATA; if pi-ask-user is active, only its model-only tool may be used in
  * a separate, prompt-specific review turn. No focus-stealing or sending.
  */
-export function registerHandoffReady(pi: ExtensionAPI) {
+export function registerHandoffReady(
+  pi: ExtensionAPI,
+  requestReviewedSend?: (ctx: ExtensionContext) => Promise<void>,
+) {
   let preparing = false;
   let review: ReviewTurn | undefined;
 
@@ -85,38 +88,39 @@ export function registerHandoffReady(pi: ExtensionAPI) {
     review = undefined;
   }
 
-  function persistReviewAfterAnswer(ctx: ExtensionContext, active: ReviewTurn) {
-    if (ctx.sessionManager.getSessionId() !== active.sessionId) return;
+  function persistReviewAfterAnswer(ctx: ExtensionContext, active: ReviewTurn): boolean {
+    if (ctx.sessionManager.getSessionId() !== active.sessionId) return false;
     const branch = ctx.sessionManager.getBranch();
     const prepared = latestPreparedHandoff(ctx);
-    if (!prepared || prepared.reportEntryId !== active.reportEntryId) return;
+    if (!prepared || prepared.reportEntryId !== active.reportEntryId) return false;
     const startIndex = active.reviewStartLeafId
       ? branch.findIndex(entry => entry.id === active.reviewStartLeafId) + 1 : 0;
     const newEntries = branch.slice(Math.max(0, startIndex));
     const asked = [...newEntries].reverse().find(entry =>
       entry.type === 'message' && entry.message.role === 'toolResult' &&
       entry.message.toolName === 'ask_user');
-    if (!asked || asked.type !== 'message' || asked.message.role !== 'toolResult') return;
+    if (!asked || asked.type !== 'message' || asked.message.role !== 'toolResult') return false;
     const details = asked.message.details;
-    if (!details || typeof details !== 'object' || Array.isArray(details)) return;
+    if (!details || typeof details !== 'object' || Array.isArray(details)) return false;
     const answer = details as Record<string, unknown>;
-    if (answer.cancelled === true || !answer.response) return;
+    if (answer.cancelled === true || !answer.response) return false;
     const response = answer.response as Record<string, unknown>;
     if (response.kind === 'selection' && Array.isArray(response.selections) &&
-        response.selections.length === 0 && !response.comment) return;
+        response.selections.length === 0 && !response.comment) return false;
     const last = [...branch].reverse().find(entry =>
       entry.type === 'message' &&
       (entry.message.role === 'assistant' || entry.message.role === 'user' || entry.message.role === 'toolResult'));
     if (last?.type !== 'message' || last.message.role !== 'assistant' ||
-        last.message.stopReason !== 'stop') return;
+        last.message.stopReason !== 'stop') return false;
     const text = textContent(last.message.content);
-    if (!text || text.length > 14000) return;
+    if (!text || text.length > 14000) return false;
     const sourceEntryIds = [...new Set([prepared.reportEntryId, last.id,
       ...prepared.candidates.map(candidate => candidate.sourceEntryId)])];
     pi.appendEntry(REVIEWED_ENTRY, {
       version: 1, sessionId: active.sessionId, reportEntryId: active.reportEntryId,
       reviewEntryId: last.id, text, sourceEntryIds, createdAt: new Date().toISOString(),
     } satisfies SavedReview);
+    return true;
   }
 
   function beginReview(ctx: ExtensionContext, draft: PreparedHandoff): boolean {
@@ -186,11 +190,16 @@ export function registerHandoffReady(pi: ExtensionAPI) {
       const active = review;
       // This settlement is from the one-off candidate question, not
       // completion of a second coding task.
-      if (ctx.sessionManager.getSessionId() === active.sessionId && !event.aborted) {
-        persistReviewAfterAnswer(ctx, active);
-      }
+      const saved = ctx.sessionManager.getSessionId() === active.sessionId &&
+        !event.aborted && persistReviewAfterAnswer(ctx, active);
       restoreReviewTools();
       showReady(ctx);
+      // The user just answered ask_user. Continue to Pi's native editor and
+      // explicit SEND confirmation without requiring another < input.
+      // No focus command is issued; the UI remains in this Work terminal.
+      if (saved && requestReviewedSend && ctx.hasUI && ctx.mode === 'tui' && ctx.isIdle()) {
+        await requestReviewedSend(ctx);
+      }
       return;
     }
     if (event.aborted || !isWork(ctx) || preparing) return;
