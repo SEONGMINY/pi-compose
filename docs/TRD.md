@@ -59,7 +59,7 @@ Pi 복구 명령은 해당 임시 bootstrap 환경을 제거해 **기존 저장 
 
 [pi-intercom 0.18.1](https://github.com/nicobailon/pi-intercom/tree/v0.18.1)의 `performHandover`는 `buildHandoverText` → Cancel 가능한 Loader → `ctx.ui.editor` → 전송을 구현합니다. 이를 **하위호환된 Pi UI/취소 패턴으로 참고**할 수 있으나, 상위 Agent에게 다음 작업을 지시하는 Handover 프롬프트는 Main 컨텍스트 보호 정책과 그대로 호환되지 않습니다.
 
-[pi-ask-user](https://github.com/edlsh/pi-ask-user)는 `ask_user`를 `exposure: 'model-only'`로 등록합니다. 독립 `streamSimple()`에서 직접 부르지 않고, 저장된 후보를 Work의 모델 `pi.sendMessage(..., { triggerTurn: true })` 턴으로 전달합니다. 해당 검토 턴에는 `pi.setActiveTools(['ask_user'])`로 다른 모델 도구를 막은 뒤 원래 활성 도구를 복원하도록 작성했습니다. 이 연계는 **코드 작성 상태이며 Pi 1.4.0에서 실제 실행 검증 전**입니다.
+[pi-ask-user](https://github.com/edlsh/pi-ask-user)는 `ask_user`를 `exposure: 'model-only'`로 등록합니다. 독립 `streamSimple()`에서 직접 부르지 않고, 저장된 후보를 Work의 모델 `pi.sendMessage(..., { triggerTurn: true })` 턴으로 전달합니다. 해당 검토 턴에는 `pi.setActiveTools(['ask_user'])`로 다른 모델 도구를 막은 뒤 원래 활성 도구를 복원하도록 작성했습니다. 사용자가 응답하고 Work 모델이 초안을 정리하면 **추가 `<` 없이** 기존 Handoff 에디터와 명시적 전송 확인을 요청합니다. 이 연계는 **코드 작성 상태이며 Pi 1.4.0에서 실제 실행 검증 전**입니다.
 
 ## 6. 실제 검증 기준
 
