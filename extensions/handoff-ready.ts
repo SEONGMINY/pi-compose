@@ -214,6 +214,9 @@ export function registerHandoffReady(
     try {
       const result = await prepareWorkHandoffCandidates(ctx);
       if (result.status !== 'prepared') {
+        if (result.status === 'complete-no-candidates') {
+          ctx.ui.notify('Work reported complete; no Main sharing candidates were identified.', 'info');
+        }
         if (result.status === 'failed') {
           ctx.ui.notify('Work sharing candidate generation failed; no completion or sending was assumed.', 'warning');
         }
