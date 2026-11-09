@@ -1,7 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { readAgentRelationship } from '../src/agent-relationships.ts';
-import { decodeAgentBootstrap, AGENT_BOOTSTRAP_ENV } from '../src/agent-bootstrap.ts';
-import { startNativeAgentInOverview } from '../src/native-agent-launch.ts';
+import { getFocusedGhosttyTerminalId } from '../src/ghostty-native.ts';
+import { startNativeAgentFromTerminal } from '../src/native-agent-launch.ts';
 import {
   listProductForkSessions,
   searchProductForkSessions,
@@ -112,8 +112,8 @@ export function registerDelegationAutocomplete(pi: ExtensionAPI): void {
 
 /**
  * Direct user input is handled before the caller's Pi model receives it.
- * Requires a native Overview Terminal UUID, never starts a split inside the
- * current Main/Work Tab as a fallback.
+ * Uses the user's current Ghostty Pi terminal as the split anchor;
+ * no Overview or Sidebar is required.
  */
 export function registerDirectDelegation(pi: ExtensionAPI): void {
   let inFlight = false;
@@ -137,11 +137,6 @@ export function registerDirectDelegation(pi: ExtensionAPI): void {
     if (event.streamingBehavior) {
       return restore('Finish the current Pi turn before directly delegating.');
     }
-    const overviewId = process.env.PI_COMPOSE_OVERVIEW_TERMINAL_ID;
-    if (!overviewId) {
-      return restore('This Pi was not launched from the pic Overview. No Agent was created.');
-    }
-
     inFlight = true;
     try {
       const requesterSessionId = ctx.sessionManager.getSessionId();
@@ -176,7 +171,8 @@ export function registerDirectDelegation(pi: ExtensionAPI): void {
           ctx.sessionManager.getLeafId() !== requesterLeafId) {
         return restore('Calling Pi session/branch changed during selection; nothing was started.');
       }
-      const receipt = await startNativeAgentInOverview({
+      const anchorTerminalId = await getFocusedGhosttyTerminalId();
+      const receipt = await startNativeAgentFromTerminal({
         role: direct.role,
         workspace: direct.workspace,
         product: product.trim(),
@@ -185,8 +181,7 @@ export function registerDirectDelegation(pi: ExtensionAPI): void {
         requesterSessionId,
         requesterSessionFile,
         targetCwd: ctx.cwd, // File workspace is ALWAYS the caller's.
-        overviewAnchorTerminalId: overviewId,
-        requesterTerminalId: decodeAgentBootstrap(process.env[AGENT_BOOTSTRAP_ENV])?.terminalId,
+        anchorTerminalId,
         ...(source ? { source } : {}),
       });
       const workspaceNote = receipt.worktree
