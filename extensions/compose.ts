@@ -3,6 +3,7 @@ import { registerAgentIdentity } from './agent-identity.ts';
 import { registerDirectDelegation, registerDelegationAutocomplete } from './direct-delegation.ts';
 import { registerDirectHandoff } from './direct-handoff.ts';
 import { registerHandoff, showHandoffHistory } from './handoff.ts';
+import { registerHandoffReady } from './handoff-ready.ts';
 import { showGhosttySurfaces } from './ghostty-surfaces.ts';
 
 /**
@@ -19,13 +20,18 @@ export default function composeExtension(pi: ExtensionAPI): void {
   registerDirectDelegation(pi);
   registerDelegationAutocomplete(pi);
   registerDirectHandoff(pi, showHandoff, connectedRecipientIds);
+  const { openSavedReview } = registerHandoffReady(pi);
 
   pi.registerCommand('compose', {
-    description: 'Pi Compose: /compose surfaces, /compose handoff, /compose messages',
+    description: 'Pi Compose: /compose review, /compose handoff, /compose messages, /compose surfaces',
     handler: async (args, ctx) => {
       const command = args.trim();
       if (command === 'surfaces') {
         await showGhosttySurfaces(ctx);
+        return;
+      }
+      if (command === 'review') {
+        openSavedReview(ctx);
         return;
       }
       if (command === 'handoff') {
@@ -37,7 +43,7 @@ export default function composeExtension(pi: ExtensionAPI): void {
         return;
       }
       ctx.ui.notify(
-        'Usage: /compose surfaces, /compose handoff, /compose messages. ' +
+        'Usage: /compose review, /compose handoff, /compose messages, /compose surfaces. ' +
         'To start an Agent enter >w or >s; to resume use Pi /resume or pic -r.',
         'warning',
       );
