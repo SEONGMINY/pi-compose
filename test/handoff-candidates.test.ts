@@ -65,6 +65,12 @@ test('mere settled turn, blocked progress and unclear reports do not generate co
   }
 });
 
+test('reported-complete Work with no shareable candidates is still recognized as finished', async () => {
+  const env = fixture();
+  env.setResponse({ outcome: 'reported-complete', candidates: [] });
+  assert.equal((await prepareWorkHandoffCandidates(env.ctx)).status, 'complete-no-candidates');
+});
+
 test('fabricated evidence is rejected instead of persisted', async () => {
   const env = fixture('reported-complete', 'Tests passed in CI');
   const result = await prepareWorkHandoffCandidates(env.ctx);
