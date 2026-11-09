@@ -61,11 +61,6 @@ function registerHandoffAutocomplete(
           return status('Open Handoff from a Work session',
             'Bare < is for Work. Use /compose handoff for manual sharing.');
         }
-        if (bare && !ctx.isIdle()) {
-          return status('Queue Handoff for this Work turn',
-            'Submit < to remember the request. Work continues, and nothing is sent.');
-        }
-
         // Discover only persisted, precisely identified same-product sessions.
         // Connection state is independent: even an offline Main is shown as
         // offline, and the final handoff still blocks an unmatched intercom ID.
