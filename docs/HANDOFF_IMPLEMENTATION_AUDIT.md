@@ -1,10 +1,10 @@
-# Handoff P1–P5 구현 및 누락 감사 (2026-11-10)
+# Handoff P1–P5 — 2026-11-10 구현 감사 기록
 
-> **기록의 범위(2026-11-10):** 아래는 PR #25의 기존 자동 후보·`ask_user`·`/compose inbox` 코드에 대한 구현/검증 감사입니다. 이후 사용자는 **Work `<`에서 명시적으로 결과를 보내고, Main은 수신 알림만 받으며 Inbox 명령 없이 필요할 때만 컨텍스트에 반영**하는 단순 UX를 새로 확정했습니다. 아래 검사 통과·키 조작이 최신 UX 구현 또는 macOS 실사용 검증을 증명하지 않습니다. 최신 정책은 [PRD](PRD.md)를 우선합니다.
+> **과거 구현 감사 (정적 기록):** 미병합 [PR #25](https://github.com/SEONGMINY/pi-compose/pull/25)의 초기 자동 후보·`ask_user`·`/compose inbox` 경로에서 발견한 사실과 미검증 위험을 보존합니다. 이 경로는 현재 [PRD](PRD.md)의 목표 UX나 `main`의 기능 명세가 아닙니다. PR #25의 이후 Context Review·Main `<` 등 새 코드는 이 감사 범위 밖이며, 최신 구현 상태는 PR의 실제 Diff를 확인해야 합니다.
 
-상태: **P1–P5 코드 작성·GitHub Actions(Node 22/Ubuntu)에서 npm run check 통과. 실제 macOS/Ghostty 통합 E2E는 미검증.** CI의 정적·단위 검증과 실사용 결과를 혼동하지 않습니다.
+**검증 기준점:** [GitHub Actions 성공 기록](https://github.com/SEONGMINY/pi-compose/actions/runs/42771786319)은 커밋 [`00715c6`](https://github.com/SEONGMINY/pi-compose/commit/00715c6020e97fd9d2c6f59c49a619325f2b0a34)의 Node 22/Ubuntu `npm run check` 실행 결과입니다. 아래의 누적 코드 감사와 검증 기록 전체가 단일 커밋에서 수행됐다는 의미는 아닙니다. 특히 이후 PR #25 Head의 검사 완료나 macOS Ghostty/Pi E2E 성공은 증명하지 않습니다.
 
-## 확정된 계약
+## 당시 구현이 따랐던 계약 (현행 정책 아님)
 
 - 선택된 후보와 그 의미를 보존하는 데 필요한 근거·WHY·조건·범위만 공유한다. 무관한 후보를 포함하지 않는다.
 - Work는 Pi Fork 당시 기록과 자신의 활성 분기만 본다. Fork 이후 Main 대화를 읽지 않는다.
@@ -46,7 +46,7 @@
 
 연구의 기존 통과 수치는 제품의 실제 실패율이나 새 구현의 정확도를 나타내지 않는다. **원본 실험 ZIP을 이 작업에서 그대로 실행한 것은 아니다.** 누락된 원본 corpus 없이 임의의 수치를 재산출하지 않는다.
 
-## 반드시 검증할 위험과 기능 경계
+## 당시 남아 있던 검증 위험과 기능 경계
 
 1. **macOS 실사용 미검증**: GitHub Actions Node 22/Ubuntu에서 `npm run check`가 성공했다. 그러나 Ghostty Native Split, 실제 Pi/ask_user/intercom 확장 조합의 수신·키 입력·재접속은 사용자 Mac에서 아직 실행하지 못했다.
 2. **독립 의미 검증의 한계**: 별도 모델 평가도 근거·조건 누락을 놓칠 수 있다. 구조·원문 존재·해시 검사와 결합하되 확정 사실 판정기로 취급하지 않는다.
@@ -57,7 +57,7 @@
 7. **UI 접근성**: 키보드 키 충돌, 화면 높이, 실제 질문/미리보기 자동 포커스, 장문 근거 렌더링 확인 필요.
 8. **Main 정책 보호**: 일반 pi-intercom의 외부 수동 메시지는 별도 플러그인의 기능이다. Compose의 보호형 Handoff 경로만 강제하며 pi-intercom 자체를 모든 메시지에서 차단했다고 주장하지 않는다.
 
-## 완료 판정
+## 당시 단계의 완료 판정
 
 - **구현 충족**: P1~P5 코드 경로와 P6의 일부 자동 회귀 테스트를 작성했다.
 - **자동 검증 완료**: GitHub Actions Node 22/Ubuntu의 `npm run check`(TypeScript + 모든 테스트) 통과. 예: [성공한 실행](https://github.com/SEONGMINY/pi-compose/actions/runs/42771786319).
