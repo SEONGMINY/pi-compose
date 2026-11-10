@@ -7,14 +7,14 @@ import { assessHandoffQuality } from '../src/handoff/quality.ts';
 
 function pkg():HandoffPackage {
   const quote='Do not remove the label field.';
-  const body='Work claim: '+quote;
+  const body='Work claim: Preserve old clients. '+quote;
   return {version:1,id:'00000000-0000-4000-8000-000000000002',
     createdAt:'2026-11-10T00:00:00Z',product:'demo',
     source:{workSessionId:'work-1',forkSourceSessionId:'main-1',
       forkLeafId:'fork-1',workReportEntryId:'report-1'},
     targetMainSessionId:'main-1',selectedCandidateIds:['HC1'],
     claims:[{candidateId:'HC1',title:'Preserve label',
-      statement:quote,kind:'work-reported',verification:'reported-only',
+      summary:'Preserve old clients.',statement:quote,kind:'work-reported',verification:'reported-only',
       evidenceIds:['E1']}],
     context:[],evidence:[{id:'E1',sessionId:'work-1',entryId:'report-1',
       role:'assistant',quote}],contextAssessment:'none-needed',
