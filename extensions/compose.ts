@@ -6,18 +6,20 @@ import { registerHandoff, showHandoffHistory } from './handoff.ts';
 import { showGhosttySurfaces } from './ghostty-surfaces.ts';
 import { registerHandoffInbox } from './handoff-inbox.ts';
 import { openWorkContextReview } from './context-review.ts';
-import { openMainContextReceive, registerMainContextImportReceipts } from './context-receive.ts';
+import { openMainContextReceive, registerMainContextImportReceipts, registerAutomaticMainAdoption } from './context-receive.ts';
 import { readAgentRelationship } from '../src/agent-relationships.ts';
 
 /**
  * The user starts a Work with >w and explicitly shares selected context with <.
- * The target Main can then inspect and selectively import with its own <.
- * No automatic ask_user turn, Main model call, or background import is started.
+ * The Main compares its current branch without starting a Main agent turn.
+ * Work's one approval imports only source-attributed, conflict-free reports;
+ * other results stay outside context until Main's exceptional < review.
  */
 export default function composeExtension(pi: ExtensionAPI): void {
   registerAgentIdentity(pi);
   const { showHandoff, connectedRecipientIds } = registerHandoff(pi);
-  const receiver = registerHandoffInbox(pi); // Durable notification channel only.
+  const mainAdoption=registerAutomaticMainAdoption(pi);
+  const receiver = registerHandoffInbox(pi,mainAdoption.onAvailable);
   registerMainContextImportReceipts(pi);
   const contextualHandoff = async (
     ctx:ExtensionContext,
@@ -52,7 +54,7 @@ export default function composeExtension(pi: ExtensionAPI): void {
       }
       if(command==='messages'){await showHandoffHistory(ctx);return;}
       ctx.ui.notify(
-        '사용법: Main에서 >w 작업 위임 · Work에서 < 결과 전송 · Main에서 < 결과 확인. '+
+        '사용법: Main에서 >w 작업 위임 · Work에서 < Handoff Brief 승인 · Main에서 < 예외 결과 확인. '+
         '추가 명령: /compose handoff, /compose messages, /compose surfaces.',
         'warning',
       );
