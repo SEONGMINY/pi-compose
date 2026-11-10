@@ -17,7 +17,7 @@ export function showReferenceReceived(
   comparison:MainComparison|undefined,
   error:string|undefined,
   importText:string|undefined,
-  controls?:{onToggleZoom?:()=>Promise<string>},
+  controls?:{onToggleZoom?:()=>Promise<string>;mainEvidence?:{id:string;text:string;role:string}[]},
 ):Promise<boolean>{
   return ctx.ui.custom<boolean>((tui,theme,_keys,done)=>{
     let expanded=false;
@@ -35,6 +35,9 @@ export function showReferenceReceived(
         ?['과거 WHY·조건을 모두 확인하지 못했습니다.']:[]),
     ];
     const preview=pkg.claims.map(c=>c.title).join(' / ');
+    const issues=comparison?.items.filter(i=>
+      i.status==='conflict'||i.status==='insufficient'||i.unresolvedQuestions.length>0)??[];
+    const mainEvidenceById=new Map((controls?.mainEvidence??[]).map(e=>[e.id,e]));
     const sourceLines=()=>{
       return [
         '출처 · Work '+pkg.source.workSessionId.slice(0,8),
@@ -60,16 +63,41 @@ export function showReferenceReceived(
         ...warnings,
         ...(warnings.length?['']:[]),
         ...(zoomNotice?['Ghostty: '+zoomNotice,'']:[]),
-        '요약: '+preview,
-        ...pkg.claims.slice(0,expanded?pkg.claims.length:2)
-          .map(c=>'• '+c.summary),
-        ...(pkg.claims.length>2&&!expanded
-          ?['다른 결과 '+(pkg.claims.length-2)+'건 · Ctrl+O로 펼치기']:[]),
+        ...(issues.length?[
+          '검토할 차이 '+issues.length+'건 (Work 승인 본문은 아직 정책으로 채택하지 않음)',
+          '',
+          ...issues.flatMap((issue,index)=>{
+            const claim=pkg.claims.find(c=>c.candidateId===issue.claimId);
+            const mainSources=issue.mainEvidenceIds
+              .map(id=>mainEvidenceById.get(id))
+              .filter((value):value is {id:string;text:string;role:string}=>Boolean(value));
+            return [
+              (index+1)+'. ['+issue.status+'] '+(claim?.title??issue.claimId),
+              '  Work 보고: '+(claim?.summary??'원문 미확인'),
+              '  Main 비교 이유: '+issue.explanation,
+              ...issue.unresolvedQuestions.map(question=>'  확인할 질문: '+question),
+              ...(mainSources.length?[
+                '  현재 Main 근거 (승인 여부는 출처 확인 필요):',
+                ...mainSources.flatMap(source=>[
+                  '  • '+source.role+' · '+source.id,
+                  '    '+(expanded?source.text:source.text.slice(0,230)+
+                    (source.text.length>230?'…':'')),
+                ]),
+              ]:['  현재 Main의 정확한 원문은 근거 탭에서 추가 확인이 필요합니다.']),
+              '',
+            ];
+          }),
+        ]:[
+          '요약: '+preview,
+          ...pkg.claims.slice(0,expanded?pkg.claims.length:2).map(c=>'• '+c.summary),
+          ...(pkg.claims.length>2&&!expanded
+            ?['다른 보고 '+(pkg.claims.length-2)+'건 · Ctrl+O로 펼치기']:[]),
+        ]),
         ...(expanded?[
           '',
-          'Work에서 승인한 정확한 Brief:',
+          'Work에서 승인한 원문 Brief:',
           pkg.approvedMainBrief??pkg.finalMessage,
-        ]:['','Ctrl+O로 전체 Work 보고와 필수 WHY 확인']),
+        ]:['','Ctrl+O로 상세 Work 보고와 근거 펼치기']),
         '',
         '이 내용은 Work의 보고입니다. Main의 기존 정책을 변경하지 않습니다.',
       ];
