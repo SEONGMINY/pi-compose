@@ -109,10 +109,18 @@ export function registerSelectedHandoffSend(
           if(quality.verdict==='needs-revision')
             blockingIssues.push(...quality.issues.map(issue=>
               '['+issue.candidateId+' · '+issue.kind+'] '+issue.explanation));
+          else pkg={...pkg,qualityReview:{
+            verdict:'acceptable',method:'model-semantic-review',
+            modelId:ctx.model?.id??'unknown-model',
+            reviewedAt:new Date().toISOString(),
+            checkedBodyHash:pkg.finalMessageHash,
+          }};
         } catch(error) {
           blockingIssues.push('의미·누락 검증이 완료되지 않았습니다: '+String(error));
         }
       }
+      if(recovered && !pkg.qualityReview)
+        blockingIssues.push('복구된 Handoff에 의미 검증 기록이 없습니다. 발송을 보류합니다.');
       if(pkg.contextAssessment==='unavailable'&&!recovered)
         blockingIssues.push('필수 맥락 검색 실패: 원문 후보만으로 충분한지 확인되지 않았습니다.');
       if(ctx.sessionManager.getLeafId()!==packageStartLeaf)return;
@@ -138,6 +146,8 @@ export function registerSelectedHandoffSend(
     try {
       verifyWorkSource(ctx,pkg);
       // Store the *exact* previewed body first. No model call may rewrite it.
+      if(!pkg.qualityReview||pkg.qualityReview.checkedBodyHash!==pkg.finalMessageHash)
+        throw Error('approved-body-must-have-matching-quality-review-receipt');
       const saved=await putHandoff(pkg);
       pi.appendEntry('compose_handoff_package_accepted',{
         packageId:pkg.id,reviewEntryId:reviewed.reviewEntryId,
