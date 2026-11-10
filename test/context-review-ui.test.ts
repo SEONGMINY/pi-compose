@@ -165,3 +165,37 @@ test('narrow Ghostty split always exposes selection count and lets arrows select
   assert.deepEqual(await result,{type:'cancel'});
 });
 
+
+test('pi-ask-user-style search filters options without dropping selection or intercepting spaces',async()=>{
+  const h=reviewHarness(true,82);
+  const result=h.run();
+  h.key('/');
+  for(const key of 'Optional')h.key(key);
+  assert.match(h.text(),/검색: Optional/);
+  assert.match(h.text(),/Optional suggestion/);
+  assert.doesNotMatch(h.text(),/› \[ \] Fix report/);
+  h.key(' '); // Spaces belong to search while filtering, not selection toggles.
+  assert.match(h.text(),/선택 0 \/ 2/);
+  h.key('\x1b'); // clear query
+  assert.match(h.text(),/검색: 입력 중/);
+  h.key('\x1b'); // exit search
+  h.key(' '); // default focus first claim
+  assert.match(h.text(),/선택 1 \/ 2/);
+  h.key('\x1b'); // cancel whole review
+  assert.deepEqual(await result,{type:'cancel'});
+});
+
+test('reference selector keeps context collapsed until Ctrl+E and supports evidence drilldown',async()=>{
+  const h=reviewHarness(true,80);
+  const result=h.run();
+  assert.match(h.text(),/관련 제약·WHY 1건/);
+  assert.doesNotMatch(h.text(),/Do not change original files/);
+  h.key('\x05'); // Ctrl+E
+  assert.match(h.text(),/Do not change original files/);
+  h.key('e'); // Evidence view
+  assert.match(h.text(),/Pi Entry original/);
+  h.key('\x1b'); // Back
+  assert.match(h.text(),/Handoff Brief/);
+  h.key('\x1b'); // Cancel
+  assert.deepEqual(await result,{type:'cancel'});
+});
