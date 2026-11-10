@@ -41,7 +41,9 @@ function registerHandoffAutocomplete(
         const before = (lines[cursorLine] || '').slice(0, cursorCol);
         const bare = before === '<' && lines.length === 1 && lines[0] === '<';
         const match = /^<[ \t]+(@[^\s]*)$/.exec(before);
-        if ((!bare && !match) || cursorLine !== 0) {
+        if (bare || !match || cursorLine !== 0) {
+          // Bare "<" belongs to Work's Context Review or Main's receiver.
+          // Do not turn it into a recipient picker or a false warning.
           return previous.getSuggestions(lines, cursorLine, cursorCol, options);
         }
         if (options.signal.aborted) return null;
@@ -57,9 +59,9 @@ function registerHandoffAutocomplete(
           return status('Compose identity unavailable',
             'This Pi session has no verified Compose product. Nothing was sent.');
         }
-        if (bare && owner.role !== 'work') {
-          return status('Open Handoff from a Work session',
-            'Bare < is for Work. Use /compose handoff for manual sharing.');
+        if (owner.role==='main') {
+          // Main uses "<" to review incoming results, not to select senders.
+          return null;
         }
         // Discover only persisted, precisely identified same-product sessions.
         // Connection state is independent: even an offline Main is shown as
@@ -71,19 +73,12 @@ function registerHandoffAutocomplete(
           return status('Cannot inspect Compose sessions',
             'Pi session discovery failed. No destination was inferred or contacted.');
         }
-        let connected: Set<string> | undefined;
-        let connectionProblem = false;
-        if (bare) {
-          try { connected = await connectedRecipientIds(); }
-          catch { connectionProblem = true; }
-        }
         if (options.signal.aborted) return null;
-        const parent = bare ? findParentMainSessionId(sessions, sessionId) : undefined;
-        const candidates = searchProductHandoffSessions(sessions, match?.[1].slice(1) ?? '')
-          .filter(candidate => candidate.id !== sessionId)
-          .sort((a, b) =>
-            Number(connected?.has(b.id) === true) - Number(connected?.has(a.id) === true) ||
-            Number(b.id === parent) - Number(a.id === parent));
+        const parent = findParentMainSessionId(sessions, sessionId);
+        const candidates = searchProductHandoffSessions(sessions, match[1].slice(1))
+          .filter(candidate => candidate.id !== sessionId &&
+            (owner.role!=='work'||candidate.role==='main'))
+          .sort((a, b) => Number(b.id === parent) - Number(a.id === parent));
         if (!candidates.length) {
           return status(match ? 'No matching Compose recipient' : 'No other Compose session in this product',
             'Only saved sessions with exact Compose identity are shown. Nothing was sent.');
@@ -92,16 +87,11 @@ function registerHandoffAutocomplete(
           prefix: match?.[1] ?? '<',
           items: candidates.slice(0, 20).map(candidate => ({
             value: candidate.id,
-            label: candidate.name + ' [' + candidate.id.slice(0, 12) + ']' +
-              (bare && candidate.role !== 'main' && !connected?.has(candidate.id)
-                ? ' · unavailable' : ''),
+            label: candidate.name + ' [' + candidate.id.slice(0, 12) + ']',
             description: (candidate.id === parent ? '상위 Main 추천 · ' : candidate.role + ' · ') +
               (candidate.role === 'main'
-                ? 'Main 로컬 보관함 · 현재 연결 없어도 안전하게 전달 가능'
-                : bare
-                  ? connected?.has(candidate.id) ? 'intercom connected'
-                    : connectionProblem ? 'intercom unavailable' : 'no exact intercom ID match (offline or custom ID)'
-                  : 'connection checked before sending') +
+                ? 'Main의 비컨텍스트 수신 영역 · 오프라인이어도 영속 저장 가능'
+                : '명시적으로 지정된 대상') +
               ' · ' + candidate.recentTask.slice(0, 70) + ' · ' + candidate.cwd,
           })),
         };
