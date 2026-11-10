@@ -13,9 +13,10 @@
 | [TRD](TRD.md) | 구현 기술 계약과 확인할 검증 경계 |
 | [Usage](USAGE.md) | 사용자 흐름: 확정된 목표와 아직 구현되지 않은 동작을 구분 |
 | [Implementation Plan](IMPLEMENTATION_PLAN.md) | 실제 남은 작업·순서·완료 조건 |
-| [Handoff 구현 감사](HANDOFF_IMPLEMENTATION_AUDIT.md) | PR #25의 코드·검증 근거 및 최신 UX와의 차이 |
 
 ## 결정과 과거 기록
+
+- [Handoff P1–P5 과거 감사](HANDOFF_IMPLEMENTATION_AUDIT.md): 미병합 PR #25의 이전 구현·CI 근거; 현행 기능 검증이나 제품 정책의 정본이 아님
 
 - [ADR 0001–0006](adr/): 결정 배경과 채택·부분 대체·역사적 상태. 최신 요구사항의 정본이 아님
 - [Domain Stories](domain-stories/): 초기 업무 흐름 분석과 과거 목표 시나리오. 직접 사용자 인용의 정본은 Problem Statements
