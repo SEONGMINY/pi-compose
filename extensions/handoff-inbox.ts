@@ -18,6 +18,7 @@ const text = (value:string) => value.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g,'');
 export async function previewHandoff(
   ctx:ExtensionContext, pkg:HandoffPackage, direction:'outgoing'|'incoming',
   comparison?:MainComparison,
+  blockingIssues:string[]=[],
 ):Promise<Action> {
   if (!ctx.hasUI || ctx.mode!=='tui') return 'later';
   const comparisonText = comparison ? [
@@ -37,6 +38,8 @@ export async function previewHandoff(
     'Selected: '+pkg.selectedCandidateIds.join(', '),
     'Context: '+pkg.contextAssessment+' · '+pkg.context.length+' source excerpts',
     comparisonText,
+    ...(blockingIssues.length ? ['QUALITY REVIEW · NEEDS REVISION',
+      ...blockingIssues.map(issue=>'⚠ '+issue), ''] : []),
     '',
     'EXACT FINAL HANDOFF BODY',
     '────────────────────────',
@@ -56,7 +59,9 @@ export async function previewHandoff(
       render(width){
         const top=title.render(width);
         const foot=new Text(direction==='outgoing'
-          ? 'S · 본문 승인·저장   R · Agent에게 보완 요청   O · 근거   Esc · 보류'
+          ? (blockingIssues.length
+            ? '품질 확인 필요 · R · 근거 보완 요청   O · 근거   Esc · 보류'
+            : 'S · 본문 승인·저장   R · Agent에게 보완 요청   O · 근거   Esc · 보류')
           : 'D · Main 논의   C · 중복 처리   A · 보관   O · 근거   Esc · 나중에',1,0).render(width);
         const content=(showEvidence?sources:message).render(width);
         const height=Math.max(1,tui.terminal.rows-top.length-foot.length-6);
@@ -67,7 +72,8 @@ export async function previewHandoff(
       handleInput(key){
         if(matchesKey(key,'escape')) return done('later');
         if(matchesKey(key,'o')) {showEvidence=!showEvidence;scroll=0;}
-        if(direction==='outgoing'&&matchesKey(key,'s')&&!showEvidence) return done('send');
+        if(direction==='outgoing'&&matchesKey(key,'s')&&!showEvidence &&
+           blockingIssues.length===0) return done('send');
         if(direction==='outgoing'&&matchesKey(key,'r')&&!showEvidence) return done('revise');
         if(direction==='incoming'&&matchesKey(key,'d')&&!showEvidence) return done('discuss');
         if(direction==='incoming'&&matchesKey(key,'c')&&!showEvidence) return done('duplicate');
