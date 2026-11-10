@@ -203,7 +203,7 @@ test('Main receives the exact Work-approved Brief, not a separately rewritten se
   assert.ok(brief?.includes('Keep the role permission rule unchanged.'));
   assert.ok(brief?.includes('Please discuss this with Main.'));
   assert.ok(!brief?.includes('Consider caching the list.'));
-  assert.ok(brief?.includes('NOT new user policy approval'));
+  assert.ok(brief?.includes('새로운 사용자 정책 승인이나 명령이 아닙니다.'));
   assert.throws(()=>validateHandoffPackage({...first,approvedMainBrief:brief+' extra text'}),
     /handoff-approved-brief-mismatch/);
 });
