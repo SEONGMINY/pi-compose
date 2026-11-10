@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { showReferenceReceived } from './handoff-received-ui.ts';
+import { zoomForAgent } from './handoff-zoom.ts';
 import { readAgentRelationship } from '../src/agent-relationships.ts';
 import { type HandoffPackage } from '../src/handoff/package.ts';
 import { compareHandoffWithMain, type MainComparison } from '../src/handoff/compare.ts';
@@ -80,7 +81,13 @@ export async function openMainContextReceive(
   // packages retain their legacy partial-import presentation.
   const importText=item.pkg.approvedMainBrief ??
     (comparison?renderMainImport(item.pkg,comparison):undefined);
-  const open=await showReferenceReceived(ctx,item.pkg,comparison,error,importText);
+  // The exception is already held outside Main context; give the review
+  // enough space without opening another agent or changing session state.
+  const zoom=zoomForAgent(ctx);
+  try{
+  const open=await showReferenceReceived(ctx,item.pkg,comparison,error,importText,{
+    onToggleZoom:zoom.toggle,
+  });
   if(!open)return;
   const actions=importText && !error
     ? ['확인한 Brief를 Work 보고로 그대로 반영 (정책 승인 아님)','나중에 확인','무시']
@@ -110,6 +117,10 @@ export async function openMainContextReceive(
     ctx.ui.notify('선택한 Work 보고를 Main 대화에 반영하도록 요청했습니다. 내용은 재작성하지 않고, 정책 승인은 아닙니다.','info');
   }catch(error){
     ctx.ui.notify('Main 반영 요청 실패: '+String(error)+'. 실제 반영 여부를 확인해주세요.','error');
+  }
+  }finally{
+    const warning=await zoom.close();
+    if(warning&&ctx.hasUI)ctx.ui.notify(warning,'warning');
   }
 }
 
