@@ -92,7 +92,7 @@ test('Context Review keyboard arrows and Space work immediately without a hidden
   h.key('\r'); // Enter -> preview
   assert.match(h.text(),/전송 전 최종 확인/);
   h.key('\t'); // Tab -> exact payload
-  assert.match(h.text(),/정확한 전송 원문/);
+  assert.match(h.text(),/감사용 원문 기록/);
   assert.match(h.text(),/Suggest a cache/);
   h.key('\r'); // Explicit approval
   const action=await result;
