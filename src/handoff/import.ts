@@ -20,6 +20,7 @@ export function renderMainImport(pkg:HandoffPackage,comparison:MainComparison):s
     '',
     ...claims.flatMap(claim=>[
       '- ['+claim.candidateId+'] '+claim.title,
+      '  Work candidate summary (not independently verified): '+claim.summary,
       '  Source quotation: '+claim.statement,
       '  Classification: '+claim.kind+' · '+claim.verification,
       '  Evidence IDs: '+claim.evidenceIds.join(', '),
