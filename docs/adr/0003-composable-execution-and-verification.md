@@ -1,7 +1,9 @@
 # ADR 0003 — 기존 도구의 조합과 Main 컨텍스트 보호
 
-- 상태: **핵심 원칙 유지 / 과거 tmux·workmux 실행 선택과 자동 검증 방안은 대체됨** (2026-10-30)
+- 상태: **핵심 도구 재사용·Main 보호 원칙 유지 / Summary Overlay 및 이전 실행 UX는 대체됨** (2026-11-10)
 - 관련: [PRD](../PRD.md) · [TRD](../TRD.md)
+
+> **현재 해석:** 아래 4·6번과 Summary Overlay에 관한 '필수' 표현은 당시 선택을 설명하는 **역사적 내용**입니다. 2026-11-10 확정 방향은 Sidebar·Overview·Summary Overlay 없이 Pi/Ghostty와 Work `<`→Main 알림·명시적 반영을 사용하는 것입니다. 현행 요구사항은 [PRD](../PRD.md)를 우선합니다.
 
 ## 배경
 
