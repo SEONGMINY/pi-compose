@@ -1,0 +1,26 @@
+name: Maintenance telemetry
+on:
+  push:
+    paths:
+      - 'maintenance/**'
+      - 'test/maintenance.test.mjs'
+      - '.github/workflows/maintenance-telemetry.yml'
+  pull_request:
+    paths:
+      - 'maintenance/**'
+      - 'test/maintenance.test.mjs'
+      - '.github/workflows/maintenance-telemetry.yml'
+jobs:
+  telemetry-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+      - name: Check syntax
+        run: |
+          node --check maintenance/core.mjs
+          node --check maintenance/cli.mjs
+      - name: Run unit tests
+        run: node --test test/maintenance.test.mjs
