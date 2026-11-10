@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { Text, matchesKey, isKeyRelease, isKeyRepeat, visibleWidth } from '@earendil-works/pi-tui';
+import { Text, matchesKey, isKeyRelease, isKeyRepeat } from '@earendil-works/pi-tui';
 import { readAgentRelationship } from '../src/agent-relationships.ts';
 import { listProductHandoffSessions, findParentMainSessionId } from '../src/product-sessions.ts';
 import { prepareManualHandoffCandidates } from './handoff-candidates.ts';
@@ -72,29 +72,19 @@ export async function showContextReview(
       // An immutable snapshot remains narrowed inside flatMap callbacks.
       const previewSnapshot=preview;
       if(page==='raw')return [
-        'WORK → MAIN · 정확한 전송 원문',
+        'WORK → MAIN · 감사용 원문 기록 (Main에는 보내지 않음)',
+        'Main에 전달되는 실제 본문은 이전 미리보기 화면의 Handoff Brief입니다.',
         '',
-        preview?.finalMessage??'',
+        previewSnapshot?.finalMessage??'',
       ];
       if (page==='preview') {
         return [
           'WORK → MAIN · 전송 전 최종 확인',
+          '아래 본문이 별도 재작성 없이 Main에 추가됩니다. 원본·출처는 영속 보관됩니다.',
           '대상 Main: '+pkg.targetMainSessionId,
-          '선택한 컨텍스트: '+selected.size+'건',
+          '선택한 맥락: '+selected.size+'건',
           '',
-          ...(previewSnapshot ? previewSnapshot.claims.flatMap((claim,i)=>[
-            (i+1)+'. '+claim.title,
-            '  '+claim.summary,
-            '  검증 수준: '+claim.verification,
-            ...previewSnapshot.context.filter(c=>c.requiredByClaimIds.includes(claim.candidateId))
-              .map(c=>'  함께 보내는 '+c.reason+': '+c.whyNeeded+' — '+c.quote),
-            '',
-          ]) : []),
-          ...(note?['사용자 추가 의견 (검증된 Work 사실 아님): '+note,'']:[]),
-          ...(pkg.contextAssessment==='unavailable'
-            ? ['⚠ 필수 과거 WHY·제약 검색 미확인. 제한된 원문 보고로 전송합니다.',''] : []),
-          '각 항목의 실제 원문 인용·Pi Entry ID도 함께 보관됩니다.',
-          'Tab을 누르면 미리보기에서 생성된 정확한 전체 전송문을 볼 수 있습니다.',
+          previewSnapshot?.approvedMainBrief??'Brief를 생성하지 못했습니다.',
         ];
       }
       if (page==='sources') {
@@ -110,94 +100,37 @@ export async function showContextReview(
           ])??[]),
         ];
       }
+      const currentContext=current?.requiredContext??[];
       return [
-        'WORK → MAIN · Context Review',
-        '선택 '+selected.size+' / '+units.length+' · 현재 후보 '+(focus+1)+' / '+units.length,
-        '전달할 컨텍스트를 선택하세요. 선택 항목의 필수 맥락은 항상 함께 전송됩니다.',
+        'WORK → MAIN · Handoff Brief',
+        '다음 판단에 필요한 정보만 고르세요. 필요한 WHY·제약은 함께 전송됩니다.',
+        '선택 '+selected.size+' / '+units.length+' · 현재 '+(focus+1)+' / '+units.length,
         '',
-        ...units.map((unit,i)=>{
-          const pointer=i===focus?'›':' ';
-          const checked=selected.has(unit.id)?'[x]':'[ ]';
-          return pointer+' '+checked+' '+unit.title+
-            ' · '+unit.kind+(unit.requiredContext.length?' · 필수 맥락 '+unit.requiredContext.length+'건':'');
-        }),
+        ...units.flatMap((unit,i)=>[
+          (focus===i?'› ':'  ')+(selected.has(unit.id)?'[x] ':'[ ] ')+unit.title,
+          '    '+unit.summary,
+        ]),
         '',
-        '━━━━ 선택한 항목의 맥락 ━━━━',
-        current?.title??'',
+        '━━━━ 현재 항목이 전달하는 의미 ━━━━',
         current?.summary??'',
-        '',
-        '실제 Work/Fork 원문: '+(current?.statement??''),
-        '검증: '+(current?verificationText(current.verification):''),
-        ...(current?.requiredContext.length?[
+        '근거 성격: '+(current?.kind??'')+' · '+(current?verificationText(current.verification):''),
+        ...(currentContext.length?[
           '',
-          '함께 전달되는 필수 맥락:',
-          ...current.requiredContext.flatMap(c=>[
-            '• '+c.reason+' · '+c.whyNeeded,
-            '  '+c.quote,
-          ]),
+          '함께 보존할 이유와 제약:',
+          ...currentContext.map(item=>'• '+item.whyNeeded),
         ]:[]),
         ...(pkg.contextAssessment==='unavailable'
-          ? ['','⚠ 관련 WHY·조건 검색 결과를 확인하지 못했습니다. 누락 가능성이 있습니다.'] : []),
+          ? ['','⚠ 과거 WHY·조건 일부가 확인되지 않았습니다.']:[]),
         '',
-        '전송할 항목: '+selected.size+' / '+units.length,
-        ...(previewError?['⚠ 전송문 생성 실패: '+previewError,'선택 또는 메모를 수정한 뒤 다시 시도해주세요.']:[]),
+        'E: 과거 지시·Work 원문과 출처 보기',
+        ...(note?['사용자 의견: '+note]:[]),
+        ...(previewError?['검증 오류: '+previewError]:[]),
         ...(feedback?['안내: '+feedback]:[]),
-        ...(note?['사용자 메모: '+note]:[]),
       ];
-    }
-    function wideReview(width:number):string[] {
-      const current=units[focus];
-      const leftWidth=Math.max(27,Math.floor(width*0.36));
-      const rightWidth=Math.max(20,width-leftWidth-3);
-      const left=[
-        'WORK → MAIN · Context Review',
-        '선택할 컨텍스트',
-        '',
-        ...units.map((unit,i)=>
-          (i===focus?'› ':'  ')+(selected.has(unit.id)?'[x] ':'[ ] ')+
-          unit.title+(unit.requiredContext.length?' · 맥락 '+unit.requiredContext.length:'')
-        ),
-        '',
-        '선택 '+selected.size+' / '+units.length,
-      ];
-      const right=[
-        '현재 항목의 의미와 연결 근거',
-        '',
-        current?.title??'',
-        current?.summary??'',
-        '',
-        '원문: '+(current?.statement??''),
-        '검증: '+(current?verificationText(current.verification):''),
-        ...(current?.requiredContext.length?[
-          '',
-          '필수 제약·WHY·상태:',
-          ...current.requiredContext.flatMap(c=>[
-            '• '+c.reason+' · '+c.whyNeeded,'  '+c.quote,
-          ]),
-        ]:[]),
-        ...(pkg.contextAssessment==='unavailable'
-          ? ['','⚠ 필요한 과거 맥락을 충분히 확인하지 못했습니다.']:[]),
-        ...(note?['','사용자 메모: '+note]:[]),
-        ...(previewError?['','⚠ '+previewError]:[]),
-        ...(feedback?['','안내: '+feedback]:[]),
-      ];
-      const leftLines=new Text(left.join('\n'),0,0).render(leftWidth);
-      const rightLines=new Text(right.join('\n'),0,0).render(rightWidth);
-      const height=Math.max(3,tui.terminal.rows-5);
-      maximum=Math.max(0,rightLines.length-height);
-      scroll=Math.min(scroll,maximum);
-      const rows:string[]=[];
-      const length=Math.min(height,Math.max(leftLines.length,rightLines.length-scroll));
-      for(let i=0;i<length;i++){
-        const leftLine=leftLines[i]??'';
-        const rightLine=rightLines[i+scroll]??'';
-        rows.push(leftLine+' '.repeat(Math.max(0,leftWidth-visibleWidth(leftLine)))+' │ '+rightLine);
-      }
-      return [...rows,theme.fg('dim',footer())];
     }
     function footer():string {
       if(page==='preview')return 'Tab 전체 전송 원문   ↑↓ 스크롤   Enter 승인·전송   Esc 돌아가기';
-      if(page==='raw')return 'Tab 요약으로 돌아가기   ↑↓ 스크롤   Enter 승인·전송   Esc 돌아가기';
+      if(page==='raw')return 'Tab Brief로 돌아가기   ↑↓ 스크롤   Enter 승인·전송   Esc 돌아가기';
       if(page==='sources')return 'Esc 선택으로 돌아가기   ↑↓ 스크롤';
       const compact=tui.terminal.columns<95;
       const keys=compact
@@ -207,7 +140,6 @@ export async function showContextReview(
     }
     const component = {
       render(width: number){
-        if(page==='review'&&width>=104)return wideReview(width);
         const text=new Text(lines().join('\n'),1,0);
         const body=text.render(Math.max(20,width));
         const available=Math.max(3,tui.terminal.rows-5);
