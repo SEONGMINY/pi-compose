@@ -102,8 +102,14 @@ export async function openMainContextReceive(
         await setInboxStatus(main.sessionId,item.pkg.id,'imported');
       }
     }
+    // Imported state is global storage metadata; the actual Pi receipt is
+    // branch-local. A user who rewinds to a branch without that receipt must
+    // be able to choose the context again rather than lose it permanently.
     items=(await listInbox(main.sessionId)).filter(item=>
-      item.pkg.product===main.product&&item.status.status==='pending');
+      item.pkg.product===main.product&&
+      (item.status.status==='pending' ||
+        ((item.status.status==='imported'||item.status.status==='import-requested') &&
+          !hasImportReceipt(ctx,item.pkg.id))));
   }catch(error){
     ctx.ui.notify('받은 Handoff 확인 실패: '+String(error),'warning');return;
   }
