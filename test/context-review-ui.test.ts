@@ -144,3 +144,18 @@ test('progress widget is visible immediately, advances, then clears on exit',()=
   assert.equal(changes.length,4);
   assert.equal(changes[3]?.content,undefined);
 });
+test('narrow Ghostty split always exposes selection count and lets arrows select without Tab',async()=>{
+  const h=reviewHarness(true,72);
+  const result=h.run();
+  assert.match(h.text(),/선택 0 \/ 2 · 현재 후보 1 \/ 2/);
+  assert.match(h.text(),/Space 선택/);
+  h.key(' ');
+  assert.match(h.text(),/선택 1 \/ 2/);
+  h.key('\x1b[B');
+  assert.match(h.text(),/현재 후보 2 \/ 2/);
+  h.key(' ');
+  assert.match(h.text(),/선택 2 \/ 2/);
+  h.key('\x1b');
+  assert.deepEqual(await result,{type:'cancel'});
+});
+
