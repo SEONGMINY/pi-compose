@@ -15,6 +15,7 @@ import {
   Text, fuzzyFilter, matchesKey, decodeKittyPrintable,
   isKeyRelease, isKeyRepeat, truncateToWidth, visibleWidth,
 } from '@earendil-works/pi-tui';
+import type { OverlayHandle } from '@earendil-works/pi-tui';
 import type { HandoffPackage } from '../src/handoff/package.ts';
 import {contextReviewUnits,selectContextPackage} from '../src/handoff/context-review.ts';
 
@@ -28,6 +29,7 @@ export function showReferenceContextReview(
   ctx:ExtensionContext,pkg:HandoffPackage,initial:ReviewState,
 ):Promise<ReviewAction> {
   const units=contextReviewUnits(pkg);
+  let overlayHandle:OverlayHandle|undefined;
   return ctx.ui.custom<ReviewAction>((tui,theme,_keys,done)=>{
     const chosen=new Set(initial.selected);
     let index=Math.max(0,Math.min(initial.focus,units.length-1));
@@ -127,9 +129,9 @@ export function showReferenceContextReview(
       if(mode==='archive')return 'Tab 승인 본문 · PgUp/PgDn 스크롤 · Esc 뒤로';
       if(mode==='evidence')return 'PgUp/PgDn 스크롤 · Esc 돌아가기';
       return search
-        ?'입력하여 검색 · ↑↓ 이동 · Esc 검색 초기화/종료'
+        ?'입력하여 검색 · ↑↓ 이동 · Esc 검색 초기화/종료 · Alt+O 숨기기'
         :'↑↓ 이동 · Space 선택 · / 검색 · Ctrl+E 맥락 · E 근거 · N 의견 · Enter 검토 · Esc 취소' +
-         (inputConnected?' · 키보드 입력 연결됨':'');
+         (inputConnected?' · 키보드 입력 연결됨':'')+' · Alt+O 숨기기';
     }
     function body():string[]{
       if(mode==='choose')return choiceLines();
@@ -227,6 +229,17 @@ export function showReferenceContextReview(
     const names=['escape','up','down','space','ctrl+e','e','n','enter',
       'pageUp','pageDown','tab','backspace'];
     const removeInput=ctx.ui.onTerminalInput(key=>{
+      // Same toggle as pi-ask-user's default overlay. Hiding does not submit
+      // or mutate the selection, and remains reversible while hidden.
+      if(matchesKey(key,'alt+o')&&overlayHandle){
+        if(!isKeyRelease(key)&&!isKeyRepeat(key)){
+          const nextHidden=!overlayHandle.isHidden();
+          overlayHandle.setHidden(nextHidden);
+          if(nextHidden)ctx.ui.notify('Handoff 검토를 숨겼습니다 · Alt+O로 다시 열기','info');
+        }
+        return {consume:true};
+      }
+      if(overlayHandle?.isHidden())return undefined;
       const recognized=names.some(k=>matchesKey(key,k))||
         (mode==='choose'&&(!search&&key==='/'||search&&
           (decodeKittyPrintable(key)!==undefined||key.length===1)));
@@ -238,5 +251,15 @@ export function showReferenceContextReview(
       return {consume:true};
     });
     return component;
+  },{
+    overlay:true,
+    overlayOptions:{
+      anchor:'center',
+      width:'92%',
+      minWidth:40,
+      maxHeight:'85%',
+      margin:1,
+    },
+    onHandle:handle=>{overlayHandle=handle;},
   });
 }
