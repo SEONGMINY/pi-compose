@@ -136,7 +136,7 @@ export function showReferenceContextReview(
       if(mode==='evidence')return 'PgUp/PgDn 스크롤 · Alt+Z 확대 · Esc 돌아가기';
       return search
         ?'입력하여 검색 · ↑↓ 이동 · Esc 검색 초기화/종료 · Alt+Z 확대'
-        :'↑↓ 이동 · Space 선택 · / 검색 · Ctrl+E 맥락 · E 근거 · N 의견 · Enter 검토 · Esc 취소' +
+        :'↑↓ 이동 · Space 선택 · / 검색 · Ctrl+E 맥락 · PgUp/PgDn 상세 · E 근거 · N 의견 · Enter 검토 · Esc 취소' +
          (inputConnected?' · 키보드 입력 연결됨':'')+' · Alt+Z 확대 · Alt+O 숨기기';
     }
     function body():string[]{
@@ -157,7 +157,7 @@ export function showReferenceContextReview(
       const page=Math.max(3,Math.min(9,rows-6));
       const start=Math.max(0,Math.min(index-Math.floor(page/2),visible.length-page));
       const left=[
-        '전달할 컨텍스트 · 선택 '+chosen.size+'/'+units.length,
+        '전달할 컨텍스트 · 선택 '+chosen.size+' / '+units.length+' · 현재 후보 '+(index+1)+' / '+visible.length,
         (search?'검색: '+(query||'입력 중…'):' / 검색 · Space 선택'),
         '',
         ...visible.slice(start,start+page).flatMap((unit,i)=>[
