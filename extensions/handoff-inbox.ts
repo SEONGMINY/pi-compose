@@ -127,7 +127,11 @@ export function registerHandoffInbox(pi:ExtensionAPI) {
     if(discussionTools?.sessionId===ctx.sessionManager.getSessionId())
       restoreDiscussionTools();
   });
-  pi.on('session_before_switch',()=>{restoreDiscussionTools();});
+  pi.on('session_before_switch',(_event,ctx)=>{
+    // A switch can be requested before a running review turn fully settles.
+    // Do not release the execution guard while its model still has tool calls.
+    if(ctx.isIdle())restoreDiscussionTools();
+  });
   pi.on('session_shutdown',()=>{restoreDiscussionTools();});
 
   async function refreshInboxWidget(ctx:ExtensionContext):Promise<void> {
