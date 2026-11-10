@@ -91,3 +91,27 @@ test('quality inspection rejects inconsistent accept verdict with issues',async(
   }]});
   await assert.rejects(assessHandoffQuality(x.ctx,pkg()),/quality-inconsistent-verdict/);
 });
+
+test('previous Work import is available for duplicate checks but marked as non-policy authority',async()=>{
+  const x=context('main',{items:[{
+    claimId:'HC1',status:'duplicate',explanation:'Already received Work report',
+    mainEvidenceIds:['previous-work-import'],unresolvedQuestions:[],
+  }]});
+  (x.ctx.sessionManager as any).buildSessionProjection=()=>({entries:[{
+    sourceEntry:{type:'custom_message',id:'previous-work-import',
+      customType:'compose_context_review_import',
+      content:'Work report: Preserve old clients. Do not remove the label field.'},
+    messages:[],
+  }]});
+  let captured:any;
+  const original=x.ctx.modelRegistry.streamSimple;
+  (x.ctx.modelRegistry as any).streamSimple=(model:unknown,prompt:any,opts:unknown)=>{
+    captured=JSON.parse(prompt.messages[0].content);
+    return (original as any)(model,prompt,opts);
+  };
+  const result=await compareHandoffWithMain(x.ctx,pkg());
+  assert.equal(result.items[0]?.status,'duplicate');
+  assert.equal(captured.mainExcerpts[0]?.authority,'work-import-only');
+  assert.equal(captured.mainExcerpts[0]?.id,'previous-work-import');
+});
+
