@@ -125,5 +125,5 @@ export function showReferenceReceived(
       return {consume:true};
     });
     return component;
-  });
+  },{overlay:true,overlayOptions:{width:88}});
 }
