@@ -1,69 +1,37 @@
 # Pi Compose
 
-**Main에 결정과 이유를 남기고, 실제 구현은 Main의 Pi 대화를 정확히 Fork한 Work에서 수행하는 Coding Agent Harness입니다.**
+> **현재 `main` 코드 기준:** `pic`을 인자 없이 실행하면 아직 **Overview**가 열립니다. 아래에 설명하는 `pic` 직접 Main 진입, `>w`/ `>s` 직접 위임과 간소화된 Work `<` → Main 수신 알림은 **목표 UX**입니다. 일부 이전 UX 코드는 미병합 [PR #25](https://github.com/SEONGMINY/pi-compose/pull/25)에 있으며 최신 단순 수신 흐름은 미구현입니다. 이 문서 병합만으로 실행 동작은 바뀌지 않습니다.
 
-Pi와 Ghostty를 그대로 사용합니다. 별도 Sidebar, Overview, 서버, 데스크톱 GUI는 두지 않습니다.
 
-## 시작
+**Main의 설계·결정 맥락을 지키면서, 실제 개발은 그 대화를 Fork한 Work에서 진행하는 Pi 기반 Coding Agent Harness입니다.**
 
-프로젝트 디렉터리에서:
-
-```bash
-pic                 # 매번 새로운 Main 세션
-pic -r              # Pi 세션 선택 후 재개
-pic -c              # 가장 최근 Pi 세션 재개 (Main이라고 보장하지 않음)
-pic --session <ID>   # 명시한 Pi 세션 선택
-```
-
-`pic`은 현재 터미널에서 Pi TUI를 시작합니다. 기존 세션의 복구는 Pi의 기본 기능에 맡깁니다. Work/Support를 재개하면 원래 역할이 유지되며 Main으로 바뀌지 않습니다.
+Pi와 Ghostty의 기존 세션·Extension·터미널 기능을 조합합니다. 별도 Sidebar, Overview, 서버나 데스크톱 GUI를 만들지 않는 방향입니다.
 
 ## 개발 흐름
 
 ```text
-Main — 요구사항, 금지 조건, 선택의 이유, 승인된 결정
-  |
-  +--- >w 구현할 작업           Work: 완료된 현재 Pi 대화에서 실제 Fork
-  +--- >>w 별도 작업            Work + 새 Git Worktree
-  +--- >s 독립 조사             Support: 독립 Pi 세션
-  +--- >>s 격리된 독립 조사     Support + 새 Git Worktree
-          |
-          +--- <                Handoff: 사용자 요청 -> 근거 검토 -> 명시적 전송
+Main    문제·계약·선택 이유·확정된 결정
+  │
+  ├── Work     실제 Pi 대화 Fork → 구현·수정·테스트 코드 작성
+  └── Support  독립 탐색·조사·테스트 실행
+
+Work 결과 → 사용자 검토 → Main에는 수신 알림만
+                         └── 사용자가 선택한 내용만 명시적 반영
 ```
 
-각 Agent는 별도 Ghostty Split으로 실행됩니다. Split 생성 시 원래 Pi 터미널로 포커스를 돌려놓으려고 시도하며, 새 Pi의 준비나 첫 작업 완료를 보장하지는 않습니다.
-
-- `>w @세션ID 작업`은 명시적으로 선택한 같은 프로젝트의 완료된 Pi 분기를 Fork합니다.
-- Work의 원본 Pi 세션, 원본 Main의 JSONL 및 결정은 변경하지 않습니다.
-- Work/Support의 개발 로그나 결과를 Main으로 자동 전송하지 않습니다.
-- `< @세션`으로 Handoff 수신자를 지정할 수 있습니다. `<<`는 지원하지 않습니다.
-
-## 완료 후 자동 후보 준비, 나중에 검토 (2026-11-09 A안)
-
-Work가 **작업 완료를 명시적으로 보고한 것으로 판정된 경우**에만, 별도 모델 호출로 Main 공유 후보(최대 5개)를 준비합니다. 원문 Pi Entry ID와 인용문의 일치 여부를 검사하고, 결과를 **현재 Work Pi 세션의 비컨텍스트 기록에 저장**합니다. 이는 완료·테스트 성공을 독립적으로 검증했다는 뜻이 아닙니다. `agent_settled` 자체는 작업 완료 신호로 간주하지 않습니다.
-
-`pi-ask-user`의 `ask_user` 도구가 활성화돼 있으면 Work 화면에서 **다중 선택·추가 방향 입력**을 위한 질문을 자동 요청합니다. 질문이 열린 Work 터미널로 **포커스를 옮기지 않습니다**. 다른 Agent에서 작업하던 사용자는 나중에 Work로 돌아와 응답하면 됩니다. 도구가 없다면 후보는 저장된 채로 유지되며, 도구 활성화 후 `/compose review`로 다시 열 수 있습니다. 질문 중에는 다른 모델 도구를 비활성화합니다.
-
-자동 질문에서 후보를 선택하면 고정 후보 ID를 기준으로 원문 인용과 필요한 Fork 시점의 제약·WHY를 연결합니다. 전달문은 출처·의미 검사 후 **읽기 전용 본문 미리보기 → 보완 요청(R) 또는 명시적 저장 승인(S)**으로 이어집니다. `<`를 다시 입력할 필요는 없습니다. 승인된 본문은 Main 세션별 **로컬 비컨텍스트 보관함**에 저장되고, 일반 intercom으로 Main의 대화에 자동 주입되지 않습니다. Main에서 `/compose inbox`를 열어야 최신 분기와 비교합니다. 저장·수신과 Main의 논의·정책 채택은 별개입니다.
-
-## 자동 질문을 사용하는 조건
-
-자동 공유 후보의 생성·보관은 Pi Compose Core가 담당합니다. 후보를 **원본 Ask User 화면**으로 검토하려면 Pi에 별도 패키지가 설치·활성화돼 있어야 합니다.
+## 목표 명령과 위임 (현재 main 미지원)
 
 ```bash
-pi list                          # pi-ask-user 설치 여부 확인
-pi install npm:pi-ask-user@0.17.2 # 미설치일 때, 사용자 선택으로 설치
+pic                  # 새 Main
+pic -r               # Pi 기본 저장 세션 선택
 ```
 
-이미 실행 중인 Work는 Pi `/reload`로 확장을 다시 로드하거나 새 Work를 시작해야 합니다. `npm install`은 Pi Compose의 개발 의존성 설치이지 `ask_user`를 Pi에 설치하는 명령이 아닙니다.
+Pi 입력창의 `>w 작업`은 현재 완료 대화를 Fork한 Work, `>s 작업`은 독립 Support를 시작합니다. `>>w`, `>>s`는 각각 새 Git Worktree에서 시작합니다. 세션과 파일 작업 공간은 서로 다른 선택입니다.
 
-**Work 완료 후 < 입력은 필요하지 않습니다.** 완료가 명시된 보고와 출처가 있어야 후보가 생성되며, 별도 모델의 분류에서 미완료/불명확으로 판단되면 자동 검토가 나타나지 않을 수 있습니다. 저장된 후보는 `/compose review`로 다시 열 수 있습니다. `<`는 수동 Handoff만 담당합니다.
+## Handoff의 목표 경험
 
-## 설계와 검증 상태
+Work의 `<`에서 **전달할 결과와 근거를 확인하고 Main에 보냅니다.** Main은 결과가 도착했다는 알림만 표시하고, 본문을 자동으로 모델 컨텍스트에 넣지 않습니다. 사용자가 결과를 확인하고 명시적으로 반영합니다. 별도 Inbox 명령을 필수 경로로 만들지 않습니다.
 
-- 기준: Pi 1.4.0, Ghostty의 macOS Native Split, pi-intercom 0.18.1
-- 새로운 실행·Split·진행 중 Handoff 요청 코드는 [작업 브랜치](https://github.com/SEONGMINY/pi-compose/tree/feat/pic-direct-main-handoff-20261109)에 반영 중이며 **실제 macOS Ghostty/Pi 통합 검증은 아직 완료되지 않았습니다.**
-- 기존 `pi-ask-user` 질문이 나타난 실사용 기록은 있습니다. **새 P1–P5 후보 선택 후 미리보기·Main inbox·최신 분기 비교 전체 흐름은 macOS에서 재검증되지 않았습니다.**
-- Main 컨텍스트를 임의로 수정하거나 정책 변경을 자동 승인하는 것은 비목표입니다.
-- Orca, tmux, workmux, Herdr App/core 및 별도 멀티플렉서·서버는 도입하지 않습니다.
+**구현 상태:** [Draft PR #25](https://github.com/SEONGMINY/pi-compose/pull/25)에서 명시적 `<` Context Review 및 Main `<` 수신 경로를 코드로 연결했습니다. 자동 `ask_user` 및 `/compose inbox`는 최신 실행 경로에서 사용하지 않습니다. **검증은 별개**이며 macOS/Ghostty E2E 완료 전에는 프로덕션 준비가 끝났다고 주장하지 않습니다.
 
-자세한 사용 흐름은 [Usage](docs/USAGE.md), 정책 원본은 [PRD](docs/PRD.md), 기술적 책임과 검증 항목은 [TRD](docs/TRD.md) 및 [Implementation Plan](docs/IMPLEMENTATION_PLAN.md)을 참고하세요.
+[사용 흐름](docs/USAGE.md) · [문서 안내](docs/README.md) · [제품 요구사항](docs/PRD.md)
