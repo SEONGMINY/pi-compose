@@ -3,12 +3,15 @@ import { spawn } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 import { resolve } from 'node:path';
 import { analyzePending, calibration, finishTask, listTasks, parseQuantiles, pendingRootCauseReviews, startTask } from './core.mjs';
+import { listReviews, reviewPending } from './review.mjs';
 
 const usage = `Usage:
   node maintenance/cli.mjs start --title TEXT --kind CATEGORY --time P30,P50,P80 --tokens P30,P50,P80 [--session FILE ...] [--data-dir DIR]
   node maintenance/cli.mjs finish --id UUID [--state completed|failed|cancelled] [--session FILE ...] [--data-dir DIR]
   node maintenance/cli.mjs run --title TEXT --kind CATEGORY --time P30,P50,P80 --tokens P30,P50,P80 [--session FILE ...] -- COMMAND [ARGS ...]
   node maintenance/cli.mjs analyze [--data-dir DIR]
+  node maintenance/cli.mjs review [--dry-run] [--max-batches N] [--data-dir DIR]
+  node maintenance/cli.mjs improvements [--data-dir DIR]
   node maintenance/cli.mjs list [--data-dir DIR]
 
 Data defaults to .maintenance/ in the current directory. All session paths must be
@@ -16,7 +19,7 @@ explicit: missing tokens remain unknown. Durations use minutes. Example:
   node maintenance/cli.mjs run --title 'Fix bug' --kind bug --time 10,20,45 --tokens 3000,5000,10000 --session /path/to/pi.jsonl -- npm run check`;
 
 function parse(args) {
-  const opts = { session: [] };
+  const opts = { session: [], 'dry-run': false };
   const boundary = args.indexOf('--');
   const command = boundary < 0 ? [] : args.slice(boundary + 1);
   const flags = boundary < 0 ? args : args.slice(0, boundary);
@@ -24,7 +27,8 @@ function parse(args) {
     const item = flags[i];
     if (!item.startsWith('--')) throw new Error(`Unexpected argument ${item}`);
     const name = item.slice(2);
-    if (!['title','kind','time','tokens','session','data-dir','id','state','assumptions'].includes(name)) throw new Error(`Unknown option ${item}`);
+    if (name === 'dry-run') { opts[name] = true; continue; }
+    if (!['title','kind','time','tokens','session','data-dir','id','state','assumptions','max-batches'].includes(name)) throw new Error(`Unknown option ${item}`);
     const value = flags[++i];
     if (!value || value.startsWith('--')) throw new Error(`Missing value for ${item}`);
     if (name === 'session') opts.session.push(value);
@@ -77,6 +81,23 @@ async function main(argv) {
     console.log(JSON.stringify(await finishTask({ dir, id: opts.id, state: opts.state, sessions: opts.session }), null, 2)); return;
   }
   if (action === 'run') { await run(opts, command); return; }
+  if (action === 'review') {
+    // Scan all completed tasks before expensive model review; this is idempotent.
+    await analyzePending(dir);
+    console.log(JSON.stringify(await reviewPending({ dir, dryRun: opts['dry-run'],
+      maxBatches: opts['max-batches'] == null ? 1 : Number(opts['max-batches']) }), null, 2));
+    return;
+  }
+  if (action === 'improvements') {
+    const reviews = await listReviews(dir);
+    const candidates = reviews.filter((r) => r.candidate).map((r) => ({
+      reviewId:r.id, taskIds:r.taskIds, signature:r.signature,
+      ...r.candidate, assessment:r.assessment, limitations:r.limitations,
+    }));
+    console.log(JSON.stringify({ candidates, unapproved: candidates.length,
+      note:'Proposal queue only; no code edits or Main integration are authorized by these suggestions.' }, null, 2));
+    return;
+  }
   if (action === 'list') {
     const tasks = await listTasks(dir);
     console.log(JSON.stringify(tasks.map(({ id, title, kind, state, startedAt, endedAt }) => ({ id, title, kind, state, startedAt, endedAt })), null, 2));

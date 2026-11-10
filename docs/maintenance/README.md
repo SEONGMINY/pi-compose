@@ -85,3 +85,45 @@ changed; no auto-writing to Main is introduced in this draft.
 The first project-level forecast made before this implementation was P30
 14 h / 250k tokens; P50 25 h / 450k; P80 55 h / 1M, covering **all phases**.
 This prototype does not falsely record a measured completion for that forecast.
+
+## Second slice: evidence-linked AI retrospective (Draft)
+
+The `analyze` command remains model-free: it scans **all completed tasks** for
+statistics and deterministically flags outliers, failures, and cancellations.
+A single P80 exceedance is a signal to investigate, not proof of miscalibration.
+
+The new `review` command groups pending anomalies by task type and observed
+signal, with at most four related tasks per model call. Preview without any
+model cost:
+
+```bash
+node maintenance/cli.mjs review --dry-run
+node maintenance/cli.mjs review --max-batches 1
+node maintenance/cli.mjs improvements
+```
+
+`review` runs an **ephemeral Pi `--print` process** with only
+`read,grep,find,ls` and no extensions or MCP. It never edits project code.
+It passes a bounded task summary rather than full Pi transcripts. It validates
+reported task values and quoted source-file lines before saving the model's
+output under `.maintenance/reviews/`. Failed or ungrounded output cannot be
+stored as a review; the task remains pending. Review runs are serialized and
+idempotent across re-runs. Each review stores its wall duration; Pi's `--print`
+without a stored session does **not** provide reliably attributable token usage,
+so AI review tokens remain **unmeasured**, not `0`.
+
+The model must assess the four intervention layers in priority order:
+architecture → gate → AI instructions → user behavior. An unknown higher layer
+blocks lower-layer selection. Findings remain **hypotheses**, not causal proof.
+Current-file citations are checked against the current checkout, but may not
+represent source as it existed when the original task ran. An actionable
+candidate also requires a matching repository code citation.
+
+The `improvements` command lists *unapproved proposals only*. This stage does
+**not** allow AI-written changes, automatically execute tests, open PRs, or
+merge into Main. A future execution stage must implement isolation, explicit
+path allowlists, immutable check receipts, independent verification, stale-base
+checks and a reversible integration method; these security controls must not
+be inferred from a model's recommendation. `review` requires a local installed
+and authenticated `pi` executable. It has not yet been exercised against live
+Pi 1.4.0 sessions on macOS.

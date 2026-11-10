@@ -227,7 +227,17 @@ export async function pendingRootCauseReviews(dir) {
   }
   const reports = await Promise.all(names.filter((name) => name.endsWith('.json')).map(async (name) =>
     JSON.parse(await readFile(join(folder, name), 'utf8'))));
-  return reports.filter((report) => report.needsRootCauseReview && report.rootCause === 'undetermined');
+  const reviewDir = join(resolve(dir), 'reviews');
+  let reviewedIds = new Set();
+  try {
+    const reviewNames = await readdir(reviewDir);
+    for (const name of reviewNames.filter((n) => /^[a-f0-9-]{36}\.json$/.test(n))) {
+      const review = JSON.parse(await readFile(join(reviewDir, name), 'utf8'));
+      for (const id of review.taskIds ?? []) reviewedIds.add(id);
+    }
+  } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  return reports.filter((report) => report.needsRootCauseReview && report.rootCause === 'undetermined'
+    && !reviewedIds.has(report.taskId));
 }
 
 export function calibration(tasks) {

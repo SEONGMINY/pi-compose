@@ -3,12 +3,14 @@ on:
   push:
     paths:
       - 'maintenance/**'
-      - 'test/maintenance.test.mjs'
+      - 'test/maintenance*.test.mjs'
+      - 'docs/maintenance/**'
       - '.github/workflows/maintenance-telemetry.yml'
   pull_request:
     paths:
       - 'maintenance/**'
-      - 'test/maintenance.test.mjs'
+      - 'test/maintenance*.test.mjs'
+      - 'docs/maintenance/**'
       - '.github/workflows/maintenance-telemetry.yml'
 jobs:
   telemetry-test:
@@ -22,5 +24,6 @@ jobs:
         run: |
           node --check maintenance/core.mjs
           node --check maintenance/cli.mjs
+          node --check maintenance/review.mjs
       - name: Run unit tests
-        run: node --test test/maintenance.test.mjs
+        run: node --test test/maintenance*.test.mjs
