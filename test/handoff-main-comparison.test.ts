@@ -29,6 +29,9 @@ function context(kind:'main'|'work',answer:unknown) {
     isIdle:()=>true,model:{id:'test-model'},
     sessionManager:{
       getSessionId:()=>activeSession,getLeafId:()=>leaf,
+      getBranch:()=>[{id:'work-history',type:'message',message:{
+        role:'user',content:[{type:'text',text:'Keep label for compatibility.'}],
+      }}],
       buildSessionProjection:()=>({entries:[{
         sourceEntry:{type:'message',id:'main-user-1'},
         messages:[{role:'user',content:[{type:'text',
