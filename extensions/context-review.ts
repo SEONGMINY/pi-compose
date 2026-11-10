@@ -379,7 +379,7 @@ export async function openWorkContextReview(
         selectedIds:action.selected,bodyHash:final.finalMessageHash,
       });
       announce(final);
-      ctx.ui.notify('선택한 컨텍스트를 Main에 저장했습니다. Main은 수신 알림에서 확인할 수 있습니다.','info');
+      ctx.ui.notify('선택한 Handoff Brief가 Main에 전달됐습니다. 현재 Main과의 안전 검사 후 충돌이 없으면 같은 본문이 참고 보고로 기록됩니다.','info');
     }catch(error){
       ctx.ui.notify('Handoff 저장 실패: '+String(error)+'. 성공으로 표시하지 않았습니다.','error');
     }
