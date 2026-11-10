@@ -109,14 +109,27 @@ export function registerHandoffInbox(pi:ExtensionAPI) {
   const registered=new Set<string>();
   let current:ExtensionContext|undefined;
   let discussionTools: {sessionId:string;before:string[]}|undefined;
-  pi.on('agent_settled',()=>{
+  function restoreDiscussionTools() {
     const state=discussionTools;
     if(!state)return;
     discussionTools=undefined;
-    // Only restore a tool set if this extension still owns the empty setting.
-    if(current?.sessionManager.getSessionId()===state.sessionId &&
-        pi.getActiveTools().length===0)pi.setActiveTools(state.before);
+    // Do not overwrite an explicit tool change by the user/another extension.
+    if(pi.getActiveTools().length===0)pi.setActiveTools(state.before);
+  }
+  // setActiveTools([]) only changes the advertised tool loadout. Pi 1.4.0
+  // permits deferred/codemode tools outside that list, including nested calls.
+  // The tool_call hook provides an execution-time guard for this review turn.
+  pi.on('tool_call',(_event,ctx)=>{
+    if(discussionTools?.sessionId===ctx.sessionManager.getSessionId())
+      return {block:true,reason:'Main Handoff discussion is read-only; no tools may execute.'};
   });
+  pi.on('agent_settled',(_event,ctx)=>{
+    if(discussionTools?.sessionId===ctx.sessionManager.getSessionId())
+      restoreDiscussionTools();
+  });
+  pi.on('session_before_switch',()=>{restoreDiscussionTools();});
+  pi.on('session_shutdown',()=>{restoreDiscussionTools();});
+
   async function refreshInboxWidget(ctx:ExtensionContext):Promise<void> {
     if(!ctx.hasUI||ctx.mode!=='tui')return;
     const owner=readAgentRelationship(ctx.sessionManager.getSessionId(),ctx.sessionManager.getEntries());
@@ -255,8 +268,7 @@ export function registerHandoffInbox(pi:ExtensionAPI) {
           : '사용자 요청으로 Main 논의를 시작했습니다. Handoff 수신 자체는 모델을 실행하지 않았습니다.','info');
         void refreshInboxWidget(ctx);
       } catch(error) {
-        discussionTools=undefined;
-        if(pi.getActiveTools().length===0)pi.setActiveTools(before);
+        restoreDiscussionTools();
         ctx.ui.notify('Main 논의를 시작할 수 없습니다: '+String(error),'error');
       }
     }
