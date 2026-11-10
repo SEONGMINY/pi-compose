@@ -7,7 +7,7 @@ import type {MainComparison} from '../src/handoff/compare.ts';
 function fixtures() {
   const quote='Keep label for compatibility.';
   const tests='The test execution status is not confirmed.';
-  const body=quote+'\n'+tests;
+  const body='Work reported keeping label.\nWork reported tests were not confirmed.\n'+quote+'\n'+tests;
   const pkg:HandoffPackage={
     version:1,id:'00000000-0000-4000-8000-000000000003',
     createdAt:'2026-11-10T00:00:00Z',product:'demo',
@@ -15,9 +15,9 @@ function fixtures() {
       forkLeafId:'fork-a',workReportEntryId:'report-a'},
     targetMainSessionId:'main-a',selectedCandidateIds:['HC1','HC2'],
     claims:[
-      {candidateId:'HC1',title:'Maintain compatibility',statement:quote,
+      {candidateId:'HC1',title:'Maintain compatibility',summary:'Work reported keeping label.',statement:quote,
         kind:'work-reported',verification:'reported-only',evidenceIds:['E1']},
-      {candidateId:'HC2',title:'Test status not confirmed',statement:tests,
+      {candidateId:'HC2',title:'Test status not confirmed',summary:'Work reported tests were not confirmed.',statement:tests,
         kind:'work-reported',verification:'reported-only',evidenceIds:['E2']},
     ],
     context:[{id:'CX1',reason:'why',whyNeeded:'Compatibility constraint',quote:'Old clients require label.',
