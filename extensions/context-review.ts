@@ -48,6 +48,8 @@ async function showContextReview(
     }
     function lines():string[] {
       const current=units[focus];
+      // An immutable snapshot remains narrowed inside flatMap callbacks.
+      const previewSnapshot=preview;
       if(page==='raw')return [
         'WORK → MAIN · 정확한 전송 원문',
         '',
@@ -59,14 +61,14 @@ async function showContextReview(
           '대상 Main: '+pkg.targetMainSessionId,
           '선택한 컨텍스트: '+selected.size+'건',
           '',
-          ...(preview?.claims.flatMap((claim,i)=>[
+          ...(previewSnapshot ? previewSnapshot.claims.flatMap((claim,i)=>[
             (i+1)+'. '+claim.title,
             '  '+claim.summary,
             '  검증 수준: '+claim.verification,
-            ...preview.context.filter(c=>c.requiredByClaimIds.includes(claim.candidateId))
+            ...previewSnapshot.context.filter(c=>c.requiredByClaimIds.includes(claim.candidateId))
               .map(c=>'  함께 보내는 '+c.reason+': '+c.whyNeeded+' — '+c.quote),
             '',
-          ])??[]),
+          ]) : []),
           ...(note?['사용자 추가 의견 (검증된 Work 사실 아님): '+note,'']:[]),
           ...(pkg.contextAssessment==='unavailable'
             ? ['⚠ 필수 과거 WHY·제약 검색 미확인. 제한된 원문 보고로 전송합니다.',''] : []),
