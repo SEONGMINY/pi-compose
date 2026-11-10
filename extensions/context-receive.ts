@@ -8,7 +8,7 @@ import { listInbox, setInboxStatus, type InboxItem } from '../src/handoff/store.
 
 const IMPORT_TYPE='compose_context_review_import';
 
-function hasImportReceipt(ctx:ExtensionContext,id:string):boolean {
+export function hasImportReceipt(ctx:ExtensionContext,id:string):boolean {
   return ctx.sessionManager.getBranch().some(entry=>
     entry.type==='custom_message'&&entry.customType===IMPORT_TYPE&&
     entry.details && typeof entry.details==='object'&&!Array.isArray(entry.details)&&
