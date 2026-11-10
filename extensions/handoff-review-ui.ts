@@ -42,6 +42,7 @@ export function showReferenceContextReview(
     let maxScroll=0;
     let detailScroll=0;
     let detailMax=0;
+    let wideLayout=false;
     let error='';
     let note=initial.note;
     let preview:HandoffPackage|undefined;
@@ -206,6 +207,7 @@ export function showReferenceContextReview(
     function print(width:number):string[]{
       const maxRows=Math.max(4,Math.min(48,tui.terminal.rows-7));
       const wide=mode==='choose'&&width>=108;
+      wideLayout=wide;
       const full=wide?[]:new Text(body().join('\n'),1,0).render(Math.max(18,width-2));
       if(!wide){
         maxScroll=Math.max(0,full.length-maxRows);
@@ -247,7 +249,7 @@ export function showReferenceContextReview(
             if(count)index=(index+(matchesKey(key,'up')?-1:1)+count)%count;
             scroll=0;detailScroll=0;error='';
           }else if(matchesKey(key,'pageUp')||matchesKey(key,'pageDown')){
-            if(tui.terminal.columns>=108){
+            if(wideLayout){
               detailScroll=Math.max(0,Math.min(detailMax,detailScroll+
                 (matchesKey(key,'pageUp')?-5:5)));
             }else{
