@@ -503,8 +503,9 @@ export async function openOverview(): Promise<void> {
     if (!entry) return;
     if (entry.action.type === 'refresh') return;
     if (entry.action.type === 'message') {
-      const owner = agents.find(a => a.identity.sessionId === entry.action.sessionId);
-      const msg = owner?.messages.find(m => m.id === (entry.action as { messageId: string }).messageId);
+      const messageAction = entry.action;
+      const owner = agents.find(a => a.identity.sessionId === messageAction.sessionId);
+      const msg = owner?.messages.find(m => m.id === messageAction.messageId);
       if (msg) {
         status = 'Message: ' + msg.status + ' · ' + msg.peer +
           (msg.excerpt ? ' · ' + msg.excerpt : '') +
@@ -515,7 +516,8 @@ export async function openOverview(): Promise<void> {
       return;
     }
     if (entry.action.type !== 'agent' || busy) return;
-    const agent = agents.find(a => a.identity.sessionId === entry.action.sessionId);
+    const agentAction = entry.action;
+    const agent = agents.find(a => a.identity.sessionId === agentAction.sessionId);
     if (!agent) return;
     if (!agent.terminal) {
       status = 'No verified Ghostty binding for ' + agent.identity.label +
@@ -554,7 +556,7 @@ export async function openOverview(): Promise<void> {
       const manager = SessionManager.open(agent.sessionPath);
       if (manager.getSessionId() !== action.sessionId) throw new Error('Pi session identity changed');
       const evidence = projectSummaryEvidence(
-        manager.getBranch(), action.sessionId, manager.getLeafId(), 'idle-or-unknown',
+        manager.getBranch(), action.sessionId, manager.getLeafId() ?? undefined, 'idle-or-unknown',
       );
       status = 'Source-backed Summary (no semantic model): ' +
         evidence.facts.map(f => f.text + ' [' + f.sourceEntryId.slice(0, 8) + ']').join(' | ') +

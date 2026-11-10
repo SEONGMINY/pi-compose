@@ -305,6 +305,13 @@ export async function startNativeAgentInOverview(
     request.overviewAnchorTerminalId, request.requesterTerminalId, request.product,
   );
 
+  return launchSelectedAgent(request, workspaceAnchorId);
+}
+
+async function launchSelectedAgent(
+  request: NativeAgentLaunchRequest,
+  workspaceAnchorId: string,
+): Promise<NativeAgentLaunchReceipt> {
   // The calling Agent's workspace remains the Git source of truth even when
   // the selected Fork transcript belongs to a different workspace.
   const callerCwd = await realpath(request.targetCwd);
@@ -369,4 +376,40 @@ export async function startNativeAgentInOverview(
     worktree,
     state: 'ghostty-split-created-pi-unverified',
   };
+}
+
+/**
+ * Start an explicitly user-requested Work/Support in a native Ghostty split
+ * next to the CURRENT Pi surface. No sidebar or Overview exists in this path.
+ * Focus is checked before any worktree or Pi session mutations.
+ */
+export async function startNativeAgentFromTerminal(
+  request: Omit<NativeAgentLaunchRequest, 'overviewAnchorTerminalId' | 'requesterTerminalId'> & {
+    anchorTerminalId: string;
+  },
+): Promise<NativeAgentLaunchReceipt> {
+  if (process.platform !== 'darwin') {
+    throw new Error('Ghostty native Agent creation requires macOS.');
+  }
+  if (!request.task.trim() || !request.label.trim() || !request.product.trim()) {
+    throw new Error('Explicit task, product and label are required.');
+  }
+  if ((request.role === 'work') !== Boolean(request.source)) {
+    throw new Error('Work requires a selected source; Support must remain independent.');
+  }
+  const focused = await getFocusedGhosttyTerminalId();
+  if (focused !== request.anchorTerminalId) {
+    throw new Error('The calling Pi terminal is no longer focused. Nothing was created.');
+  }
+  const terminals = await listGhosttyTerminals();
+  if (!terminals.some(terminal => terminal.id === request.anchorTerminalId)) {
+    throw new Error('The calling Pi Ghostty terminal no longer exists.');
+  }
+  // The legacy ticket format calls this the Overview ID. The new path uses
+  // the exact requester terminal instead; no Overview terminal is created.
+  return launchSelectedAgent({
+    ...request,
+    requesterTerminalId: request.anchorTerminalId,
+    overviewAnchorTerminalId: request.anchorTerminalId,
+  }, request.anchorTerminalId);
 }

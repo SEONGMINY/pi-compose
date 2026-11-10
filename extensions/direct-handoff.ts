@@ -1,5 +1,4 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { HANDOFF_HINT, showHandoffHint } from './handoff-draft.ts';
 import { readAgentRelationship } from '../src/agent-relationships.ts';
 import {
   findParentMainSessionId,
@@ -9,6 +8,8 @@ import {
 import type { HandoffOptions } from './handoff.ts';
 
 export type DirectHandoff = { recipientQuery?: string };
+const STATUS_ITEM_VALUE = 'pi-compose:handoff-status-only';
+const MANUAL_HANDOFF_HINT = 'pi-compose/manual-handoff-request';
 
 /**
  * "<" opens Handoff, "< @session" searches a same-product recipient.
@@ -40,35 +41,68 @@ function registerHandoffAutocomplete(
         const before = (lines[cursorLine] || '').slice(0, cursorCol);
         const bare = before === '<' && lines.length === 1 && lines[0] === '<';
         const match = /^<[ \t]+(@[^\s]*)$/.exec(before);
-        if ((!bare && !match) || cursorLine !== 0 || options.signal.aborted) {
+        if ((!bare && !match) || cursorLine !== 0) {
           return previous.getSuggestions(lines, cursorLine, cursorCol, options);
         }
+        if (options.signal.aborted) return null;
+        // A status row is never an intercom destination. Do not conceal missing
+        // identity, session discovery errors, or connectivity as a blank menu.
+        const status = (label: string, description: string) => ({
+          prefix: match?.[1] ?? '<',
+          items: [{ value: STATUS_ITEM_VALUE, label, description }],
+        });
         const sessionId = ctx.sessionManager.getSessionId();
         const owner = readAgentRelationship(sessionId, ctx.sessionManager.getEntries());
-        if (!owner || (bare && (owner.role !== 'work' || !ctx.isIdle()))) return null;
-        let candidates;
-        let parent: string | undefined;
-        try {
-          const [sessions, connected] = await Promise.all([
-            listProductHandoffSessions(owner.product),
-            bare ? connectedRecipientIds() : undefined,
-          ]);
-          parent = bare ? findParentMainSessionId(sessions, sessionId) : undefined;
-          candidates = searchProductHandoffSessions(sessions, match?.[1].slice(1) ?? '')
-            .filter(candidate => candidate.id !== sessionId && (!connected || connected.has(candidate.id)))
-            .sort((a, b) => Number(b.id === parent) - Number(a.id === parent));
-        } catch {
-          return null; // No cross-product or guessed suggestions on load failure.
+        if (!owner) {
+          return status('Compose identity unavailable',
+            'This Pi session has no verified Compose product. Nothing was sent.');
         }
-        if (options.signal.aborted || candidates.length === 0) return null;
+        if (bare && owner.role !== 'work') {
+          return status('Open Handoff from a Work session',
+            'Bare < is for Work. Use /compose handoff for manual sharing.');
+        }
+        // Discover only persisted, precisely identified same-product sessions.
+        // Connection state is independent: even an offline Main is shown as
+        // offline, and the final handoff still blocks an unmatched intercom ID.
+        let sessions: Awaited<ReturnType<typeof listProductHandoffSessions>>;
+        try {
+          sessions = await listProductHandoffSessions(owner.product);
+        } catch {
+          return status('Cannot inspect Compose sessions',
+            'Pi session discovery failed. No destination was inferred or contacted.');
+        }
+        let connected: Set<string> | undefined;
+        let connectionProblem = false;
+        if (bare) {
+          try { connected = await connectedRecipientIds(); }
+          catch { connectionProblem = true; }
+        }
+        if (options.signal.aborted) return null;
+        const parent = bare ? findParentMainSessionId(sessions, sessionId) : undefined;
+        const candidates = searchProductHandoffSessions(sessions, match?.[1].slice(1) ?? '')
+          .filter(candidate => candidate.id !== sessionId)
+          .sort((a, b) =>
+            Number(connected?.has(b.id) === true) - Number(connected?.has(a.id) === true) ||
+            Number(b.id === parent) - Number(a.id === parent));
+        if (!candidates.length) {
+          return status(match ? 'No matching Compose recipient' : 'No other Compose session in this product',
+            'Only saved sessions with exact Compose identity are shown. Nothing was sent.');
+        }
         return {
           prefix: match?.[1] ?? '<',
           items: candidates.slice(0, 20).map(candidate => ({
             value: candidate.id,
-            label: candidate.name + ' [' + candidate.id.slice(0, 12) + ']',
+            label: candidate.name + ' [' + candidate.id.slice(0, 12) + ']' +
+              (bare && candidate.role !== 'main' && !connected?.has(candidate.id)
+                ? ' · unavailable' : ''),
             description: (candidate.id === parent ? '상위 Main 추천 · ' : candidate.role + ' · ') +
-              (bare ? '검토 · ' : '') + candidate.recentTask.slice(0, 70) +
-              ' · ' + candidate.cwd,
+              (candidate.role === 'main'
+                ? 'Main 로컬 보관함 · 현재 연결 없어도 안전하게 전달 가능'
+                : bare
+                  ? connected?.has(candidate.id) ? 'intercom connected'
+                    : connectionProblem ? 'intercom unavailable' : 'no exact intercom ID match (offline or custom ID)'
+                  : 'connection checked before sending') +
+              ' · ' + candidate.recentTask.slice(0, 70) + ' · ' + candidate.cwd,
           })),
         };
       },
@@ -79,6 +113,11 @@ function registerHandoffAutocomplete(
         return previous.shouldTriggerFileCompletion?.(lines, cursorLine, cursorCol) ?? false;
       },
       applyCompletion(lines, cursorLine, cursorCol, item, prefix) {
+        if (item.value === STATUS_ITEM_VALUE) {
+          // Selecting an informational row never creates a recipient or message.
+          queueMicrotask(() => ctx.ui.notify(item.description || item.label, 'warning'));
+          return { lines: [...lines], cursorLine, cursorCol };
+        }
         if (prefix === '<' && cursorLine === 0 && cursorCol === 1 && lines.length === 1 && lines[0] === '<') {
           const command = '< @' + item.value;
           // Native Pi applies completion before it can open another editor UI.
@@ -102,14 +141,63 @@ function registerHandoffAutocomplete(
 /**
  * A shortcut or recipient selection opens review, then shares only if confirmed.
  */
+type QueuedHandoff = {
+  sessionId: string;
+  requestedLeafId: string | undefined;
+  shortcut: DirectHandoff;
+  exactRecipientId?: string;
+  state: 'waiting' | 'ready';
+  readyLeafId?: string;
+};
+
+/**
+ * A user may REQUEST a Work Handoff during streaming, but no model generation,
+ * UI review, or intercom delivery happens until the Work run has settled.
+ * The request is extension-local (not a steering/follow-up model message).
+ */
 export function registerDirectHandoff(
   pi: ExtensionAPI,
   handoff: (ctx: ExtensionContext, options?: HandoffOptions) => Promise<void>,
   connectedRecipientIds: () => Promise<Set<string>>,
 ): void {
   let inFlight = false;
+  let queued: QueuedHandoff | undefined;
   const ownerOf = (ctx: ExtensionContext) =>
     readAgentRelationship(ctx.sessionManager.getSessionId(), ctx.sessionManager.getEntries());
+
+  // Manual < requests must never overwrite the automatic candidate/review
+  // status widget, and must not instruct every Work to press < on settlement.
+  const updateHint = (_event: unknown, ctx: ExtensionContext) => {
+    if (ctx.mode !== 'tui') return;
+    const q = queued?.sessionId === ctx.sessionManager.getSessionId() ? queued : undefined;
+    ctx.ui.setWidget(MANUAL_HANDOFF_HINT, q
+      ? [q.state === 'waiting'
+          ? '수동 Handoff 요청 접수 · Work 실행 중 · 자동 전송 없음'
+          : '수동 Handoff 요청 보관됨 · 나중에 검토 가능 · 자동 전송 없음']
+      : undefined);
+  };
+
+  function remember(ctx: ExtensionContext, shortcut: DirectHandoff, exactRecipientId?: string) {
+    const owner = ownerOf(ctx);
+    if (!owner || owner.role !== 'work') {
+      ctx.ui.notify('Only a verified Work session can queue a Handoff while running.', 'warning');
+      return;
+    }
+    const sessionId = ctx.sessionManager.getSessionId();
+    if (queued?.sessionId === sessionId) {
+      ctx.ui.notify('A Work Handoff is already queued. Nothing was sent.', 'info');
+      return;
+    }
+    queued = {
+      sessionId, requestedLeafId: ctx.sessionManager.getLeafId() ?? undefined,
+      shortcut, exactRecipientId, state: 'waiting',
+    };
+    ctx.ui.notify(
+      'Handoff request queued. Work continues; review can be opened later. Nothing was sent.',
+      'info',
+    );
+    updateHint(undefined, ctx);
+  }
 
   async function open(ctx: ExtensionContext, text: string, shortcut: DirectHandoff, exactRecipientId?: string) {
     if (!ctx.hasUI) return;
@@ -118,9 +206,30 @@ export function registerDirectHandoff(
       ctx.ui.notify(reason, 'warning');
     };
     if (inFlight) return restore('A Compose Handoff is already open.');
-    if (!ctx.isIdle()) return restore('Finish the current Pi turn before sharing.');
+    if (!ctx.isIdle()) {
+      remember(ctx, shortcut, exactRecipientId);
+      return;
+    }
     const owner = ownerOf(ctx);
     if (!owner) return restore('The exact Compose product cannot be verified. Nothing was sent.');
+
+    const q = queued;
+    if (q?.sessionId === ctx.sessionManager.getSessionId()) {
+      if (q.state !== 'ready') {
+        return restore('Work has not settled yet. Handoff remains queued.');
+      }
+      if (q.readyLeafId !== ctx.sessionManager.getLeafId()) {
+        queued = undefined;
+        return restore('The Work session branch changed after Handoff was queued. Request again.');
+      }
+      // An explicit recipient in this invocation overrides the prior choice;
+      // a bare < keeps the requester's original recipient selection.
+      if (shortcut.recipientQuery === undefined && exactRecipientId === undefined) {
+        shortcut = q.shortcut;
+        exactRecipientId = q.exactRecipientId;
+      }
+      queued = undefined;
+    }
 
     inFlight = true;
     try {
@@ -132,10 +241,11 @@ export function registerDirectHandoff(
           ? { recipientQuery: shortcut.recipientQuery }
           : { preferParentMain: true }),
       });
-    } catch {
-      restore('Could not open Handoff. Try again from the Work session.');
+    } catch (error) {
+      restore('Could not open Handoff: ' + String(error));
     } finally {
       inFlight = false;
+      updateHint(undefined, ctx);
     }
   }
 
@@ -145,16 +255,47 @@ export function registerDirectHandoff(
     await open(ctx, command, { recipientQuery: id }, id);
   }, connectedRecipientIds);
 
-  const updateHint = (_event: unknown, ctx: ExtensionContext) => {
-    if (ownerOf(ctx)?.role === 'work') showHandoffHint(ctx);
-  };
-  pi.on('session_start', updateHint);
+  pi.on('session_start', (_event, ctx) => {
+    // Never transplant an in-memory request into a different resumed session.
+    if (queued && queued.sessionId !== ctx.sessionManager.getSessionId()) queued = undefined;
+    updateHint(undefined, ctx);
+  });
   pi.on('session_tree', updateHint);
-  pi.on('agent_settled', updateHint);
   pi.on('agent_start', (_event, ctx) => {
-    if (ctx.mode === 'tui' && ownerOf(ctx)?.role === 'work') {
-      ctx.ui.setWidget(HANDOFF_HINT, undefined);
+    if (queued?.sessionId === ctx.sessionManager.getSessionId() && queued.state === 'ready') {
+      queued = undefined;
+      ctx.ui.notify('Unreviewed Handoff request expired when another Work run started.', 'warning');
     }
+    if (ctx.mode === 'tui' && ownerOf(ctx)?.role === 'work') {
+      if (queued) updateHint(undefined, ctx);
+      else ctx.ui.setWidget(MANUAL_HANDOFF_HINT, undefined);
+    }
+  });
+  pi.on('agent_settled', (event, ctx) => {
+    const q = queued;
+    if (!q || q.state !== 'waiting') {
+      updateHint(undefined, ctx);
+      return;
+    }
+    if (q.sessionId !== ctx.sessionManager.getSessionId()) {
+      queued = undefined;
+      updateHint(undefined, ctx);
+      return;
+    }
+    const last = [...ctx.sessionManager.getBranch()].reverse().find(entry =>
+      entry.type === 'message' &&
+      (entry.message.role === 'assistant' || entry.message.role === 'user' || entry.message.role === 'toolResult'));
+    const complete = !event.aborted && last?.type === 'message' &&
+      last.message.role === 'assistant' && last.message.stopReason === 'stop';
+    if (!complete) {
+      queued = undefined;
+      ctx.ui.notify('Work settled without a completed report; queued Handoff was not prepared.', 'warning');
+      updateHint(undefined, ctx);
+      return;
+    }
+    queued = { ...q, state: 'ready', readyLeafId: ctx.sessionManager.getLeafId() ?? undefined };
+    ctx.ui.notify('Work settled. Manual Handoff request saved; nothing was sent.', 'info');
+    updateHint(undefined, ctx);
   });
 
   pi.on('input', async (event, ctx) => {
@@ -162,13 +303,13 @@ export function registerDirectHandoff(
     const shortcut = parseDirectHandoff(event.text);
     if (!shortcut) return { action: 'continue' };
     if (!ctx.hasUI) return { action: 'handled' };
-    if (event.images?.length || event.streamingBehavior) {
+    if (event.images?.length) {
       ctx.ui.setEditorText(event.text);
-      ctx.ui.notify(event.images?.length
-        ? 'Handoff shortcuts do not accept images.'
-        : 'Finish the current Pi turn before sharing.', 'warning');
+      ctx.ui.notify('Handoff shortcuts do not accept images.', 'warning');
       return { action: 'handled' };
     }
+    // Return handled even during streaming; never inject < into the Work
+    // model as a steer/followUp instruction.
     await open(ctx, event.text, shortcut);
     return { action: 'handled' };
   });
