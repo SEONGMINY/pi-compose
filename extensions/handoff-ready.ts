@@ -8,6 +8,7 @@ import {
   type PreparedHandoff,
 } from './handoff-candidates.ts';
 import { readAgentRelationship } from '../src/agent-relationships.ts';
+import { parseCandidateChoice } from '../src/handoff/package.ts';
 
 export const REVIEWED_ENTRY = 'compose_handoff_reviewed_draft';
 export const PREPARATION_STATUS_ENTRY = 'compose_handoff_preparation_status';
@@ -25,6 +26,8 @@ type SavedReview = {
   reviewEntryId: string;
   text: string;
   sourceEntryIds: string[];
+  selectedCandidateIds: string[];
+  reviewerNote?: string;
   createdAt: string;
 };
 
@@ -49,7 +52,9 @@ export function latestReviewedDraft(ctx: ExtensionContext, reportEntryId?: strin
         typeof raw.reviewEntryId !== 'string' || !ids.has(raw.reviewEntryId) ||
         typeof raw.text !== 'string' || !raw.text.trim() ||
         !Array.isArray(raw.sourceEntryIds) ||
-        !raw.sourceEntryIds.every(id => typeof id === 'string' && ids.has(id))) continue;
+        !raw.sourceEntryIds.every(id => typeof id === 'string' && ids.has(id)) ||
+        !Array.isArray(raw.selectedCandidateIds) ||
+        !raw.selectedCandidateIds.every(id => typeof id === 'string' && /^HC[1-5]$/.test(id))) continue;
     if (!ids.has(raw.reportEntryId)) continue;
     return data as SavedReview;
   }
@@ -131,9 +136,11 @@ export function registerHandoffReady(
     if (!details || typeof details !== 'object' || Array.isArray(details)) return false;
     const answer = details as Record<string, unknown>;
     if (answer.cancelled === true || !answer.response) return false;
-    const response = answer.response as Record<string, unknown>;
-    if (response.kind === 'selection' && Array.isArray(response.selections) &&
-        response.selections.length === 0 && !response.comment) return false;
+    const choice = parseCandidateChoice(answer, prepared);
+    if (!choice) {
+      ctx.ui.notify('선택한 후보를 고유 ID에 연결할 수 없습니다. /compose review에서 다시 선택하세요.','warning');
+      return false;
+    }
     const last = [...branch].reverse().find(entry =>
       entry.type === 'message' &&
       (entry.message.role === 'assistant' || entry.message.role === 'user' || entry.message.role === 'toolResult'));
@@ -142,10 +149,13 @@ export function registerHandoffReady(
     const text = textContent(last.message.content);
     if (!text || text.length > 14000) return false;
     const sourceEntryIds = [...new Set([prepared.reportEntryId, last.id,
-      ...prepared.candidates.map(candidate => candidate.sourceEntryId)])];
+      ...choice.ids.map(id => prepared.candidates[Number(id.slice(2))-1]?.sourceEntryId)
+        .filter((id): id is string => Boolean(id))])];
     pi.appendEntry(REVIEWED_ENTRY, {
       version: 1, sessionId: active.sessionId, reportEntryId: active.reportEntryId,
-      reviewEntryId: last.id, text, sourceEntryIds, createdAt: new Date().toISOString(),
+      reviewEntryId: last.id, text, sourceEntryIds, selectedCandidateIds: choice.ids,
+      ...(choice.note ? {reviewerNote: choice.note} : {}),
+      createdAt: new Date().toISOString(),
     } satisfies SavedReview);
     return true;
   }
@@ -268,12 +278,12 @@ export function registerHandoffReady(
         !event.aborted && persistReviewAfterAnswer(ctx, active);
       restoreReviewTools();
       showReady(ctx);
-      // The user just answered ask_user. Continue to Pi's native editor and
-      // explicit SEND confirmation without requiring another < input.
-      // No focus command is issued; the UI remains in this Work terminal.
+      // A mapped candidate ID is now an explicit bounded sharing scope.
+      // The send handler constructs exact source-backed content; the assistant's
+      // freeform review reply is retained only as a trace, never sent as truth.
       if (saved && requestReviewedSend && ctx.hasUI && ctx.mode === 'tui' && ctx.isIdle()) {
         // Do not hold Pi's settlement event open for a human answer.
-        // Open the normal editor/confirmation AFTER the event callback returns.
+        // Open the read-only final-body review AFTER the event callback returns.
         queueMicrotask(() => {
           if (ctx.sessionManager.getSessionId() !== active.sessionId || !ctx.isIdle()) return;
           void requestReviewedSend(ctx).catch(error => {
