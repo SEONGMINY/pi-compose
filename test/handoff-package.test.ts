@@ -5,14 +5,14 @@ import type { PreparedHandoff } from '../extensions/handoff-candidates.ts';
 
 export function samplePackage(): HandoffPackage {
   const quote='The label field must not be removed.';
-  const finalMessage='Main review only. Original quote: '+quote;
+  const finalMessage='Main review only. Candidate summary: Keep legacy clients compatible. Original quote: '+quote;
   return {
     version:1,id:'00000000-0000-4000-8000-000000000001',
     createdAt:'2026-11-10T00:00:00.000Z',product:'project-test',
     source:{workSessionId:'work-test',forkSourceSessionId:'main-test',
       forkLeafId:'main-leaf',workReportEntryId:'report-1'},
     targetMainSessionId:'main-test',selectedCandidateIds:['HC1'],
-    claims:[{candidateId:'HC1',title:'Preserve label',
+    claims:[{candidateId:'HC1',title:'Preserve label',summary:'Keep legacy clients compatible.',
       statement:quote,kind:'work-reported',verification:'reported-only',
       evidenceIds:['E-HC1']}],
     context:[],evidence:[{id:'E-HC1',sessionId:'work-test',entryId:'report-1',
