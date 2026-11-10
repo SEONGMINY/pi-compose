@@ -326,6 +326,7 @@ export async function createSelectedHandoffPackage(
     context.push({id:'CX-VERIFICATION',reason:'condition',
       whyNeeded:'Work 완료 보고의 테스트·검증 상태 (독립 검증된 사실은 아님)',
       quote:verificationQuote,requiredByClaimIds:implementationClaimIds,evidenceId});
+    if(contextAssessment==='none-needed')contextAssessment='selected';
   }
   if (ctx.sessionManager.getLeafId() !== startLeaf ||
       ctx.sessionManager.getSessionId() !== draft.sessionId) throw Error('work-branch-changed');
