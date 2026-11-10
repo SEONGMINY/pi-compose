@@ -8,7 +8,7 @@ import { type HandoffPackage, validateHandoffPackage } from './package.ts';
 
 const statusSchema = z.object({
   packageId:z.string().uuid(),
-  status:z.enum(['pending','discussed','imported','archived','duplicate']),
+  status:z.enum(['pending','discussion-requested','import-requested','discussed','imported','archived','duplicate']),
   updatedAt:z.string(),
   comparedLeafId:z.string().optional(),
 });
