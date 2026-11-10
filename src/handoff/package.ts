@@ -47,6 +47,15 @@ export const handoffPackageSchema = z.object({
   evidence: z.array(evidenceSchema).min(1).max(14),
   reviewerNote: z.string().max(1200).optional(),
   contextAssessment: z.enum(['selected', 'none-needed', 'unavailable']),
+  // Records which exact body received model-assisted semantic inspection.
+  // This is an audit receipt, not proof that every claim is correct.
+  qualityReview: z.object({
+    verdict: z.literal('acceptable'),
+    method: z.literal('model-semantic-review'),
+    modelId: z.string().min(1),
+    reviewedAt: z.string().min(1),
+    checkedBodyHash: z.string().regex(/^[0-9a-f]{64}$/),
+  }).optional(),
   finalMessage: z.string().min(1).max(14000),
   finalMessageHash: z.string().regex(/^[0-9a-f]{64}$/),
 });
@@ -111,6 +120,8 @@ export function hashMessage(message: string): string {
 export function validateHandoffPackage(value: unknown): HandoffPackage {
   const data = handoffPackageSchema.parse(value);
   if (hashMessage(data.finalMessage) !== data.finalMessageHash) throw Error('handoff-body-hash-mismatch');
+  if(data.qualityReview && data.qualityReview.checkedBodyHash!==data.finalMessageHash)
+    throw Error('handoff-quality-receipt-body-mismatch');
   if (new Set(data.selectedCandidateIds).size !== data.selectedCandidateIds.length ||
       data.claims.length !== data.selectedCandidateIds.length ||
       new Set(data.claims.map(v => v.candidateId)).size !== data.claims.length ||
