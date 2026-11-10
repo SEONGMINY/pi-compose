@@ -7,7 +7,7 @@
  * approval for the normal Work-to-Main path.
  */
 import type {ExtensionContext} from '@earendil-works/pi-coding-agent';
-import {Text,matchesKey,truncateToWidth,visibleWidth} from '@earendil-works/pi-tui';
+import {Text,matchesKey,isKeyRepeat,isKeyRelease,truncateToWidth,visibleWidth} from '@earendil-works/pi-tui';
 import type {HandoffPackage} from '../src/handoff/package.ts';
 import type {MainComparison} from '../src/handoff/compare.ts';
 
@@ -60,18 +60,18 @@ export function showReferenceReceived(
         ...pkg.claims.slice(0,expanded?pkg.claims.length:2)
           .map(c=>'• '+c.summary),
         ...(pkg.claims.length>2&&!expanded
-          ?['다른 결과 '+(pkg.claims.length-2)+'건 · Ctrl+E로 펼치기']:[]),
+          ?['다른 결과 '+(pkg.claims.length-2)+'건 · Ctrl+O로 펼치기']:[]),
         ...(expanded?[
           '',
           'Work에서 승인한 정확한 Brief:',
           pkg.approvedMainBrief??pkg.finalMessage,
-        ]:['','Ctrl+E로 전체 Work 보고와 필수 WHY 확인']),
+        ]:['','Ctrl+O로 전체 Work 보고와 필수 WHY 확인']),
         '',
         '이 내용은 Work의 보고입니다. Main의 기존 정책을 변경하지 않습니다.',
       ];
     };
     const foot=():string=>tab==='message'
-      ?'Ctrl+E 펼치기/접기 · Tab 근거/본문 · Enter 처리 선택 · Esc 나중에'
+      ?'Ctrl+O 펼치기/접기 · Tab 근거/본문 · Enter 처리 선택 · Esc 나중에'
       :'Tab 다음 보기 · PgUp/PgDn 스크롤 · Enter 처리 선택 · Esc 돌아가기';
     const render=(width:number)=>{
       const full=new Text(lines().join('\n'),1,0).render(Math.max(20,width-2));
@@ -93,13 +93,14 @@ export function showReferenceReceived(
         theme.fg('accent','╰'+'─'.repeat(inner)+'╯'),
       ];
     };
-    return {
+    const component={
       render,
       handleInput(key:string){
+        if(isKeyRepeat(key)||isKeyRelease(key))return;
         if(matchesKey(key,'escape')){
           if(tab!=='message'){tab='message';scroll=0;}
           else done(false);
-        }else if(matchesKey(key,'ctrl+e')&&tab==='message'){
+        }else if(matchesKey(key,'ctrl+o')&&tab==='message'){
           expanded=!expanded;scroll=0;
         }else if(matchesKey(key,'tab')){
           tab=tab==='message'?'sources':tab==='sources'?'import':'message';
@@ -112,6 +113,17 @@ export function showReferenceReceived(
         tui.requestRender();
       },
       invalidate(){},
+      dispose(){removeListener();},
     };
+    // Pi receives terminal keys before focused-component delivery. Scope the
+    // same guarded listener to this modal, so a stale external focus does not
+    // make the received Work report impossible to dismiss.
+    const modalKeys=['escape','ctrl+o','tab','up','down','pageUp','pageDown','enter'];
+    const removeListener=ctx.ui.onTerminalInput(key=>{
+      if(!modalKeys.some(k=>matchesKey(key,k)))return undefined;
+      if(!isKeyRelease(key)&&!isKeyRepeat(key))component.handleInput(key);
+      return {consume:true};
+    });
+    return component;
   });
 }
