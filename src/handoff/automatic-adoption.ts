@@ -37,7 +37,9 @@ export function decideAutomaticAdoption(
      new Set(comparison.items.map(item=>item.claimId)).size!==pkg.claims.length||
      pkg.claims.some(claim=>!comparison.items.some(item=>item.claimId===claim.candidateId)))
     return {action:'hold',reason:'comparison-incomplete'};
-  if(comparison.items.some(item=>item.status==='conflict'||item.status==='insufficient'))
+  if(comparison.items.some(item=>
+    item.status==='conflict'||item.status==='insufficient'||
+    item.unresolvedQuestions.length>0))
     return {action:'hold',reason:'conflict-or-uncertainty'};
   if(comparison.items.every(item=>item.status==='duplicate'))
     return {action:'duplicate',reason:'already-covered'};
