@@ -213,14 +213,15 @@ export async function createSelectedHandoffPackage(
   }
 
   // Search Work/Fork ancestry for *necessary* context, not an unbounded summary.
-  const refs = branch.filter(entry => entry.type === 'message' &&
-    (entry.message.role === 'user' || entry.message.role === 'assistant' ||
-    entry.message.role === 'toolResult') &&
-    entry.id !== draft.reportEntryId && !selected.some(c => c.candidate.sourceEntryId === entry.id))
-    .slice(-36).map(entry => entry.type === 'message' ? {
-      id:entry.id,role:entry.message.role,text:textOf(entry.message.content).slice(0,1600),
-    } : undefined).filter((v): v is {id:string;role:'user'|'assistant'|'toolResult';text:string} =>
-      Boolean(v?.text && safeText(v.text)));
+  const refs = branch.flatMap(entry => {
+    if (entry.type!=='message' ||
+        (entry.message.role!=='user' && entry.message.role!=='assistant' &&
+         entry.message.role!=='toolResult') ||
+        entry.id===draft.reportEntryId ||
+        selected.some(c=>c.candidate.sourceEntryId===entry.id))return [];
+    const text=textOf(entry.message.content).slice(0,1600);
+    return text && safeText(text)?[{id:entry.id,role:entry.message.role,text}]:[];
+  }).slice(-36);
   const context: HandoffContext[] = [];
   let contextAssessment: HandoffPackage['contextAssessment'] = 'unavailable';
   if (refs.length && ctx.model) {
