@@ -307,7 +307,7 @@ export function showReferenceContextReview(
     // Pi 1.4.0 terminal listener runs before the native focused component.
     // Consume only review shortcuts; no model or editor input is intercepted.
     const names=['escape','up','down','space','ctrl+e','e','n','enter',
-      'pageUp','pageDown','tab','backspace'];
+      'pageUp','pageDown','tab','backspace'] as const;
     const removeInput=ctx.ui.onTerminalInput(key=>{
       if(matchesKey(key,'alt+z')&&controls?.onToggleZoom){
         if(!isKeyRelease(key)&&!isKeyRepeat(key)){
