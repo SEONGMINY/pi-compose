@@ -1,81 +1,62 @@
-# TRD — Pi Compose 현재 기술 계약
+# TRD — Pi Compose 기술 계약
 
-- 제품 정책: [PRD](PRD.md) · Handoff 최신 합의 2026-11-10
-- 사용 흐름: [Usage](USAGE.md)
-- 아키텍처 원본: [Architecture](ARCHITECTURE.md)
-- 검증 상태: GitHub 코드 반영, **Pi 1.4.0 + macOS Ghostty 통합 실사용 검증 전**
+> 제품 요구사항: [PRD](PRD.md) · 구조 책임: [Architecture](ARCHITECTURE.md)
+>
+> 현행 PR #25 코드와 **2026-11-10 합의한 최신 목표 UX**를 구분합니다. 여기서 최신 목표라고 표기한 기능은 아직 코드에 반영·검증되지 않았습니다.
 
-## 1. 사용하는 런타임과 기능
+## 1. 구현에서 보존할 기술 경계
 
-| 기능 | 원본/재사용 방법 | 제약 |
-|---|---|---|
-| Pi TUI와 저장 세션 | `@earendil-works/pi-coding-agent` | bare `pic`은 새로운 `--session-id` |
-| Resume | Pi `-r`, `-c`, `--session`, `/resume` | 역할 바꾸지 않음, 최근 세션이 항상 Main은 아님 |
-| Agent 신원 | `session_start`에서 `compose_agent_identity` | 현재 Pi 세션 ID와 정확히 일치해야 함 |
-| Work Fork | `SessionManager.createBranchedSession` | 완료된 Assistant 지점·활성 분기·원본 JSONL 불변 |
-| Support | 별도 Pi Session ID | Main 대화 상속 없음 |
-| Git Worktree | Git CLI `worktree add -b` | 원본 HEAD 기준; 미커밋 변경 복사·Merge·자동 삭제 없음 |
-| 새 Agent Split | Ghostty 1.3.1 AppleScript Native Terminal UUID | 현재 입력 Terminal 확인, Mac Automation 권한 필요 |
-| 보호형 Main 전달 | 동일 사용자 로컬 영속 보관 + `pi-intercom@0.18.1` Extension Channel 알림 | 보관과 모델 처리·정책 채택 구분, 일반 Outbox 우회 금지 |
-| 완료 공유 후보 준비 | Pi `ctx.modelRegistry.streamSimple()` + 비컨텍스트 `pi.appendEntry()` | Work 완료 보고 분류, 최대 5개 근거 후보 자동 저장; 완료 여부는 독립 증명 아님 |
-| Handoff 요청 | Pi `input` 이벤트 + `agent_settled` | busy 요청은 `handled`, Steering/Follow-up 미전달 |
-| Handoff 검토 | pi-ask-user 원본 `ask_user` (model-only) + Pi `ctx.ui.custom` 미리보기 | 선택된 후보 ID·근거·맥락 구성, R 재검토, S 명시적 저장 승인 |
+| 영역 | 계약 · 검증 포인트 |
+| --- | --- |
+| Main 세션 | bare `pic`이 별도 관리 TUI 없이 새 Main을 실행. Pi 기본 Resume는 기존 역할을 보존 |
+| 정확한 Fork | `SessionManager.createBranchedSession`으로 선택한 Pi 활성 완료 분기 Fork; 원본 JSONL 불변, Compaction/ContextEdit 보존 |
+| Support | 별도 Pi 세션 생성; 원본 Main 컨텍스트 자동 상속 없음 |
+| 역할 신원 | Pi 세션 ID·프로젝트 식별·Agent 역할이 일치할 때만 신뢰. 이름/cwd만으로 수신자를 추정하지 않음 |
+| Ghostty | 요청을 입력한 Pi Terminal UUID를 기준으로 Native Split. 포커스·중단·오류 상태를 추측하지 않음 |
+| Git Worktree | 명령 입력 Agent의 Git HEAD에서 새 브랜치·Worktree; 미커밋 변경 복사, Merge/삭제 없음 |
+| 근거 | 공유 항목·출처 Entry ID·조건/WHY·의미·검증 상태를 함께 유지; 단순 문자열 검사는 충분하지 않음 |
+| Handoff 발신 | Work `<`에서 대상·전달 본문과 원문 근거를 확인하고 명시적으로 전송 승인; 모델 Steering과 분리 |
+| Handoff 수신 | Main에는 비컨텍스트 알림만; 본문 확인 및 선택적 반영은 명시적 사용자 행동; 정책 변경 자동 승인 없음 |
+| Main 최신성 | 수신 내용을 사용자 검토 시점의 Pi 활성 분기에서 비교. Work가 Fork 이후 Main을 조회하지 않음 |
 
-## 2. Main 실행
+## 2. PR #25의 구현과 최신 요구사항 사이 차이
 
-`bin/pic.mjs`에서 호출된 디렉터리를 `realpathSync()`로 정규화하고 해당 경로의 SHA-256 앞 24자리로 안정적인 프로젝트 키를 만듭니다. 제품명은 `cwd-<hash>`, 표시 이름은 디렉터리 이름입니다. 동일 경로의 새 Main들은 제품 키를 공유하지만 세션 UUID는 새로 생성합니다.
+| PR #25의 기존 경로 | 최신 요구사항 / 남은 조정 |
+| --- | --- |
+| 완료 보고 후 모델이 공유 후보 준비 및 `ask_user` 질문 요청 | `extensions/compose.ts`는 자동 질문을 등록하지 않음. Work `<` 시 `prepareManualHandoffCandidates` 실행, Context Review 검토 |
+| 근거 검색·의미 검사·`O/R/S` 미리보기 | `src/handoff/context-review.ts`에서 연결 근거를 포함한 단위 구성 및 선택별 결정적 본문 재생성. 임시 Pi `ctx.ui.custom` 화면에서 Space·Tab·Enter·Esc 사용 |
+| `src/handoff/store.ts` 영속 저장 + Extension Channel 알림 | 내용의 비컨텍스트 저장은 보존 후보; Main에는 도착 알림만 |
+| `/compose inbox` → `D/I/C/A` | Main `<`로 저장된 보고 열람, 비교 후 신규 보고만 `triggerTurn:false`로 명시적 반영. 기존 Inbox 명령은 기본 경로에서 제외 |
+| `src/handoff/compare.ts`의 Main 활성 분기 비교 | 필요 시 재사용하되 기존 승인·시간 순서를 혼동하지 않도록 검증 |
 
-`createAgentBootstrap` / `encodeAgentBootstrap`을 사용해 환경 변수 `PI_COMPOSE_AGENT_BOOTSTRAP_V1`를 전달합니다. Pi `--session-id`로 시작한 세션의 `session_start`에서 ID와 cwd가 일치할 때만 메타데이터를 기록합니다.
+기존 코드를 무조건 삭제하거나 기술 방식을 선승인하지 않습니다. PR #25에 있는 검증된 하위 기능을 재사용할 수 있는지 조사한 뒤 **최소 변경으로** 목표 UX를 구현합니다.
 
-Pi 복구 명령은 해당 임시 bootstrap 환경을 제거해 **기존 저장 신원이 우선**하도록 합니다. 이전 Legacy Compose 세션은 기존 신원을 변경하지 않습니다.
+## 3. 실패 조건과 안전
 
-## 3. Ghostty에서 현재 터미널 기준 Agent 생성
+- 사용자의 **보낸 내용 확인/승인** 이전에 Main에 패키지를 보내지 않습니다.
+- 도착 알림은 수신 사실만 뜻합니다. Main 모델의 읽음, 수용, 실제 정책 변경을 뜻하지 않습니다.
+- 부정문 뒤집힘, 미실행 테스트의 통과 오인, 승인 주체 바뀜, WHY 누락, Fork 이후의 상충 결정은 오류 사례로 검증합니다.
+- Pi·Ghostty·pi-intercom·pi-ask-user의 실제 이벤트/API 기능은 해당 버전의 원본 동작을 먼저 확인합니다. 없는 기능을 추측해 작성하지 않습니다.
+- 통합 검사·정적 검사·UI 실사용·의미 평가를 별개로 보고합니다.
 
-`extensions/direct-delegation.ts`는 사용자 입력 `>w`/`>s`/`>>w`/`>>s`만 가로챕니다. 모델의 일반 도구 실행이나 다른 텍스트에서는 Agent를 생성하지 않습니다.
+## 4. 검토한 원본과 연구의 적용 범위
 
-`startNativeAgentFromTerminal`은 다음을 확인합니다.
+현행 PR #25 코드의 검토 대상 조합은 **Pi 1.4.0, Ghostty 1.3.1, pi-intercom 0.18.1, pi-ask-user 0.17.2**입니다. 외부 기능은 설치 사실이 아닌 해당 버전의 실제 동작으로 검증합니다.
 
-1. macOS, 명시적인 작업 지시, 정확한 역할과 Fork 원본
-2. 현재 Ghostty Terminal UUID와 사용자 입력 Terminal의 동일성
-3. 해당 Terminal의 Ghostty Native Split 가능 여부
-4. Work의 정확한 Pi session/leaf 또는 Support 새 UUID, Worktree 원본 Git HEAD
-5. 일회용 Launch Ticket을 통한 새 Pi 실행과 반환된 Native Terminal 영수증
+- [QMSum](https://aclanthology.org/2021.naacl-main.472/) — 긴 기록에서 관련 근거를 찾는 접근
+- [FActScore](https://aclanthology.org/2023.emnlp-main.741/) — 사실 단위 근거 대조
+- [SummEdits](https://aclanthology.org/2023.emnlp-main.600/) — 미묘한 의미 왜곡의 평가
+- [Lost in the Middle](https://aclanthology.org/2024.tacl-1.9/) — 긴 맥락 내 정보 활용 한계
 
-한 번의 Split 요청 결과가 불명확하면 자동 재요청하지 않습니다. `Ghostty Split created` 영수증만으로 Pi 모델 실행 성공을 선언하지 않습니다.
+이 자료는 근거 검색·의미 검토의 설계 참고 자료이며 Pi Compose의 정확도·모델 비용·최신 UX의 성공을 증명하지 않습니다. 실제 사용자 실험의 오류 사례와 비교해야 합니다.
 
-이전 Overview 함수와 Launch Ticket의 `overviewTerminalId` 명칭은 Legacy 호환 경로로 남아 있을 수 있으나, 새 요청에서 사용하는 실제 anchor는 사용자의 현재 Pi Terminal입니다. Sidebar는 생성되지 않습니다.
+## 5. 실제 환경에서 검증할 것
 
-## 4. 진행 중 Handoff 대기/검토
+1. Main 새 세션/복구·역할 식별과 Ghostty 기준 Split·포커스
+2. 정확한 Pi 완료 지점 Fork, 원본 불변, Shared/Worktree 모두 동작
+3. Work 실행 중/종료 후 `<` 요청·취소·본문 확인·중복 전송 방지
+4. Main 알림만 표시·컨텍스트 무주입·명시적 선택 반영·과거 보고/최신 정책 충돌 검출
+5. Main 종료·재개, 부재 수신, 중복 알림, 오류/검토 실패 때 회복
+6. Handoff 의미 품질(이전 논문·실험 사례)과 모델 비용·불필요한 조작
 
-`extensions/direct-handoff.ts`는 사용자 `<` 입력이 Pi의 streaming 중일 때 `action: handled`로 소비하고, 현재 Pi 세션 ID·leaf·수신자 질의를 임시 기억합니다. `agent_settled` 이후 중단 여부와 완료된 Assistant 보고를 확인한 뒤 Work의 UI에 검토 가능을 안내합니다.
-
-- **대기 상태에서는 모델 호출을 시작하지 않습니다.** Work의 기존 Streaming을 중단하거나 다음 Prompt에 Handoff 명령을 섞지 않습니다.
-- 사용자가 다시 `<`를 입력하면 후보를 재검토하거나 검증된 보호형 Work→Main 패키지 경로로 들어갑니다. 기존 일반 intercom Outbox 경로는 Main 보호를 우회할 수 없습니다.
-- Work가 중단됐거나 완료 보고가 없다면 대기 요청을 무효화합니다. 대기 중/검토 중 세션 또는 Pi branch가 바뀌면 과거 데이터로 자동 전송하지 않습니다.
-- 메모리상의 요청은 Pi 프로세스 재시작 뒤 유지하지 않습니다. 이 불변성과 실제 UI 이벤트 경합은 실사용 검증 대상입니다.
-- `input`의 `streamingBehavior: steer|followUp`를 Handoff 메시지로 변경하지 않습니다.
-
-## 5. 원본 Handover·AskUser 재사용 경계
-
-[pi-intercom 0.18.1](https://github.com/nicobailon/pi-intercom/tree/v0.18.1)의 `performHandover`는 `buildHandoverText` → Cancel 가능한 Loader → `ctx.ui.editor` → 전송을 구현합니다. 이를 **하위호환된 Pi UI/취소 패턴으로 참고**할 수 있으나, 상위 Agent에게 다음 작업을 지시하는 Handover 프롬프트는 Main 컨텍스트 보호 정책과 그대로 호환되지 않습니다.
-
-[pi-ask-user](https://github.com/edlsh/pi-ask-user)는 `ask_user`를 `exposure: 'model-only'`로 등록합니다. 독립 `streamSimple()`에서 직접 부르지 않고, 저장된 후보를 Work의 모델 `pi.sendMessage(..., { triggerTurn: true })` 턴으로 전달합니다. 해당 검토 턴에는 `pi.setActiveTools(['ask_user'])`로 모델 도구 표시를 제한하고 뒤에 복원합니다. 선택 응답을 고정 후보 ID로 매핑한 뒤, Work 활성 분기의 근거와 Fork 시점 맥락을 검색합니다. 별도 의미 검사를 거친 최종 본문을 미리보기로 보여주고 명시적 S 승인이 있을 때만 로컬 수신 보관함에 저장합니다. Main `/compose inbox`는 검토를 열 때만 활성 Pi 분기를 사용합니다. 이 연계는 **코드 작성 상태이며 Pi 1.4.0에서 실제 실행 검증 전**입니다.
-
-## 6. 실제 검증 기준
-
-| 분류 | 확인할 동작 | 아직 주장하면 안 되는 것 |
-|---|---|---|
-| 런처 | `pic` 새 Main·`pic -r/-c` 기존 세션 | 코드 존재만으로 실제 Ghostty 동작 성공 |
-| 위임 | 현재 Terminal Split, Work 원본 Fork, Support 독립, Worktree 출처 | Split 생성이 업무 완료를 뜻함 |
-| Handoff | 승인된 본문·근거의 로컬 보관, Main 수신 시 무주입, 검토 시 비교, D/I 명시적 사용자 행동 | 파일 보관이 Main의 읽음·정책 채택을 의미한다는 주장 |
-| 컨텍스트 | Pi 원본 Entry ID, 승인·부정·실행 상태 | 문자열 포함만으로 의미 검증 완료 |
-| 확장 통합 | `pi-intercom`과 `pi-ask-user` 사용자 피드백 처리 | 두 패키지 설치만으로 대화형 수정 완료 |
-
-### 검증 자료
-
-- [QMSum](https://aclanthology.org/2021.naacl-main.472/): 관련 구간을 찾아 필요한 정보를 선택하는 접근
-- [FActScore](https://aclanthology.org/2023.emnlp-main.741/): 사실 단위 출처 대조
-- [SummEdits](https://aclanthology.org/2023.emnlp-main.600/): 미세한 의미 왜곡의 위험
-- [Lost in the Middle](https://aclanthology.org/2024.tacl-1.9/): 장문 맥락에서 정보 활용 한계
-
-이 논문들은 Pi Compose 통합의 정확성·최적 UI·성능을 직접 검증하지 않았습니다. 기존 사용자 실험 데이터에서 실제 실패 사례를 찾아 회귀 검증해야 합니다.
+[검증 감사 기록](HANDOFF_IMPLEMENTATION_AUDIT.md)에는 PR #25의 코드·CI 관찰 범위가 포함됩니다. 이를 새 UX의 E2E 성공으로 확대하지 않습니다.
