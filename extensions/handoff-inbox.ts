@@ -266,10 +266,13 @@ export function registerHandoffInbox(pi:ExtensionAPI) {
         ].join('\n\n'),
         details:{packageId:item.pkg.id,comparedLeafId:leaf},
       },{triggerTurn:true});
-        await setInboxStatus(owner.sessionId,item.pkg.id,action==='import'?'imported':'discussed',leaf);
+        // sendMessage queues a turn; it does NOT prove model consumption,
+        // response completion, or adoption of any claimed decision.
+        await setInboxStatus(owner.sessionId,item.pkg.id,
+          action==='import'?'import-requested':'discussion-requested',leaf);
         ctx.ui.notify(action==='import'
-          ? '사용자가 신규 Work 보고를 Main 맥락으로 가져왔습니다. 정책 승인·코드 변경은 실행하지 않았습니다.'
-          : '사용자 요청으로 Main 논의를 시작했습니다. Handoff 수신 자체는 모델을 실행하지 않았습니다.','info');
+          ? '신규 Work 보고의 Main 반영 요청을 제출했습니다. 모델 처리·정책 승인은 아직 확인되지 않았습니다.'
+          : 'Main 논의 요청을 제출했습니다. 모델 처리 완료는 아직 확인되지 않았습니다.','info');
         void refreshInboxWidget(ctx);
       } catch(error) {
         restoreDiscussionTools();
