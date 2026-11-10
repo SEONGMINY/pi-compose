@@ -6,6 +6,7 @@ import { latestReviewedDraft } from './handoff-ready.ts';
 import { createSelectedHandoffPackage, verifyWorkSource } from '../src/handoff/package.ts';
 import { putHandoff } from '../src/handoff/store.ts';
 import { previewHandoff } from './handoff-inbox.ts';
+import { assessHandoffQuality } from '../src/handoff/quality.ts';
 import type { HandoffPackage } from '../src/handoff/package.ts';
 
 export function registerSelectedHandoffSend(
@@ -71,9 +72,19 @@ export function registerSelectedHandoffSend(
         return;
       }
       if(ctx.sessionManager.getLeafId()!==packageStartLeaf)return;
+      const blockingIssues:string[]=[];
+      try {
+        const quality=await assessHandoffQuality(ctx,pkg);
+        if(quality.verdict==='needs-revision')
+          blockingIssues.push(...quality.issues.map(issue=>
+            '['+issue.candidateId+' · '+issue.kind+'] '+issue.explanation));
+      } catch(error) {
+        blockingIssues.push('의미·누락 검증이 완료되지 않았습니다: '+String(error));
+      }
       if(pkg.contextAssessment==='unavailable')
-        ctx.ui.notify('필수 맥락 검색이 실패했습니다. 추가된 맥락 없이 원문 확인된 후보만 표시합니다.','warning');
-      const action=await previewHandoff(ctx,pkg,'outgoing');
+        blockingIssues.push('필수 맥락 검색 실패: 원문 후보만으로 충분한지 확인되지 않았습니다.');
+      if(ctx.sessionManager.getLeafId()!==packageStartLeaf)return;
+      const action=await previewHandoff(ctx,pkg,'outgoing',undefined,blockingIssues);
       if(action==='send'){approved=true;break;}
       if(action==='later')return;
       if(action==='revise'){
