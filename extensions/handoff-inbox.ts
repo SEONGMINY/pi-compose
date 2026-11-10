@@ -146,9 +146,9 @@ export function registerHandoffInbox(pi:ExtensionAPI) {
         item.pkg.product===owner.product && item.status.status==='pending');
       if(current?.sessionManager.getSessionId()!==owner.sessionId)return;
       ctx.ui.setWidget('pi-compose/main-inbox',items.length?
-        ['Main · Handoff '+items.length+'개 검토 대기 · /compose inbox']:undefined);
+        ['Main · Work 결과 '+items.length+'건 도착 · < 로 확인']:undefined);
     } catch {
-      ctx.ui.setWidget('pi-compose/main-inbox',['Main · Handoff 보관함 확인 필요 · /compose inbox']);
+      ctx.ui.setWidget('pi-compose/main-inbox',['Main · Work 결과 확인이 필요합니다 · < 로 확인']);
     }
   }
   const registerFor=(ctx:ExtensionContext)=>{
@@ -172,7 +172,7 @@ export function registerHandoffInbox(pi:ExtensionAPI) {
         void readHandoff(active.sessionId,data.packageId).then(pkg=>{
           if(pkg.product===active.product &&
              current?.sessionManager.getSessionId()===active.sessionId){
-            session.ui.notify('Work Handoff 수신 · /compose inbox에서 검토 가능 (Main 실행 없음)','info');
+            session.ui.notify('Work 결과가 도착했습니다 · Main에서 < 로 확인 (모델 실행 없음)','info');
             void refreshInboxWidget(session);
           }
         }).catch(()=>{});
