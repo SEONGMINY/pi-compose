@@ -12,7 +12,7 @@
 | 정확한 Fork | `SessionManager.createBranchedSession`으로 선택한 Pi 활성 완료 분기 Fork; 원본 JSONL 불변, Compaction/ContextEdit 보존 |
 | Support | 별도 Pi 세션 생성; 원본 Main 컨텍스트 자동 상속 없음 |
 | 역할 신원 | Pi 세션 ID·프로젝트 식별·Agent 역할이 일치할 때만 신뢰. 이름/cwd만으로 수신자를 추정하지 않음 |
-| Ghostty | 요청을 입력한 Pi Terminal UUID를 기준으로 Native Split. 포커스·중단·오류 상태를 추측하지 않음 |
+| Ghostty | 요청을 입력한 Pi Terminal UUID를 기준으로 Native Split. Handoff 검토에서 `Alt+Z`는 **정확한 현재 포커스 Split**에만 `toggle_split_zoom` 수행(명시적 사용자 요청, 확대 상태 읽기 API 없음). Compose가 전환한 경우 종료 시 복원 시도; 포커스·중단·오류 상태를 추측하지 않음 |
 | Git Worktree | 명령 입력 Agent의 Git HEAD에서 새 브랜치·Worktree; 미커밋 변경 복사, Merge/삭제 없음 |
 | 근거 | 공유 항목·출처 Entry ID·조건/WHY·의미·검증 상태를 함께 유지; 단순 문자열 검사는 충분하지 않음 |
 | Handoff 발신 | Work `<`에서 핵심 결과·필수 WHY·출처를 선택하고 Main에 실제 추가될 Handoff Brief를 한 번 승인; 모델 Steering과 분리 |
