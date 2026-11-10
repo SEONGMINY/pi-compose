@@ -50,7 +50,7 @@ Work 완료 사실/보고 + 원문 근거
 
 **확정 경계:** Work는 원본 Fork 시점 맥락과 자신의 Pi 분기만 읽습니다. Fork 이후 Main의 현재 정책을 몰래 조회하지 않습니다. 수신 Main에 메시지를 자동 주입하거나 모델 실행·정책 변경을 자동 승인하지 않습니다.
 
-**PR #25 통합 중:** `extensions/context-review.ts`와 `src/handoff/context-review.ts`가 Work `<`의 후보·필수 맥락 검토를 담당합니다. `extensions/context-receive.ts`는 Main `<` 확인·요청된 보고만 비자동 반영합니다. 이전 자동 후보·`ask_user`·`/compose inbox` 경로는 코드에 남아 있어도 `extensions/compose.ts`의 기본 실행 경로에는 연결하지 않습니다. 실제 통합 성공은 아직 미검증입니다. `src/handoff/store.ts`의 로컬 영속 보관과 `src/handoff/compare.ts`의 활성 분기 비교는 재사용 가능성 검토 대상입니다.
+**PR #25 통합 중:** `extensions/context-review.ts`와 `src/handoff/context-review.ts`가 Work `<`의 후보·필수 맥락 검토를 담당합니다. `extensions/context-receive.ts`는 Main `<` 수신 확인·선택 반영을 담당합니다. 과거 자동 후보·`ask_user`·`/compose inbox` 경로는 파일로 남아 있지만 `extensions/compose.ts`의 기본 실행 경로에서 제외했습니다. 실제 통합 검증은 아직 완료되지 않았습니다. `src/handoff/store.ts`의 로컬 영속 보관과 `src/handoff/compare.ts`의 활성 분기 비교는 재사용 가능성 검토 대상입니다.
 
 ## 4. 원문 근거와 승인 경계
 
