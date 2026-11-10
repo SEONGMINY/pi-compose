@@ -200,6 +200,14 @@ export function registerHandoff(pi: ExtensionAPI) {
       if (!target) return;
     }
 
+    // Work -> Main now uses the verified, non-injecting inbox pipeline.
+    // The legacy intercom Outbox must never silently bypass Main protection.
+    if (options.sameProductOnly && candidates.some(candidate =>
+      candidate.id === target.id && candidate.role === 'main')) {
+      ctx.ui.notify('Main으로의 일반 intercom 전달은 차단됩니다. Work에서 /compose review 후 비컨텍스트 보관함으로 전달하세요.','warning');
+      return;
+    }
+
     const sameSource = () => currentSessionId === senderSessionId &&
       ctx.sessionManager.getSessionId() === senderSessionId &&
       ctx.sessionManager.getLeafId() === sourceLeafId;
