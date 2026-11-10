@@ -288,7 +288,7 @@ export function registerDirectHandoff(
     updateHint(undefined, ctx);
   });
 
-  pi.on('input', async (event, ctx) => {
+  pi.on('input', (event, ctx) => {
     if (event.source !== 'interactive') return { action: 'continue' };
     const shortcut = parseDirectHandoff(event.text);
     if (!shortcut) return { action: 'continue' };
@@ -298,9 +298,15 @@ export function registerDirectHandoff(
       ctx.ui.notify('Handoff shortcuts do not accept images.', 'warning');
       return { action: 'handled' };
     }
-    // Return handled even during streaming; never inject < into the Work
-    // model as a steer/followUp instruction.
-    await open(ctx, event.text, shortcut);
+    // Release Pi's input dispatch immediately. Keeping emitInput awaited until
+    // the modal closes retains the original prompt lifecycle for the entire
+    // context preparation + review, making focus/keyboard failures difficult to
+    // recover from. A detached UI task cannot inject the literal "<" into the
+    // model because the event returns "handled" synchronously.
+    void open(ctx, event.text, shortcut).catch(error=>{
+      ctx.ui.setEditorText(event.text);
+      ctx.ui.notify('Handoff 검토 화면을 열지 못했습니다: '+String(error),'error');
+    });
     return { action: 'handled' };
   });
 }
