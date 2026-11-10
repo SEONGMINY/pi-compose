@@ -28,14 +28,15 @@ function verificationText(value:ContextReviewUnit['verification']):string {
  * The selected claim and all of its necessary WHY/scope/evidence stay together.
  * The actual package body is previewed *before* the final Enter approval.
  */
-async function showContextReview(
+export async function showContextReview(
   ctx:ExtensionContext, pkg:HandoffPackage, initial:ReviewState,
 ):Promise<ReviewAction> {
   const units=contextReviewUnits(pkg);
   return ctx.ui.custom<ReviewAction>((tui,theme,_keys,done)=>{
     const selected=new Set(initial.selected);
     let focus=Math.min(Math.max(0,initial.focus),units.length-1);
-    let focusArea:'list'|'details'='list';
+    let feedback='';
+    let recoveredInput=false;
     let note=initial.note;
     let page:'review'|'sources'|'preview'|'raw'='review';
     let scroll=0;
@@ -119,6 +120,7 @@ async function showContextReview(
         '',
         '전송할 항목: '+selected.size+' / '+units.length,
         ...(previewError?['⚠ 전송문 생성 실패: '+previewError,'선택 또는 메모를 수정한 뒤 다시 시도해주세요.']:[]),
+        ...(feedback?['안내: '+feedback]:[]),
         ...(note?['사용자 메모: '+note]:[]),
       ];
     }
@@ -156,6 +158,7 @@ async function showContextReview(
           ? ['','⚠ 필요한 과거 맥락을 충분히 확인하지 못했습니다.']:[]),
         ...(note?['','사용자 메모: '+note]:[]),
         ...(previewError?['','⚠ '+previewError]:[]),
+        ...(feedback?['','안내: '+feedback]:[]),
       ];
       const leftLines=new Text(left.join('\n'),0,0).render(leftWidth);
       const rightLines=new Text(right.join('\n'),0,0).render(rightWidth);
@@ -175,7 +178,7 @@ async function showContextReview(
       if(page==='preview')return 'Tab 전체 전송 원문   ↑↓ 스크롤   Enter 승인·전송   Esc 돌아가기';
       if(page==='raw')return 'Tab 요약으로 돌아가기   ↑↓ 스크롤   Enter 승인·전송   Esc 돌아가기';
       if(page==='sources')return 'Esc 선택으로 돌아가기   ↑↓ 스크롤';
-      return 'Tab 목록/상세   ↑↓ 이동/스크롤   Space 선택   E 원문   N 의견·근거 보완   Enter 미리보기   Esc 취소';
+      return '↑↓ 후보 이동   Space 선택   E/Tab 근거   PgUp/PgDn 스크롤   N 의견   Enter 미리보기   Esc 취소';
     }
     return {
       render(width){
@@ -193,42 +196,49 @@ async function showContextReview(
       handleInput(key){
         if(matchesKey(key,'escape')){
           if(page==='review')return done({type:'cancel'});
-          page='review';scroll=0;preview=undefined;tui.requestRender();return;
+          page='review';scroll=0;preview=undefined;feedback='';tui.requestRender();return;
         }
         if(page==='review') {
-          if(matchesKey(key,'tab')){
-            focusArea=focusArea==='list'?'details':'list';
-            scroll=focusArea==='details'
-              ?(tui.terminal.columns>=104?0:Math.min(maximum,units.length+5)):0;
+          if(matchesKey(key,'up')||matchesKey(key,'down')){
+            // Moving between claims must never depend on an invisible focus mode.
+            if(units.length){
+              const step=matchesKey(key,'up')?-1:1;
+              focus=(focus+step+units.length)%units.length;
+              feedback='현재 후보 '+(focus+1)+' / '+units.length;
+            }
+            scroll=0;
           }
-          else if(matchesKey(key,'up')){
-            if(focusArea==='list'){focus=Math.max(0,focus-1);scroll=0;}
-            else scroll=Math.max(0,scroll-1);
-          }
-          else if(matchesKey(key,'down')){
-            if(focusArea==='list'){focus=Math.min(units.length-1,focus+1);scroll=0;}
-            else scroll=Math.min(maximum,scroll+1);
-          }
-          else if((matchesKey(key,'space')||key===' ')&&focusArea==='list'){
+          else if(matchesKey(key,'space')){
             const id=units[focus]?.id;
-            if(id){if(selected.has(id))selected.delete(id);else selected.add(id);}
+            if(id){
+              if(selected.has(id))selected.delete(id);else selected.add(id);
+              feedback='전송할 컨텍스트 '+selected.size+' / '+units.length+'개 선택';
+              previewError=undefined;
+            }
           }
-          else if(matchesKey(key,'e')){page='sources';scroll=0;}
+          else if(matchesKey(key,'tab')||matchesKey(key,'e')){
+            page='sources';scroll=0;feedback='';
+          }
           else if(matchesKey(key,'n'))return done({type:'note',selected:[...selected],focus});
+          else if(matchesKey(key,'pageUp')){scroll=Math.max(0,scroll-5);}
+          else if(matchesKey(key,'pageDown')){scroll=Math.min(maximum,scroll+5);}
           else if(matchesKey(key,'return')||matchesKey(key,'enter')) {
-            if(selected.size>0){
-              try{preview=makePreview();previewError=undefined;page='preview';scroll=0;}
+            if(!selected.size){
+              feedback='선택한 컨텍스트가 없습니다. Space로 최소 1개 선택해주세요.';
+            } else {
+              try{preview=makePreview();previewError=undefined;feedback='';page='preview';scroll=0;}
               catch(error){previewError=error instanceof Error?error.message:'본문 검증 실패';}
             }
           }
-        }else {
-          if(matchesKey(key,'tab')&&(page==='preview'||page==='raw')){
-            page=page==='preview'?'raw':'preview';scroll=0;
-          }
-          else if(matchesKey(key,'up'))scroll=Math.max(0,scroll-1);
-          else if(matchesKey(key,'down'))scroll=Math.min(maximum,scroll+1);
-          else if((page==='preview'||page==='raw')&&
-            (matchesKey(key,'return')||matchesKey(key,'enter'))&&preview) {
+        }else if(page==='sources'){
+          if(matchesKey(key,'tab')){page='review';scroll=0;}
+          else if(matchesKey(key,'up')||matchesKey(key,'pageUp'))scroll=Math.max(0,scroll-5);
+          else if(matchesKey(key,'down')||matchesKey(key,'pageDown'))scroll=Math.min(maximum,scroll+5);
+        }else{
+          if(matchesKey(key,'tab')){page=page==='preview'?'raw':'preview';scroll=0;}
+          else if(matchesKey(key,'up')||matchesKey(key,'pageUp'))scroll=Math.max(0,scroll-5);
+          else if(matchesKey(key,'down')||matchesKey(key,'pageDown'))scroll=Math.min(maximum,scroll+5);
+          else if((matchesKey(key,'return')||matchesKey(key,'enter'))&&preview) {
             return done({type:'send',selected:[...selected],note});
           }
         }
