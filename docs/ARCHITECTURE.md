@@ -13,8 +13,8 @@
 | Pi 1.4.0 | 모델, 대화 트리, 저장 세션, Resume, ContextEdit/Compaction, Extension/TUI | Pi 세션/모델 런타임 |
 | Ghostty macOS Native Split | 실제 Agent별 Terminal/Tab과 포커스, 화면 배치 | 터미널 멀티플렉서 |
 | Git | 공유 디렉터리, Git Worktree, 브랜치·병합 | Git/Worktree 관리 엔진 |
-| pi-intercom 0.18.1 | 세션 메시지 전달, 연결 상태 및 Outbox 계약 | 자체 Agent 메시지 브로커 |
-| Pi Compose | 정확한 역할 신원, Fork/Support 생성, 사용자 요청 Handoff 근거·승인 | 별도 서버, DB, Sidebar |
+| pi-intercom 0.18.1 | Extension Channel의 비컨텍스트 도착 알림(실제 본문은 로컬 보관), 기존 수동 메시지 기능 | 새 Agent 메시지 브로커 |
+| Pi Compose | 정확한 역할 신원·Fork/Support 생성, 근거 묶음 구성, 승인된 Handoff의 로컬 영속 보관, Main 검토 시점의 분기 비교 | 별도 서버, Sidebar |
 
 ## 2. Main 새 세션 시작과 복구
 
@@ -66,26 +66,26 @@ Work 실행 중 입력 "<" / "< @session"
   ├─ 메모리상 대기 요청: 송신 세션 ID·현재 leaf·수신 조건
   └─ Work 기존 실행은 계속
        └─ Pi agent_settled
-            ├─ aborted/error/완료 보고 없음: 요청 폐기, 이유 알림
-            └─ 완료 assistant 보고: 검토 가능 상태 표시
-                 └─ 사용자가 다시 "<" 제출
-                      ├─ 원래 Pi 세션·분기 검증
-                      ├─ 수신자의 정확한 intercom 주소 검증
-                      ├─ 필요한 완료 근거에서 초안 생성
-                      ├─ 사용자 검토·전송 승인
-                      └─ pi-intercom Outbox 요청
+            ├─ 중단/완료 보고 없음: 공유 미진행
+            └─ 명시적인 완료 보고: 공유 후보 생성
+                 └─ ask_user 또는 수동 <에서 후보 선택
+                      ├─ 선택한 후보 ID·출처·필수 맥락 연결
+                      ├─ Work 원문 검증·의미 검토
+                      ├─ 최종 본문 미리보기, 명시적 승인
+                      └─ Main ID별 로컬 영속 보관 (대화 주입 없음)
+                           └─ Main /compose inbox에서만 최신 분기 비교
 ```
 
 - 대기 요청은 Work 대화에 기록하는 모델 지시가 아니며, 다른 Main/Work 세션으로 자동 이관하지 않습니다.
 - **A안(2026-11-09):** Work가 과제 완료를 명시적으로 보고한 경우 실행 종료 뒤 별도 모델 호출로 완료 여부를 분류하고 공유 후보를 추출합니다. 후보·원문 Entry ID는 Work 세션의 `compose_handoff_candidates` custom entry에 기록하며 Main 모델에 전송하지 않습니다.
-- `ask_user`가 활성화돼 있으면 Work의 별도 모델 턴에서 기존 모델 전용 도구를 호출해 다중 선택·자유 입력·추가 의견을 받습니다. 이 턴에는 `ask_user`만 활성화하며 사용자 반응 전까지 다른 Agent의 포커스를 가져오지 않습니다. 이후 Work 모델이 작성한 초안은 별도 custom entry에 보관하며, 사용자가 `<`를 다시 입력할 필요 없이 기존 Handoff 에디터와 전송 승인 단계로 이어집니다. 이벤트 핸들러는 사용자 입력을 기다리며 차단되지 않게 분리합니다.
-- `<` 수동 전송은 저장된 후보/검토된 본문을 우선 사용하며 Pi 기본 `ctx.ui.editor`와 명시적인 전송 확인을 거칩니다. 후보 선택/생성만으로 intercom 전송·Main 정책 변경은 발생하지 않습니다.
+- `ask_user`가 활성화돼 있으면 Work의 별도 모델 턴에서 기존 모델 전용 도구를 호출해 다중 선택·자유 입력·추가 의견을 받습니다. 이 턴에는 `ask_user`만 활성화하며 사용자 반응 전까지 다른 Agent의 포커스를 가져오지 않습니다. 검토 턴 결과에서는 선택된 후보 ID만 확정하고, 모델의 자유 재작성 텍스트를 그대로 보내지 않습니다. 사용자는 최종 본문 미리보기에서 S로 저장 승인하거나 R로 근거 기반 보완을 요청합니다. 이벤트 핸들러는 사용자 입력을 기다리며 차단되지 않게 분리합니다.
+- `<` 수동 요청도 확인된 Work→Main 전송에는 동일한 보호형 보관 경로를 사용합니다. 일반 intercom Outbox를 통한 Main 우회 주입은 차단합니다.
 - 작업 완료를 확정하는 것은 아닙니다. `agent_settled`는 Pi run 정리 시점일 뿐이고, 완료 판정은 Work의 마지막 완료 보고와 그 주장에 근거한 모델의 분류 결과입니다. 사용자 실사용에서 완료 오분류를 검증해야 합니다.
-- 새 Work run 또는 활성 분기가 변하면 이전 응답에 연결된 미검토 초안을 잘못 전송하지 않도록 요청을 무효화합니다.
+- Work 완료·검토 보고와 새 작업 사이의 최신성 보호는 추가 E2E 검증 대상입니다. 기존 원문 인용이 존재한다는 사실만으로 이후 코드 상태의 최신성이 증명되지는 않습니다.
 - sourceEntryId/active leaf 및 정확한 session ID를 확인하며, 검토와 전송 사이에 변했을 때는 실패 처리합니다.
 - 전송 요청, broker 전달, 수신 Agent의 모델 처리·승인은 각기 다른 증거입니다.
 
-관련 코드: `extensions/direct-handoff.ts`, `extensions/handoff-draft.ts`, `extensions/handoff.ts`, `src/agent-relationships.ts`.
+관련 코드: `extensions/direct-handoff.ts`, `extensions/handoff-ready.ts`, `extensions/handoff-package.ts`, `extensions/handoff-inbox.ts`, `src/handoff/{package,quality,store,compare,import}.ts`.
 
 ## 5. Handoff 출처와 품질
 
