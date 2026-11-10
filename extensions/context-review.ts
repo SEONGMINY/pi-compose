@@ -35,6 +35,7 @@ async function showContextReview(
   return ctx.ui.custom<ReviewAction>((tui,theme,_keys,done)=>{
     const selected=new Set(initial.selected);
     let focus=Math.min(Math.max(0,initial.focus),units.length-1);
+    let focusArea:'list'|'details'='list';
     let note=initial.note;
     let page:'review'|'sources'|'preview'='review';
     let scroll=0;
@@ -107,7 +108,7 @@ async function showContextReview(
     function footer():string {
       if(page==='preview')return 'Enter 전송 승인   Esc 선택으로 돌아가기   ↑↓ 스크롤';
       if(page==='sources')return 'Esc 선택으로 돌아가기   ↑↓ 스크롤';
-      return '↑↓ 항목 이동   Space 포함/제외   E 원문   N 메모   Enter 미리보기   Esc 취소';
+      return 'Tab 목록/상세   ↑↓ 이동/스크롤   Space 선택   E 원문   N 의견   Enter 미리보기   Esc 취소';
     }
     return {
       render(width){
@@ -127,9 +128,19 @@ async function showContextReview(
           page='review';scroll=0;preview=undefined;tui.requestRender();return;
         }
         if(page==='review') {
-          if(matchesKey(key,'up')){focus=Math.max(0,focus-1);scroll=0;}
-          else if(matchesKey(key,'down')){focus=Math.min(units.length-1,focus+1);scroll=0;}
-          else if(matchesKey(key,'space')||key===' '){
+          if(matchesKey(key,'tab')){
+            focusArea=focusArea==='list'?'details':'list';
+            scroll=focusArea==='details'?Math.min(maximum,units.length+5):0;
+          }
+          else if(matchesKey(key,'up')){
+            if(focusArea==='list'){focus=Math.max(0,focus-1);scroll=0;}
+            else scroll=Math.max(0,scroll-1);
+          }
+          else if(matchesKey(key,'down')){
+            if(focusArea==='list'){focus=Math.min(units.length-1,focus+1);scroll=0;}
+            else scroll=Math.min(maximum,scroll+1);
+          }
+          else if((matchesKey(key,'space')||key===' ')&&focusArea==='list'){
             const id=units[focus]?.id;
             if(id){if(selected.has(id))selected.delete(id);else selected.add(id);}
           }
