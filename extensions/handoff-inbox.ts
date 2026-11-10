@@ -108,7 +108,7 @@ export async function previewHandoff(
  * The extension channel delivers only an availability hint (not the payload).
  * Durable storage remains authoritative when intercom is disconnected.
  */
-export function registerHandoffInbox(pi:ExtensionAPI) {
+export function registerHandoffInbox(pi:ExtensionAPI, onAvailable?:(ctx:ExtensionContext)=>void) {
   const channels=new Map<string,Channel>();
   const registered=new Set<string>();
   let current:ExtensionContext|undefined;
@@ -145,7 +145,7 @@ export function registerHandoffInbox(pi:ExtensionAPI) {
     try {
       const items=(await listInbox(owner.sessionId)).filter(item=>
         item.pkg.product===owner.product &&
-        (item.status.status==='pending' ||
+        (item.status.status==='pending'||item.status.status==='requires-review' ||
           ((item.status.status==='imported'||item.status.status==='import-requested') &&
             !hasImportReceipt(ctx,item.pkg.id))));
       if(current?.sessionManager.getSessionId()!==owner.sessionId)return;
@@ -176,7 +176,8 @@ export function registerHandoffInbox(pi:ExtensionAPI) {
         void readHandoff(active.sessionId,data.packageId).then(pkg=>{
           if(pkg.product===active.product &&
              current?.sessionManager.getSessionId()===active.sessionId){
-            session.ui.notify('Work 결과가 도착했습니다 · Main에서 < 로 확인 (모델 실행 없음)','info');
+            session.ui.notify('Work Handoff 도착 · Work에서 승인된 내용의 Main 안전 검사를 진행합니다.','info');
+            onAvailable?.(session);
             void refreshInboxWidget(session);
           }
         }).catch(()=>{});
@@ -194,6 +195,10 @@ export function registerHandoffInbox(pi:ExtensionAPI) {
     if(current)registerFor(current);
   });
   pi.on('session_tree',(_event,ctx)=>{current=ctx;void refreshInboxWidget(ctx);});
+  pi.on('message_end',(_event,ctx)=>{
+    const owner=readAgentRelationship(ctx.sessionManager.getSessionId(),ctx.sessionManager.getEntries());
+    if(owner?.role==='main')void refreshInboxWidget(ctx);
+  });
   pi.on('session_shutdown',()=>{current=undefined;});
 
   function announce(pkg:HandoffPackage):void {
