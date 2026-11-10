@@ -39,7 +39,18 @@
 - Pi·Ghostty·pi-intercom·pi-ask-user의 실제 이벤트/API 기능은 해당 버전의 원본 동작을 먼저 확인합니다. 없는 기능을 추측해 작성하지 않습니다.
 - 통합 검사·정적 검사·UI 실사용·의미 평가를 별개로 보고합니다.
 
-## 4. 실제 환경에서 검증할 것
+## 4. 검토한 원본과 연구의 적용 범위
+
+현행 PR #25 코드의 검토 대상 조합은 **Pi 1.4.0, Ghostty 1.3.1, pi-intercom 0.18.1, pi-ask-user 0.17.2**입니다. 외부 기능은 설치 사실이 아닌 해당 버전의 실제 동작으로 검증합니다.
+
+- [QMSum](https://aclanthology.org/2021.naacl-main.472/) — 긴 기록에서 관련 근거를 찾는 접근
+- [FActScore](https://aclanthology.org/2023.emnlp-main.741/) — 사실 단위 근거 대조
+- [SummEdits](https://aclanthology.org/2023.emnlp-main.600/) — 미묘한 의미 왜곡의 평가
+- [Lost in the Middle](https://aclanthology.org/2024.tacl-1.9/) — 긴 맥락 내 정보 활용 한계
+
+이 자료는 근거 검색·의미 검토의 설계 참고 자료이며 Pi Compose의 정확도·모델 비용·최신 UX의 성공을 증명하지 않습니다. 실제 사용자 실험의 오류 사례와 비교해야 합니다.
+
+## 5. 실제 환경에서 검증할 것
 
 1. Main 새 세션/복구·역할 식별과 Ghostty 기준 Split·포커스
 2. 정확한 Pi 완료 지점 Fork, 원본 불변, Shared/Worktree 모두 동작
