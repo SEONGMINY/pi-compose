@@ -1,5 +1,7 @@
 # Phase 6 — 협업·통합 시나리오 점검
 
+> **역사적 검증 기록:** 이 파일의 도구·환경·당시 통과 여부는 해당 날짜·버전에만 적용됩니다. 이후 Pi + Ghostty 및 최신 Work `<` → Main 수신 알림 UX의 성공을 증명하지 않습니다. 현행 계약은 [PRD](../PRD.md)와 [TRD](../TRD.md), 새로운 감사 범위는 [Handoff Audit](../HANDOFF_IMPLEMENTATION_AUDIT.md)를 확인합니다.
+
 - 진행 상태: **실제 Pi·tmux·workmux Launch/Resume/Worktree 연동 및 격리 Git 통합 시나리오 검증 완료 / 모델 기반 다중 에이전트 협업 미검증**
 - 실행일: 2026-10-25
 - 근거: [Implementation Plan](../IMPLEMENTATION_PLAN.md) · [Architecture](../ARCHITECTURE.md) · [ADR 0002](../adr/0002-user-controlled-execution.md)

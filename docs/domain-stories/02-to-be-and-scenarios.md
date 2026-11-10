@@ -1,5 +1,7 @@
 # Domain Storytelling — 목표 개발 경험
 
+> **과거 목표 흐름(2026-10):** 아래 Summary Overlay 중심 시나리오는 당시 To-Be의 기록입니다. 최신 목표는 Work `<`를 통한 사용자 승인 발신과 Main의 수신 알림·명시적 반영이며, 별도 Inbox 명령과 Overlay는 목표 UX가 아닙니다. [현재 PRD](../PRD.md)와 [Usage](../USAGE.md)를 우선합니다.
+
 - 기준: 2026-10-30 [PRD](../PRD.md)
 - 상태: 사용자가 원하는 업무 흐름. **새 Ghostty 구현은 아직 검증되지 않았음**
 
