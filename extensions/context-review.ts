@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { showReferenceContextReview, type ReviewState } from './handoff-review-ui.ts';
+import { zoomForAgent } from './handoff-zoom.ts';
 import { readAgentRelationship } from '../src/agent-relationships.ts';
 import { listProductHandoffSessions, findParentMainSessionId } from '../src/product-sessions.ts';
 import { prepareManualHandoffCandidates } from './handoff-candidates.ts';
@@ -45,6 +46,7 @@ export async function openWorkContextReview(
     return;
   }
   const progress=createContextReviewProgress((key,content)=>ctx.ui.setWidget(key,content));
+  const zoom=zoomForAgent(ctx);
   progress.update('1/3 수신할 Main 확인 중');
   try {
   let sessions:Awaited<ReturnType<typeof listProductHandoffSessions>>;
@@ -106,7 +108,7 @@ export async function openWorkContextReview(
       ctx.ui.notify('검토 중 Work 분기가 변경됐습니다. 다시 검토해주세요.','warning');
       return;
     }
-    const action=await showContextReview(ctx,full,review);
+    const action=await showContextReview(ctx,full,review,{onToggleZoom:zoom.toggle,zoomState:zoom.state});
     if(action.type==='cancel')return;
     if(action.type==='note'){
       review={selected:action.selected,focus:action.focus,note:review.note};
@@ -191,5 +193,7 @@ export async function openWorkContextReview(
     }
   } finally {
     progress.clear();
+    const warning=await zoom.close();
+    if(warning&&ctx.hasUI)ctx.ui.notify(warning,'warning');
   }
 }
