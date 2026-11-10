@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { hashMessage, renderPackage, validateHandoffPackage, type HandoffPackage } from '../src/handoff/package.ts';
+import { hashMessage, renderPackage, validateHandoffPackage, createSelectedHandoffPackage, type HandoffPackage } from '../src/handoff/package.ts';
 import { contextReviewUnits, selectContextPackage } from '../src/handoff/context-review.ts';
 import { prepareManualHandoffCandidates } from '../extensions/handoff-candidates.ts';
 import { findVerificationReportQuote } from '../src/handoff/report-verification.ts';
@@ -127,4 +127,40 @@ test('explicit test non-execution survives as an exact report quote',()=>{
   assert.equal(findVerificationReportQuote('No relevant execution statement here.'),undefined);
   assert.equal(findVerificationReportQuote('테스트를 실행하지 않았습니다.'),'테스트를 실행하지 않았습니다.');
   assert.equal(findVerificationReportQuote('test: API_KEY=secret'),undefined);
+});
+
+test('selected implementation report includes its original unrun-test evidence automatically',async()=>{
+  const report='Implemented filter.\nTests were not run.';
+  const branch:any[]=[{id:'report',type:'message',message:{
+    role:'assistant',stopReason:'stop',content:[{type:'text',text:report}],
+  }}];
+  const ctx={
+    model:undefined,
+    sessionManager:{
+      getSessionId:()=> 'work-1',
+      getLeafId:()=> 'report',
+      getBranch:()=> branch,
+    },
+  } as unknown as ExtensionContext;
+  const draft={
+    version:1 as const,sessionId:'work-1',sourceLeafId:'report',
+    reportEntryId:'report',createdAt:'2026-11-10T09:00:00Z',
+    candidates:[{
+      title:'Implemented filter',description:'Work reports implementation.',
+      kind:'finding' as const,sourceEntryId:'report',quote:'Implemented filter.',
+    }],
+  };
+  const owner:any={role:'work',sessionId:'work-1',product:'sample',
+    forkSourceSessionId:'main-1',forkSourceLeafId:'main-leaf'};
+  const pkg=await createSelectedHandoffPackage(ctx,owner,draft,{
+    ids:['HC1'],reviewEntryId:'report',
+  },'main-1');
+  assert.equal(pkg.contextAssessment,'selected');
+  const verification=pkg.context.find(c=>c.id==='CX-VERIFICATION');
+  assert.equal(verification?.quote,'Tests were not run.');
+  assert.deepEqual(verification?.requiredByClaimIds,['HC1']);
+  assert.equal(pkg.evidence.find(e=>e.id===verification?.evidenceId)?.entryId,'report');
+  assert.ok(pkg.finalMessage.includes('Tests were not run.'));
+  const subset=selectContextPackage(pkg,['HC1'],'review');
+  assert.ok(subset.finalMessage.includes('Tests were not run.'));
 });
