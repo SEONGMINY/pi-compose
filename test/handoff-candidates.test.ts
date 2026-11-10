@@ -17,7 +17,9 @@ function fixture(outcome: 'reported-complete' | 'in-progress' | 'blocked' | 'unc
     } },
   ];
   let leaf = 'report-1';
-  let response = {
+  // Deliberately accept malformed candidate fields: schema normalization is
+  // the exact behavior under test and models may omit source IDs or quotes.
+  let response: { outcome: typeof outcome; candidates: Array<Record<string,unknown>> } = {
     outcome, candidates: outcome === 'reported-complete'
       ? [{ title: 'Profile filter implemented', kind: 'finding',
         description: 'Reported complete, but tests were not run. Do not infer a passed test.',
