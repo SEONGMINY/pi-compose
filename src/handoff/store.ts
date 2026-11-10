@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { chmod, link, lstat, mkdir, open, readFile, readdir, realpath, rename, unlink } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { z } from 'zod';
 import { type HandoffPackage, validateHandoffPackage } from './package.ts';
 
@@ -24,6 +24,7 @@ async function privateRoot(): Promise<string> {
   await mkdir(pi, {recursive:true,mode:0o700});
   const piInfo = await lstat(pi);
   if (!piInfo.isDirectory() || piInfo.isSymbolicLink() ||
+      (piInfo.mode & 0o022) !== 0 ||
       (typeof process.getuid === 'function' && piInfo.uid !== process.getuid()))
     throw Error('unsafe-pi-directory');
   const compose = join(pi,'compose');
@@ -70,10 +71,19 @@ async function atomicWrite(path: string, contents: string, replace: boolean): Pr
     await handle.writeFile(contents,'utf8');
     await handle.sync();
   } finally { await handle.close(); }
+  let persisted=false;
   try {
     if (replace) await rename(tmp,path);
     else await link(tmp,path); // hardlink is atomic and fails if destination exists
-  } finally { await unlink(tmp).catch(() => {}); }
+    persisted=true;
+    // File fsync alone does not guarantee the name survives a sudden crash.
+    // Sync the containing directory as well; failure prevents success reporting.
+    const dirHandle=await open(dirname(path),'r');
+    try {await dirHandle.sync();} finally {await dirHandle.close();}
+  } finally {
+    await unlink(tmp).catch(() => {});
+  }
+  if(!persisted)throw Error('handoff-write-not-committed');
 }
 
 export async function putHandoff(pkg: HandoffPackage): Promise<'stored'|'already-stored'> {
