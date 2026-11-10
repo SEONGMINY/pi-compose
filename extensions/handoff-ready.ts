@@ -73,6 +73,14 @@ export function registerHandoffReady(
   let review: ReviewTurn | undefined;
   let lastAssessment: { status: string; reason?: string; sessionId: string } | undefined;
 
+  // setActiveTools(['ask_user']) is not a security boundary for deferred
+  // and codemode tools. Enforce the review-only policy at execution time.
+  pi.on('tool_call',(event,ctx)=>{
+    if(review?.sessionId===ctx.sessionManager.getSessionId() &&
+        event.toolName!=='ask_user')
+      return {block:true,reason:'Handoff review may only request ask_user; no coding or intercom tools.'};
+  });
+
   function recordAssessment(ctx: ExtensionContext, status: string, reason?: string) {
     const entry = { version: 1, sessionId: ctx.sessionManager.getSessionId(),
       status, reason, at: new Date().toISOString() };
