@@ -1,6 +1,6 @@
 # TRD — Pi Compose 현재 기술 계약
 
-- 제품 정책: [PRD](PRD.md) · 최신 합의 2026-11-09
+- 제품 정책: [PRD](PRD.md) · Handoff 최신 합의 2026-11-10
 - 사용 흐름: [Usage](USAGE.md)
 - 아키텍처 원본: [Architecture](ARCHITECTURE.md)
 - 검증 상태: GitHub 코드 반영, **Pi 1.4.0 + macOS Ghostty 통합 실사용 검증 전**
