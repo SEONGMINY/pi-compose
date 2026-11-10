@@ -11,7 +11,7 @@ import type { HandoffPackage } from '../src/handoff/package.ts';
 export function registerSelectedHandoffSend(
   pi:ExtensionAPI, announce:(pkg:HandoffPackage)=>void,
 ) {
-  async function sendReviewed(ctx:ExtensionContext):Promise<void> {
+  async function sendReviewed(ctx:ExtensionContext, exactRecipientId?:string):Promise<void> {
     if(!ctx.hasUI||ctx.mode!=='tui'||!ctx.isIdle()) return;
     const owner=readAgentRelationship(ctx.sessionManager.getSessionId(),ctx.sessionManager.getEntries());
     if(owner?.role!=='work') {
@@ -32,7 +32,12 @@ export function registerSelectedHandoffSend(
       .filter(session=>session.role==='main'&&session.id!==owner.sessionId);
     const preferred=findParentMainSessionId(
       await listProductHandoffSessions(owner.product),owner.sessionId);
-    let destination=recipients.find(recipient=>recipient.id===preferred);
+    let destination=exactRecipientId
+      ? recipients.find(recipient=>recipient.id===exactRecipientId)
+      : recipients.find(recipient=>recipient.id===preferred);
+    if(exactRecipientId && !destination){
+      ctx.ui.notify('요청한 수신자가 같은 프로덕트의 확인된 Main이 아닙니다.','warning');return;
+    }
     if(!destination){
       if(!recipients.length){
         ctx.ui.notify('같은 프로덕트의 정확한 Main 세션을 찾을 수 없습니다.','warning');return;
