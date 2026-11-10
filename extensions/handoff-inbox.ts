@@ -42,6 +42,9 @@ export async function previewHandoff(
     'Work session: '+pkg.source.workSessionId,
     'Selected: '+pkg.selectedCandidateIds.join(', '),
     'Context: '+pkg.contextAssessment+' · '+pkg.context.length+' source excerpts',
+    'Quality: '+(pkg.qualityReview
+      ? 'model-assisted review accepted · '+pkg.qualityReview.modelId+' (not proof of correctness)'
+      : 'model-assisted review not yet recorded'),
     comparisonText,
     ...(blockingIssues.length ? ['QUALITY REVIEW · NEEDS REVISION',
       ...blockingIssues.map(issue=>'⚠ '+issue), ''] : []),
