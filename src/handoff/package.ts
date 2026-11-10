@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { PreparedHandoff } from '../../extensions/handoff-candidates.ts';
 import type { AgentRelationship } from '../agent-relationships.ts';
 import { selectForkHistory } from './retrieve.ts';
+import { findVerificationReportQuote } from './report-verification.ts';
 
 const evidenceSchema = z.object({
   id: z.string().min(1),
@@ -43,8 +44,8 @@ export const handoffPackageSchema = z.object({
   targetMainSessionId: z.string().min(1),
   selectedCandidateIds: z.array(z.string().min(1)).min(1).max(5),
   claims: z.array(claimSchema).min(1).max(5),
-  context: z.array(contextSchema).max(6),
-  evidence: z.array(evidenceSchema).min(1).max(14),
+  context: z.array(contextSchema).max(7),
+  evidence: z.array(evidenceSchema).min(1).max(15),
   reviewerNote: z.string().max(1200).optional(),
   contextAssessment: z.enum(['selected', 'none-needed', 'unavailable']),
   // Records which exact body received model-assisted semantic inspection.
@@ -305,6 +306,26 @@ export async function createSelectedHandoffPackage(
     }
   } else if (!refs.length) {
     contextAssessment = 'none-needed';
+  }
+  // The final Work report was excluded from historical WHY retrieval above.
+  // It may still contain the ONLY explicit evidence of tests not being run,
+  // failing, or being unverified. Bind that original statement to every chosen
+  // implementation report rather than making verification a separate checkbox.
+  const reportEntry=byId.get(draft.reportEntryId);
+  const implementationClaimIds=claims.filter(claim=>claim.kind==='work-reported')
+    .map(claim=>claim.candidateId);
+  const reportText=reportEntry?.type==='message'&&
+    reportEntry.message.role==='assistant'
+      ?textOf(reportEntry.message.content):'';
+  const verificationQuote=findVerificationReportQuote(reportText);
+  if(implementationClaimIds.length&&verificationQuote&&safeText(verificationQuote)&&
+      !claims.some(claim=>claim.statement.includes(verificationQuote))) {
+    const evidenceId='E-VERIFICATION';
+    evidence.push({id:evidenceId,sessionId:draft.sessionId,entryId:draft.reportEntryId,
+      role:'assistant',quote:verificationQuote});
+    context.push({id:'CX-VERIFICATION',reason:'condition',
+      whyNeeded:'Work 완료 보고의 테스트·검증 상태 (독립 검증된 사실은 아님)',
+      quote:verificationQuote,requiredByClaimIds:implementationClaimIds,evidenceId});
   }
   if (ctx.sessionManager.getLeafId() !== startLeaf ||
       ctx.sessionManager.getSessionId() !== draft.sessionId) throw Error('work-branch-changed');
