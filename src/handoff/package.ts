@@ -104,9 +104,10 @@ export function validateHandoffPackage(value: unknown): HandoffPackage {
   if (evById.size !== data.evidence.length ||
       data.evidence.some(e => e.sessionId !== data.source.workSessionId || !safeText(e.quote)) ||
       data.claims.some(v => !safeText(v.title) || !safeText(v.statement) ||
-        v.evidenceIds.some(id => !evById.has(id))) ||
+        v.evidenceIds.some(id => !evById.has(id)) ||
+        !v.evidenceIds.some(id => evById.get(id)?.quote === v.statement)) ||
       data.context.some(v => !safeText(v.quote) || !safeText(v.whyNeeded) ||
-        !evById.has(v.evidenceId) ||
+        !evById.has(v.evidenceId) || evById.get(v.evidenceId)?.quote !== v.quote ||
         v.requiredByClaimIds.some(id => !data.selectedCandidateIds.includes(id))))
     throw Error('handoff-evidence-or-context-invalid');
   if (data.evidence.some(e => !data.claims.some(c => c.evidenceIds.includes(e.id)) &&
@@ -218,7 +219,8 @@ export async function createSelectedHandoffPackage(
     entry.id !== draft.reportEntryId && !selected.some(c => c.candidate.sourceEntryId === entry.id))
     .slice(-36).map(entry => entry.type === 'message' ? {
       id:entry.id,role:entry.message.role,text:textOf(entry.message.content).slice(0,1600),
-    } : undefined).filter((v): v is {id:string;role:string;text:string} => Boolean(v?.text && safeText(v.text)));
+    } : undefined).filter((v): v is {id:string;role:'user'|'assistant'|'toolResult';text:string} =>
+      Boolean(v?.text && safeText(v.text)));
   const context: HandoffContext[] = [];
   let contextAssessment: HandoffPackage['contextAssessment'] = 'unavailable';
   if (refs.length && ctx.model) {
