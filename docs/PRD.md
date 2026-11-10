@@ -1,16 +1,15 @@
 # PRD — Pi Compose
 
-> 제품 결정 기준: 2026-11-10 · **정책 합의와 코드·실사용 검증은 별개**
+> **제품 정책의 정본:** 목표 동작의 합의와 코드·실사용 검증은 별개입니다. 현재 실행 가능 여부는 [Usage](USAGE.md)에서 확인합니다.
 >
 > [비전](VISION.md)과 [사용자 문제](PROBLEM_STATEMENTS.md)는 이 문서의 선행 근거입니다. PRD는 채택한 제품 요구사항만 설명합니다.
 
 ## 1. 제품 원칙
 
-- **Main 컨텍스트 보호:** 사실·선택 이유·강한 제약·미결정을 보존하며 실행 로그와 무관한 결과를 자동으로 쌓지 않습니다.
-- **정확한 맥락 상속:** 맥락이 필요한 개발은 실제 Pi 활성 대화의 완료 지점을 별도 Work 세션으로 Fork합니다. Resume이나 모델 요약으로 대체하지 않습니다.
-- **독립 작업:** 전체 맥락이 필요 없는 탐색·조사·테스트 실행은 Support에서 처리할 수 있습니다.
-- **사람이 결정:** Agent의 제안·보고, 코드 변경, 테스트 실행, 사용자 승인, Main 정책 채택은 서로 다른 사건입니다.
-- **기존 도구 우선:** Pi Extension·세션·TUI, Ghostty, Git을 재사용합니다. 자체 Agent 런타임·불필요한 관리 화면을 만들지 않습니다.
+- **판단의 맥락:** 확정된 사실·결정 이유·제약과 미결정 사항을 구분해 보존합니다. 일시적인 실행 기록을 Main에 무조건 누적하지 않습니다.
+- **위임과 컨텍스트:** 맥락 의존 개발은 실제 Pi Fork, 독립 조사·실행은 별도 Support를 사용합니다. 선택 이유는 [ADR 0001](adr/0001-context-and-delegation.md)에 기록합니다.
+- **사용자 통제:** Agent의 보고·검증 주장과 사용자 승인을 혼동하지 않습니다. 사용자 확인 없이 실행·정책 반영·Git 통합을 자동화하지 않습니다.
+- **기존 도구 재사용:** Pi·Ghostty·Git의 기능을 우선 이용합니다. 구성 요소의 책임은 [Architecture](ARCHITECTURE.md)에 둡니다.
 
 ## 2. Agent와 세션
 
@@ -27,23 +26,16 @@
 
 ## 3. 작업 시작과 Git
 
-| 입력 | 컨텍스트 | 파일 공간 |
-| --- | --- | --- |
-| `>w 작업` | 현재 Pi 완료 분기 Fork | 입력 Agent의 현재 디렉터리 공유 |
-| `>w @세션 작업` | 같은 프로젝트에서 명시적으로 선택한 Pi 세션 Fork | 입력 Agent 디렉터리 공유 |
-| `>>w 작업` | 현재 완료 분기 Fork | 입력 Agent의 Git HEAD 기반 새 Worktree |
-| `>>w @세션 작업` | 선택한 세션 Fork | 입력 Agent의 Git HEAD 기반 새 Worktree |
-| `>s 작업` | 독립 Support | 입력 Agent 디렉터리 공유 |
-| `>>s 작업` | 독립 Support | 입력 Agent의 Git HEAD 기반 새 Worktree |
+- 목표 `pic` 진입은 새 Main 직접 실행이며, 저장된 세션의 복구는 Pi 기본 기능을 사용합니다. 복구한 Work/Support를 Main으로 바꾸지 않습니다.
+- `>w 작업`은 현재 Pi 완료 분기의 Work Fork, `>s 작업`은 독립 Support를 뜻합니다. `>>w`·`>>s`는 같은 컨텍스트 계약에 별도의 Git Worktree만 더합니다. `>w @세션 작업`으로 같은 프로젝트의 특정 Fork 원본을 선택할 수 있습니다.
+- 새 Agent는 현재 요청한 Pi Terminal을 기준으로 Ghostty Split에서 실행합니다. 기존 Agent의 작업·포커스를 임의 변경하지 않습니다.
+- Worktree는 현재 Git HEAD를 기준으로 만들며 미커밋 변경 자동 복사, 브랜치 병합·삭제, 중복 실행·작업 재전송을 추측하여 수행하지 않습니다.
 
-- 직접 위임은 Pi 입력 첫머리에서만 해석합니다. `>`는 디렉터리 공유, `>>`는 새로운 Worktree를 뜻합니다. 작업 지시가 없으면 Agent를 실행하지 않습니다.
-- 새 Agent는 현재 Pi가 실행 중인 Ghostty Terminal을 기준으로 별도 Native Split에 엽니다. 기존 Agent의 프로세스·Pi 세션·포커스를 임의로 교체하지 않습니다.
-- 미커밋 변경은 Worktree에 자동 복사하지 않습니다. Git 병합·Worktree 삭제·세션 삭제를 자동으로 실행하지 않습니다.
-- 실패·취소·재개 과정에서 중복 실행 또는 최초 지시 자동 재전송을 추측해서는 안 됩니다.
+명령어를 실제로 사용할 수 있는 버전과 사용 절차는 [Usage](USAGE.md)를 참고합니다.
 
-## 4. Handoff — 최신 확정 목표 UX
+## 4. Work → Main Handoff 계약
 
-> **2026-11-10 결정:** 아래는 현재 목표입니다. PR #25의 이전 `ask_user` 자동 후보·`/compose inbox` 코드는 이 목표와 완전히 일치하지 않으며, 최신 UX의 실사용 검증이 완료되지 않았습니다.
+> **제품 계약:** 아래는 확정된 목표 동작입니다. 미병합 코드·검증 상태는 [Handoff Audit](HANDOFF_IMPLEMENTATION_AUDIT.md)과 해당 PR에서만 확인합니다.
 
 ### Work에서 전달
 
@@ -67,8 +59,6 @@
 - `Main에 참고 정보 반영` ≠ `기존 사용자 정책 변경 승인`
 - Handoff와 Git 병합·프로젝트 문서 변경은 독립된 행동
 
-**이전 실험:** PR #25에는 완료 시 공유 후보 자동 준비, `ask_user` 자동 질문, 미리보기 `O/R/S`, `/compose inbox` 검토 `D/I/C/A`가 구현 초안으로 있습니다. 이는 최신 요구사항과 별도의 **검토 대상 구현 이력**이며 새 UX를 이미 구현했다는 근거가 아닙니다.
-
 ## 5. 프로젝트 문서 관리
 
 - 루트 `AGENTS.md`는 짧은 비전과 주요 코드/문서 위치만 제공합니다. 문서별 정본은 [문서 안내](README.md)에서 관리합니다.
@@ -80,11 +70,9 @@
 
 Sidebar·Overview·Summary Overlay, Orca, tmux/workmux, 별도 GUI/상주 서버/메시지 브로커, 자동 멀티 Agent 스케줄링, 자동 정책 승인·Git 병합·세션/Worktree 삭제는 현재 목표가 아닙니다.
 
-## 7. 미결정과 완료 기준
+## 7. 아직 검증할 조건
 
 - **수신 알림 UX:** Main에서 도착 결과를 어떻게 확인·보류·다시 열고 명시적으로 반영할지. `/compose inbox` 없이 Pi 기본 상호작용을 최대한 재사용하는 방향만 확정됐습니다.
-- **자동 후보 생성:** PR #25의 자동 완료 후보 준비를 새 단순 흐름에서 계속 필수로 사용할지는 확정하지 않았습니다. 자동 Main 전송은 어떤 경우에도 허용하지 않습니다.
-- **실제 검증:** 새 Main/정확한 Fork/Native Split/Work `<`/Main 알림·반영/원문·의미·정책 보호/종료·재개의 macOS 실사용 확인이 필요합니다.
-- 코드 존재, 타입·단위 테스트 통과, 실제 실행 성공, Handoff 의미 품질은 각각 별도로 입증합니다.
+- **검증 경계:** 새 Main·정확한 Fork·Handoff 전달/수신·의미 품질·중단/재개를 각각 확인해야 합니다. 기술적 실패 조건은 [TRD](TRD.md), 남은 실행 순서는 [Implementation Plan](IMPLEMENTATION_PLAN.md)이 정본입니다.
 
 [Architecture](ARCHITECTURE.md) · [TRD](TRD.md) · [Implementation Plan](IMPLEMENTATION_PLAN.md) · [Handoff 코드 감사](HANDOFF_IMPLEMENTATION_AUDIT.md)

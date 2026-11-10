@@ -48,19 +48,16 @@ Work 완료 사실/보고 + 원문 근거
                      └─ 기존 Main 최신 승인 결정과의 충돌 검토
 ```
 
-**확정 경계:** Work는 원본 Fork 시점 맥락과 자신의 Pi 분기만 읽습니다. Fork 이후 Main의 현재 정책을 몰래 조회하지 않습니다. 수신 Main에 메시지를 자동 주입하거나 모델 실행·정책 변경을 자동 승인하지 않습니다.
+이 경로에서 Work의 Fork 시점 기록과 Main의 수신 시점 기록은 **서로 다른 컨텍스트**입니다. 비교는 Main 사용자가 결과를 검토하는 시점에 이루어져야 합니다.
 
-**PR #25 구현 후보:** `extensions/handoff-candidates.ts`, `handoff-ready.ts`, `handoff-package.ts`, `handoff-inbox.ts`, `src/handoff/*`. 기존 코드는 자동 후보 준비와 `/compose inbox` 기반 검토를 구현하며 **최신 단순 Handoff UX로 변경되지 않았습니다**. `src/handoff/store.ts`의 로컬 영속 보관과 `src/handoff/compare.ts`의 활성 분기 비교는 재사용 가능성 검토 대상입니다.
+**미병합 구현:** Handoff의 보관·근거 검토 구현은 [PR #25](https://github.com/SEONGMINY/pi-compose/pull/25)에서 별도로 진행됩니다. 구체적 코드 위치와 검증은 해당 PR 및 [과거 Audit](HANDOFF_IMPLEMENTATION_AUDIT.md)에서 확인합니다.
 
-## 4. 원문 근거와 승인 경계
+## 4. 기술 계약과 안전 경계
 
-- 출처 Pi Entry ID/완료 분기, 선택한 공유 범위, 근거·WHY·조건과 본문을 연결해 손실과 왜곡을 검토합니다.
-- 원문 일치만으로 부정문·사용자 승인·테스트 통과의 의미가 보증되지는 않습니다.
-- 근거 미확인, 세션 전환, 중복 수신, 모델 검토 실패는 **성공 상태로 추측하지 않습니다**.
-- Git 작업 공간 상태, Work의 결과 보고, Main 모델 컨텍스트, 프로젝트 문서 갱신은 서로 분리된 상태입니다.
+Handoff는 Work의 원문 근거·전달 패키지, 대상 Main별 보관, 가벼운 알림, Main의 선택적 모델 검토를 분리하는 구조입니다. 출처 Entry·세션 신원·변경된 활성 분기·중복 저장의 검증 방법은 [TRD](TRD.md)를 참고합니다. 제품상 사용자 승인 범위는 [PRD](PRD.md)를 따릅니다.
 
-## 5. 과거 구현과 차이
+## 5. 코드와 설계의 경계
 
-`src/overview.ts` 등 일부 Legacy 코드가 저장소에 남아 있어도 Sidebar·Overview를 현행 제품 요구사항으로 간주하지 않습니다. PR #25의 상세 코드 작성·Linux CI 여부는 [Handoff Audit](HANDOFF_IMPLEMENTATION_AUDIT.md)에 기록하며 macOS 통합 검증 결과와 구분합니다.
+`main`의 `src/overview.ts`와 이전 Extension은 현재 실행 코드이며 목표 UX의 구현 완료를 뜻하지 않습니다. 단계별 검증을 수행하기 전까지 PR #25의 구현·CI 결과도 실제 macOS 통합 성공으로 확대하지 않습니다.
 
-실제 하위 API 계약은 [TRD](TRD.md), 진행/검증 항목은 [Implementation Plan](IMPLEMENTATION_PLAN.md)에서 관리합니다.
+실제 하위 API 계약은 [TRD](TRD.md), 남은 작업은 [Implementation Plan](IMPLEMENTATION_PLAN.md)에서 관리합니다.
