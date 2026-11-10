@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { Text, matchesKey } from '@earendil-works/pi-tui';
+import { Text, matchesKey, visibleWidth } from '@earendil-works/pi-tui';
 import { readAgentRelationship } from '../src/agent-relationships.ts';
 import { listProductHandoffSessions, findParentMainSessionId } from '../src/product-sessions.ts';
 import { prepareManualHandoffCandidates } from './handoff-candidates.ts';
@@ -107,6 +107,55 @@ async function showContextReview(
         ...(note?['사용자 메모: '+note]:[]),
       ];
     }
+    function wideReview(width:number):string[] {
+      const current=units[focus];
+      const leftWidth=Math.max(27,Math.floor(width*0.36));
+      const rightWidth=Math.max(20,width-leftWidth-3);
+      const left=[
+        'WORK → MAIN · Context Review',
+        '선택할 컨텍스트',
+        '',
+        ...units.map((unit,i)=>
+          (i===focus?'› ':'  ')+(selected.has(unit.id)?'[x] ':'[ ] ')+
+          unit.title+(unit.requiredContext.length?' · 맥락 '+unit.requiredContext.length:'')
+        ),
+        '',
+        '선택 '+selected.size+' / '+units.length,
+      ];
+      const right=[
+        '현재 항목의 의미와 연결 근거',
+        '',
+        current?.title??'',
+        current?.summary??'',
+        '',
+        '원문: '+(current?.statement??''),
+        '검증: '+(current?verificationText(current.verification):''),
+        ...(current?.requiredContext.length?[
+          '',
+          '필수 제약·WHY·상태:',
+          ...current.requiredContext.flatMap(c=>[
+            '• '+c.reason+' · '+c.whyNeeded,'  '+c.quote,
+          ]),
+        ]:[]),
+        ...(pkg.contextAssessment==='unavailable'
+          ? ['','⚠ 필요한 과거 맥락을 충분히 확인하지 못했습니다.']:[]),
+        ...(note?['','사용자 메모: '+note]:[]),
+        ...(previewError?['','⚠ '+previewError]:[]),
+      ];
+      const leftLines=new Text(left.join('\n'),0,0).render(leftWidth);
+      const rightLines=new Text(right.join('\n'),0,0).render(rightWidth);
+      const height=Math.max(3,tui.terminal.rows-5);
+      maximum=Math.max(0,rightLines.length-height);
+      scroll=Math.min(scroll,maximum);
+      const rows:string[]=[];
+      const length=Math.min(height,Math.max(leftLines.length,rightLines.length-scroll));
+      for(let i=0;i<length;i++){
+        const leftLine=leftLines[i]??'';
+        const rightLine=rightLines[i+scroll]??'';
+        rows.push(leftLine+' '.repeat(Math.max(0,leftWidth-visibleWidth(leftLine)))+' │ '+rightLine);
+      }
+      return [...rows,theme.fg('dim',footer())];
+    }
     function footer():string {
       if(page==='preview')return 'Enter 전송 승인   Esc 선택으로 돌아가기   ↑↓ 스크롤';
       if(page==='sources')return 'Esc 선택으로 돌아가기   ↑↓ 스크롤';
@@ -114,6 +163,7 @@ async function showContextReview(
     }
     return {
       render(width){
+        if(page==='review'&&width>=104)return wideReview(width);
         const text=new Text(lines().join('\n'),1,0);
         const body=text.render(Math.max(20,width));
         const available=Math.max(3,tui.terminal.rows-5);
@@ -132,7 +182,8 @@ async function showContextReview(
         if(page==='review') {
           if(matchesKey(key,'tab')){
             focusArea=focusArea==='list'?'details':'list';
-            scroll=focusArea==='details'?Math.min(maximum,units.length+5):0;
+            scroll=focusArea==='details'
+              ?(tui.terminal.columns>=104?0:Math.min(maximum,units.length+5)):0;
           }
           else if(matchesKey(key,'up')){
             if(focusArea==='list'){focus=Math.max(0,focus-1);scroll=0;}
