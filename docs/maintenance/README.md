@@ -127,3 +127,54 @@ checks and a reversible integration method; these security controls must not
 be inferred from a model's recommendation. `review` requires a local installed
 and authenticated `pi` executable. It has not yet been exercised against live
 Pi 1.4.0 sessions on macOS.
+
+## Third slice: cross-environment usage + ROI-aware selection (Draft)
+
+The task ledger is **environment-neutral**: Pi, ChatGPT, Codex, Claude and other
+maintenance execution paths share one task identity. `start` accepts optional
+`--environment chatgpt` (or another environment label). A missing label stays
+`unknown` for historical tasks; it is not silently classified as Pi.
+
+Pi usage still comes from explicitly registered JSONL sessions. External
+providers are **not scraped or guessed**. If an attributable usage report is
+available, register its exact per-run token count **before** completing the
+associated task:
+
+```bash
+node maintenance/cli.mjs start --title 'Maintenance fix' --kind bug \
+  --environment chatgpt --time 20,40,80 --tokens 10000,20000,40000
+# Use the returned task UUID and a real, non-overlapping provider run identifier:
+node maintenance/cli.mjs usage-add --id TASK_UUID \
+  --provider chatgpt --run-id observed-run-001 --total-tokens 12000 \
+  --provenance provider-export --reference 'usage source description'
+node maintenance/cli.mjs finish --id TASK_UUID
+```
+
+`--provenance manual` is the default for a manually copied number. The
+`provider-export` label identifies where the number was reported, but **does not
+verify it independently**. Each external run can be attributed only once across
+this local ledger; reusing an ID in another task is rejected. The importer
+never stores chat transcripts, and it never treats missing provider telemetry
+as zero. For a mixed Pi + external task, the aggregate is explicitly labeled
+`mixed-pi-and-reported`, with the external source receipts retained. Input/output
+breakdowns unavailable from an external provider stay `null`.
+
+The original root-cause selection order remains **architecture → gate → AI
+instructions → user behavior**. The reviewer now requests cost and benefit
+forecasts per feasible layer: implementation minutes/tokens, expected saving per
+affected task, expected number of affected tasks, and confidence. Numeric
+forecasts are *hypotheses*, not realized ROI. Missing or low-confidence cost
+data blocks automatic layer selection.
+
+**Provisional decision rule:** architecture is preferred unless *both* projected
+implementation minutes and tokens are at least **3×** the projected cumulative
+savings. A mismatch between time and token conclusions blocks selection rather
+than silently moving to a lower layer. When architecture is clearly too costly,
+Gate can be considered using the same rule. This conservative multiplier is a
+configurable internal policy input to the function, **not an empirically proven
+threshold**. It needs validation against actual maintenance outcomes before
+being used as an authorization gate for automatic Main integration.
+
+This slice implements **recording and decision assessment**, not native ChatGPT
+usage API access, calibrated forecasts, safe autonomous patching, or automatic
+Main integration. PR stays Draft; no Docker runtime is required or introduced.

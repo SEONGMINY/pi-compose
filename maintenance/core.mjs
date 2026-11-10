@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, open, readFile, readdir, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { summarizeExternalUsage } from './usage.mjs';
 
 const VERSION = 1;
 const LEVELS = ['p30', 'p50', 'p80'];
@@ -141,13 +142,14 @@ export async function listTasks(dir) {
     JSON.parse(await readFile(join(tasks, name), 'utf8'))));
 }
 
-export async function startTask({ dir, title, kind = 'other', forecast, sessions = [], assumptions = '' }) {
+export async function startTask({ dir, title, kind = 'other', forecast, sessions = [], assumptions = '', environment = 'unknown' }) {
   assert(typeof title === 'string' && title.trim(), 'Task title is required');
   assert(typeof kind === 'string' && /^[a-z][a-z0-9_-]{0,39}$/.test(kind), 'Invalid task kind');
+  assert(typeof environment === 'string' && /^[a-z][a-z0-9_-]{0,39}$/.test(environment), 'Invalid task environment');
   validateForecast(forecast);
   const baselines = await snapshotSessions(sessions);
   const startedAt = new Date().toISOString();
-  const task = { schemaVersion: VERSION, id: randomUUID(), title: title.trim(), kind,
+  const task = { schemaVersion: VERSION, id: randomUUID(), title: title.trim(), kind, environment,
     forecast: structuredClone(forecast), assumptions, startedAt, state: 'running', baselines };
   const file = taskPath(dir, task.id);
   await mkdir(resolve(file, '..'), { recursive: true });
@@ -166,16 +168,24 @@ export async function finishTask({ dir, id, state = 'completed', sessions = [], 
     const task = await getTask(dir, id);
     assert(task.state === 'running', `Task already finalized: ${id}`);
     const usage = await deltaSessions(task.baselines, sessions);
+    const external = await summarizeExternalUsage(dir, id);
+    const tokenCounted = usage.coverage !== 'no-session-evidence' || external.receipts.length > 0;
+    const tokens = tokenCounted ? { ...usage, ...(usage.coverage === 'no-session-evidence'
+      ? { input:null, output:null, cacheRead:null, cacheWrite:null, usageEntries:null } : {}), totalTokens: usage.totalTokens + external.totalTokens,
+      externalSources: external.receipts, provenance: external.receipts.length
+        ? (usage.coverage !== 'no-session-evidence' ? 'mixed-pi-and-reported' : 'external-reported')
+        : 'pi-jsonl', coverage: 'registered-sources-only' } : null;
+    assert(!tokens || Number.isSafeInteger(tokens.totalTokens), 'Token aggregate overflow');
     const endedAt = new Date().toISOString();
     const wallMs = new Date(endedAt).getTime() - new Date(task.startedAt).getTime();
     const measuredMs = elapsedMs == null ? wallMs : elapsedMs;
     assert(finiteNonnegative(measuredMs), 'Invalid measured elapsed time');
     const next = { ...task, state, endedAt, measurement: {
       wallMs, elapsedMs: measuredMs, elapsedBasis: elapsedMs == null ? 'wall-clock' : 'runner-monotonic',
-      activeMs: null, tokens: usage.coverage === 'no-session-evidence' ? null : usage,
-      caveat: usage.coverage === 'no-session-evidence'
-        ? 'No Pi sessions provided; token usage is unknown, not zero.'
-        : 'Tokens cover only explicitly provided Pi JSONL sessions, not unregistered subagents.',
+      activeMs: null, tokens,
+      caveat: !tokenCounted
+        ? 'No Pi sessions or external usage receipts; token usage is unknown, not zero.'
+        : 'Totals include only registered Pi sessions and explicitly recorded external runs; unregistered activity is unknown.',
     } };
     await atomicJson(taskPath(dir, id), next);
     return next;

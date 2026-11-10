@@ -84,7 +84,8 @@ test('file quote is checked at exact line, and a supported proposal remains unap
   const layers={architecture:{feasible:'yes',reason:'File coupling needs isolation'},gate:{feasible:'unknown',reason:'Later'},
     ai_instructions:{feasible:'unknown',reason:'Later'},user_behavior:{feasible:'unknown',reason:'Later'}};
   const proposal={title:'Refactor event handler',expectedSignal:'fewer regressions',verification:['node --test']};
-  const raw=response([task.id],{layers,proposal,findings:[{hypothesis:'A code structure might be related',confidence:'low',
+  const economics={architecture:{implementationMinutes:10,implementationTokens:1500,savingMinutesPerTask:5,savingTokensPerTask:500,expectedOccurrences:5,confidence:'medium'}};
+  const raw=response([task.id],{layers,proposal,economics,findings:[{hypothesis:'A code structure might be related',confidence:'low',
     evidence:[{source:'repo-file',path:'src/a.ts',line:1,quote:'flag = false'}]}]});
   const result=await validateModelReview(raw,{signature:'bug|time',tasks:rows},root);
   assert.equal(result.candidate.layer,'architecture');

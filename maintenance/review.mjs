@@ -56,6 +56,47 @@ export function chooseImprovementLayer(layers) {
   return { selected: null, blocked: false, reason: 'No supported intervention was found' };
 }
 
+/** Cost-aware selection: the higher layer wins unless its expected cost is clearly
+ * disproportionate in BOTH independent resource dimensions. Numeric forecasts
+ * remain hypotheses, not measured savings or permission to execute changes.
+ */
+export function chooseCostAwareLayer(layers, economics, { disproportionateRatio = 3 } = {}) {
+  assert(Number.isFinite(disproportionateRatio) && disproportionateRatio > 1, 'Invalid economic ratio');
+  const rejected = [];
+  for (const name of IMPROVEMENT_LAYERS) {
+    const layer = layers?.[name];
+    assert(layer && ['yes','no','unknown'].includes(layer.feasible), `Invalid ${name} feasibility`);
+    if (layer.feasible === 'no') continue;
+    if (layer.feasible === 'unknown') return { selected:null, blocked:true, reason:`${name}: feasibility unknown`, rejected };
+    const e = economics?.[name];
+    if (!e || !Number.isInteger(e.expectedOccurrences) || e.expectedOccurrences <= 0 ||
+      !['low','medium','high'].includes(e.confidence) ||
+      !['implementationMinutes','implementationTokens','savingMinutesPerTask','savingTokensPerTask']
+        .every(k => Number.isFinite(e[k]) && e[k] >= 0)) {
+      return { selected:null, blocked:true, reason:`${name}: missing comparable cost/benefit estimates`, rejected };
+    }
+    const gainMinutes = e.savingMinutesPerTask * e.expectedOccurrences;
+    const gainTokens = e.savingTokensPerTask * e.expectedOccurrences;
+    const disproportionateMinutes = e.implementationMinutes > 0 &&
+      e.implementationMinutes >= disproportionateRatio * gainMinutes;
+    const disproportionateTokens = e.implementationTokens > 0 &&
+      e.implementationTokens >= disproportionateRatio * gainTokens;
+    if (e.confidence === 'low') return { selected:null, blocked:true, reason:`${name}: economics too uncertain`, rejected };
+    if (disproportionateMinutes && disproportionateTokens) {
+      rejected.push({ layer:name, reason:'High projected costs in both minutes and tokens',
+        implementationMinutes:e.implementationMinutes, implementationTokens:e.implementationTokens,
+        expectedGainMinutes:gainMinutes, expectedGainTokens:gainTokens });
+      continue;
+    }
+    if (disproportionateMinutes !== disproportionateTokens) {
+      return { selected:null, blocked:true, reason:`${name}: time/token tradeoff unresolved`, rejected };
+    }
+    return { selected:name, blocked:false, reason:`${name}: cost comparison permits evaluation`,
+      rejected, economicEvidence:'forecast-not-verified' };
+  }
+  return { selected:null, blocked:false, reason:'No cost-effective eligible layer', rejected };
+}
+
 function parseJsonOnly(output) {
   assert(typeof output === 'string' && output.length <= MAX_RESPONSE, 'AI response is too long');
   const trimmed = output.trim();
@@ -118,7 +159,8 @@ export async function validateModelReview(raw, batch, cwd) {
       `Invalid ${name} feasibility`);
     layers[name] = { feasible: value.feasible, reason: value.reason };
   }
-  const decision = chooseImprovementLayer(layers);
+  const priorityDecision = chooseImprovementLayer(layers);
+  const decision = chooseCostAwareLayer(layers, data.economics);
   // A self-reported model claim cannot authorize code changes. Require verified
   // evidence and an unblocked priority choice before even creating a proposal.
   const supported = findings.some((f) => f.status === 'evidence-linked-hypothesis');
@@ -133,7 +175,7 @@ export async function validateModelReview(raw, batch, cwd) {
       executionState: 'proposed-not-approved' } : null;
   const limitations = Array.isArray(data.limitations) ? data.limitations.filter((v) => text(v, 1200)).slice(0, 12) : [];
   return { taskIds: [...taskMap.keys()], signature: batch.signature, findings, layers, decision,
-    candidate, limitations, assessment: supported ? 'hypotheses-only' : 'insufficient-evidence',
+    candidate, priorityDecision, economics: data.economics ?? null, limitations, assessment: supported ? 'hypotheses-only' : 'insufficient-evidence',
     // Current code evidence may not match the repository state at task execution time.
     provenanceCaveat: 'Repository evidence was checked against current files, not historical task-time source.' };
 }
@@ -150,11 +192,13 @@ function promptFor(batch) {
     'Do not conclude that a P80 exceedance by one task proves bad calibration or establishes a cause.',
     'Avoid inventing causal links. Mark insufficient-evidence when timestamps/diffs/repro data are missing.',
     'Inspect the relevant source to ground your hypotheses, but do not assume current code existed at task execution time.',
-    'Return ONLY one JSON object with taskIds, findings, layers, proposal and limitations; no markdown.',
+    'Return ONLY one JSON object with taskIds, findings, layers, economics, proposal and limitations; no markdown.',
     'Every finding: {hypothesis, confidence: low|medium|high, evidence: [{source:"task",taskId,field,value} or {source:"repo-file",path,line,quote}], alternativeExplanations: []}.',
     'Code evidence quote must literally occur on the given 1-based line. Task evidence value must match recorded data exactly.',
     'Assess all four intervention layers in order: architecture, gate, ai_instructions, user_behavior. Each {feasible: yes|no|unknown, reason}.',
-    'Never choose lower layer while a higher layer is feasible or unknown. No evidence => unknown, not yes.',
+    'Evaluate architecture first. Prefer it unless projected implementation cost is clearly disproportionate to savings in BOTH minutes and tokens. An unresolved tradeoff or unknown upper layer blocks lower layers.',
+    'For every feasible layer, supply economics[layer]: {implementationMinutes,implementationTokens,savingMinutesPerTask,savingTokensPerTask,expectedOccurrences,confidence:low|medium|high}. These are forecasts, not measurements. Low confidence blocks selection.',
+    'Do not invent certainty or savings. If figures cannot be supported, use low confidence so execution remains blocked.',
     'proposal: null or {title,expectedSignal,verification:[specific checks]}. Treat it only as a suggestion, never an authorization.',
     'No user behavior change when an architectural or automated solution remains viable.',
     'Do not read .git, .maintenance, node_modules, auth files or secrets.',

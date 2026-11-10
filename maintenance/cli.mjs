@@ -4,11 +4,14 @@ import { performance } from 'node:perf_hooks';
 import { resolve } from 'node:path';
 import { analyzePending, calibration, finishTask, listTasks, parseQuantiles, pendingRootCauseReviews, startTask } from './core.mjs';
 import { listReviews, reviewPending } from './review.mjs';
+import { recordExternalUsage, listExternalUsage } from './usage.mjs';
 
 const usage = `Usage:
-  node maintenance/cli.mjs start --title TEXT --kind CATEGORY --time P30,P50,P80 --tokens P30,P50,P80 [--session FILE ...] [--data-dir DIR]
+  node maintenance/cli.mjs start --title TEXT --kind CATEGORY --time P30,P50,P80 --tokens P30,P50,P80 [--session FILE ...] [--environment NAME] [--data-dir DIR]
   node maintenance/cli.mjs finish --id UUID [--state completed|failed|cancelled] [--session FILE ...] [--data-dir DIR]
   node maintenance/cli.mjs run --title TEXT --kind CATEGORY --time P30,P50,P80 --tokens P30,P50,P80 [--session FILE ...] -- COMMAND [ARGS ...]
+  node maintenance/cli.mjs usage-add --id UUID --provider chatgpt|codex|claude|other --run-id ID --total-tokens N --provenance provider-export|manual --reference TEXT [--data-dir DIR]
+  node maintenance/cli.mjs usage-list --id UUID [--data-dir DIR]
   node maintenance/cli.mjs analyze [--data-dir DIR]
   node maintenance/cli.mjs review [--dry-run] [--max-batches N] [--data-dir DIR]
   node maintenance/cli.mjs improvements [--data-dir DIR]
@@ -28,7 +31,7 @@ function parse(args) {
     if (!item.startsWith('--')) throw new Error(`Unexpected argument ${item}`);
     const name = item.slice(2);
     if (name === 'dry-run') { opts[name] = true; continue; }
-    if (!['title','kind','time','tokens','session','data-dir','id','state','assumptions','max-batches'].includes(name)) throw new Error(`Unknown option ${item}`);
+    if (!['title','kind','time','tokens','session','data-dir','id','state','assumptions','max-batches','environment','provider','run-id','total-tokens','provenance','reference'].includes(name)) throw new Error(`Unknown option ${item}`);
     const value = flags[++i];
     if (!value || value.startsWith('--')) throw new Error(`Missing value for ${item}`);
     if (name === 'session') opts.session.push(value);
@@ -39,7 +42,7 @@ function parse(args) {
 
 function beginArgs(opts) {
   return { dir: resolve(opts['data-dir'] ?? '.maintenance'), title: opts.title,
-    kind: opts.kind ?? 'other', assumptions: opts.assumptions ?? '',
+    kind: opts.kind ?? 'other', assumptions: opts.assumptions ?? '', environment: opts.environment ?? 'unknown',
     forecast: { minutes: parseQuantiles(opts.time, 'time'), tokens: parseQuantiles(opts.tokens, 'tokens') },
     sessions: opts.session };
 }
@@ -81,6 +84,17 @@ async function main(argv) {
     console.log(JSON.stringify(await finishTask({ dir, id: opts.id, state: opts.state, sessions: opts.session }), null, 2)); return;
   }
   if (action === 'run') { await run(opts, command); return; }
+  if (action === 'usage-add') {
+    if (!opts.id) throw new Error('--id is required');
+    console.log(JSON.stringify(await recordExternalUsage({ dir, taskId:opts.id, provider:opts.provider,
+      runId:opts['run-id'], totalTokens:Number(opts['total-tokens']),
+      provenance:opts.provenance ?? 'manual', reference:opts.reference }),null,2));
+    return;
+  }
+  if (action === 'usage-list') {
+    if (!opts.id) throw new Error('--id is required');
+    console.log(JSON.stringify(await listExternalUsage(dir,opts.id),null,2)); return;
+  }
   if (action === 'review') {
     // Scan all completed tasks before expensive model review; this is idempotent.
     await analyzePending(dir);

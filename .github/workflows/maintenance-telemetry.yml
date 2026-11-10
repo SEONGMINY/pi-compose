@@ -25,5 +25,6 @@ jobs:
           node --check maintenance/core.mjs
           node --check maintenance/cli.mjs
           node --check maintenance/review.mjs
+          node --check maintenance/usage.mjs
       - name: Run unit tests
         run: node --test test/maintenance*.test.mjs
