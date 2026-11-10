@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { chmod, link, lstat, mkdir, open, readFile, readdir, realpath, rename, unlink } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { link, lstat, mkdir, open, readdir, realpath, rename, unlink } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
@@ -57,12 +58,19 @@ async function recipientDir(mainId: string): Promise<string> {
 }
 
 async function safeRead(path: string): Promise<string> {
-  const info = await lstat(path);
-  if (!info.isFile() || info.isSymbolicLink() || info.size > 64*1024 ||
-      (info.mode & 0o077) !== 0 ||
-      (typeof process.getuid === 'function' && info.uid !== process.getuid()))
-    throw Error('unsafe-inbox-file');
-  return readFile(path,'utf8');
+  // Open first with O_NOFOLLOW, then inspect the SAME file handle. A separate
+  // lstat + readFile sequence could follow a symlink swapped between calls.
+  const handle=await open(path,constants.O_RDONLY|constants.O_NOFOLLOW);
+  try {
+    const info=await handle.stat();
+    if(!info.isFile()||info.size>64*1024||
+        (info.mode&0o077)!==0||
+        (typeof process.getuid==='function'&&info.uid!==process.getuid()))
+      throw Error('unsafe-inbox-file');
+    return await handle.readFile({encoding:'utf8'});
+  } finally {
+    await handle.close();
+  }
 }
 async function atomicWrite(path: string, contents: string, replace: boolean): Promise<void> {
   const tmp = path + '.' + randomUUID() + '.tmp';
