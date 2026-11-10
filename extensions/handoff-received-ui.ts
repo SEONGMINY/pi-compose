@@ -150,7 +150,7 @@ export function showReferenceReceived(
     // Pi receives terminal keys before focused-component delivery. Scope the
     // same guarded listener to this modal, so a stale external focus does not
     // make the received Work report impossible to dismiss.
-    const modalKeys=['escape','ctrl+o','tab','up','down','pageUp','pageDown','enter'];
+    const modalKeys=['escape','ctrl+o','tab','up','down','pageUp','pageDown','enter'] as const;
     const removeListener=ctx.ui.onTerminalInput(key=>{
       if(matchesKey(key,'alt+z')&&controls?.onToggleZoom){
         if(!isKeyRelease(key)&&!isKeyRepeat(key)){
