@@ -3,8 +3,8 @@ import { readAgentRelationship } from '../src/agent-relationships.ts';
 import { listProductHandoffSessions, findParentMainSessionId } from '../src/product-sessions.ts';
 import { latestPreparedHandoff } from './handoff-candidates.ts';
 import { latestReviewedDraft } from './handoff-ready.ts';
-import { createSelectedHandoffPackage, verifyWorkSource } from '../src/handoff/package.ts';
-import { putHandoff } from '../src/handoff/store.ts';
+import { createSelectedHandoffPackage, stablePackageId, verifyWorkSource } from '../src/handoff/package.ts';
+import { putHandoff, readHandoff } from '../src/handoff/store.ts';
 import { previewHandoff } from './handoff-inbox.ts';
 import { assessHandoffQuality } from '../src/handoff/quality.ts';
 import type { HandoffPackage } from '../src/handoff/package.ts';
@@ -61,27 +61,49 @@ export function registerSelectedHandoffSend(
     for(let attempt=0;attempt<4;attempt++){
       if(ctx.sessionManager.getLeafId()!==packageStartLeaf ||
          ctx.sessionManager.getSessionId()!==owner.sessionId||!ctx.isIdle())return;
-      ctx.ui.notify('선택된 후보의 필수 맥락과 근거를 준비합니다. Main 대화는 조회하지 않습니다.','info');
+      const expectedId=stablePackageId(owner.sessionId,prepared.reportEntryId,
+        reviewed.reviewEntryId,destination.id,reviewed.selectedCandidateIds,reviewNote);
+      let recovered=false;
+      // Recover a previously approved and durably stored body if Work crashed
+      // before recording the session-local acceptance receipt.
       try {
-        pkg=await createSelectedHandoffPackage(ctx,owner,prepared,{
-          ids:reviewed.selectedCandidateIds,note:reviewNote,
-        },destination.id);
+        pkg=await readHandoff(destination.id,expectedId);
+        if(pkg.product!==owner.product ||
+            pkg.source.workSessionId!==owner.sessionId ||
+            pkg.source.workReportEntryId!==prepared.reportEntryId ||
+            pkg.selectedCandidateIds.join(',')!==reviewed.selectedCandidateIds.join(','))
+          throw Error('stored-handoff-review-mismatch');
         verifyWorkSource(ctx,pkg);
-      } catch(error){
-        ctx.ui.notify('Handoff 구성/근거 검증 실패: '+String(error)+'. Main으로 전달하지 않았습니다.','warning');
-        return;
+        recovered=true;
+      } catch(error) {
+        if((error as NodeJS.ErrnoException).code!=='ENOENT'){
+          ctx.ui.notify('기존 Handoff 복구 검증 실패: '+String(error),'warning');return;
+        }
+        ctx.ui.notify('선택된 후보의 필수 맥락과 근거를 준비합니다. Main 대화는 조회하지 않습니다.','info');
+        try {
+          pkg=await createSelectedHandoffPackage(ctx,owner,prepared,{
+            ids:reviewed.selectedCandidateIds,note:reviewNote,
+            reviewEntryId:reviewed.reviewEntryId,reviewCreatedAt:reviewed.createdAt,
+          },destination.id);
+          verifyWorkSource(ctx,pkg);
+        } catch(error) {
+          ctx.ui.notify('Handoff 구성/근거 검증 실패: '+String(error)+'. Main으로 전달하지 않았습니다.','warning');
+          return;
+        }
       }
       if(ctx.sessionManager.getLeafId()!==packageStartLeaf)return;
       const blockingIssues:string[]=[];
-      try {
-        const quality=await assessHandoffQuality(ctx,pkg);
-        if(quality.verdict==='needs-revision')
-          blockingIssues.push(...quality.issues.map(issue=>
-            '['+issue.candidateId+' · '+issue.kind+'] '+issue.explanation));
-      } catch(error) {
-        blockingIssues.push('의미·누락 검증이 완료되지 않았습니다: '+String(error));
+      if(!recovered){
+        try {
+          const quality=await assessHandoffQuality(ctx,pkg);
+          if(quality.verdict==='needs-revision')
+            blockingIssues.push(...quality.issues.map(issue=>
+              '['+issue.candidateId+' · '+issue.kind+'] '+issue.explanation));
+        } catch(error) {
+          blockingIssues.push('의미·누락 검증이 완료되지 않았습니다: '+String(error));
+        }
       }
-      if(pkg.contextAssessment==='unavailable')
+      if(pkg.contextAssessment==='unavailable'&&!recovered)
         blockingIssues.push('필수 맥락 검색 실패: 원문 후보만으로 충분한지 확인되지 않았습니다.');
       if(ctx.sessionManager.getLeafId()!==packageStartLeaf)return;
       const action=await previewHandoff(ctx,pkg,'outgoing',undefined,blockingIssues);
