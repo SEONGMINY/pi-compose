@@ -34,7 +34,7 @@ export const handoffPackageSchema = z.object({
   product: z.string().min(1),
   source: z.object({
     workSessionId: z.string().min(1),
-    forkMainSessionId: z.string().min(1),
+    forkSourceSessionId: z.string().min(1),
     forkLeafId: z.string().min(1),
     workReportEntryId: z.string().min(1),
   }),
@@ -164,7 +164,7 @@ function renderPackage(pkg: Pick<HandoffPackage, 'claims' | 'context' | 'evidenc
     ...(pkg.reviewerNote ? ['','User review note (request, NOT verified fact or policy): ' + pkg.reviewerNote] : []),
     '',
     'Work session: ' + pkg.source.workSessionId,
-    'Fork Main session: ' + pkg.source.forkMainSessionId,
+    'Fork source session: ' + pkg.source.forkSourceSessionId,
     'Fork leaf: ' + pkg.source.forkLeafId,
     'User-selected candidates: ' + pkg.selectedCandidateIds.join(', '),
     'No implementation, test or policy approval is implied by receipt.',
@@ -273,7 +273,7 @@ export async function createSelectedHandoffPackage(
   const base = {
     version:1 as const,id:randomUUID(),createdAt:new Date().toISOString(),
     product:owner.product,
-    source:{workSessionId:draft.sessionId,forkMainSessionId:owner.forkSourceSessionId,
+    source:{workSessionId:draft.sessionId,forkSourceSessionId:owner.forkSourceSessionId,
       forkLeafId:owner.forkSourceLeafId,workReportEntryId:draft.reportEntryId},
     targetMainSessionId,selectedCandidateIds:choice.ids,claims,context,evidence,
     ...(choice.note?{reviewerNote:choice.note}:{}),contextAssessment,
