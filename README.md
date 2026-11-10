@@ -1,6 +1,6 @@
 # Pi Compose
 
-> **현재 `main` 코드 기준:** `pic`을 인자 없이 실행하면 아직 **Overview**가 열립니다. 아래에 설명하는 `pic` 직접 Main 진입, `>w`/ `>s` 직접 위임과 간소화된 Work `<` → Main 수신 알림은 **목표 UX**입니다. 일부 이전 UX 코드는 미병합 [PR #25](https://github.com/SEONGMINY/pi-compose/pull/25)에 있으며 최신 단순 수신 흐름은 미구현입니다. 이 문서 병합만으로 실행 동작은 바뀌지 않습니다.
+> **현재 `main` 코드 기준:** `pic`을 인자 없이 실행하면 아직 **Overview**가 열립니다. 아래에 설명하는 `pic` 직접 Main 진입, `>w`/ `>s` 직접 위임과 간소화된 Work `<` → Main 수신 알림은 **목표 UX**입니다. 새 실행 흐름은 [Draft PR #25](https://github.com/SEONGMINY/pi-compose/pull/25)에 코드로 작성 중이고, `main`에는 아직 병합되지 않았습니다. 이 문서 병합만으로 실행 동작은 바뀌지 않습니다.
 
 
 **Main의 설계·결정 맥락을 지키면서, 실제 개발은 그 대화를 Fork한 Work에서 진행하는 Pi 기반 Coding Agent Harness입니다.**
