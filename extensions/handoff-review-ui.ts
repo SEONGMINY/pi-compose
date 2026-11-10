@@ -27,6 +27,7 @@ export type ReviewState={selected:string[];focus:number;note:string};
 
 export function showReferenceContextReview(
   ctx:ExtensionContext,pkg:HandoffPackage,initial:ReviewState,
+  controls?:{onToggleZoom?:()=>Promise<string>;zoomState?:()=>string},
 ):Promise<ReviewAction> {
   const units=contextReviewUnits(pkg);
   let overlayHandle:OverlayHandle|undefined;
@@ -43,6 +44,8 @@ export function showReferenceContextReview(
     let note=initial.note;
     let preview:HandoffPackage|undefined;
     let inputConnected=false;
+    let disposed=false;
+    let zoomNotice='';
     const filtered=()=>query?fuzzyFilter(units,query,u=>u.title+' '+u.summary):units;
     const current=()=>filtered()[index];
     const selected=()=>units.filter(u=>chosen.has(u.id)).map(u=>u.id);
@@ -122,16 +125,17 @@ export function showReferenceContextReview(
           ?['⚠ 이전 WHY·조건 검색이 완전하지 않습니다.']:[]),
         ...(note?['추가 의견: '+note]:[]),
         ...(error?['안내: '+error]:[]),
+        ...(zoomNotice?['Ghostty: '+zoomNotice]:[]),
       ];
     }
     function help():string {
-      if(mode==='preview')return 'Enter 승인·전송 · Tab 상세 원문 · PgUp/PgDn 스크롤 · Esc 뒤로';
-      if(mode==='archive')return 'Tab 승인 본문 · PgUp/PgDn 스크롤 · Esc 뒤로';
-      if(mode==='evidence')return 'PgUp/PgDn 스크롤 · Esc 돌아가기';
+      if(mode==='preview')return 'Enter 승인·전송 · Tab 상세 원문 · PgUp/PgDn 스크롤 · Alt+Z 확대 · Esc 뒤로';
+      if(mode==='archive')return 'Tab 승인 본문 · PgUp/PgDn 스크롤 · Alt+Z 확대 · Esc 뒤로';
+      if(mode==='evidence')return 'PgUp/PgDn 스크롤 · Alt+Z 확대 · Esc 돌아가기';
       return search
-        ?'입력하여 검색 · ↑↓ 이동 · Esc 검색 초기화/종료 · Alt+O 숨기기'
+        ?'입력하여 검색 · ↑↓ 이동 · Esc 검색 초기화/종료 · Alt+Z 확대'
         :'↑↓ 이동 · Space 선택 · / 검색 · Ctrl+E 맥락 · E 근거 · N 의견 · Enter 검토 · Esc 취소' +
-         (inputConnected?' · 키보드 입력 연결됨':'')+' · Alt+O 숨기기';
+         (inputConnected?' · 키보드 입력 연결됨':'')+' · Alt+Z 확대 · Alt+O 숨기기';
     }
     function body():string[]{
       if(mode==='choose')return choiceLines();
@@ -140,7 +144,7 @@ export function showReferenceContextReview(
     }
     function print(width:number):string[]{
       const full=new Text(body().join('\n'),1,0).render(Math.max(18,width-2));
-      const maxRows=Math.max(4,Math.min(25,tui.terminal.rows-7));
+      const maxRows=Math.max(4,Math.min(48,tui.terminal.rows-7));
       maxScroll=Math.max(0,full.length-maxRows);
       scroll=Math.max(0,Math.min(scroll,maxScroll));
       const part=full.slice(scroll,scroll+maxRows);
@@ -222,13 +226,25 @@ export function showReferenceContextReview(
         tui.requestRender();
       },
       invalidate(){},
-      dispose(){removeInput();}
+      dispose(){disposed=true;removeInput();}
     };
     // Pi 1.4.0 terminal listener runs before the native focused component.
     // Consume only review shortcuts; no model or editor input is intercepted.
     const names=['escape','up','down','space','ctrl+e','e','n','enter',
       'pageUp','pageDown','tab','backspace'];
     const removeInput=ctx.ui.onTerminalInput(key=>{
+      if(matchesKey(key,'alt+z')&&controls?.onToggleZoom){
+        if(!isKeyRelease(key)&&!isKeyRepeat(key)){
+          zoomNotice='Ghostty Split 화면 전환 중…';
+          tui.requestRender();
+          void controls.onToggleZoom().then(message=>{
+            if(!disposed){zoomNotice=message;tui.requestRender();}
+          }).catch(error=>{
+            if(!disposed){zoomNotice='화면 전환 실패: '+String(error);tui.requestRender();}
+          });
+        }
+        return {consume:true};
+      }
       // Same toggle as pi-ask-user's default overlay. Hiding does not submit
       // or mutate the selection, and remains reversible while hidden.
       if(matchesKey(key,'alt+o')&&overlayHandle){
