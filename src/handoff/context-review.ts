@@ -1,4 +1,5 @@
 import { type HandoffPackage, stablePackageId, hashMessage, renderPackage, validateHandoffPackage } from './package.ts';
+import { renderApprovedMainBrief } from './brief.ts';
 
 /**
  * A reviewable unit is an already-grounded claim with its required context.
@@ -78,7 +79,10 @@ export function selectContextPackage(
     ...(reviewerNote ? {reviewerNote} : {reviewerNote:undefined}),
   };
   const finalMessage = renderPackage(draft);
+  const approvedMainBrief = renderApprovedMainBrief(draft);
   return validateHandoffPackage({
-    ...draft, finalMessage, finalMessageHash:hashMessage(finalMessage),
+    ...draft,
+    finalMessage,finalMessageHash:hashMessage(finalMessage),
+    approvedMainBrief,approvedMainBriefHash:hashMessage(approvedMainBrief),
   });
 }
