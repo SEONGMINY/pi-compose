@@ -26,9 +26,9 @@
 | 5 | 실행 중 요청·기다림·중단에 대한 회귀 테스트 추가 | `test/direct-handoff-queue.test.ts` | 테스트 코드 작성, 실행 미확인 |
 | 6 | Work 완료 보고 판단 + 공유 후보 자동 준비·비컨텍스트 영속 저장 | `extensions/handoff-candidates.ts` | 코드 작성, 모델 의미 정확성 미검증 |
 | 7 | 자동 ask_user 질문 + 선택 응답/검토 초안 저장 + 도구 제한 | `extensions/handoff-ready.ts` | 코드 작성, Pi 모델 턴 연계 실사용 미검증 |
-| 8 | 저장된 후보를 Pi 에디터에서 수정하고 명시적으로 전송 승인 | `extensions/handoff.ts` | 코드 작성, intercom 실사용 미검증 |
+| 8 | 선택된 후보 ID의 근거 기반 패키지·품질 검사·최종 본문 미리보기 승인 | `extensions/handoff-package.ts`, `src/handoff/package.ts`, `src/handoff/quality.ts` | 코드 작성, 새 P1–P5 E2E 미검증 |
 | 9 | 후보 생성·출처 검증·취소·저장/복구 테스트 | `test/handoff-candidates.test.ts`, `test/handoff-ready.test.ts` | 테스트 코드 작성, 실행 미확인 |
-| 10 | 최신 제품 정책·사용 설명으로 문서 갱신 | `README.md`, `docs/*` | 문서 작성 |
+| 10 | 제품 정책·사용 설명을 보호형 Handoff와 일치하게 갱신 | `README.md`, `docs/*` | 문서 작성, 검증 전 |
 
 ## 3. 남은 기술 검증 (사용자 Mac)
 
@@ -37,7 +37,7 @@
 - **Ghostty:** 정확히 현재 Pi Surface를 anchor로 삼아 Split하는지, 새 Pi 시작/초기 지시 처리, 포커스 복귀, AppleScript 권한 부족·실패 동작.
 - **Fork:** 메인 JSONL 불변, Compaction/ContextEdit 의미 보존, 마지막 완료 분기 선택, `>>w` Worktree와 원본 Git HEAD 보존.
 - **Busy Handoff:** Work 실행 중 `<`가 일반 모델 메시지나 follow-up으로 들어가지 않는지, 최초 Turn 완료가 아닌 `agent_settled`에 연결되는지, 중단/오류/중복 요청 및 새 턴 시작에서 오염이 없는지.
-- **Handoff 전달:** 사용자 승인 전 pi-intercom 송신 없음, 정확한 수신 Main 주소 일치, Outbox 결과/모델 처리 구분.
+- **Handoff 전달:** 사용자 승인 전 무전송, 정확한 수신 Main ID의 로컬 보관, 파일 저장 후 종료·재개, Extension Channel 연결 유무, Main 수신 무주입, 검토 시 활성 분기 최신성, 상태 중복 방지.
 - **품질:** 과거 실험의 부정문·금지·승인 주체·미실행/미확인·테스트 결과 오인 사례로 의미 검증.
 
 실행 검증이 없는 상태에서 `test passed`, `Ghostty confirmed`, `production-ready` 같은 표현을 쓰지 않습니다. 자동 병합·전역 재설치·Pi 세션 삭제·Git Worktree 정리는 하지 않습니다.
