@@ -88,8 +88,23 @@ export function registerHandoffInbox(pi:ExtensionAPI) {
   let channel:Channel|undefined;
   let registered=false;
   let current:ExtensionContext|undefined;
+  async function refreshInboxWidget(ctx:ExtensionContext):Promise<void> {
+    if(!ctx.hasUI||ctx.mode!=='tui')return;
+    const owner=readAgentRelationship(ctx.sessionManager.getSessionId(),ctx.sessionManager.getEntries());
+    if(owner?.role!=='main')return;
+    try {
+      const items=(await listInbox(owner.sessionId)).filter(item=>
+        item.pkg.product===owner.product && item.status.status==='pending');
+      if(current?.sessionManager.getSessionId()!==owner.sessionId)return;
+      ctx.ui.setWidget('pi-compose/main-inbox',items.length?
+        ['Main · Handoff '+items.length+'개 검토 대기 · /compose inbox']:undefined);
+    } catch {
+      ctx.ui.setWidget('pi-compose/main-inbox',['Main · Handoff 보관함 확인 필요 · /compose inbox']);
+    }
+  }
   pi.on('session_start',(_event,ctx)=>{
     current=ctx;
+    void refreshInboxWidget(ctx);
     if(registered) return;
     registered=true;
     pi.events.emit(REGISTER,{
@@ -107,12 +122,15 @@ export function registerHandoffInbox(pi:ExtensionAPI) {
         if(typeof data.packageId!=='string') return;
         void readHandoff(owner.sessionId,data.packageId).then(pkg=>{
           if(pkg.product===owner.product &&
-              current?.sessionManager.getSessionId()===owner.sessionId)
+              current?.sessionManager.getSessionId()===owner.sessionId) {
             session.ui.notify('Work Handoff 수신 · /compose inbox에서 검토 가능 (Main 실행 없음)','info');
+            void refreshInboxWidget(session);
+          }
         }).catch(()=>{});
       },
     });
   });
+  pi.on('session_tree',(_event,ctx)=>{current=ctx;void refreshInboxWidget(ctx);});
   pi.on('session_shutdown',()=>{current=undefined;});
 
   function announce(pkg:HandoffPackage):void {
@@ -160,6 +178,7 @@ export function registerHandoffInbox(pi:ExtensionAPI) {
     if(action==='archive'){
       await setInboxStatus(owner.sessionId,item.pkg.id,'archived',leaf);
       ctx.ui.notify('Handoff를 보관했습니다. Main 대화는 변경되지 않았습니다.','info');
+      void refreshInboxWidget(ctx);
       return;
     }
     if(action==='discuss'){
@@ -180,6 +199,7 @@ export function registerHandoffInbox(pi:ExtensionAPI) {
         details:{packageId:item.pkg.id,comparedLeafId:leaf},
       },{triggerTurn:true});
       ctx.ui.notify('사용자 요청으로 Main 논의를 시작했습니다. Handoff 수신 자체는 모델을 실행하지 않았습니다.','info');
+      void refreshInboxWidget(ctx);
     }
   }
   return {showInbox,announce};
