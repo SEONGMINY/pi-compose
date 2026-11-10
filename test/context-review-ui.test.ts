@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent';
-import type { TUI } from '@earendil-works/pi-tui';
+import type { TUI, OverlayHandle } from '@earendil-works/pi-tui';
 import { hashMessage, renderPackage, validateHandoffPackage, type HandoffPackage } from '../src/handoff/package.ts';
 import { createContextReviewProgress, showContextReview } from '../extensions/context-review.ts';
 
@@ -44,11 +44,14 @@ function reviewHarness(focusOnDialog:boolean, columns=110) {
   let resolveAction:(result:unknown)=>void=()=>{};
   let removed=0;
   let rendered=0;
+  let hidden=false;
+  let overlay=false;
   const tui={
     terminal:{rows:36,columns},
     requestRender:()=>{rendered++},
   };
   const ui={
+    notify:()=>undefined,
     onTerminalInput:(handler:typeof listener)=>{
       listener=handler;
       return ()=>{removed++;listener=undefined};
@@ -57,12 +60,18 @@ function reviewHarness(focusOnDialog:boolean, columns=110) {
       tui:TUI,
       theme:{fg:(color:string,text:string)=>string;bold:(text:string)=>string},
       keys:unknown,done:(result:unknown)=>void
-    )=>typeof component)=>{
+    )=>typeof component,
+    options?:{overlay?:boolean;onHandle?:(handle:OverlayHandle)=>void})=>{
       const answer=new Promise<unknown>(resolve=>{resolveAction=resolve});
       component=factory(tui as unknown as TUI,{fg:(_color,text)=>text,bold:(text)=>text},null,(action)=>{
         component?.dispose?.();
         resolveAction(action);
       });
+      overlay=Boolean(options?.overlay);
+      options?.onHandle?.({
+        isHidden:()=>hidden,
+        setHidden:(value:boolean)=>{hidden=value;},
+      } as unknown as OverlayHandle);
       return answer;
     },
   };
@@ -77,7 +86,7 @@ function reviewHarness(focusOnDialog:boolean, columns=110) {
     },
     raw:(raw:string)=>listener?.(raw),
     text:()=>{assert.ok(component);return component!.render(columns).join('\n')},
-    events:()=>({removed,rendered,listener:!!listener}),
+    events:()=>({removed,rendered,listener:!!listener,overlay,hidden}),
   };
 }
 
@@ -197,5 +206,20 @@ test('reference selector keeps context collapsed until Ctrl+E and supports evide
   h.key('\x1b'); // Back
   assert.match(h.text(),/Handoff Brief/);
   h.key('\x1b'); // Cancel
+  assert.deepEqual(await result,{type:'cancel'});
+});
+
+test('pi-ask-user centered overlay can hide and reopen without changing selection',async()=>{
+  const h=reviewHarness(true,82);
+  const result=h.run();
+  assert.equal(h.events().overlay,true);
+  h.key(' '); // choose one before temporarily hiding dialog
+  assert.match(h.text(),/선택 1 \/ 2/);
+  h.key('\x1bo'); // Alt+O
+  assert.equal(h.events().hidden,true);
+  h.key('\x1bo'); // Alt+O again
+  assert.equal(h.events().hidden,false);
+  assert.match(h.text(),/선택 1 \/ 2/);
+  h.key('\x1b'); // cancel
   assert.deepEqual(await result,{type:'cancel'});
 });
