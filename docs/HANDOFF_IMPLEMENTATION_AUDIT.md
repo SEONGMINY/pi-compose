@@ -173,3 +173,23 @@
 - 최신 `npm run check`, macOS/Ghostty의 IME·화면 크기 변경·단축키 충돌·오버레이 표시 검증은 미확인
 - pi-ask-user 문서에는 터미널 인라인 이미지 위에 오버레이를 제대로 합성하지 못하는 Pi-TUI 한계가 있습니다. 이미지가 겹치는 상황에서는 인라인 폴백 검토 필요
 - 이전 작업 파일이 잘못 섞여 나오는 정보 품질 문제는 별도로 추적할 기존 이슈이며 UI 레퍼런스 적용만으로 해결된 것은 아닙니다
+
+
+## 2026-11-11 Focused Handoff Review — Ghostty, Work 및 Main UI 구현
+
+**실사용 판단:** Work에서 `<`를 누르면 채팅을 지속하는 상태가 아니라 Main 전달할 맥락을 평가하는 검토 작업입니다. 대화창을 함께 보여주기 위한 하단 패널을 기본으로 채택하지 않습니다. 기존 대화는 원문 출처에서만 필요에 따라 열어 봅니다.
+
+**외부 검증된 기능:** [Ghostty 공식 split zoom 액션](https://ghostty.org/docs/config/keybind/reference) `toggle_split_zoom`은 해당 Split을 현재 탭 전체로 확대/축소합니다. [AppleScript 공식 문서](https://ghostty.org/docs/features/applescript)의 `perform action`은 정확한 Terminal에 명령을 전달할 수 있습니다. 그러나 AppleScript 터미널 모델에 확대 상태를 읽는 속성은 공개돼 있지 않아 **아무 확인 없이 자동 토글하지 않습니다**.
+
+**UI/코드 변경:**
+- `src/ghostty-native.ts`: 정확한 UUID로 바인딩된 현재 포커스 Terminal만 확인하고 `perform action "toggle_split_zoom"` 실행. Ghostty가 활성 상태가 아니거나 다른 Terminal에 포커스가 있으면 다른 화면은 변경하지 않음
+- `extensions/handoff-zoom.ts`: 사용자 `Alt+Z` 입력으로만 토글하며, Compose가 직접 성공시킨 토글을 검토 종료 시 원위치로 복구하려고 시도. 도중 포커스가 달라지면 다른 Split을 제어하지 않고 사용자에게 수동 복원을 안내. 확대 실패 시 기존 UI 계속 사용
+- `extensions/context-review.ts` 및 `extensions/context-receive.ts`: Work `<`의 전체 검토 흐름, Main `<`의 예외 검토 흐름에 각각 상태 수명을 연결. 저장·전송·취소·오류에도 finally에서 복원
+- `extensions/handoff-review-ui.ts`: [pi-ask-user](https://github.com/edlsh/pi-ask-user/tree/v0.17.2)의 가용 너비에 따른 목록/상세 화면 전환 패턴 사용. 너비 108 이상에서는 왼쪽은 맥락 선택, 오른쪽은 현재 항목의 의미·검증 상태·연결 WHY를 **간결히** 표시. `E`에서 관련 정확한 인용/Entry ID를 열고, `PgUp/PgDn`은 상세 스크롤. 작은 화면에서는 기존 단일 열. 오버레이 내부 높이 상한을 25줄에서 사용 가능한 터미널 크기에 맞도록 조정
+- `extensions/handoff-received-ui.ts`: Main의 보류·충돌 항목은 Work 제목 목록보다 **비교 실패/충돌 사유, Work 주장, 현재 Main의 인용 기록, 미해결 질문**을 먼저 보여줌. Main 대화 출처를 정책 승인이라고 추론하지 않음
+- `extensions/context-receive.ts`: `buildSessionProjection()`에서 비교가 인용한 정확한 Main Entry만 표시하고 읽기 전용 비교 중 상태 위젯을 표시. Pi 모델 컨텍스트에 자동 삽입하지 않음
+- 회귀 테스트: `test/handoff-zoom.test.ts`, `test/context-review-ui.test.ts`, `test/handoff-received-ui.test.ts`의 수명·선택·확대·Main 충돌 표시 사례
+
+**결정 및 한계:** 새 UX는 대화 창을 계속 노출하지 않으며 전체 Tab 공간 확보는 명시적 `Alt+Z`로 시도합니다. **Ghostty의 현재 확대 여부를 공개 API로 확인할 수 없어 진입 즉시 자동 토글은 안전하지 않습니다.** 이미 Split이 확대된 상태라면 Alt+Z를 누르지 않아야 합니다. 사용자가 검토 중 Ghostty에서 수동으로 확대 상태를 바꾸면 자동 복원이 정확하다고 보장할 수 없습니다. AppleScript가 사용할 수 없는 Linux/권한 제한 환경에서 Pi의 검토 자체는 계속 동작합니다.
+
+**완료 여부:** Draft 코드 및 단위 테스트 코드 추가. 최신 `npm run check` 실행·Ghostty 1.3.1/macOS Split zoom·장문 화면/IME/키 바인딩 검증은 미확인. 기존 후보 추출 정확도와 오래된 작업 인용 문제는 이번 UI 개선의 범위를 벗어납니다.
