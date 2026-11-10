@@ -184,10 +184,11 @@ export async function openWorkContextReview(
   catch {ctx.ui.notify('현재 프로젝트의 Main 목록을 확인할 수 없습니다.','warning');return;}
   const recipients=sessions.filter(item=>item.role==='main'&&item.id!==source.sessionId);
   const preferred=findParentMainSessionId(sessions,source.sessionId);
-  const matching=recipientQuery?.trim()?
+  const search=recipientQuery?.trim().toLocaleLowerCase();
+  const matching=search?
     recipients.filter(item=>
-      item.id.toLocaleLowerCase().includes(recipientQuery.trim().toLocaleLowerCase()) ||
-      item.name.toLocaleLowerCase().includes(recipientQuery.trim().toLocaleLowerCase()))
+      item.id.toLocaleLowerCase().includes(search) ||
+      item.name.toLocaleLowerCase().includes(search))
     :recipients;
   let target=targetMainSessionId?
     recipients.find(item=>item.id===targetMainSessionId):
