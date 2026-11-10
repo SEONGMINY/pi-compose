@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { analyzePending, calibration, finishTask, listTasks, parseQuantiles, pendingRootCauseReviews, startTask } from './core.mjs';
 import { listReviews, reviewPending } from './review.mjs';
 import { recordExternalUsage, listExternalUsage } from './usage.mjs';
+import { executeImprovement, improvementImpact, listAttempts } from './improve.mjs';
 
 const usage = `Usage:
   node maintenance/cli.mjs start --title TEXT --kind CATEGORY --time P30,P50,P80 --tokens P30,P50,P80 [--session FILE ...] [--environment NAME] [--data-dir DIR]
@@ -15,6 +16,8 @@ const usage = `Usage:
   node maintenance/cli.mjs analyze [--data-dir DIR]
   node maintenance/cli.mjs review [--dry-run] [--max-batches N] [--data-dir DIR]
   node maintenance/cli.mjs improvements [--data-dir DIR]
+  node maintenance/cli.mjs improve --id REVIEW_UUID --policy FILE [--dry-run] [--data-dir DIR]
+  node maintenance/cli.mjs impact [--data-dir DIR]
   node maintenance/cli.mjs list [--data-dir DIR]
 
 Data defaults to .maintenance/ in the current directory. All session paths must be
@@ -31,7 +34,7 @@ function parse(args) {
     if (!item.startsWith('--')) throw new Error(`Unexpected argument ${item}`);
     const name = item.slice(2);
     if (name === 'dry-run') { opts[name] = true; continue; }
-    if (!['title','kind','time','tokens','session','data-dir','id','state','assumptions','max-batches','environment','provider','run-id','total-tokens','provenance','reference'].includes(name)) throw new Error(`Unknown option ${item}`);
+    if (!['title','kind','time','tokens','session','data-dir','id','state','assumptions','max-batches','environment','provider','run-id','total-tokens','provenance','reference','policy'].includes(name)) throw new Error(`Unknown option ${item}`);
     const value = flags[++i];
     if (!value || value.startsWith('--')) throw new Error(`Missing value for ${item}`);
     if (name === 'session') opts.session.push(value);
@@ -111,6 +114,14 @@ async function main(argv) {
     console.log(JSON.stringify({ candidates, unapproved: candidates.length,
       note:'Proposal queue only; no code edits or Main integration are authorized by these suggestions.' }, null, 2));
     return;
+  }
+  if (action === 'improve') {
+    if (!opts.id || !opts.policy) throw new Error('improve requires --id and --policy');
+    console.log(JSON.stringify(await executeImprovement({repo:process.cwd(),dir,reviewId:opts.id,
+      policyFile:opts.policy,dryRun:opts['dry-run']}),null,2)); return;
+  }
+  if (action === 'impact') {
+    console.log(JSON.stringify({attempts:await listAttempts(dir),impact:await improvementImpact(dir)},null,2));return;
   }
   if (action === 'list') {
     const tasks = await listTasks(dir);

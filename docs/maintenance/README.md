@@ -178,3 +178,58 @@ being used as an authorization gate for automatic Main integration.
 This slice implements **recording and decision assessment**, not native ChatGPT
 usage API access, calibrated forecasts, safe autonomous patching, or automatic
 Main integration. PR stays Draft; no Docker runtime is required or introduced.
+
+
+## Fourth slice: Docker-free autonomous maintenance proposal (Draft)
+
+This is **not** the product Agent harness. It executes only within the
+pi-compose source repository and does **not** run when a user invokes `pic`.
+
+The code-change runner uses a temporary **Git Worktree**, not Docker, and calls
+Pi twice using ephemeral read-only processes: a JSON edit *proposal* and an
+independent diff review. Only the runner writes allowlisted existing files.
+The runner launches fixed local check commands **without a shell**:
+
+- `maintenance`: Node built-in test runner over `test/maintenance*.test.mjs`
+- `project`: the existing `npm run check`
+
+On-disk policy, not a model-authored prompt, controls exact paths, mode and
+checks. Create `.maintenance/automation-policy.json` manually in your trusted
+main checkout (this directory is ignored by Git):
+
+```json
+{
+  "schemaVersion": 1,
+  "mode": "draft",
+  "allowedPaths": ["src/example.ts"],
+  "checks": ["project"],
+  "allowAutoMain": false
+}
+```
+
+`mode:"draft"` only produces a verified detached commit and a local attempt
+receipt. After checking the policy, choose `mode:"local-main"` and
+`allowAutoMain:true` to permit **local** `main` fast-forward after all checks
+pass. `origin/main` is **never pushed**, and merges/force pushes are not used.
+The runner refuses a dirty Main, a moved Main branch, stale cited source, edits
+outside the exact path allowlist, or independent-verifier concerns.
+
+```bash
+node maintenance/cli.mjs improve --id REVIEW_UUID \
+  --policy .maintenance/automation-policy.json --dry-run
+node maintenance/cli.mjs improve --id REVIEW_UUID \
+  --policy .maintenance/automation-policy.json
+node maintenance/cli.mjs impact
+```
+
+The ROI study in `impact` is **directional only**, separated by task type and
+execution environment. Neither before/after median nor a model estimate is a
+causal proof or a measured net saving. Worktree isolation protects Git files,
+**not the host OS**: trusted project tests still execute on the developer's
+machine. A disposable dedicated developer machine is an option but not a
+required Docker/container dependency.
+
+Important limitations: live Pi model and actual macOS integration are not yet
+verified; local Node test mocks demonstrate the Git and gate sequence. This
+feature will be merged only after broader project verification. It does not
+self-modify maintenance safety modules or edit product policy documents.
