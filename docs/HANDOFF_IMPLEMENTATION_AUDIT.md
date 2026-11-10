@@ -146,3 +146,30 @@
 **안전 검증 필요:** 새로운 모델 비교가 최신 Main의 금지 조건을 빠짐없이 찾아낸다는 보장은 없습니다. 오래된 Fork WHY, Compaction/ContextEdit, 오프라인 수신, 별도 Branch 재진입, 인터컴 중복 알림 및 강제 종료 이후 receipt 복구는 실제 Pi/ Ghostty 통합과 원본 실험으로 검증해야 합니다. `npm run check`와 실제 macOS E2E를 이번 코드의 통과로 기재하지 않습니다.
 
 **현재 한계:** 공유 후보·근거 수와 보관용 `finalMessage`의 상한은 여전히 v1 데이터 계약을 따릅니다. 단일 Brief 화면으로 가독성을 개선했으나 **대규모 작업의 중요한 정보가 추출 단계에서 누락되지 않음을 입증한 것은 아닙니다**. 추출 범위와 상위 주제 묶음/드릴다운을 별도 품질 실험으로 검증한 뒤 데이터 계층을 확장해야 합니다.
+
+## Reference-first Handoff UI 적용 (2026-11-11, Draft)
+
+**UI 조사 선행 근거 (정확한 버전·코드)**
+- [pi-ask-user v0.17.2](https://github.com/edlsh/pi-ask-user/tree/v0.17.2):
+  - `index.ts`의 `AskComponent`, `MultiSelectList`, `WrappedSingleSelectList`, `buildCustomUIOptions`: 선택, 검색, 접힌 컨텍스트, 높이 제한, 중앙 오버레이(92%, minWidth 40, maxHeight 85%, margin 1), Alt+O 숨김/복귀
+  - 해당 컴포넌트는 `ask_user`의 내부 구현이며 다른 확장을 위한 공개 UI 호출 API가 아닙니다. 모델에게 `ask_user`를 호출시키면 불필요한 추가 모델 턴이 생깁니다
+- [pi-intercom v0.18.1](https://github.com/nicobailon/pi-intercom/tree/v0.18.1):
+  - `ui/inline-message.ts`: 발신자 표시, 접힌 미리보기와 Ctrl+O 확장; 화면의 본문이 실제 전달문과 같아야 함
+  - `ui/session-list.ts`, `ui/handover-picker.ts`, `index.ts`: 간결한 항목 목록, 88열 오버레이, 발신 전 검토
+- [Pi v1.4.0 Extension UI API](https://github.com/earendil-works/pi/blob/v1.4.0/packages/coding-agent/src/core/extensions/types.ts): `ctx.ui.custom`의 `overlay`, `overlayOptions`, `onHandle`, `onTerminalInput` 공개 API 확인. 공개 TUI 포커스 조회 함수는 없음
+
+**코드 반영 (UI 범위만)**
+- `extensions/handoff-review-ui.ts`: ask-user의 상호작용 관례 사용. 제한 높이 목록, 방향키·Space, 선택 항목 검색, Ctrl+E 근거 접기/펼치기, E 원문, N 의견, Enter 정확한 Main 본문 확인, Alt+O 오버레이 숨김·복귀, Esc 복귀·취소
+- `extensions/handoff-received-ui.ts`: intercom 수신 메시지 관례. 발신자·간결한 요약, Ctrl+O 본문 펼치기, Tab 근거·실제 반영문, 88열 오버레이. 정상 전송 시 Main 두 번째 승인 없음
+- `extensions/context-review.ts`, `extensions/context-receive.ts`: 기존에 확정된 데이터 계약 및 실제 발신·수신 처리와 새 화면 연결
+- `test/context-review-ui.test.ts`, `test/handoff-received-ui.test.ts`: 키 입력, 검색, 접기·펼치기, 원문, 취소, 리스너 정리, 오버레이 숨김·복귀 회귀 테스트 코드
+
+**그대로 사용한 것과 차이가 있는 부분**
+- ask-user가 단독으로 제공하는 검색 가능 단일 선택 및 다중 선택 상호작용을 결합했습니다. 해당 조합은 외부에서 호출 가능한 공개 ask-user 컴포넌트가 아닙니다
+- Main의 예외 상세는 Pi 커스텀 오버레이로 열며, intercom의 대화 내 인라인 메시지 표시를 그대로 끼워 넣는 것은 아닙니다. 내용은 보류 상태에서 Main 모델 컨텍스트 외부에 유지됩니다
+- 후보 추출, 출처·WHY, 해시, 중복·충돌 비교, Main 자동 참고 보고/정책 비승인 계약은 이번 UI 변경 범위에 포함하지 않았습니다
+
+**검증 경계**
+- 최신 `npm run check`, macOS/Ghostty의 IME·화면 크기 변경·단축키 충돌·오버레이 표시 검증은 미확인
+- pi-ask-user 문서에는 터미널 인라인 이미지 위에 오버레이를 제대로 합성하지 못하는 Pi-TUI 한계가 있습니다. 이미지가 겹치는 상황에서는 인라인 폴백 검토 필요
+- 이전 작업 파일이 잘못 섞여 나오는 정보 품질 문제는 별도로 추적할 기존 이슈이며 UI 레퍼런스 적용만으로 해결된 것은 아닙니다
