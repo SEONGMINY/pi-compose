@@ -203,7 +203,7 @@ export async function showContextReview(
       const keys=compact
         ? '↑↓ 이동 · Space 선택 · Enter 확인 · E 근거 · Esc 취소'
         : '↑↓ 후보 이동 · Space 선택 · E/Tab 근거 · PgUp/PgDn 스크롤 · N 의견 · Enter 미리보기 · Esc 취소';
-      return keys+(recoveredInput?' · 입력 포커스 복구됨':'');
+      return keys+(recoveredInput?' · 키보드 입력 연결됨':'');
     }
     const component = {
       render(width: number){
@@ -274,20 +274,20 @@ export async function showContextReview(
       invalidate(){/* Rebuild Text from current selection at render time. */},
       dispose(){ removeRecoveryListener(); }
     };
-    // A regular Pi custom dialog normally owns keyboard focus. If another
-    // extension steals it, or the terminal focus drifts, recover ONLY known
-    // review keys while this dialog is mounted. No text, key payload, or
-    // arbitrary command is recorded. Dispose releases the listener.
+    // Pi's public TUI API has no read-focus method. The terminal listener
+    // runs before native focused-component delivery: consume each recognized
+    // review shortcut exactly once while the modal is mounted. This also
+    // works if another component owns keyboard focus. Other keys pass through.
+    // The listener is removed as soon as the review closes.
     const reviewKeys = [
       'escape','up','down','space','tab','pageUp','pageDown','e','n','enter',
     ] as const;
     const removeRecoveryListener = ctx.ui.onTerminalInput((key)=>{
-      if(isKeyRelease(key)||isKeyRepeat(key) ||
-        tui.getFocusedComponent()===component ||
-        !reviewKeys.some(name=>matchesKey(key,name)))return undefined;
-      recoveredInput=true;
-      feedback='키보드 포커스를 복구해 입력을 처리했습니다.';
-      component.handleInput(key);
+      if(!reviewKeys.some(name=>matchesKey(key,name)))return undefined;
+      if(!isKeyRelease(key)&&!isKeyRepeat(key)){
+        recoveredInput=true;
+        component.handleInput(key);
+      }
       return {consume:true};
     });
     return component;
