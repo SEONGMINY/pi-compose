@@ -49,6 +49,15 @@ test('old tmux/workmux slash commands are not available from the new Core', asyn
   await command('launch old-tool', result.ctx);
   await command('resume', result.ctx);
   assert.equal(result.notifications.length, 2);
-  assert.ok(result.notifications.every(message => message.includes('Usage: /compose')));
+  assert.ok(result.notifications.every(message => message.startsWith('사용법:')));
+  assert.ok(result.notifications.every(message =>
+    message.includes('Main에서 >w') &&
+    message.includes('Work에서 <') &&
+    message.includes('Main에서 <')
+  ));
   assert.ok(result.notifications.every(message => !message.includes('tmux target')));
+  assert.ok(result.notifications.every(message =>
+    !message.includes('/compose launch') &&
+    !message.includes('/compose resume')
+  ));
 });
