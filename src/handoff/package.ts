@@ -14,6 +14,7 @@ const evidenceSchema = z.object({
 const claimSchema = z.object({
   candidateId: z.string().min(1),
   title: z.string().min(1).max(120),
+  summary: z.string().min(1).max(700),
   statement: z.string().min(1).max(1200),
   kind: z.enum(['work-reported', 'historical-user-instruction', 'proposal', 'decision-needed']),
   verification: z.enum(['reported-only', 'source-supported', 'execution-evidenced', 'unknown']),
@@ -117,7 +118,7 @@ export function validateHandoffPackage(value: unknown): HandoffPackage {
   const evById = new Map(data.evidence.map(e => [e.id, e]));
   if (evById.size !== data.evidence.length ||
       data.evidence.some(e => e.sessionId !== data.source.workSessionId || !safeText(e.quote)) ||
-      data.claims.some(v => !safeText(v.title) || !safeText(v.statement) ||
+      data.claims.some(v => !safeText(v.title) || !safeText(v.summary) || !safeText(v.statement) ||
         v.evidenceIds.some(id => !evById.has(id)) ||
         !v.evidenceIds.some(id => evById.get(id)?.quote === v.statement)) ||
       data.context.some(v => !safeText(v.quote) || !safeText(v.whyNeeded) ||
@@ -127,7 +128,8 @@ export function validateHandoffPackage(value: unknown): HandoffPackage {
   if (data.evidence.some(e => !data.claims.some(c => c.evidenceIds.includes(e.id)) &&
         !data.context.some(c => c.evidenceId === e.id))) throw Error('handoff-unreferenced-evidence');
   // The message is *generated*, not just a model-authored paraphrase.
-  if (data.claims.some(v => !data.finalMessage.includes(v.statement)) ||
+  if (data.claims.some(v => !data.finalMessage.includes(v.statement) ||
+       !data.finalMessage.includes(v.summary)) ||
       data.context.some(v => !data.finalMessage.includes(v.quote)) ||
       !safeText(data.finalMessage)) throw Error('handoff-message-evidence-mismatch');
   return data;
@@ -162,6 +164,7 @@ function renderPackage(pkg: Pick<HandoffPackage, 'claims' | 'context' | 'evidenc
     '',
     ...pkg.claims.flatMap((claim, i) => [
       (i + 1) + '. ' + claim.title + ' [' + claim.kind + ' · ' + claim.verification + ']',
+      'Candidate summary (AI-suggested; not independently verified): ' + claim.summary,
       'Original quote: ' + claim.statement,
       'Evidence: ' + claim.evidenceIds.map(id => {
         const e = evidence.get(id)!;
@@ -218,7 +221,8 @@ export async function createSelectedHandoffPackage(
     const evidenceId = 'E-' + id;
     evidence.push({id:evidenceId, sessionId:draft.sessionId,
       entryId:candidate.sourceEntryId, role:source.message.role, quote:candidate.quote});
-    claims.push({candidateId:id, title:candidate.title, statement:candidate.quote,
+    claims.push({candidateId:id, title:candidate.title, summary:candidate.description,
+      statement:candidate.quote,
       kind:source.message.role === 'user' ? 'historical-user-instruction'
         : candidate.kind === 'decision-needed' ? 'decision-needed'
         : candidate.kind === 'next-step' ? 'proposal' : 'work-reported',
