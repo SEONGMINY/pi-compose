@@ -1,6 +1,7 @@
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { z } from 'zod';
 import { type HandoffPackage, validateHandoffPackage } from './package.ts';
+import { selectForkHistory } from './retrieve.ts';
 
 const issueSchema=z.object({
   kind:z.enum([
@@ -39,13 +40,14 @@ export async function assessHandoffQuality(
   // Read only the active Work/Fork branch. Historical user instructions are
   // evidence of past intent, not current Main authority. Keep bounded excerpts
   // so omitted WHY/negations can be detected independently of context selection.
-  const historical=ctx.sessionManager.getBranch().flatMap(entry=>{
+  const historical=selectForkHistory(ctx.sessionManager.getBranch().flatMap(entry=>{
     if(entry.type!=='message'||
        (entry.message.role!=='user'&&entry.message.role!=='assistant')||
        entry.id===pkg.source.workReportEntryId)return [];
-    const text=textOf(entry.message.content).slice(0,1800);
-    return text?[{entryId:entry.id,role:entry.message.role,text}]:[];
-  }).slice(-18);
+    const text=textOf(entry.message.content);
+    return text?[{id:entry.id,role:entry.message.role,text}]:[];
+  }),pkg.claims.map(c=>c.title+' '+c.summary+' '+c.statement).join('\n'),
+  28,1800).map(({id,role,text})=>({entryId:id,role,text}));
   const response=await ctx.modelRegistry.streamSimple(ctx.model,{
     systemPrompt:[
       'Audit a Work-to-Main Handoff. Return only JSON with verdict and issues.',
