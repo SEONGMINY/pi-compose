@@ -206,13 +206,19 @@ export function registerAutomaticMainAdoption(pi:ExtensionAPI):{
   onAvailable:(ctx:ExtensionContext)=>void;
 }{
   const processing=new Set<string>();
+  const retryAfterCurrent=new Set<string>();
   async function check(ctx:ExtensionContext):Promise<void>{
     if(!ctx.isIdle()||!ctx.model)return;
     const owner=readAgentRelationship(
       ctx.sessionManager.getSessionId(),ctx.sessionManager.getEntries());
     if(owner?.role!=='main')return;
     const mainId=owner.sessionId;
-    if(processing.has(mainId))return;
+    if(processing.has(mainId)){
+      // A new Work Handoff can arrive while an earlier one is comparing.
+      // Do not lose the notification just because the first scan is active.
+      retryAfterCurrent.add(mainId);
+      return;
+    }
     processing.add(mainId);
     const statusKey='pi-compose/auto-adopt';
     try{
@@ -310,6 +316,8 @@ export function registerAutomaticMainAdoption(pi:ExtensionAPI):{
         }catch{/* The durable store remains authoritative, even if UI refresh fails. */}
       }
       processing.delete(mainId);
+      if(retryAfterCurrent.delete(mainId)&&ctx.isIdle()&&
+         ctx.sessionManager.getSessionId()===mainId)void check(ctx);
     }
   }
   const onAvailable=(ctx:ExtensionContext)=>{void check(ctx);};
