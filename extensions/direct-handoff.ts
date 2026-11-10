@@ -93,12 +93,15 @@ function registerHandoffAutocomplete(
           items: candidates.slice(0, 20).map(candidate => ({
             value: candidate.id,
             label: candidate.name + ' [' + candidate.id.slice(0, 12) + ']' +
-              (bare && !connected?.has(candidate.id) ? ' · unavailable' : ''),
+              (bare && candidate.role !== 'main' && !connected?.has(candidate.id)
+                ? ' · unavailable' : ''),
             description: (candidate.id === parent ? '상위 Main 추천 · ' : candidate.role + ' · ') +
-              (bare
-                ? connected?.has(candidate.id) ? 'intercom connected'
-                  : connectionProblem ? 'intercom unavailable' : 'no exact intercom ID match (offline or custom ID)'
-                : 'connection checked before sending') +
+              (candidate.role === 'main'
+                ? 'Main 로컬 보관함 · 현재 연결 없어도 안전하게 전달 가능'
+                : bare
+                  ? connected?.has(candidate.id) ? 'intercom connected'
+                    : connectionProblem ? 'intercom unavailable' : 'no exact intercom ID match (offline or custom ID)'
+                  : 'connection checked before sending') +
               ' · ' + candidate.recentTask.slice(0, 70) + ' · ' + candidate.cwd,
           })),
         };
