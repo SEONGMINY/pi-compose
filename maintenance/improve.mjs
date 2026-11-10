@@ -224,6 +224,10 @@ export async function executeImprovement({repo,dir,reviewId,policyFile,dryRun=fa
     await git(worktree,'-c','user.name=Pi Compose Maintenance','-c','user.email=maintenance@users.noreply.github.com',
       'commit','-m',`maintenance: ${review.candidate.title.slice(0,60)}`);
     receipt.commit=await git(worktree,'rev-parse','HEAD');
+    // Keep every verified commit reachable even after the temporary worktree is removed.
+    // An audit receipt containing a SHA alone does not protect it from Git GC.
+    receipt.branch=`maintenance/attempt-${receipt.id}`;
+    await git(root,'branch',receipt.branch,receipt.commit);
     receipt.state='verified-draft';
     await persist(dir,receipt); // durable verified receipt BEFORE any automatic Main update
     if(policy.mode==='local-main') {

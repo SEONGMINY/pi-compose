@@ -207,8 +207,8 @@ main checkout (this directory is ignored by Git):
 }
 ```
 
-`mode:"draft"` only produces a verified detached commit and a local attempt
-receipt. After checking the policy, choose `mode:"local-main"` and
+`mode:"draft"` only produces a verified commit on a persistent `maintenance/attempt-UUID`
+branch and a local attempt receipt. After checking the policy, choose `mode:"local-main"` and
 `allowAutoMain:true` to permit **local** `main` fast-forward after all checks
 pass. `origin/main` is **never pushed**, and merges/force pushes are not used.
 The runner refuses a dirty Main, a moved Main branch, stale cited source, edits

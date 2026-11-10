@@ -64,6 +64,16 @@ test('approved improvement fast-forwards LOCAL main after verified checks',async
   assert.equal(r.mode,'local-main');
 });
 
+
+test('draft mode preserves a reachable branch without modifying main',async t=>{
+  const f=await fixture(t,'draft');
+  const r=await executeImprovement({repo:f.root,dir:f.dir,policyFile:f.policyFile,reviewId:f.id,propose,verify,checks});
+  assert.equal(r.state,'verified-draft',r.error);
+  assert.equal(git(f.root,'rev-parse','HEAD'),f.base);
+  assert.equal(git(f.root,'rev-parse',r.branch),r.commit);
+  assert.match(await readFile(join(f.root,'src/a.js'),'utf8'),/false/);
+});
+
 test('independent review failure leaves main unchanged',async t=>{
   const f=await fixture(t,'local-main');
   const r=await executeImprovement({repo:f.root,dir:f.dir,policyFile:f.policyFile,reviewId:f.id,
