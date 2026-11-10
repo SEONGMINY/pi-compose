@@ -39,14 +39,13 @@ export async function assessHandoffQuality(
   // Read only the active Work/Fork branch. Historical user instructions are
   // evidence of past intent, not current Main authority. Keep bounded excerpts
   // so omitted WHY/negations can be detected independently of context selection.
-  const historical=ctx.sessionManager.getBranch().filter(entry=>
-    entry.type==='message' &&
-    (entry.message.role==='user'||entry.message.role==='assistant') &&
-    entry.id!==pkg.source.workReportEntryId)
-    .slice(-18).map(entry=>entry.type==='message'?
-      {entryId:entry.id,role:entry.message.role,text:textOf(entry.message.content).slice(0,1800)}
-      :undefined).filter((entry):entry is {entryId:string;role:'user'|'assistant';text:string}=>
-      Boolean(entry?.text));
+  const historical=ctx.sessionManager.getBranch().flatMap(entry=>{
+    if(entry.type!=='message'||
+       (entry.message.role!=='user'&&entry.message.role!=='assistant')||
+       entry.id===pkg.source.workReportEntryId)return [];
+    const text=textOf(entry.message.content).slice(0,1800);
+    return text?[{entryId:entry.id,role:entry.message.role,text}]:[];
+  }).slice(-18);
   const response=await ctx.modelRegistry.streamSimple(ctx.model,{
     systemPrompt:[
       'Audit a Work-to-Main Handoff. Return only JSON with verdict and issues.',
