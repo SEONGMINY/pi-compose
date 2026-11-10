@@ -23,6 +23,16 @@ export function registerSelectedHandoffSend(
     if(!prepared||!reviewed||!reviewed.selectedCandidateIds?.length) {
       ctx.ui.notify('선택된 후보 기록을 찾을 수 없습니다. /compose review로 다시 선택하세요.','warning');return;
     }
+    // A later Work conversation may change implementation or requirements after
+    // the user's last review. Never silently ship an old reviewed snapshot.
+    const activeBranch=ctx.sessionManager.getBranch();
+    const reviewPosition=activeBranch.findIndex(entry=>entry.id===reviewed.reviewEntryId);
+    if(reviewPosition<0 || activeBranch.slice(reviewPosition+1).some(entry=>
+      entry.type==='message' &&
+      (entry.message.role==='user'||entry.message.role==='assistant'||entry.message.role==='toolResult'))) {
+      ctx.ui.notify('후보 검토 이후 Work 대화가 변경됐습니다. 새로운 작업 결과를 기준으로 다시 검토해야 합니다.','warning');
+      return;
+    }
     const prior=ctx.sessionManager.getBranch().some(entry=>
       entry.type==='custom'&&entry.customType==='compose_handoff_package_accepted'&&
       entry.data && typeof entry.data==='object'&&!Array.isArray(entry.data)&&
