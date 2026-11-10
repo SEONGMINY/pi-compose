@@ -194,7 +194,7 @@ export async function showContextReview(
           theme.fg('dim',footer()),
         ];
       },
-      handleInput(key){
+      handleInput(key: string){
         // Kitty sends press/repeat/release separately. Prevent repeated toggles.
         if(isKeyRelease(key)||isKeyRepeat(key))return;
         if(matchesKey(key,'escape')){
