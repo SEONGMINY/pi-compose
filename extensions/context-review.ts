@@ -108,7 +108,7 @@ export async function showContextReview(
         '',
         ...units.flatMap((unit,i)=>[
           (focus===i?'› ':'  ')+(selected.has(unit.id)?'[x] ':'[ ] ')+unit.title,
-          '    '+unit.summary,
+          '    요약: '+(unit.summary.length>112?unit.summary.slice(0,109)+'…':unit.summary),
         ]),
         '',
         '━━━━ 현재 항목이 전달하는 의미 ━━━━',
@@ -129,7 +129,7 @@ export async function showContextReview(
       ];
     }
     function footer():string {
-      if(page==='preview')return 'Tab 전체 전송 원문   ↑↓ 스크롤   Enter 승인·전송   Esc 돌아가기';
+      if(page==='preview')return 'Tab 상세 근거   ↑↓ 스크롤   Enter 승인·전송   Esc 돌아가기';
       if(page==='raw')return 'Tab Brief로 돌아가기   ↑↓ 스크롤   Enter 승인·전송   Esc 돌아가기';
       if(page==='sources')return 'Esc 선택으로 돌아가기   ↑↓ 스크롤';
       const compact=tui.terminal.columns<95;
