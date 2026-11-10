@@ -3,6 +3,7 @@ import type { ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { z } from 'zod';
 import type { PreparedHandoff } from '../../extensions/handoff-candidates.ts';
 import type { AgentRelationship } from '../agent-relationships.ts';
+import { selectForkHistory } from './retrieve.ts';
 
 const evidenceSchema = z.object({
   id: z.string().min(1),
@@ -231,15 +232,15 @@ export async function createSelectedHandoffPackage(
   }
 
   // Search Work/Fork ancestry for *necessary* context, not an unbounded summary.
-  const refs = branch.flatMap(entry => {
-    if (entry.type!=='message' ||
-        (entry.message.role!=='user' && entry.message.role!=='assistant' &&
-         entry.message.role!=='toolResult') ||
-        entry.id===draft.reportEntryId ||
-        selected.some(c=>c.candidate.sourceEntryId===entry.id))return [];
-    const text=textOf(entry.message.content).slice(0,1600);
+  const refs=selectForkHistory(branch.flatMap(entry=>{
+    if(entry.type!=='message'||
+       (entry.message.role!=='user'&&entry.message.role!=='assistant'&&
+        entry.message.role!=='toolResult')||
+       entry.id===draft.reportEntryId||
+       selected.some(c=>c.candidate.sourceEntryId===entry.id))return [];
+    const text=textOf(entry.message.content);
     return text && safeText(text)?[{id:entry.id,role:entry.message.role,text}]:[];
-  }).slice(-36);
+  }),claims.map(c=>c.title+' '+c.summary+' '+c.statement).join('\n'),36,1600);
   const context: HandoffContext[] = [];
   let contextAssessment: HandoffPackage['contextAssessment'] = 'unavailable';
   if (refs.length && ctx.model) {
