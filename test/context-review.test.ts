@@ -208,3 +208,11 @@ test('Main receives the exact Work-approved Brief, not a separately rewritten se
     /handoff-approved-brief-mismatch/);
 });
 
+
+test('one shared WHY quote is included only once in the approved Main Brief',()=>{
+  const all=selectContextPackage(twoUnits(),['HC1','HC2'],'shared-context');
+  const quote='Keep the role permission rule unchanged.';
+  assert.equal(all.approvedMainBrief!.split(quote).length-1,1);
+  assert.ok(all.approvedMainBrief!.includes('needed for HC1, HC2'));
+});
+
