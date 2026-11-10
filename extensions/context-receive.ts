@@ -96,7 +96,14 @@ export async function openMainContextReceive(
         const content=e.sourceEntry.type==='custom_message'
           ?e.sourceEntry.content
           :e.messages.filter(m=>m.role==='user'||m.role==='assistant')
-            .flatMap(m=>m.content).filter(part=>part.type==='text').map(part=>part.text).join('\n');
+            .map(m=>{
+              const value=m.content;
+              if(typeof value==='string')return value;
+              if(!Array.isArray(value))return '';
+              return value.filter(v=>v&&typeof v==='object'&&
+                v.type==='text'&&typeof v.text==='string')
+                .map(v=>v.text).join('\n');
+            }).join('\n');
         const text=typeof content==='string'?content:
           Array.isArray(content)?content.filter(v=>v&&typeof v==='object'&&
             v.type==='text'&&typeof v.text==='string').map(v=>v.text).join('\n'):'';
