@@ -55,11 +55,11 @@ function reviewHarness(focusOnDialog:boolean, columns=110) {
     },
     custom:(factory:(
       tui:TUI,
-      theme:{fg:(color:string,text:string)=>string},
+      theme:{fg:(color:string,text:string)=>string;bold:(text:string)=>string},
       keys:unknown,done:(result:unknown)=>void
     )=>typeof component)=>{
       const answer=new Promise<unknown>(resolve=>{resolveAction=resolve});
-      component=factory(tui as unknown as TUI,{fg:(_color,text)=>text},null,(action)=>{
+      component=factory(tui as unknown as TUI,{fg:(_color,text)=>text,bold:(text)=>text},null,(action)=>{
         component?.dispose?.();
         resolveAction(action);
       });
