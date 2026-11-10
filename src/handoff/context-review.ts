@@ -64,8 +64,12 @@ export function selectContextPackage(
   const {qualityReview: _discardedReview, ...base} = pkg;
   const draft = {
     ...base,
+    // Scope the replay identifier to the exact selected context. A user-driven
+    // evidence refinement may change WHY without changing candidate IDs; that
+    // must not silently reuse an older, different stored body.
     id: stablePackageId(pkg.source.workSessionId,pkg.source.workReportEntryId,
-      reviewId,pkg.targetMainSessionId,selectedCandidateIds,reviewerNote),
+      reviewId+':'+hashMessage(JSON.stringify({claims,context,evidence})).slice(0,20),
+      pkg.targetMainSessionId,selectedCandidateIds,reviewerNote),
     selectedCandidateIds, claims, context, evidence,
     contextAssessment:pkg.contextAssessment==='unavailable'?'unavailable'
       :context.length?'selected':'none-needed',
