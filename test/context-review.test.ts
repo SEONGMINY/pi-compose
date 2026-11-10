@@ -4,6 +4,7 @@ import type { ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { hashMessage, renderPackage, validateHandoffPackage, type HandoffPackage } from '../src/handoff/package.ts';
 import { contextReviewUnits, selectContextPackage } from '../src/handoff/context-review.ts';
 import { prepareManualHandoffCandidates } from '../extensions/handoff-candidates.ts';
+import { findVerificationReportQuote } from '../src/handoff/report-verification.ts';
 
 function twoUnits():HandoffPackage {
   const body={
@@ -118,4 +119,12 @@ test('manual < falls back to a grounded quote after invalid classifier output',a
     assert.equal(result.draft.candidates[0]?.sourceEntryId,'report');
     assert.equal(result.draft.candidates[0]?.title,'Work 보고 원문 · 검토 필요');
   }
+});
+
+test('explicit test non-execution survives as an exact report quote',()=>{
+  const text='Implemented token refresh.\\nTests were not run.\\nAn optional caching idea.';
+  assert.equal(findVerificationReportQuote(text),'Tests were not run.');
+  assert.equal(findVerificationReportQuote('No relevant execution statement here.'),undefined);
+  assert.equal(findVerificationReportQuote('테스트를 실행하지 않았습니다.'),'테스트를 실행하지 않았습니다.');
+  assert.equal(findVerificationReportQuote('test: API_KEY=secret'),undefined);
 });
