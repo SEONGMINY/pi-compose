@@ -52,26 +52,41 @@ export function registerSelectedHandoffSend(
        ctx.sessionManager.getSessionId()!==owner.sessionId)return;
 
     const packageStartLeaf=ctx.sessionManager.getLeafId();
-    ctx.ui.notify('선택된 후보의 필수 맥락과 근거를 준비합니다. Main 대화는 조회하지 않습니다.','info');
-    let pkg:HandoffPackage;
-    try {
-      pkg=await createSelectedHandoffPackage(ctx,owner,prepared,{
-        ids:reviewed.selectedCandidateIds,note:reviewed.reviewerNote,
-      },destination.id);
-      verifyWorkSource(ctx,pkg);
-    } catch(error){
-      ctx.ui.notify('Handoff 구성/근거 검증 실패: '+String(error)+'. Main으로 전달하지 않았습니다.','warning');
-      return;
+    let reviewNote=reviewed.reviewerNote ?? '';
+    let pkg:HandoffPackage|undefined;
+    let approved=false;
+    // The reviewer may request source-backed refinements without accepting
+    // freeform model rewrites or letting the model send anything.
+    for(let attempt=0;attempt<4;attempt++){
+      if(ctx.sessionManager.getLeafId()!==packageStartLeaf ||
+         ctx.sessionManager.getSessionId()!==owner.sessionId||!ctx.isIdle())return;
+      ctx.ui.notify('선택된 후보의 필수 맥락과 근거를 준비합니다. Main 대화는 조회하지 않습니다.','info');
+      try {
+        pkg=await createSelectedHandoffPackage(ctx,owner,prepared,{
+          ids:reviewed.selectedCandidateIds,note:reviewNote,
+        },destination.id);
+        verifyWorkSource(ctx,pkg);
+      } catch(error){
+        ctx.ui.notify('Handoff 구성/근거 검증 실패: '+String(error)+'. Main으로 전달하지 않았습니다.','warning');
+        return;
+      }
+      if(ctx.sessionManager.getLeafId()!==packageStartLeaf)return;
+      if(pkg.contextAssessment==='unavailable')
+        ctx.ui.notify('필수 맥락 검색이 실패했습니다. 추가된 맥락 없이 원문 확인된 후보만 표시합니다.','warning');
+      const action=await previewHandoff(ctx,pkg,'outgoing');
+      if(action==='send'){approved=true;break;}
+      if(action==='later')return;
+      if(action==='revise'){
+        if(attempt===3){
+          ctx.ui.notify('보완 재시도 횟수를 초과했습니다. 변경된 본문은 발송되지 않습니다.','warning');return;
+        }
+        const note=await ctx.ui.input('Work Agent에게 보완 요청 (근거 없는 사실 추가 금지)','예: 기존 제약의 WHY와 테스트 미확인 상태를 분명히 해주세요');
+        if(!note?.trim())return;
+        reviewNote=(reviewNote+'\n'+note.trim()).trim().slice(0,1200);
+        continue;
+      }
     }
-    if(ctx.sessionManager.getLeafId()!==packageStartLeaf)return;
-    if(pkg.contextAssessment==='unavailable'){
-      ctx.ui.notify('필수 맥락 검색이 실패했습니다. 원문이 확인된 후보만 포함했습니다. 전송 전 검토하세요.','warning');
-    }
-    const action=await previewHandoff(ctx,pkg,'outgoing');
-    if(action!=='send') {
-      ctx.ui.notify('Handoff 전송을 보류했습니다. Main에는 아무것도 추가되지 않았습니다.','info');
-      return;
-    }
+    if(!pkg||!approved)return;
     if(ctx.sessionManager.getLeafId()!==packageStartLeaf ||
        ctx.sessionManager.getSessionId()!==owner.sessionId||
        !ctx.isIdle()){
