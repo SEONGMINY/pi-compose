@@ -37,20 +37,21 @@ bin/pic.mjs → Pi TUI Main (신규 또는 Pi 기본 Resume)
 ## 3. Work → Main 정보 흐름
 
 ```text
-Work 완료 사실/보고 + 원문 근거
+Work의 보고·원문 근거·필수 WHY
     │
-    └─ 사용자가 Work < 에서 전달 내용·대상 검토 및 승인
+    └─ Work < → Handoff Brief 선택 → 실제 Main 반영문 한 번 승인
          │
-         └─ 대상 Main의 비컨텍스트 수신 영역에 안전하게 기록
+         └─ 대상 Main 영속 보관 (모델 턴 없음)
                │
-               ├─ Main에는 도착 알림만 표시
-               └─ 사용자가 내용을 확인하고 명시적으로 반영
-                     └─ 기존 Main 최신 승인 결정과의 충돌 검토
+               └─ Main 활성 Fork 계보·최신 결정·중복 검사 (읽기 전용)
+                     ├─ 안전: 승인한 동일 Brief를 Work 참고 보고로 추가
+                     ├─ 중복: Main에 추가하지 않음
+                     └─ 충돌/불확실/오프라인: 보류·재시도 또는 < 예외 검토
 ```
 
-**확정 경계:** Work는 원본 Fork 시점 맥락과 자신의 Pi 분기만 읽습니다. Fork 이후 Main의 현재 정책을 몰래 조회하지 않습니다. 수신 Main에 메시지를 자동 주입하거나 모델 실행·정책 변경을 자동 승인하지 않습니다.
+**확정 경계:** Work는 원본 Fork 시점 맥락과 자신의 Pi 분기만 읽습니다. Fork 이후 Main의 현재 정책을 몰래 조회하지 않습니다. 수신 Main은 **사용자가 Work에서 승인한 Work 참고 보고**만 활성 분기/최신 결정 검증 후 추가할 수 있습니다. 이때 Main 모델 턴·정책 승인·파일 변경은 자동으로 시작하지 않습니다. 충돌·불확실성은 Main 컨텍스트 밖에 보류합니다.
 
-**PR #25 통합 중:** `extensions/context-review.ts`와 `src/handoff/context-review.ts`가 Work `<`의 후보·필수 맥락 검토를 담당합니다. `extensions/context-receive.ts`는 Main `<` 수신 확인·선택 반영을 담당합니다. 과거 자동 후보·`ask_user`·`/compose inbox` 경로는 파일로 남아 있지만 `extensions/compose.ts`의 기본 실행 경로에서 제외했습니다. 실제 통합 검증은 아직 완료되지 않았습니다. `src/handoff/store.ts`의 로컬 영속 보관과 `src/handoff/compare.ts`의 활성 분기 비교는 재사용 가능성 검토 대상입니다.
+**PR #25 통합 중:** `extensions/context-review.ts`와 `src/handoff/context-review.ts`가 Work `<`의 후보·필수 맥락 검토를 담당합니다. `extensions/context-receive.ts`는 안전한 자동 참고 보고와 Main `<` 예외 검토를 담당합니다. `src/handoff/brief.ts`는 사용자가 승인하고 Main에 실제 추가되는 동일 본문을 구성합니다. 과거 자동 후보·`ask_user`·`/compose inbox` 경로는 파일로 남아 있지만 `extensions/compose.ts`의 기본 실행 경로에서 제외했습니다. 실제 통합 검증은 아직 완료되지 않았습니다. `src/handoff/store.ts`의 로컬 영속 보관과 `src/handoff/compare.ts`의 활성 분기 비교는 재사용 가능성 검토 대상입니다.
 
 ## 4. 원문 근거와 승인 경계
 
