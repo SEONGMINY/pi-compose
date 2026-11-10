@@ -36,6 +36,7 @@ export async function previewHandoff(
       '',
     ]),
   ].join('\n') : '';
+  const importBody = comparison ? renderMainImport(pkg,comparison) : undefined;
   const summary = [
     'Recipient: '+pkg.targetMainSessionId,
     'Work session: '+pkg.source.workSessionId,
@@ -52,7 +53,6 @@ export async function previewHandoff(
       'EXACT MAIN IMPORT IF YOU PRESS I (new Work reports only)',
       importBody] : []),
   ].join('\n');
-  const importBody = comparison ? renderMainImport(pkg,comparison) : undefined;
   const evidence = pkg.evidence.map(e=>
     '['+e.id+'] '+e.role+' · '+e.sessionId+':'+e.entryId+'\n'+e.quote).join('\n\n');
   return ctx.ui.custom<Action>((tui,theme,_keys,done)=>{
