@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hashMessage, parseCandidateChoice, validateHandoffPackage, type HandoffPackage } from '../src/handoff/package.ts';
+import { hashMessage, parseCandidateChoice, stablePackageId, validateHandoffPackage, type HandoffPackage } from '../src/handoff/package.ts';
 import type { PreparedHandoff } from '../extensions/handoff-candidates.ts';
 
 export function samplePackage(): HandoffPackage {
@@ -68,4 +68,13 @@ test('context quote must match its own evidence, not only another source',()=>{
   pkg.finalMessage+=' Tests passed';
   pkg.finalMessageHash=hashMessage(pkg.finalMessage);
   assert.throws(()=>validateHandoffPackage(pkg),/handoff-evidence-or-context-invalid/);
+});
+
+test('package ID is replay-stable for one approved review, changes when selected scope changes',()=>{
+  const first=stablePackageId('work','report','review','main',['HC2','HC1'],'Add WHY');
+  const same=stablePackageId('work','report','review','main',['HC1','HC2'],'Add WHY');
+  const changed=stablePackageId('work','report','review','main',['HC1'],'Add WHY');
+  assert.equal(first,same);
+  assert.notEqual(first,changed);
+  assert.match(first,/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-8[0-9a-f]{3}-[0-9a-f]{12}$/);
 });
