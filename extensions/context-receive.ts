@@ -108,7 +108,7 @@ export async function openMainContextReceive(
     // be able to choose the context again rather than lose it permanently.
     items=(await listInbox(main.sessionId)).filter(item=>
       item.pkg.product===main.product&&
-      (item.status.status==='pending' ||
+      (item.status.status==='pending'||item.status.status==='requires-review' ||
         ((item.status.status==='imported'||item.status.status==='import-requested') &&
           !hasImportReceipt(ctx,item.pkg.id))));
   }catch(error){
@@ -135,11 +135,14 @@ export async function openMainContextReceive(
   catch(e){error=e instanceof Error?e.message:'대조를 완료하지 못했습니다';}
   if(ctx.sessionManager.getSessionId()!==main.sessionId||
      ctx.sessionManager.getLeafId()!==comparedLeafId||!ctx.isIdle())return;
-  const importText=comparison?renderMainImport(item.pkg,comparison):undefined;
+  // A new Brief is reviewed by the sender and imported verbatim; older stored
+  // packages retain their legacy partial-import presentation.
+  const importText=item.pkg.approvedMainBrief ??
+    (comparison?renderMainImport(item.pkg,comparison):undefined);
   const open=await viewReceived(ctx,item.pkg,comparison,error,importText);
   if(!open)return;
   const actions=importText && !error
-    ? ['Main에 신규 Work 보고 반영 (모델 실행 없음)','나중에 확인','무시']
+    ? ['확인한 Brief를 Work 보고로 그대로 반영 (정책 승인 아님)','나중에 확인','무시']
     : ['나중에 확인','무시'];
   const choice=await ctx.ui.select('이 결과를 어떻게 처리할까요?',actions);
   if(!choice||choice==='나중에 확인')return;
@@ -163,7 +166,7 @@ export async function openMainContextReceive(
       details:{packageId:item.pkg.id,mainSessionId:main.sessionId,
         comparedLeafId,sourceWorkSessionId:item.pkg.source.workSessionId},
     },{triggerTurn:false});
-    ctx.ui.notify('선택한 신규 Work 보고를 Main 대화에 추가하도록 요청했습니다. 모델은 실행하지 않습니다.','info');
+    ctx.ui.notify('선택한 Work 보고를 Main 대화에 반영하도록 요청했습니다. 내용은 재작성하지 않고, 정책 승인은 아닙니다.','info');
   }catch(error){
     ctx.ui.notify('Main 반영 요청 실패: '+String(error)+'. 실제 반영 여부를 확인해주세요.','error');
   }
