@@ -3,7 +3,7 @@ import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-a
 import { Text, matchesKey } from '@earendil-works/pi-tui';
 import { readAgentRelationship } from '../src/agent-relationships.ts';
 import { type HandoffPackage } from '../src/handoff/package.ts';
-import { listInbox, readHandoff, setInboxStatus } from '../src/handoff/store.ts';
+import { getInboxStatus, listInbox, readHandoff, setInboxStatus } from '../src/handoff/store.ts';
 import { compareHandoffWithMain, type MainComparison } from '../src/handoff/compare.ts';
 import { renderMainImport } from '../src/handoff/import.ts';
 
@@ -204,7 +204,7 @@ export function registerHandoffInbox(pi:ExtensionAPI) {
     if(!ctx.isIdle()) {ctx.ui.notify('Main 응답이 끝나면 검토할 수 있습니다.','warning');return;}
     let items;
     try {items=(await listInbox(owner.sessionId)).filter(v=>v.pkg.product===owner.product &&
-      v.status.status!=='archived' && v.status.status!=='duplicate');}
+      v.status.status==='pending');}
     catch(error){ctx.ui.notify('Handoff 보관함 확인 실패: '+String(error),'error');return;}
     if(!items.length){ctx.ui.notify('검토할 Handoff가 없습니다.','info');return;}
     const labels=items.map((item,i)=>
@@ -224,6 +224,10 @@ export function registerHandoffInbox(pi:ExtensionAPI) {
     if(ctx.sessionManager.getLeafId()!==leaf)return;
     const action=await previewHandoff(ctx,item.pkg,'incoming',comparison);
     if(action==='later')return;
+    const currentStatus=await getInboxStatus(owner.sessionId,item.pkg.id);
+    if(currentStatus.status!=='pending') {
+      ctx.ui.notify('다른 검토에서 이미 처리된 Handoff입니다. 목록을 다시 열어주세요.','warning');return;
+    }
     if(ctx.sessionManager.getLeafId()!==leaf||
        ctx.sessionManager.getSessionId()!==owner.sessionId||!ctx.isIdle()){
       ctx.ui.notify('Main 분기가 변경되었습니다. 검토를 다시 열어주세요.','warning');return;
