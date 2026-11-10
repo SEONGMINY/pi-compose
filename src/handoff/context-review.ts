@@ -61,6 +61,9 @@ export function selectContextPackage(
   ]);
   const evidence = pkg.evidence.filter(item => requiredEvidence.has(item.id));
   const reviewerNote = note.trim().slice(0,1200);
+  const contextAssessment: HandoffPackage['contextAssessment'] =
+    pkg.contextAssessment==='unavailable'?'unavailable'
+      :context.length?'selected':'none-needed';
   const {qualityReview: _discardedReview, ...base} = pkg;
   const draft = {
     ...base,
@@ -71,8 +74,7 @@ export function selectContextPackage(
       reviewId+':'+hashMessage(JSON.stringify({claims,context,evidence})).slice(0,20),
       pkg.targetMainSessionId,selectedCandidateIds,reviewerNote),
     selectedCandidateIds, claims, context, evidence,
-    contextAssessment:pkg.contextAssessment==='unavailable'?'unavailable'
-      :context.length?'selected':'none-needed',
+    contextAssessment,
     ...(reviewerNote ? {reviewerNote} : {reviewerNote:undefined}),
   };
   const finalMessage = renderPackage(draft);
