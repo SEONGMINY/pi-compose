@@ -1,6 +1,6 @@
 # Architecture — Pi Compose
 
-- 정책 원본: [PRD](PRD.md) (최신 합의 2026-11-09)
+- 정책 원본: [PRD](PRD.md) (Handoff 최신 합의 2026-11-10)
 - 실제 사용: [Usage](USAGE.md)
 - 상태: **직접 실행과 요청 대기 구현 코드 작성, macOS 실사용 검증 전**
 
