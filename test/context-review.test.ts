@@ -122,7 +122,7 @@ test('manual < falls back to a grounded quote after invalid classifier output',a
 });
 
 test('explicit test non-execution survives as an exact report quote',()=>{
-  const text='Implemented token refresh.\\nTests were not run.\\nAn optional caching idea.';
+  const text='Implemented token refresh.\nTests were not run.\nAn optional caching idea.';
   assert.equal(findVerificationReportQuote(text),'Tests were not run.');
   assert.equal(findVerificationReportQuote('No relevant execution statement here.'),undefined);
   assert.equal(findVerificationReportQuote('테스트를 실행하지 않았습니다.'),'테스트를 실행하지 않았습니다.');
