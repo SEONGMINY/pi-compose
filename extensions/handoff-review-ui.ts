@@ -40,6 +40,7 @@ export function showReferenceContextReview(
     let error='';
     let note=initial.note;
     let preview:HandoffPackage|undefined;
+    let inputConnected=false;
     const filtered=()=>query?fuzzyFilter(units,query,u=>u.title+' '+u.summary):units;
     const current=()=>filtered()[index];
     const selected=()=>units.filter(u=>chosen.has(u.id)).map(u=>u.id);
@@ -64,11 +65,11 @@ export function showReferenceContextReview(
     }
     function previewLines():string[]{
       if(mode==='archive')return [
-        '감사용 근거 (Main 전송문이 아님)','',
+        '감사용 원문 기록 (Main 전송문이 아님)','',
         preview?.finalMessage??'',
       ];
       return [
-        'Work → Main · 전송 전 확인',
+        'Work → Main · 전송 전 최종 확인',
         '아래 본문이 Main에 그대로 전달됩니다.',
         '',
         preview?.approvedMainBrief??'Brief를 준비하지 못했습니다.',
@@ -103,7 +104,7 @@ export function showReferenceContextReview(
         'Work → Main · Handoff Brief',
         '전달할 맥락을 선택하세요. 출처·WHY는 연결된 채 보존됩니다.',
         '',
-        '선택 '+chosen.size+'/'+units.length+
+        '선택 '+chosen.size+' / '+units.length+' · 현재 후보 '+(index+1)+' / '+filtered().length+
           (search?'  검색: '+(query||'입력 중…'):'  / 검색'),
         '',
         ...options.flatMap((u,j)=>[
@@ -127,7 +128,8 @@ export function showReferenceContextReview(
       if(mode==='evidence')return 'PgUp/PgDn 스크롤 · Esc 돌아가기';
       return search
         ?'입력하여 검색 · ↑↓ 이동 · Space 선택 · Esc 검색 해제'
-        :'↑↓ 이동 · Space 선택 · / 검색 · Ctrl+E 맥락 · E 근거 · N 의견 · Enter 검토 · Esc 취소';
+        :'↑↓ 이동 · Space 선택 · / 검색 · Ctrl+E 맥락 · E 근거 · N 의견 · Enter 검토 · Esc 취소' +
+         (inputConnected?' · 키보드 입력 연결됨':'');
     }
     function body():string[]{
       if(mode==='choose')return choiceLines();
@@ -135,21 +137,20 @@ export function showReferenceContextReview(
       return previewLines();
     }
     function print(width:number):string[]{
-      const full=new Text(body().join('\n'),1,0).render(Math.max(18,width));
+      const full=new Text(body().join('\n'),1,0).render(Math.max(18,width-2));
       const maxRows=Math.max(4,Math.min(25,tui.terminal.rows-7));
       maxScroll=Math.max(0,full.length-maxRows);
       scroll=Math.max(0,Math.min(scroll,maxScroll));
       const part=full.slice(scroll,scroll+maxRows);
       const inner=Math.max(4,width-2);
       const title=mode==='choose'?'Handoff 선택':mode==='evidence'?'근거 확인':'전송 전 확인';
-      const border=theme.fg('accent','─'.repeat(Math.max(0,inner)));
       const wrap=(line:string)=> {
         const trimmed=truncateToWidth(line,inner,'');
         return theme.fg('accent','│')+trimmed+
           ' '.repeat(Math.max(0,inner-visibleWidth(trimmed)))+theme.fg('accent','│');
       };
       return [
-        theme.fg('accent','╭'+border.slice(0,Math.max(0,inner))+'╮'),
+        theme.fg('accent','╭'+'─'.repeat(inner)+'╮'),
         wrap(theme.bold(title)),
         ...part.map(wrap),
         ...(scroll>0||scroll<maxScroll?[wrap('↕ '+(scroll+1)+'–'+Math.min(full.length,scroll+maxRows)+' / '+full.length)]:[]),
@@ -162,8 +163,8 @@ export function showReferenceContextReview(
       handleInput(key:string){
         if(isKeyRepeat(key)||isKeyRelease(key))return;
         if(matchesKey(key,'escape')){
-          if(search&&query){query='';index=0;scroll=0;}
-          else if(search){search=false;}
+          if(mode==='choose'&&search&&query){query='';index=0;scroll=0;}
+          else if(mode==='choose'&&search){search=false;}
           else if(mode==='choose')return done({type:'cancel'});
           else {mode='choose';scroll=0;preview=undefined;}
           tui.requestRender();return;
@@ -212,7 +213,8 @@ export function showReferenceContextReview(
             scroll=Math.max(0,scroll-4);
           else if(matchesKey(key,'pageDown')||matchesKey(key,'down'))
             scroll=Math.min(maxScroll,scroll+4);
-          else if(mode==='preview'&&(matchesKey(key,'return')||matchesKey(key,'enter'))&&preview)
+          else if((mode==='preview'||mode==='archive')&&
+            (matchesKey(key,'return')||matchesKey(key,'enter'))&&preview)
             return done({type:'send',selected:selected(),note});
         }
         tui.requestRender();
@@ -229,7 +231,10 @@ export function showReferenceContextReview(
         (mode==='choose'&&(!search&&key==='/'||search&&
           (decodeKittyPrintable(key)!==undefined||key.length===1)));
       if(!recognized)return undefined;
-      if(!isKeyRelease(key)&&!isKeyRepeat(key))component.handleInput(key);
+      if(!isKeyRelease(key)&&!isKeyRepeat(key)){
+        inputConnected=true;
+        component.handleInput(key);
+      }
       return {consume:true};
     });
     return component;
