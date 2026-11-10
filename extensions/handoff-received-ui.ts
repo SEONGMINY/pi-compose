@@ -17,12 +17,15 @@ export function showReferenceReceived(
   comparison:MainComparison|undefined,
   error:string|undefined,
   importText:string|undefined,
+  controls?:{onToggleZoom?:()=>Promise<string>},
 ):Promise<boolean>{
   return ctx.ui.custom<boolean>((tui,theme,_keys,done)=>{
     let expanded=false;
     let tab:'message'|'sources'|'import'='message';
     let scroll=0;
     let maxScroll=0;
+    let disposed=false;
+    let zoomNotice='';
     const warnings=[
       ...(error?['현재 Main과 비교할 수 없습니다: '+error]:[]),
       ...(!comparison?['자동 확인을 완료하지 못했습니다.']:[]),
@@ -56,6 +59,7 @@ export function showReferenceReceived(
         '',
         ...warnings,
         ...(warnings.length?['']:[]),
+        ...(zoomNotice?['Ghostty: '+zoomNotice,'']:[]),
         '요약: '+preview,
         ...pkg.claims.slice(0,expanded?pkg.claims.length:2)
           .map(c=>'• '+c.summary),
@@ -71,11 +75,11 @@ export function showReferenceReceived(
       ];
     };
     const foot=():string=>tab==='message'
-      ?'Ctrl+O 펼치기/접기 · Tab 근거/본문 · Enter 처리 선택 · Esc 나중에'
-      :'Tab 다음 보기 · PgUp/PgDn 스크롤 · Enter 처리 선택 · Esc 돌아가기';
+      ?'Ctrl+O 펼치기/접기 · Tab 근거/본문 · Alt+Z 확대 · Enter 처리 선택 · Esc 나중에'
+      :'Tab 다음 보기 · PgUp/PgDn 스크롤 · Alt+Z 확대 · Enter 처리 선택 · Esc 돌아가기';
     const render=(width:number)=>{
       const full=new Text(lines().join('\n'),1,0).render(Math.max(20,width-2));
-      const visible=Math.max(3,Math.min(24,tui.terminal.rows-7));
+      const visible=Math.max(3,Math.min(48,tui.terminal.rows-7));
       maxScroll=Math.max(0,full.length-visible);
       scroll=Math.min(scroll,maxScroll);
       const inner=Math.max(5,width-2);
@@ -113,13 +117,25 @@ export function showReferenceReceived(
         tui.requestRender();
       },
       invalidate(){},
-      dispose(){removeListener();},
+      dispose(){disposed=true;removeListener();},
     };
     // Pi receives terminal keys before focused-component delivery. Scope the
     // same guarded listener to this modal, so a stale external focus does not
     // make the received Work report impossible to dismiss.
     const modalKeys=['escape','ctrl+o','tab','up','down','pageUp','pageDown','enter'];
     const removeListener=ctx.ui.onTerminalInput(key=>{
+      if(matchesKey(key,'alt+z')&&controls?.onToggleZoom){
+        if(!isKeyRelease(key)&&!isKeyRepeat(key)){
+          zoomNotice='Split 화면 전환 중…';
+          tui.requestRender();
+          void controls.onToggleZoom().then(message=>{
+            if(!disposed){zoomNotice=message;tui.requestRender();}
+          }).catch(error=>{
+            if(!disposed){zoomNotice='화면 전환 실패: '+String(error);tui.requestRender();}
+          });
+        }
+        return {consume:true};
+      }
       if(!modalKeys.some(k=>matchesKey(key,k)))return undefined;
       if(!isKeyRelease(key)&&!isKeyRepeat(key))component.handleInput(key);
       return {consume:true};
