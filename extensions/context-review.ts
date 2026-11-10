@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { Text, matchesKey, visibleWidth } from '@earendil-works/pi-tui';
+import { Text, matchesKey, isKeyRelease, isKeyRepeat, visibleWidth } from '@earendil-works/pi-tui';
 import { readAgentRelationship } from '../src/agent-relationships.ts';
 import { listProductHandoffSessions, findParentMainSessionId } from '../src/product-sessions.ts';
 import { prepareManualHandoffCandidates } from './handoff-candidates.ts';
@@ -178,10 +178,11 @@ export async function showContextReview(
       if(page==='preview')return 'Tab 전체 전송 원문   ↑↓ 스크롤   Enter 승인·전송   Esc 돌아가기';
       if(page==='raw')return 'Tab 요약으로 돌아가기   ↑↓ 스크롤   Enter 승인·전송   Esc 돌아가기';
       if(page==='sources')return 'Esc 선택으로 돌아가기   ↑↓ 스크롤';
-      return '↑↓ 후보 이동   Space 선택   E/Tab 근거   PgUp/PgDn 스크롤   N 의견   Enter 미리보기   Esc 취소';
+      return '↑↓ 후보 이동   Space 선택   E/Tab 근거   PgUp/PgDn 스크롤   N 의견   Enter 미리보기   Esc 취소'
+        +(recoveredInput?' · 입력 포커스 복구됨':'');
     }
-    return {
-      render(width){
+    const component = {
+      render(width: number){
         if(page==='review'&&width>=104)return wideReview(width);
         const text=new Text(lines().join('\n'),1,0);
         const body=text.render(Math.max(20,width));
@@ -194,6 +195,8 @@ export async function showContextReview(
         ];
       },
       handleInput(key){
+        // Kitty sends press/repeat/release separately. Prevent repeated toggles.
+        if(isKeyRelease(key)||isKeyRepeat(key))return;
         if(matchesKey(key,'escape')){
           if(page==='review')return done({type:'cancel'});
           page='review';scroll=0;preview=undefined;feedback='';tui.requestRender();return;
@@ -244,8 +247,26 @@ export async function showContextReview(
         }
         tui.requestRender();
       },
-      invalidate(){/* Rebuild Text from current selection at render time. */}
+      invalidate(){/* Rebuild Text from current selection at render time. */},
+      dispose(){ removeRecoveryListener(); }
     };
+    // A regular Pi custom dialog normally owns keyboard focus. If another
+    // extension steals it, or the terminal focus drifts, recover ONLY known
+    // review keys while this dialog is mounted. No text, key payload, or
+    // arbitrary command is recorded. Dispose releases the listener.
+    const reviewKeys = [
+      'escape','up','down','space','tab','pageUp','pageDown','e','n','enter',
+    ] as const;
+    const removeRecoveryListener = ctx.ui.onTerminalInput((key)=>{
+      if(isKeyRelease(key)||isKeyRepeat(key) ||
+        tui.getFocusedComponent()===component ||
+        !reviewKeys.some(name=>matchesKey(key,name)))return undefined;
+      recoveredInput=true;
+      feedback='키보드 포커스를 복구해 입력을 처리했습니다.';
+      component.handleInput(key);
+      return {consume:true};
+    });
+    return component;
   });
 }
 
