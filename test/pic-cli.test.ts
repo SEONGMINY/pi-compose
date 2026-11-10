@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -54,7 +54,7 @@ fs.writeFileSync(process.env.PI_CAPTURE_FILE, JSON.stringify({
 
   const a = invoke([]);
   const b = invoke([]);
-  assert.equal(a.cwd, project);
+  assert.equal(a.cwd, realpathSync(project));
   assert.equal(a.overview, null);
   assert.ok(a.bootstrap);
   assert.ok(b.bootstrap);
