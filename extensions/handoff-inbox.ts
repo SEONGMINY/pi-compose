@@ -6,6 +6,7 @@ import { type HandoffPackage } from '../src/handoff/package.ts';
 import { getInboxStatus, listInbox, readHandoff, setInboxStatus } from '../src/handoff/store.ts';
 import { compareHandoffWithMain, type MainComparison } from '../src/handoff/compare.ts';
 import { renderMainImport } from '../src/handoff/import.ts';
+import { hasImportReceipt } from './context-receive.ts';
 
 const REGISTER = 'intercom:extension-register';
 const channelNamespace = (product:string) =>
@@ -143,7 +144,10 @@ export function registerHandoffInbox(pi:ExtensionAPI) {
     if(owner?.role!=='main')return;
     try {
       const items=(await listInbox(owner.sessionId)).filter(item=>
-        item.pkg.product===owner.product && item.status.status==='pending');
+        item.pkg.product===owner.product &&
+        (item.status.status==='pending' ||
+          ((item.status.status==='imported'||item.status.status==='import-requested') &&
+            !hasImportReceipt(ctx,item.pkg.id))));
       if(current?.sessionManager.getSessionId()!==owner.sessionId)return;
       ctx.ui.setWidget('pi-compose/main-inbox',items.length?
         ['Main · Work 결과 '+items.length+'건 도착 · < 로 확인']:undefined);
