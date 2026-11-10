@@ -11,7 +11,7 @@ type Channel = {
   publish(data:unknown,options?:{audience?:'capable'|'owner'}):void;
   snapshot():{connected:boolean;supported:boolean};
 };
-type Action = 'send'|'discuss'|'archive'|'later';
+type Action = 'send'|'revise'|'discuss'|'duplicate'|'archive'|'later';
 const text = (value:string) => value.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g,'');
 
 /** A non-editing preview: the text the user sees is the exact body persisted. */
@@ -56,8 +56,8 @@ export async function previewHandoff(
       render(width){
         const top=title.render(width);
         const foot=new Text(direction==='outgoing'
-          ? 'S · 표시된 본문 그대로 저장·전송   O · 근거 전환   Esc · 보류   ↑↓ · 스크롤'
-          : 'D · Main에서 논의(모델 시작)   A · 보관   O · 근거 전환   Esc · 나중에   ↑↓',1,0).render(width);
+          ? 'S · 본문 승인·저장   R · Agent에게 보완 요청   O · 근거   Esc · 보류'
+          : 'D · Main 논의   C · 중복 처리   A · 보관   O · 근거   Esc · 나중에',1,0).render(width);
         const content=(showEvidence?sources:message).render(width);
         const height=Math.max(1,tui.terminal.rows-top.length-foot.length-6);
         maxScroll=Math.max(0,content.length-height);
@@ -68,7 +68,9 @@ export async function previewHandoff(
         if(matchesKey(key,'escape')) return done('later');
         if(matchesKey(key,'o')) {showEvidence=!showEvidence;scroll=0;}
         if(direction==='outgoing'&&matchesKey(key,'s')&&!showEvidence) return done('send');
+        if(direction==='outgoing'&&matchesKey(key,'r')&&!showEvidence) return done('revise');
         if(direction==='incoming'&&matchesKey(key,'d')&&!showEvidence) return done('discuss');
+        if(direction==='incoming'&&matchesKey(key,'c')&&!showEvidence) return done('duplicate');
         if(direction==='incoming'&&matchesKey(key,'a')&&!showEvidence) return done('archive');
         if(matchesKey(key,'up')) scroll=Math.max(0,scroll-1);
         if(matchesKey(key,'down')) scroll=Math.min(maxScroll,scroll+1);
@@ -88,6 +90,15 @@ export function registerHandoffInbox(pi:ExtensionAPI) {
   let channel:Channel|undefined;
   let registered=false;
   let current:ExtensionContext|undefined;
+  let discussionTools: {sessionId:string;before:string[]}|undefined;
+  pi.on('agent_settled',()=>{
+    const state=discussionTools;
+    if(!state)return;
+    discussionTools=undefined;
+    // Only restore a tool set if this extension still owns the empty setting.
+    if(current?.sessionManager.getSessionId()===state.sessionId &&
+        pi.getActiveTools().length===0)pi.setActiveTools(state.before);
+  });
   async function refreshInboxWidget(ctx:ExtensionContext):Promise<void> {
     if(!ctx.hasUI||ctx.mode!=='tui')return;
     const owner=readAgentRelationship(ctx.sessionManager.getSessionId(),ctx.sessionManager.getEntries());
@@ -175,16 +186,25 @@ export function registerHandoffInbox(pi:ExtensionAPI) {
        ctx.sessionManager.getSessionId()!==owner.sessionId){
       ctx.ui.notify('Main 분기가 변경되었습니다. 검토를 다시 열어주세요.','warning');return;
     }
-    if(action==='archive'){
-      await setInboxStatus(owner.sessionId,item.pkg.id,'archived',leaf);
-      ctx.ui.notify('Handoff를 보관했습니다. Main 대화는 변경되지 않았습니다.','info');
+    if(action==='archive'||action==='duplicate'){
+      await setInboxStatus(owner.sessionId,item.pkg.id,action==='duplicate'?'duplicate':'archived',leaf);
+      ctx.ui.notify(action==='duplicate'
+        ? '중복된 Handoff로 정리했습니다. Main 대화는 변경되지 않았습니다.'
+        : 'Handoff를 보관했습니다. Main 대화는 변경되지 않았습니다.','info');
       void refreshInboxWidget(ctx);
       return;
     }
     if(action==='discuss'){
       // Explicit user action. Unlike receiving a package, this begins a Pi turn.
-      await setInboxStatus(owner.sessionId,item.pkg.id,'discussed',leaf);
-      pi.sendMessage({
+      // Disable Main's file/shell/agent tools for this discussion-only turn.
+      if(discussionTools) {
+        ctx.ui.notify('Main Handoff 논의가 이미 진행 중입니다.','warning');return;
+      }
+      const before=pi.getActiveTools();
+      discussionTools={sessionId:owner.sessionId,before};
+      pi.setActiveTools([]);
+      try {
+        pi.sendMessage({
         customType:'compose_main_handoff_discussion',
         display:true,
         content:[
@@ -198,8 +218,14 @@ export function registerHandoffInbox(pi:ExtensionAPI) {
         ].join('\n\n'),
         details:{packageId:item.pkg.id,comparedLeafId:leaf},
       },{triggerTurn:true});
-      ctx.ui.notify('사용자 요청으로 Main 논의를 시작했습니다. Handoff 수신 자체는 모델을 실행하지 않았습니다.','info');
-      void refreshInboxWidget(ctx);
+        await setInboxStatus(owner.sessionId,item.pkg.id,'discussed',leaf);
+        ctx.ui.notify('사용자 요청으로 Main 논의를 시작했습니다. Handoff 수신 자체는 모델을 실행하지 않았습니다.','info');
+        void refreshInboxWidget(ctx);
+      } catch(error) {
+        discussionTools=undefined;
+        if(pi.getActiveTools().length===0)pi.setActiveTools(before);
+        ctx.ui.notify('Main 논의를 시작할 수 없습니다: '+String(error),'error');
+      }
     }
   }
   return {showInbox,announce};
