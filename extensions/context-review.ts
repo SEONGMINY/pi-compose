@@ -104,7 +104,7 @@ export async function showContextReview(
       return [
         'WORK → MAIN · Handoff Brief',
         '다음 판단에 필요한 정보만 고르세요. 필요한 WHY·제약은 함께 전송됩니다.',
-        '선택 '+selected.size+' / '+units.length+' · 현재 '+(focus+1)+' / '+units.length,
+        '선택 '+selected.size+' / '+units.length+' · 현재 후보 '+(focus+1)+' / '+units.length,
         '',
         ...units.flatMap((unit,i)=>[
           (focus===i?'› ':'  ')+(selected.has(unit.id)?'[x] ':'[ ] ')+unit.title,
