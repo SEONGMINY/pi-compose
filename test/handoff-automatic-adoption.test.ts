@@ -54,3 +54,10 @@ test('Main switch away from the exact Fork branch prevents implicit adoption',()
   assert.deepEqual(decideAutomaticAdoption(payload(),comparison('new'),'main-1',new Set(['other-leaf'])),
     {action:'hold',reason:'source-branch-not-active'});
 });
+
+test('apparently new claim with unresolved Main questions stays outside model context',()=>{
+  const uncertain=comparison('new');
+  uncertain.items[0]!.unresolvedQuestions=['Could supersede a later approved policy'];
+  assert.deepEqual(decideAutomaticAdoption(payload(),uncertain,'main-1',active),
+    {action:'hold',reason:'conflict-or-uncertainty'});
+});
