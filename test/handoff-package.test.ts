@@ -9,7 +9,7 @@ export function samplePackage(): HandoffPackage {
   return {
     version:1,id:'00000000-0000-4000-8000-000000000001',
     createdAt:'2026-11-10T00:00:00.000Z',product:'project-test',
-    source:{workSessionId:'work-test',forkMainSessionId:'main-test',
+    source:{workSessionId:'work-test',forkSourceSessionId:'main-test',
       forkLeafId:'main-leaf',workReportEntryId:'report-1'},
     targetMainSessionId:'main-test',selectedCandidateIds:['HC1'],
     claims:[{candidateId:'HC1',title:'Preserve label',
