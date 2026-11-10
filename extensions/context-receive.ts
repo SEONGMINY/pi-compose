@@ -292,7 +292,23 @@ export function registerAutomaticMainAdoption(pi:ExtensionAPI):{
     }catch(error){
       if(ctx.hasUI)ctx.ui.notify('Main Handoff 자동 처리 중 오류가 발생했습니다. 보관된 결과는 유지됩니다: '+String(error),'warning');
     }finally{
-      if(ctx.hasUI)ctx.ui.setStatus(statusKey,undefined);
+      if(ctx.hasUI){
+        ctx.ui.setStatus(statusKey,undefined);
+        // Refresh the passive notification after async comparisons settle.
+        // There is no Main agent turn to trigger an ordinary UI refresh.
+        try{
+          if(ctx.sessionManager.getSessionId()===mainId){
+            const current=(await listInbox(mainId)).filter(item=>item.pkg.product===owner.product);
+            const held=current.filter(item=>item.status.status==='requires-review');
+            const waiting=current.filter(item=>item.status.status==='pending');
+            ctx.ui.setWidget('pi-compose/main-inbox',held.length
+              ? ['Main · 확인이 필요한 Work 결과 '+held.length+'건 · < 로 확인']
+              :waiting.length
+                ? ['Main · Work 결과 '+waiting.length+'건 안전 검사 대기 중']
+                :undefined);
+          }
+        }catch{/* The durable store remains authoritative, even if UI refresh fails. */}
+      }
       processing.delete(mainId);
     }
   }
