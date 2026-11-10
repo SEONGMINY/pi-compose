@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { Text, matchesKey } from '@earendil-works/pi-tui';
+import { showReferenceReceived } from './handoff-received-ui.ts';
 import { readAgentRelationship } from '../src/agent-relationships.ts';
 import { type HandoffPackage } from '../src/handoff/package.ts';
 import { compareHandoffWithMain, type MainComparison } from '../src/handoff/compare.ts';
@@ -14,71 +14,6 @@ export function hasImportReceipt(ctx:ExtensionContext,id:string):boolean {
     entry.type==='custom_message'&&entry.customType===IMPORT_TYPE&&
     entry.details && typeof entry.details==='object'&&!Array.isArray(entry.details)&&
     (entry.details as Record<string,unknown>).packageId===id);
-}
-
-async function viewReceived(
-  ctx:ExtensionContext,pkg:HandoffPackage,comparison:MainComparison|undefined,
-  error:string|undefined,importText:string|undefined,
-):Promise<boolean> {
-  return ctx.ui.custom<boolean>((tui,theme,_keys,done)=>{
-    let page:'summary'|'sources'|'import'='summary';
-    let scroll=0,maxScroll=0;
-    function content():string {
-      if(page==='sources'){
-        return ['WORK 원문 · 근거',...pkg.evidence.flatMap(e=>[
-          '',e.role+' · Entry '+e.entryId,e.quote,
-        ])].join('\n');
-      }
-      if(page==='import')return [
-        'MAIN에 실제 반영될 Work 보고',
-        '',
-        importText??'반영 가능한 신규 보고가 없습니다.',
-      ].join('\n');
-      return [
-        'MAIN · 받은 Context Review',
-        '보낸 Work: '+pkg.source.workSessionId,
-        '전달된 정보: '+pkg.claims.length+'건',
-        '',
-        ...pkg.claims.flatMap(c=>{
-          const status=comparison?.items.find(item=>item.claimId===c.candidateId);
-          return [
-            '■ '+c.title,
-            '  '+c.summary,
-            '  정보 성격: '+c.kind+' · '+c.verification,
-            ...(status?['  현재 Main과 비교: '+status.status+' · '+status.explanation]:[]),
-            ...pkg.context.filter(item=>item.requiredByClaimIds.includes(c.candidateId))
-              .map(item=>'  필수 맥락 '+item.reason+': '+item.quote),
-            '',
-          ];
-        }),
-        ...(pkg.contextAssessment==='unavailable'
-          ? ['⚠ 필수 역사 맥락 일부를 확인하지 못한 제한 보고입니다.','']:[]),
-        ...(error?['⚠ 현재 Main 결정과의 비교 실패: '+error,'반영은 보류하고 원문만 확인할 수 있습니다.','']:[]),
-        '이 메시지를 받았다고 Main의 정책이 승인·변경되지는 않습니다.',
-      ].join('\n');
-    }
-    return {
-      render(width){
-        const body=new Text(content(),1,0).render(Math.max(20,width));
-        const height=Math.max(4,tui.terminal.rows-5);
-        maxScroll=Math.max(0,body.length-height);
-        scroll=Math.min(maxScroll,scroll);
-        return [...body.slice(scroll,scroll+height),
-          theme.fg('dim','Tab 요약/원문/반영문   ↑↓ 스크롤   Enter 처리 선택   Esc 나중에')];
-      },
-      handleInput(key){
-        if(matchesKey(key,'escape'))return done(false);
-        if(matchesKey(key,'tab')){
-          page=page==='summary'?'sources':page==='sources'?'import':'summary';
-          scroll=0;
-        }else if(matchesKey(key,'up'))scroll=Math.max(0,scroll-1);
-        else if(matchesKey(key,'down'))scroll=Math.min(maxScroll,scroll+1);
-        else if(matchesKey(key,'return')||matchesKey(key,'enter'))return done(true);
-        tui.requestRender();
-      },
-      invalidate(){/* Text is rebuilt from the view when necessary. */}
-    };
-  });
 }
 
 /** The Main's < opens received context in place, without an Inbox command. */
@@ -119,10 +54,16 @@ export async function openMainContextReceive(
   }
   let item=items[0];
   if(items.length>1){
-    const labels=items.map((i,index)=>
-      (index+1)+'. '+i.pkg.claims.map(c=>c.title).join(' / ').slice(0,80)+
-      ' · Work '+i.pkg.source.workSessionId.slice(0,8));
-    const selected=await ctx.ui.select('받은 Work 결과',labels);
+    // pi-intercom recipient picker pattern: compact list, origin and status
+    // visible before expanding an individual received message.
+    const labels=items.map((i,index)=>{
+      const title=i.pkg.claims.map(c=>c.title).join(' / ').slice(0,60);
+      const status=i.status.status==='requires-review'?'확인 필요'
+        :i.status.status==='pending'?'안전 검사 대기':'분기 재확인';
+      return (index+1)+'. '+title+' · '+status+
+        ' · Work '+i.pkg.source.workSessionId.slice(0,8);
+    });
+    const selected=await ctx.ui.select('Main · 확인이 필요한 Work 결과',labels);
     if(!selected)return;
     item=items[labels.indexOf(selected)];
   }
@@ -139,7 +80,7 @@ export async function openMainContextReceive(
   // packages retain their legacy partial-import presentation.
   const importText=item.pkg.approvedMainBrief ??
     (comparison?renderMainImport(item.pkg,comparison):undefined);
-  const open=await viewReceived(ctx,item.pkg,comparison,error,importText);
+  const open=await showReferenceReceived(ctx,item.pkg,comparison,error,importText);
   if(!open)return;
   const actions=importText && !error
     ? ['확인한 Brief를 Work 보고로 그대로 반영 (정책 승인 아님)','나중에 확인','무시']
