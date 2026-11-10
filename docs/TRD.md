@@ -15,9 +15,9 @@
 | Ghostty | 요청을 입력한 Pi Terminal UUID를 기준으로 Native Split. 포커스·중단·오류 상태를 추측하지 않음 |
 | Git Worktree | 명령 입력 Agent의 Git HEAD에서 새 브랜치·Worktree; 미커밋 변경 복사, Merge/삭제 없음 |
 | 근거 | 공유 항목·출처 Entry ID·조건/WHY·의미·검증 상태를 함께 유지; 단순 문자열 검사는 충분하지 않음 |
-| Handoff 발신 | Work `<`에서 대상·전달 본문과 원문 근거를 확인하고 명시적으로 전송 승인; 모델 Steering과 분리 |
-| Handoff 수신 | Main에는 비컨텍스트 알림만; 본문 확인 및 선택적 반영은 명시적 사용자 행동; 정책 변경 자동 승인 없음 |
-| Main 최신성 | 수신 내용을 사용자 검토 시점의 Pi 활성 분기에서 비교. Work가 Fork 이후 Main을 조회하지 않음 |
+| Handoff 발신 | Work `<`에서 핵심 결과·필수 WHY·출처를 선택하고 Main에 실제 추가될 Handoff Brief를 한 번 승인; 모델 Steering과 분리 |
+| Handoff 수신 | Main은 정확한 분기·Fork·승인 본문 해시·최신 정책 비교 후 충돌 없는 Work 참고 보고만 자동 기록; Main 모델 턴·정책 변경은 자동 승인하지 않음 |
+| Main 최신성 | 수신 Main의 현재 활성 분기에서 출처 계보·최신 결정 검사. Work가 Fork 이후 Main을 조회하지 않음 |
 
 ## 2. PR #25의 구현과 최신 요구사항 사이 차이
 
@@ -26,7 +26,7 @@
 | 완료 보고 후 모델이 공유 후보 준비 및 `ask_user` 질문 요청 | `extensions/compose.ts`는 자동 질문을 등록하지 않음. Work `<` 시 `prepareManualHandoffCandidates` 실행, Context Review 검토 |
 | 근거 검색·의미 검사·`O/R/S` 미리보기 | `src/handoff/context-review.ts`에서 연결 근거를 포함한 단위 구성 및 선택별 결정적 본문 재생성. 임시 Pi `ctx.ui.custom` 화면에서 Space·Tab·Enter·Esc 사용 |
 | `src/handoff/store.ts` 영속 저장 + Extension Channel 알림 | 내용의 비컨텍스트 저장은 보존 후보; Main에는 도착 알림만 |
-| `/compose inbox` → `D/I/C/A` | Main `<`로 저장된 보고 열람, 비교 후 신규 보고만 `triggerTurn:false`로 명시적 반영. 기존 Inbox 명령은 기본 경로에서 제외 |
+| `/compose inbox` → `D/I/C/A` | Work 한 번 승인 후 Main이 최신 결정·계보를 비교해 안전한 경우 동일 Brief를 `triggerTurn:false`로 기록. Main `<`는 충돌·불확실성 예외 처리. 기존 Inbox 명령은 기본 경로에서 제외 |
 | `src/handoff/compare.ts`의 Main 활성 분기 비교 | 필요 시 재사용하되 기존 승인·시간 순서를 혼동하지 않도록 검증 |
 
 기존 코드를 무조건 삭제하거나 기술 방식을 선승인하지 않습니다. PR #25에 있는 검증된 하위 기능을 재사용할 수 있는지 조사한 뒤 **최소 변경으로** 목표 UX를 구현합니다.
@@ -34,7 +34,7 @@
 ## 3. 실패 조건과 안전
 
 - 사용자의 **보낸 내용 확인/승인** 이전에 Main에 패키지를 보내지 않습니다.
-- 도착 알림은 수신 사실만 뜻합니다. Main 모델의 읽음, 수용, 실제 정책 변경을 뜻하지 않습니다.
+- 도착 알림은 수신 사실만 뜻합니다. 사용자 승인 본문이 실제 Pi 활성 분기에 기록됐다는 receipt가 있을 때만 Work 참고 보고 반영 완료입니다. 정책 승인은 별도입니다.
 - 부정문 뒤집힘, 미실행 테스트의 통과 오인, 승인 주체 바뀜, WHY 누락, Fork 이후의 상충 결정은 오류 사례로 검증합니다.
 - Pi·Ghostty·pi-intercom·pi-ask-user의 실제 이벤트/API 기능은 해당 버전의 원본 동작을 먼저 확인합니다. 없는 기능을 추측해 작성하지 않습니다.
 - 통합 검사·정적 검사·UI 실사용·의미 평가를 별개로 보고합니다.
