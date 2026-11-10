@@ -204,7 +204,7 @@ export function registerHandoffInbox(pi:ExtensionAPI) {
     if(!ctx.isIdle()) {ctx.ui.notify('Main 응답이 끝나면 검토할 수 있습니다.','warning');return;}
     let items;
     try {items=(await listInbox(owner.sessionId)).filter(v=>v.pkg.product===owner.product &&
-      v.status.status!=='archived');}
+      v.status.status!=='archived' && v.status.status!=='duplicate');}
     catch(error){ctx.ui.notify('Handoff 보관함 확인 실패: '+String(error),'error');return;}
     if(!items.length){ctx.ui.notify('검토할 Handoff가 없습니다.','info');return;}
     const labels=items.map((item,i)=>
