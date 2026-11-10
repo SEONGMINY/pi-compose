@@ -164,3 +164,31 @@ test('selected implementation report includes its original unrun-test evidence a
   const subset=selectContextPackage(pkg,['HC1'],'review');
   assert.ok(subset.finalMessage.includes('Tests were not run.'));
 });
+
+test('manual < accepts in-progress findings instead of requiring task completion',async()=>{
+  const final='Blocked on API: the provider rejected the refresh request.';
+  const ctx={
+    model:{id:'test'},
+    sessionManager:{
+      getSessionId:()=> 'work-1',getLeafId:()=> 'report',
+      getBranch:()=> [{id:'report',type:'message',message:{
+        role:'assistant',stopReason:'stop',content:[{type:'text',text:final}],
+      }}],
+    },
+    modelRegistry:{streamSimple:()=>({result:async()=>({
+      stopReason:'stop',
+      content:[{type:'text',text:JSON.stringify({
+        outcome:'blocked',candidates:[{
+          title:'API 요청 차단',description:'Work가 API 거부를 보고했습니다.',
+          kind:'constraint',sourceEntryId:'report',quote:final,
+        }],
+      })}],
+    })})},
+  } as unknown as ExtensionContext;
+  const prepared=await prepareManualHandoffCandidates(ctx);
+  assert.equal(prepared.status,'prepared');
+  if(prepared.status==='prepared'){
+    assert.equal(prepared.draft.candidates[0]?.title,'API 요청 차단');
+    assert.equal(prepared.draft.candidates[0]?.quote,final);
+  }
+});
