@@ -8,16 +8,16 @@
 
 | 영역 | 계약 · 검증 포인트 |
 | --- | --- |
-| Main 세션 | bare `pic`이 별도 관리 TUI 없이 새 Main을 실행. Pi 기본 Resume는 기존 역할을 보존 |
+| Main 세션 | Pi의 신규 세션 ID와 기존 `-r`/`-c`/`--session` 복구 ID를 혼동하지 않고 저장된 역할 메타데이터를 보존 |
 | 정확한 Fork | `SessionManager.createBranchedSession`으로 선택한 Pi 활성 완료 분기 Fork; 원본 JSONL 불변, Compaction/ContextEdit 보존 |
-| Support | 별도 Pi 세션 생성; 원본 Main 컨텍스트 자동 상속 없음 |
+| Support | 독립 Pi 세션 ID·역할 신원을 발급하고 명시적 Fork 연관 정보가 없음을 확인 |
 | 역할 신원 | Pi 세션 ID·프로젝트 식별·Agent 역할이 일치할 때만 신뢰. 이름/cwd만으로 수신자를 추정하지 않음 |
 | Ghostty | 요청을 입력한 Pi Terminal UUID를 기준으로 Native Split. 포커스·중단·오류 상태를 추측하지 않음 |
 | Git Worktree | 명령 입력 Agent의 Git HEAD에서 새 브랜치·Worktree; 미커밋 변경 복사, Merge/삭제 없음 |
 | 근거 | 공유 항목·출처 Entry ID·조건/WHY·의미·검증 상태를 함께 유지; 단순 문자열 검사는 충분하지 않음 |
-| Handoff 발신 | Work `<`에서 대상·전달 본문과 원문 근거를 확인하고 명시적으로 전송 승인; 모델 Steering과 분리 |
-| Handoff 수신 | Main에는 비컨텍스트 알림만; 본문 확인 및 선택적 반영은 명시적 사용자 행동; 정책 변경 자동 승인 없음 |
-| Main 최신성 | 수신 내용을 사용자 검토 시점의 Pi 활성 분기에서 비교. Work가 Fork 이후 Main을 조회하지 않음 |
+| Handoff 발신 | Pi `input`/`agent_settled` 경계에서 `<`를 사용자 요청으로 처리하고 모델 Steering·Follow-up 및 중복 요청과 격리 |
+| Handoff 수신 | 로컬 영속 패키지와 Extension Channel 알림을 분리해 수신 Main의 모델 턴·활성 분기 변경 여부를 관찰 |
+| Main 최신성 | 검토 시점의 Pi projection을 기준으로 비교하고, 분기·결정 변경 뒤 오래된 비교 결과의 재사용을 차단 |
 
 ## 2. 미병합 구현의 검증 범위
 

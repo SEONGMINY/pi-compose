@@ -17,7 +17,6 @@
 ## 결정과 과거 기록
 
 - [Handoff P1–P5 과거 감사](HANDOFF_IMPLEMENTATION_AUDIT.md): 미병합 PR #25의 이전 구현·CI 근거; 현행 기능 검증이나 제품 정책의 정본이 아님
-
 - [ADR 0001–0006](adr/): 결정 배경과 채택·부분 대체·역사적 상태. 최신 요구사항의 정본이 아님
 - [Domain Stories](domain-stories/): 초기 업무 흐름 분석과 과거 목표 시나리오. 직접 사용자 인용의 정본은 Problem Statements
 - [Validation](validation/): 당시 환경에서 수행한 실험·검증 기록. 현재 Pi Compose 전체 E2E 검증으로 일반화하지 않음
@@ -28,4 +27,4 @@
 
 확정된 제품 정책 변경은 PRD, 중요한 기술 계약 변경은 관련 Architecture/TRD, 구현 사용법은 Usage를 우선 갱신합니다. 중요한 결정의 선택 이유가 사라지지 않도록 필요한 경우 ADR에 근거를 남깁니다. Work는 구현에 부속된 설명만 수정하며 중요한 정책의 승격·변경은 Main에서 사용자 승인을 확인한 뒤 갱신합니다.
 
-**2026-11-10 최신 결정:** Work `<` 명시적 전송 → Main 수신 알림만 → 명시적 반영; 별도 Inbox 명령을 목표 UX에 두지 않습니다. PR #25의 기존 구현·감사 기록은 이 변경이 아직 코드에 적용되지 않은 상태를 설명합니다.
+**목표 정책의 기준:** Work `<` 명시적 전송 → Main 알림 수신 → 사용자 선택 반영이며 별도 Inbox 명령은 필수 경로가 아닙니다. 현재 `main`의 사용법은 [Usage](USAGE.md), 미병합 구현의 실제 진행 상태는 [PR #25](https://github.com/SEONGMINY/pi-compose/pull/25)를 확인합니다.

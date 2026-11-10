@@ -1,9 +1,6 @@
 # Architecture — Pi Compose
 
-> **현재 `main`과의 차이:** 아래는 확정 목표 Architecture입니다. `main`의 `bin/pic.mjs`는 여전히 Overview를 열고, 최신 `<` → Main 알림 경로는 구현되지 않았습니다. PR #25의 중간 구현과 목표 설계를 구분합니다.
-
-
-> 제품 정책의 정본: [PRD](PRD.md) · 2026-11-10 최신 Handoff UX는 **설계 목표**, PR #25 코드는 그 이전 단계의 구현입니다.
+> **목표 구조:** 현재 `main`의 `bin/pic.mjs`는 여전히 Overview를 실행합니다. 제품 동작의 정본은 [PRD](PRD.md), 현재 사용법은 [Usage](USAGE.md)입니다.
 
 ## 1. 상위 구성 요소와 책임
 
@@ -55,9 +52,5 @@ Work 완료 사실/보고 + 원문 근거
 ## 4. 기술 계약과 안전 경계
 
 Handoff는 Work의 원문 근거·전달 패키지, 대상 Main별 보관, 가벼운 알림, Main의 선택적 모델 검토를 분리하는 구조입니다. 출처 Entry·세션 신원·변경된 활성 분기·중복 저장의 검증 방법은 [TRD](TRD.md)를 참고합니다. 제품상 사용자 승인 범위는 [PRD](PRD.md)를 따릅니다.
-
-## 5. 코드와 설계의 경계
-
-`main`의 `src/overview.ts`와 이전 Extension은 현재 실행 코드이며 목표 UX의 구현 완료를 뜻하지 않습니다. 단계별 검증을 수행하기 전까지 PR #25의 구현·CI 결과도 실제 macOS 통합 성공으로 확대하지 않습니다.
 
 실제 하위 API 계약은 [TRD](TRD.md), 남은 작업은 [Implementation Plan](IMPLEMENTATION_PLAN.md)에서 관리합니다.
