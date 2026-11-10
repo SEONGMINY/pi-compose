@@ -40,6 +40,8 @@ export function showReferenceContextReview(
     let query='';
     let scroll=0;
     let maxScroll=0;
+    let detailScroll=0;
+    let detailMax=0;
     let error='';
     let note=initial.note;
     let preview:HandoffPackage|undefined;
@@ -142,12 +144,74 @@ export function showReferenceContextReview(
       if(mode==='evidence')return evidence();
       return previewLines();
     }
+    /**
+     * pi-ask-user's responsive split-pane pattern: the current choice list
+     * stays in sight while its description and related WHY are inspected.
+     * Evidence stays behind E so a large task never floods the first screen.
+     */
+    function wideChoice(width:number,rows:number):string[]{
+      const inner=Math.max(22,width-2);
+      const leftWidth=Math.max(28,Math.floor((inner-3)*0.39));
+      const rightWidth=Math.max(20,inner-leftWidth-3);
+      const visible=filtered();
+      const page=Math.max(3,Math.min(9,rows-6));
+      const start=Math.max(0,Math.min(index-Math.floor(page/2),visible.length-page));
+      const left=[
+        '전달할 컨텍스트 · 선택 '+chosen.size+'/'+units.length,
+        (search?'검색: '+(query||'입력 중…'):' / 검색 · Space 선택'),
+        '',
+        ...visible.slice(start,start+page).flatMap((unit,i)=>[
+          (index===start+i?'› ':'  ')+(chosen.has(unit.id)?'[x] ':'[ ] ')+unit.title,
+        ]),
+        ...(!visible.length?['일치하는 항목 없음']:[]),
+        ...(visible.length>page?['', (index+1)+'/'+visible.length+' · ↑↓ 이동']:[]),
+      ];
+      const currentUnit=current();
+      const connected=currentUnit?.requiredContext??[];
+      const right=[
+        '선택 항목의 의미',
+        '',
+        currentUnit?.title??'검색 결과가 없습니다',
+        '',
+        currentUnit?.summary??'',
+        '',
+        '검증: '+(currentUnit?.verification??'해당 없음'),
+        '',
+        '함께 보존할 WHY·제약 '+connected.length+'건',
+        ...(expanded
+          ?connected.flatMap(c=>['• '+c.whyNeeded,c.quote,''])
+          :connected.map(c=>'• '+c.whyNeeded)),
+        ...(connected.length&&!expanded?['Ctrl+E로 원문 인용 펼치기']:[]),
+        '',
+        'E: 관련 출처·원문 자세히 보기',
+        ...(pkg.contextAssessment==='unavailable'?['⚠ 필수 WHY 검증 불완전']:[]),
+        ...(note?['사용자 메모: '+note]:[]),
+        ...(error?['안내: '+error]:[]),
+        ...(zoomNotice?['Ghostty: '+zoomNotice]:[]),
+      ];
+      const leftRows=new Text(left.join('\n'),0,0).render(leftWidth);
+      const rightRows=new Text(right.join('\n'),0,0).render(rightWidth);
+      detailMax=Math.max(0,rightRows.length-rows);
+      detailScroll=Math.max(0,Math.min(detailScroll,detailMax));
+      maxScroll=detailMax;
+      const rendered:string[]=[];
+      for(let i=0;i<Math.min(rows,Math.max(leftRows.length,rightRows.length-detailScroll));i++){
+        const leftLine=leftRows[i]??'';
+        const rightLine=rightRows[i+detailScroll]??'';
+        rendered.push(leftLine+' '.repeat(Math.max(0,leftWidth-visibleWidth(leftLine)))+
+          ' │ '+rightLine);
+      }
+      return rendered;
+    }
     function print(width:number):string[]{
-      const full=new Text(body().join('\n'),1,0).render(Math.max(18,width-2));
       const maxRows=Math.max(4,Math.min(48,tui.terminal.rows-7));
-      maxScroll=Math.max(0,full.length-maxRows);
-      scroll=Math.max(0,Math.min(scroll,maxScroll));
-      const part=full.slice(scroll,scroll+maxRows);
+      const wide=mode==='choose'&&width>=108;
+      const full=wide?[]:new Text(body().join('\n'),1,0).render(Math.max(18,width-2));
+      if(!wide){
+        maxScroll=Math.max(0,full.length-maxRows);
+        scroll=Math.max(0,Math.min(scroll,maxScroll));
+      }
+      const part=wide?wideChoice(width,maxRows):full.slice(scroll,scroll+maxRows);
       const inner=Math.max(4,width-2);
       const title=mode==='choose'?'Handoff 선택':mode==='evidence'?'근거 확인':'전송 전 확인';
       const wrap=(line:string)=> {
@@ -159,7 +223,9 @@ export function showReferenceContextReview(
         theme.fg('accent','╭'+'─'.repeat(inner)+'╮'),
         wrap(theme.bold(title)),
         ...part.map(wrap),
-        ...(scroll>0||scroll<maxScroll?[wrap('↕ '+(scroll+1)+'–'+Math.min(full.length,scroll+maxRows)+' / '+full.length)]:[]),
+        ...(wide
+          ?(detailMax?[wrap('상세 ↕ '+(detailScroll+1)+' / '+(detailMax+maxRows))]:[])
+          :(scroll>0||scroll<maxScroll?[wrap('↕ '+(scroll+1)+'–'+Math.min(full.length,scroll+maxRows)+' / '+full.length)]:[])),
         wrap(theme.fg('dim',help())),
         theme.fg('accent','╰'+'─'.repeat(inner)+'╯'),
       ];
@@ -179,7 +245,15 @@ export function showReferenceContextReview(
           if(matchesKey(key,'up')||matchesKey(key,'down')){
             const count=filtered().length;
             if(count)index=(index+(matchesKey(key,'up')?-1:1)+count)%count;
-            scroll=0;error='';
+            scroll=0;detailScroll=0;error='';
+          }else if(matchesKey(key,'pageUp')||matchesKey(key,'pageDown')){
+            if(tui.terminal.columns>=108){
+              detailScroll=Math.max(0,Math.min(detailMax,detailScroll+
+                (matchesKey(key,'pageUp')?-5:5)));
+            }else{
+              scroll=Math.max(0,Math.min(maxScroll,scroll+
+                (matchesKey(key,'pageUp')?-5:5)));
+            }
           }else if(matchesKey(key,'space')&&!search){
             const u=current();
             if(u){if(chosen.has(u.id))chosen.delete(u.id);else chosen.add(u.id);}
