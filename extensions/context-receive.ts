@@ -84,9 +84,30 @@ export async function openMainContextReceive(
   // The exception is already held outside Main context; give the review
   // enough space without opening another agent or changing session state.
   const zoom=zoomForAgent(ctx);
+  // Only excerpts explicitly cited by the comparison are presented. The
+  // original Pi projection (not a flat JSONL log) respects the active branch
+  // and compaction/context edits. Work imports are labelled as such.
+  const ids=new Set(comparison?.items.flatMap(i=>i.mainEvidenceIds)??[]);
+  let mainEvidence:{id:string;role:string;text:string}[]=[];
+  try{
+    mainEvidence=ctx.sessionManager.buildSessionProjection().entries
+      .filter(e=>ids.has(e.sourceEntry.id))
+      .map(e=>{
+        const content=e.sourceEntry.type==='custom_message'
+          ?e.sourceEntry.content
+          :e.messages.filter(m=>m.role==='user'||m.role==='assistant')
+            .flatMap(m=>m.content).filter(part=>part.type==='text').map(part=>part.text).join('\n');
+        const text=typeof content==='string'?content:
+          Array.isArray(content)?content.filter(v=>v&&typeof v==='object'&&
+            v.type==='text'&&typeof v.text==='string').map(v=>v.text).join('\n'):'';
+        return {id:e.sourceEntry.id,
+          role:e.sourceEntry.type==='custom_message'?'이전 Work 참고 보고':'Main 대화 기록',
+          text:text.slice(0,2000)};
+      });
+  }catch{/* The reviewer still sees the comparison and its unresolved questions. */}
   try{
   const open=await showReferenceReceived(ctx,item.pkg,comparison,error,importText,{
-    onToggleZoom:zoom.toggle,
+    onToggleZoom:zoom.toggle,mainEvidence,
   });
   if(!open)return;
   const actions=importText && !error
