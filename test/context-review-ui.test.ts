@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent';
+import type { TUI } from '@earendil-works/pi-tui';
 import { hashMessage, renderPackage, validateHandoffPackage, type HandoffPackage } from '../src/handoff/package.ts';
 import { createContextReviewProgress, showContextReview } from '../extensions/context-review.ts';
 
@@ -46,7 +47,6 @@ function reviewHarness(focusOnDialog:boolean, columns=110) {
   const tui={
     terminal:{rows:36,columns},
     requestRender:()=>{rendered++},
-    getFocusedComponent:()=>focusOnDialog?component:null,
   };
   const ui={
     onTerminalInput:(handler:typeof listener)=>{
@@ -54,12 +54,12 @@ function reviewHarness(focusOnDialog:boolean, columns=110) {
       return ()=>{removed++;listener=undefined};
     },
     custom:(factory:(
-      tui:typeof tui,
+      tui:TUI,
       theme:{fg:(color:string,text:string)=>string},
       keys:unknown,done:(result:unknown)=>void
     )=>typeof component)=>{
       const answer=new Promise<unknown>(resolve=>{resolveAction=resolve});
-      component=factory(tui,{fg:(_color,text)=>text},null,(action)=>{
+      component=factory(tui as unknown as TUI,{fg:(_color,text)=>text},null,(action)=>{
         component?.dispose?.();
         resolveAction(action);
       });
@@ -70,7 +70,11 @@ function reviewHarness(focusOnDialog:boolean, columns=110) {
   return {
     ctx,
     run:()=>showContextReview(ctx,fixture(),{selected:[],focus:0,note:''}),
-    key:(raw:string)=>{assert.ok(component);component!.handleInput(raw)},
+    key:(raw:string)=>{
+      assert.ok(component);
+      const handled=listener?.(raw);
+      if(!handled?.consume&&focusOnDialog)component!.handleInput(raw);
+    },
     raw:(raw:string)=>listener?.(raw),
     text:()=>{assert.ok(component);return component!.render(columns).join('\n')},
     events:()=>({removed,rendered,listener:!!listener}),
@@ -107,25 +111,27 @@ test('Enter with no selection visibly explains the problem; Esc always cancels',
   assert.equal(h.events().removed,1);
 });
 
-test('raw keyboard fallback handles known keys only if dialog has lost Pi focus',async()=>{
+test('modal-scoped terminal input handles known keys even if native dialog focus is lost',async()=>{
   const h=reviewHarness(false);
   const result=h.run();
   assert.equal(h.raw('ordinary text'),undefined);
   assert.equal(h.raw('\x1b[B')?.consume,true); // recover Down
   assert.equal(h.raw(' ')?.consume,true); // recover Space
-  assert.match(h.text(),/입력 포커스 복구됨/);
+  assert.match(h.text(),/키보드 입력 연결됨/);
   assert.match(h.text(),/선택 1 \/ 2/);
   assert.equal(h.raw('\x1b')?.consume,true); // recover Esc
   assert.deepEqual(await result,{type:'cancel'});
   assert.equal(h.events().removed,1);
 });
 
-test('focused dialog retains Pi native key path without double handling',async()=>{
+test('terminal listener consumes review shortcuts before native focus path, without double handling',async()=>{
   const h=reviewHarness(true);
   const result=h.run();
-  assert.equal(h.raw(' '),undefined); // leave key to native focused dialog
-  h.key(' ');
+  h.key(' '); // single terminal event, input listener consumes before focused component
   assert.match(h.text(),/선택 1 \/ 2/);
+  h.key(' '); // second physical press toggles it back, not two toggles per press
+  assert.match(h.text(),/선택 0 \/ 2/);
+  assert.equal(h.raw('ordinary text'),undefined); // unrelated input is not intercepted
   h.key('\x1b');
   assert.deepEqual(await result,{type:'cancel'});
 });
