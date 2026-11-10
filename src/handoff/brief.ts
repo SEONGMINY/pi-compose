@@ -21,12 +21,15 @@ export function renderApprovedMainBrief(
       '  Work summary (not independently verified): '+claim.summary,
       '  Source statement: '+claim.statement,
       '  Evidence/verification: '+claim.kind+' · '+claim.verification,
-      ...pkg.context.filter(item=>item.requiredByClaimIds.includes(claim.candidateId))
-        .flatMap(item=>[
-          '  Required '+item.reason+' ('+item.whyNeeded+'): '+item.quote,
-        ]),
       '',
     ]),
+    ...(pkg.context.length?[
+      'Essential historical WHY/constraints (original quotes; no new policy authority):',
+      ...pkg.context.map(item=>
+        '- ['+item.reason+'] '+item.whyNeeded+': '+item.quote+
+        ' (needed for '+item.requiredByClaimIds.join(', ')+')'),
+      '',
+    ]:[]),
     ...(pkg.contextAssessment==='unavailable'
       ? ['IMPORTANT: Older constraints/WHY could not be fully checked. Treat this as an incomplete report.','']
       :[]),
