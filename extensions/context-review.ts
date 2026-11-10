@@ -108,7 +108,7 @@ async function showContextReview(
     function footer():string {
       if(page==='preview')return 'Enter 전송 승인   Esc 선택으로 돌아가기   ↑↓ 스크롤';
       if(page==='sources')return 'Esc 선택으로 돌아가기   ↑↓ 스크롤';
-      return 'Tab 목록/상세   ↑↓ 이동/스크롤   Space 선택   E 원문   N 의견   Enter 미리보기   Esc 취소';
+      return 'Tab 목록/상세   ↑↓ 이동/스크롤   Space 선택   E 원문   N 의견·근거 보완   Enter 미리보기   Esc 취소';
     }
     return {
       render(width){
@@ -240,8 +240,41 @@ export async function openWorkContextReview(
     if(action.type==='cancel')return;
     if(action.type==='note'){
       review={selected:action.selected,focus:action.focus,note:review.note};
-      const edited=await ctx.ui.editor('Main에 전할 사용자 의견 (선택 사항, 원문 사실과 분리)',review.note);
-      if(edited!==undefined)review.note=edited.slice(0,1200);
+      const feedback=await ctx.ui.editor(
+        '현재 컨텍스트 보완 요청 또는 Main에 전달할 사용자 의견', '');
+      if(!feedback?.trim())continue;
+      const type=await ctx.ui.select('이 의견을 어떻게 사용할까요?',[
+        '선택한 컨텍스트의 근거·WHY를 추가로 찾아보기',
+        'Main에 사용자 메모로 첨부',
+      ]);
+      if(!type)continue;
+      if(type==='Main에 사용자 메모로 첨부'){
+        review.note=feedback.trim().slice(0,1200);
+        continue;
+      }
+      if(!ctx.model){
+        ctx.ui.notify('모델을 사용할 수 없어 추가 근거 검색을 수행하지 못했습니다. 기존 선택은 유지됩니다.','warning');
+        continue;
+      }
+      try{
+        const refined=await createSelectedHandoffPackage(ctx,source,draft,{
+          ids,reviewEntryId:draft.sourceLeafId,reviewCreatedAt:draft.createdAt,
+          note:feedback.trim().slice(0,1200),
+        },target.id);
+        verifyWorkSource(ctx,refined);
+        const preserved=full.context.every(before=>
+          refined.context.some(after=>after.quote===before.quote &&
+            after.reason===before.reason &&
+            before.requiredByClaimIds.every(id=>after.requiredByClaimIds.includes(id))));
+        if(refined.contextAssessment==='unavailable'||!preserved){
+          ctx.ui.notify('추가 근거 검색이 불완전하거나 기존 필수 맥락을 유지하지 못했습니다. 이전 검토 내용을 그대로 보존합니다.','warning');
+        }else{
+          full=refined;
+          ctx.ui.notify('근거 검색 결과를 갱신했습니다. 선택한 범위는 그대로 유지됩니다.','info');
+        }
+      }catch(error){
+        ctx.ui.notify('근거 보완에 실패했습니다: '+String(error)+'. 기존 선택을 보존합니다.','warning');
+      }
       continue;
     }
     if(!action.selected.length)return;
