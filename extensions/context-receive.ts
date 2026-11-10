@@ -29,6 +29,9 @@ export async function openMainContextReceive(
   if(!ctx.isIdle()){
     ctx.ui.notify('Main 응답이 끝난 뒤 결과를 확인할 수 있습니다.','warning');return;
   }
+  const progressKey='pi-compose/main-handoff-review-progress';
+  ctx.ui.setWidget(progressKey,['Main · 받은 Work Handoff 확인 중 · 아직 반영하지 않았습니다']);
+  try{
   let items:InboxItem[];
   try {
     const all=(await listInbox(main.sessionId)).filter(item=>item.pkg.product===main.product);
@@ -73,6 +76,7 @@ export async function openMainContextReceive(
   if(!comparedLeafId)return;
   let comparison:MainComparison|undefined;
   let error:string|undefined;
+  ctx.ui.setWidget(progressKey,['Main · 현재 활성 분기와 Work 보고 비교 중 · 모델 턴을 시작하지 않습니다']);
   try{comparison=await compareHandoffWithMain(ctx,item.pkg);}
   catch(e){error=e instanceof Error?e.message:'대조를 완료하지 못했습니다';}
   if(ctx.sessionManager.getSessionId()!==main.sessionId||
@@ -83,6 +87,7 @@ export async function openMainContextReceive(
     (comparison?renderMainImport(item.pkg,comparison):undefined);
   // The exception is already held outside Main context; give the review
   // enough space without opening another agent or changing session state.
+  ctx.ui.setWidget(progressKey,undefined);
   const zoom=zoomForAgent(ctx);
   // Only excerpts explicitly cited by the comparison are presented. The
   // original Pi projection (not a flat JSONL log) respects the active branch
@@ -149,6 +154,9 @@ export async function openMainContextReceive(
   }finally{
     const warning=await zoom.close();
     if(warning&&ctx.hasUI)ctx.ui.notify(warning,'warning');
+  }
+  }finally{
+    ctx.ui.setWidget(progressKey,undefined);
   }
 }
 
