@@ -41,6 +41,7 @@ async function showContextReview(
     let scroll=0;
     let maximum=0;
     let preview:HandoffPackage|undefined;
+    let previewError:string|undefined;
 
     function makePreview() {
       return selectContextPackage(pkg,[...selected],pkg.source.forkLeafId+'-'+pkg.source.workReportEntryId,note);
@@ -102,6 +103,7 @@ async function showContextReview(
           ? ['','⚠ 관련 WHY·조건 검색 결과를 확인하지 못했습니다. 누락 가능성이 있습니다.'] : []),
         '',
         '전송할 항목: '+selected.size+' / '+units.length,
+        ...(previewError?['⚠ 전송문 생성 실패: '+previewError,'선택 또는 메모를 수정한 뒤 다시 시도해주세요.']:[]),
         ...(note?['사용자 메모: '+note]:[]),
       ];
     }
@@ -148,7 +150,8 @@ async function showContextReview(
           else if(matchesKey(key,'n'))return done({type:'note',selected:[...selected],focus});
           else if(matchesKey(key,'return')||matchesKey(key,'enter')) {
             if(selected.size>0){
-              try{preview=makePreview();page='preview';scroll=0;}catch{return;}
+              try{preview=makePreview();previewError=undefined;page='preview';scroll=0;}
+              catch(error){previewError=error instanceof Error?error.message:'본문 검증 실패';}
             }
           }
         }else {
