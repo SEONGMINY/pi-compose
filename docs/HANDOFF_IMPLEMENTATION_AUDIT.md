@@ -1,5 +1,7 @@
 # Handoff P1–P5 구현 및 누락 감사 (2026-11-10)
 
+> **기록의 범위(2026-11-10):** 아래는 PR #25의 기존 자동 후보·`ask_user`·`/compose inbox` 코드에 대한 구현/검증 감사입니다. 이후 사용자는 **Work `<`에서 명시적으로 결과를 보내고, Main은 수신 알림만 받으며 Inbox 명령 없이 필요할 때만 컨텍스트에 반영**하는 단순 UX를 새로 확정했습니다. 아래 검사 통과·키 조작이 최신 UX 구현 또는 macOS 실사용 검증을 증명하지 않습니다. 최신 정책은 [PRD](PRD.md)를 우선합니다.
+
 상태: **P1–P5 코드 작성·GitHub Actions(Node 22/Ubuntu)에서 npm run check 통과. 실제 macOS/Ghostty 통합 E2E는 미검증.** CI의 정적·단위 검증과 실사용 결과를 혼동하지 않습니다.
 
 ## 확정된 계약
@@ -102,3 +104,15 @@
 
 후보 선택의 원문·검증 상태뿐 아니라, **어떤 최종 본문을 의미 검사했는지** 감사할 수 있어야 한다. 승인된 보관본에는 `qualityReview`(검사 모델 ID, 시각, 방식, `checkedBodyHash`)를 저장한다. 해시가 실제 `finalMessageHash`와 일치하지 않으면 거부한다. 같은 패키지를 충돌 복구할 때도 수신 기록의 검토 메타데이터를 보존한다. 이것은 모델 검토 이력이며 정확성/독립 검증을 보장하는 증명이 아니다. 결함 보완 후 테스트 추가.
 
+
+
+## Context Review 새 경로 (PR #25 Draft · 통합 검증 전)
+
+- `extensions/context-review.ts`: Work `<`에서 현재 활성 분기 보고를 기반으로 후보를 구성하고, 선택 이전에 필수 조건·WHY·원문을 연결합니다. 선택·미리보기·전송을 일시적인 Pi TUI에서 처리합니다.
+- `src/handoff/context-review.ts`: 선택된 정보와 그 필수 맥락·원문만 포함하고, 선택하지 않은 독립 후보를 제외한 전송문을 결정적으로 만듭니다. 전송문 해시·출처 검증을 재사용합니다.
+- `extensions/handoff-candidates.ts`: 명시적 `<` 요청 시 후보를 생성하며 Work 미완료·차단 상태도 처리합니다. 모델 출력이 잘못되면 원문 인용 기반 검토로 대체합니다.
+- `extensions/context-receive.ts`: Main `<`에서 현재 분기에 근거한 비교·명시적 반영을 수행합니다. `triggerTurn:false`로 모델을 자동 실행하지 않고 기록 이벤트로 반영 상태를 확인합니다.
+- `extensions/compose.ts`: 자동 `ask_user` 완료 질문과 `/compose inbox`를 기본 경로에서 제거했습니다.
+- `test/context-review.test.ts`: 선택 범위·공유된 WHY·원문·미검증 보고 및 모델 실패 대체 동작에 대한 단위 테스트를 추가했습니다.
+
+**남은 검증:** 전체 원본 실험의 의미 품질, 현재 Main 분기 충돌, CLI/Extension 로딩, 좁은 Ghostty Split 키 입력·한국어 IME, 재시작·중복·오프라인 수신, GitHub Actions 최신 `npm run check` 결과는 아직 실사용 검증으로 확정하지 않았습니다. 모델이 WHY를 찾지 못한 경우 제한 보고로 사용자에게 명확히 알리고 확인을 받지만, 그 정책의 안전성은 추가 평가가 필요합니다.
