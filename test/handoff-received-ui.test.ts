@@ -30,7 +30,7 @@ function fixture():HandoffPackage {
   } as unknown as HandoffPackage;
 }
 
-function harness(){
+function harness(conflict=false){
   let component:{
     render:(width:number)=>string[];
     handleInput:(key:string)=>void;
@@ -38,6 +38,7 @@ function harness(){
   }|undefined;
   let listener:((key:string)=>{consume?:boolean}|undefined)|undefined;
   let removed=0;
+  let zoomCalls=0;
   let decide:(value:boolean)=>void=()=>{};
   const tui={
     terminal:{rows:28,columns:76},
@@ -66,12 +67,21 @@ function harness(){
   return {
     run:()=>showReferenceReceived(ctx,fixture(),{
       packageId:'pkg-1',mainSessionId:'main-1',comparedLeafId:'main-leaf',
-      inputEntryIds:[],items:[],
-    },undefined,'MAIN IMPORT EXACT BRIEF'),
+      inputEntryIds:[],
+      items:conflict?[{
+        claimId:'HC2',status:'conflict',explanation:'Existing Main policy rejects this idea.',
+        mainEvidenceIds:['main-rule'],unresolvedQuestions:['Preserve the current policy?'],
+      }]:[],
+    },undefined,'MAIN IMPORT EXACT BRIEF',{
+      mainEvidence:[{id:'main-rule',role:'Main 사용자 기록',
+        text:'Keep the original JSON-only policy in effect.'}],
+      onToggleZoom:async()=>{zoomCalls++;return 'Split 전환 완료';},
+    }),
     text:()=>{assert.ok(component);return component!.render(76).join('\n')},
     key:(key:string)=>{const result=listener?.(key);if(!result?.consume)component?.handleInput(key)},
     removed:()=>removed,
     active:()=>Boolean(listener),
+    zoomCalls:()=>zoomCalls,
     ignored:(key:string)=>listener?.(key),
   };
 }
@@ -109,6 +119,28 @@ test('Main exception review passes other terminal input through',async()=>{
   const ui=harness();
   const result=ui.run();
   assert.equal(ui.ignored('some random terminal text'),undefined);
+  ui.key('\x1b');
+  assert.equal(await result,false);
+});
+
+
+test('Main exception first compares Work report, current Main source and reason, not the entire Brief',async()=>{
+  const ui=harness(true);
+  const result=ui.run();
+  assert.match(ui.text(),/검토할 차이 1건/);
+  assert.match(ui.text(),/Existing Main policy rejects this idea/);
+  assert.match(ui.text(),/Work 보고: Manual review required/);
+  assert.match(ui.text(),/Keep the original JSON-only policy/);
+  assert.doesNotMatch(ui.text(),/THIS IS THE EXACT USER-APPROVED WORK BRIEF/);
+  ui.key('\x1b');
+  assert.equal(await result,false);
+});
+
+test('Main exception Alt+Z requests focus without accepting held Work data',async()=>{
+  const ui=harness(true);
+  const result=ui.run();
+  ui.key('\x1bz');
+  assert.equal(ui.zoomCalls(),1);
   ui.key('\x1b');
   assert.equal(await result,false);
 });
