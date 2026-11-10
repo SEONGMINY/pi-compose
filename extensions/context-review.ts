@@ -14,6 +14,26 @@ type ReviewAction =
 
 type ReviewState = {selected:string[];focus:number;note:string};
 
+const REVIEW_PROGRESS_KEY='pi-compose/context-review-progress';
+
+/** One persistent, truthful progress line; never append it to model context. */
+export function createContextReviewProgress(
+  setWidget:(key:string,content:string[]|undefined)=>void,
+){
+  let active=false;
+  return {
+    update(message:string){
+      active=true;
+      setWidget(REVIEW_PROGRESS_KEY,['◌ Context Review · '+message+' · 아직 전송하지 않았습니다']);
+    },
+    clear(){
+      if(!active)return;
+      active=false;
+      setWidget(REVIEW_PROGRESS_KEY,undefined);
+    },
+  };
+}
+
 function verificationText(value:ContextReviewUnit['verification']):string {
   switch(value) {
     case 'execution-evidenced':return '실행 증거 연결됨 (성공 여부 별도 확인)';
@@ -284,6 +304,9 @@ export async function openWorkContextReview(
     ctx.ui.notify('정확한 Fork 출처를 가진 Work에서만 Main Handoff를 보낼 수 있습니다.','warning');
     return;
   }
+  const progress=createContextReviewProgress((key,content)=>ctx.ui.setWidget(key,content));
+  progress.update('1/3 수신할 Main 확인 중');
+  try {
   let sessions:Awaited<ReturnType<typeof listProductHandoffSessions>>;
   try {sessions=await listProductHandoffSessions(source.product);}
   catch {ctx.ui.notify('현재 프로젝트의 Main 목록을 확인할 수 없습니다.','warning');return;}
@@ -312,6 +335,7 @@ export async function openWorkContextReview(
   if(!target)return;
   const reportLeaf=ctx.sessionManager.getLeafId();
   const reportSession=ctx.sessionManager.getSessionId();
+  progress.update('2/3 Work 결과와 후보 구성 중');
   const candidateResult=await prepareManualHandoffCandidates(ctx);
   if(candidateResult.status!=='prepared'){
     ctx.ui.notify('공유할 Work 보고를 준비하지 못했습니다: '+candidateResult.status+
@@ -322,7 +346,7 @@ export async function openWorkContextReview(
      ctx.sessionManager.getLeafId()!==reportLeaf)return;
   const draft=candidateResult.draft;
   const ids=draft.candidates.map((_c,i)=>'HC'+(i+1));
-  ctx.ui.notify('필수 제약과 원문 근거를 연결하고 있습니다. 전송은 아직 시작하지 않았습니다.','info');
+  progress.update('3/3 필수 WHY·조건·원문 근거 확인 중');
   let full:HandoffPackage;
   try{
     full=await createSelectedHandoffPackage(ctx,source,draft,{
@@ -333,6 +357,7 @@ export async function openWorkContextReview(
     ctx.ui.notify('컨텍스트와 원문 근거 준비 실패: '+String(error)+'. 전송하지 않았습니다.','warning');
     return;
   }
+  progress.clear(); // The interactive review replaces the progress indicator.
   let review:ReviewState={selected:ids.length===1?[ids[0]!]:[],
     focus:0,note:''};
   while(true){
@@ -361,6 +386,7 @@ export async function openWorkContextReview(
         ctx.ui.notify('모델을 사용할 수 없어 추가 근거 검색을 수행하지 못했습니다. 기존 선택은 유지됩니다.','warning');
         continue;
       }
+      progress.update('추가 WHY·근거 검색 중');
       try{
         const refined=await createSelectedHandoffPackage(ctx,source,draft,{
           ids,reviewEntryId:draft.sourceLeafId,reviewCreatedAt:draft.createdAt,
@@ -379,6 +405,8 @@ export async function openWorkContextReview(
         }
       }catch(error){
         ctx.ui.notify('근거 보완에 실패했습니다: '+String(error)+'. 기존 선택을 보존합니다.','warning');
+      }finally{
+        progress.clear();
       }
       continue;
     }
@@ -420,5 +448,8 @@ export async function openWorkContextReview(
       ctx.ui.notify('Handoff 저장 실패: '+String(error)+'. 성공으로 표시하지 않았습니다.','error');
     }
     return;
+    }
+  } finally {
+    progress.clear();
   }
 }
