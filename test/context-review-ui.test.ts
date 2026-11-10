@@ -46,6 +46,7 @@ function reviewHarness(focusOnDialog:boolean, columns=110) {
   let rendered=0;
   let hidden=false;
   let overlay=false;
+  let zoomCalls=0;
   const tui={
     terminal:{rows:36,columns},
     requestRender:()=>{rendered++},
@@ -78,7 +79,9 @@ function reviewHarness(focusOnDialog:boolean, columns=110) {
   const ctx={ui,hasUI:true,mode:'tui'} as unknown as ExtensionContext;
   return {
     ctx,
-    run:()=>showContextReview(ctx,fixture(),{selected:[],focus:0,note:''}),
+    run:()=>showContextReview(ctx,fixture(),{selected:[],focus:0,note:''},{
+      onToggleZoom:async()=>{zoomCalls++;return 'Split 전환 완료';},
+    }),
     key:(raw:string)=>{
       assert.ok(component);
       const handled=listener?.(raw);
@@ -86,7 +89,7 @@ function reviewHarness(focusOnDialog:boolean, columns=110) {
     },
     raw:(raw:string)=>listener?.(raw),
     text:()=>{assert.ok(component);return component!.render(columns).join('\n')},
-    events:()=>({removed,rendered,listener:!!listener,overlay,hidden}),
+    events:()=>({removed,rendered,listener:!!listener,overlay,hidden,zoomCalls}),
   };
 }
 
@@ -221,5 +224,30 @@ test('pi-ask-user centered overlay can hide and reopen without changing selectio
   assert.equal(h.events().hidden,false);
   assert.match(h.text(),/선택 1 \/ 2/);
   h.key('\x1b'); // cancel
+  assert.deepEqual(await result,{type:'cancel'});
+});
+
+
+test('wide Handoff UI follows pi-ask-user choice/detail layout, not a long evidence dump',async()=>{
+  const h=reviewHarness(true,130);
+  const result=h.run();
+  assert.match(h.text(),/선택 항목의 의미/);
+  assert.match(h.text(),/전달할 컨텍스트/);
+  assert.match(h.text(),/관련 제약·WHY 1건/);
+  assert.doesNotMatch(h.text(),/Do not change original files/);
+  h.key('\x05'); // Ctrl+E -> evidence expansion without leaving the list
+  assert.match(h.text(),/Do not change original files/);
+  h.key('\x1b');
+  assert.deepEqual(await result,{type:'cancel'});
+});
+
+test('explicit Alt+Z requests split focus without submitting or changing context selection',async()=>{
+  const h=reviewHarness(true,120);
+  const result=h.run();
+  h.key(' ');
+  h.key('\x1bz'); // Alt+Z
+  assert.equal(h.events().zoomCalls,1);
+  assert.match(h.text(),/선택 1 \/ 2/);
+  h.key('\x1b');
   assert.deepEqual(await result,{type:'cancel'});
 });
