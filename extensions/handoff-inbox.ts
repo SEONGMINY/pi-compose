@@ -204,7 +204,8 @@ export function registerHandoffInbox(pi:ExtensionAPI) {
     if(!ctx.isIdle()) {ctx.ui.notify('Main 응답이 끝나면 검토할 수 있습니다.','warning');return;}
     let items;
     try {items=(await listInbox(owner.sessionId)).filter(v=>v.pkg.product===owner.product &&
-      v.status.status==='pending');}
+      (v.status.status==='pending'||v.status.status==='discussion-requested'||
+       v.status.status==='import-requested'));}
     catch(error){ctx.ui.notify('Handoff 보관함 확인 실패: '+String(error),'error');return;}
     if(!items.length){ctx.ui.notify('검토할 Handoff가 없습니다.','info');return;}
     const labels=items.map((item,i)=>
@@ -214,6 +215,11 @@ export function registerHandoffInbox(pi:ExtensionAPI) {
     if(!selected)return;
     const item=items[labels.indexOf(selected)];
     if(!item||ctx.sessionManager.getSessionId()!==owner.sessionId) return;
+    if(item.status.status!=='pending') {
+      ctx.ui.notify('이 Handoff는 Main 모델 턴에 요청된 상태입니다 ('+
+        item.status.status+'). 실제 처리·정책 채택 여부는 아직 검증되지 않았습니다.','info');
+      return;
+    }
     const leaf=ctx.sessionManager.getLeafId();
     if(!leaf||!ctx.isIdle())return;
     let comparison:MainComparison;
