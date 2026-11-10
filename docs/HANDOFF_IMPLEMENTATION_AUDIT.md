@@ -126,3 +126,23 @@
 4. **회귀 테스트 코드:** `test/context-review-ui.test.ts`에서 원시 방향키·Space·Enter·Esc, 선택 0건 피드백, 포커스 누락 복구, 네이티브 입력의 중복 처리 방지, 입력 리스너 정리 및 진행 위젯 상태 변화를 검사합니다.
 
 **검증 경계:** 소스 및 단위 테스트 코드를 추가했지만 최신 GitHub Actions 검사와 macOS/Ghostty 실사용 검증은 별개입니다. 특히 다른 Extension의 터미널 입력 리스너가 키를 먼저 소비하는 경우에는 실제 환경 재현과 등록 순서 조사가 필요합니다. 자동 전송이나 Main 컨텍스트 자동 승격은 도입하지 않았습니다.
+
+
+## Handoff Brief · 2026-11-11 요구사항 변경 및 Draft 구현
+
+**실사용 문제:** 기존 Context Review는 2열에 후보·원문·WHY를 길게 나열해 실제 전달 맥락을 이해하기 어려웠습니다. Work에서 승인한 `finalMessage`와 Main의 `renderMainImport()`는 같은 내용이 아닙니다. Main에서는 다시 검토·선택·수락해야 했고, Work가 작성한 `reviewerNote`가 새 Main 본문에서 빠질 수 있었습니다.
+
+**사용자가 선택한 방향:** Work `<`에서 컨텍스트를 의미 단위로 이해한 뒤 **한 번 승인**합니다. 같은 Main 활성 Fork 분기의 최신 결정과 출처가 충돌하지 않는다면, Main에 **같은 승인 본문 그대로** 참고 보고로 추가합니다. Work 보고·제안은 사용자 정책 자동 승인과 구분합니다. 불확실·충돌·세션 계보 불일치·비교 실패에는 Main `<` 예외 검토만 요구합니다.
+
+- `src/handoff/brief.ts`: HandoffPackage에서 동일한 승인 Brief를 결정적으로 구성하며 핵심 주장, 원문 발췌, 필수 WHY, 검증 상태, 사용자 메모를 보존합니다.
+- `src/handoff/package.ts`: 이전 패키지와 호환되는 선택적 `approvedMainBrief`·해시 필드를 추가하고 승인 본문의 재계산 일치를 검증합니다.
+- `src/handoff/context-review.ts`: 사용자가 선택한 주장·필수 연결 맥락만 Brief로 구성합니다.
+- `extensions/context-review.ts`: 근거 우선 2열 Context Review를 단일 흐름 Handoff Brief로 변경하고, 정확한 Main 추가 본문과 감사 원문을 분리해 확인하도록 했습니다.
+- `src/handoff/automatic-adoption.ts`: Main 세션·활성 Fork 계보·불완전 WHY·비교 상태·승인 Brief의 안전 조건을 결정적으로 검사합니다.
+- `extensions/context-receive.ts`: Main 도착/재개/작업 종료 후 사용자 승인 Brief의 자동 참고 보고를 시도합니다. 현재 Main과 비교 모델 호출은 하되 Main 에이전트 턴을 시작하지 않습니다. 실제 Pi 기록 receipt 이후에만 반영 완료를 인정합니다. 예외는 Main 외부에 보관합니다.
+- `extensions/handoff-inbox.ts`, `extensions/compose.ts`: 수신 이벤트에서 안전 검사를 호출하고, 보류 건만 안내하는 기본 경로로 연결합니다.
+- `test/handoff-automatic-adoption.test.ts`, `test/context-review.test.ts`: 충돌·불확실·다른 활성 분기·중복·Brief 해시/동일성의 회귀 테스트 코드를 추가했습니다.
+
+**안전 검증 필요:** 새로운 모델 비교가 최신 Main의 금지 조건을 빠짐없이 찾아낸다는 보장은 없습니다. 오래된 Fork WHY, Compaction/ContextEdit, 오프라인 수신, 별도 Branch 재진입, 인터컴 중복 알림 및 강제 종료 이후 receipt 복구는 실제 Pi/ Ghostty 통합과 원본 실험으로 검증해야 합니다. `npm run check`와 실제 macOS E2E를 이번 코드의 통과로 기재하지 않습니다.
+
+**현재 한계:** 공유 후보·근거 수와 보관용 `finalMessage`의 상한은 여전히 v1 데이터 계약을 따릅니다. 단일 Brief 화면으로 가독성을 개선했으나 **대규모 작업의 중요한 정보가 추출 단계에서 누락되지 않음을 입증한 것은 아닙니다**. 추출 범위와 상위 주제 묶음/드릴다운을 별도 품질 실험으로 검증한 뒤 데이터 계층을 확장해야 합니다.
