@@ -10,6 +10,18 @@ import { decideAutomaticAdoption } from '../src/handoff/automatic-adoption.ts';
 
 const IMPORT_TYPE='compose_context_review_import';
 
+/** Keep only text blocks from Pi's text/image/thinking/tool-call union. */
+function textFromContent(content:unknown):string {
+  if(typeof content==='string')return content;
+  if(!Array.isArray(content))return '';
+  return content.flatMap((part:unknown):string[]=>{
+    if(part===null||typeof part!=='object'||
+       !('type' in part)||part.type!=='text'||
+       !('text' in part)||typeof part.text!=='string')return [];
+    return [part.text];
+  }).join('\n');
+}
+
 export function hasImportReceipt(ctx:ExtensionContext,id:string):boolean {
   return ctx.sessionManager.getBranch().some(entry=>
     entry.type==='custom_message'&&entry.customType===IMPORT_TYPE&&
@@ -98,20 +110,10 @@ export async function openMainContextReceive(
     mainEvidence=ctx.sessionManager.buildSessionProjection().entries
       .filter(e=>ids.has(e.sourceEntry.id))
       .map(e=>{
-        const content=e.sourceEntry.type==='custom_message'
-          ?e.sourceEntry.content
+        const text=e.sourceEntry.type==='custom_message'
+          ?textFromContent(e.sourceEntry.content)
           :e.messages.filter(m=>m.role==='user'||m.role==='assistant')
-            .map(m=>{
-              const value=m.content;
-              if(typeof value==='string')return value;
-              if(!Array.isArray(value))return '';
-              return value.filter(v=>v&&typeof v==='object'&&
-                v.type==='text'&&typeof v.text==='string')
-                .map(v=>v.text).join('\n');
-            }).join('\n');
-        const text=typeof content==='string'?content:
-          Array.isArray(content)?content.filter(v=>v&&typeof v==='object'&&
-            v.type==='text'&&typeof v.text==='string').map(v=>v.text).join('\n'):'';
+            .map(m=>textFromContent(m.content)).filter(Boolean).join('\n');
         return {id:e.sourceEntry.id,
           role:e.sourceEntry.type==='custom_message'?'이전 Work 참고 보고':'Main 대화 기록',
           text:text.slice(0,2000)};
