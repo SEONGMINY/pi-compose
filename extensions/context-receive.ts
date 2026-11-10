@@ -180,8 +180,12 @@ export function registerMainContextImportReceipts(pi:ExtensionAPI):void {
     const details=msg.details as Record<string,unknown>;
     const mainId=ctx.sessionManager.getSessionId();
     if(details.mainSessionId!==mainId||typeof details.packageId!=='string')return;
-    try{await setInboxStatus(mainId,details.packageId,'imported',
-      typeof details.comparedLeafId==='string'?details.comparedLeafId:undefined);}
+    try{
+      await setInboxStatus(mainId,details.packageId,'imported',
+        typeof details.comparedLeafId==='string'?details.comparedLeafId:undefined);
+      if(ctx.hasUI&&details.automaticReferenceImport===true)
+        ctx.ui.notify('Work에서 승인한 Brief가 Main에 참고 보고로 기록됐습니다. 모델 실행·정책 승인은 아닙니다.','info');
+    }
     catch(error){
       if(ctx.hasUI)ctx.ui.notify('반영 기록 저장 실패: '+String(error)+'. 세션 재개 시 복구할 수 있습니다.','warning');
     }
@@ -283,7 +287,7 @@ export function registerAutomaticMainAdoption(pi:ExtensionAPI):{
             userApprovedInWork:true,automaticReferenceImport:true,
           },
         },{triggerTurn:false});
-        if(ctx.hasUI)ctx.ui.notify('Work에서 승인한 Handoff Brief가 Main에 참고 보고로 반영됐습니다. 정책 승인은 아닙니다.','info');
+        if(ctx.hasUI)ctx.ui.notify('Work에서 승인한 Brief의 Main 기록을 요청했습니다. 기록 확인 전까지 완료로 판단하지 않습니다.','info');
       }
     }catch(error){
       if(ctx.hasUI)ctx.ui.notify('Main Handoff 자동 처리 중 오류가 발생했습니다. 보관된 결과는 유지됩니다: '+String(error),'warning');
