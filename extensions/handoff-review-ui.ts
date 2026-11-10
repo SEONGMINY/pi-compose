@@ -127,7 +127,7 @@ export function showReferenceContextReview(
       if(mode==='archive')return 'Tab 승인 본문 · PgUp/PgDn 스크롤 · Esc 뒤로';
       if(mode==='evidence')return 'PgUp/PgDn 스크롤 · Esc 돌아가기';
       return search
-        ?'입력하여 검색 · ↑↓ 이동 · Space 선택 · Esc 검색 해제'
+        ?'입력하여 검색 · ↑↓ 이동 · Esc 검색 초기화/종료'
         :'↑↓ 이동 · Space 선택 · / 검색 · Ctrl+E 맥락 · E 근거 · N 의견 · Enter 검토 · Esc 취소' +
          (inputConnected?' · 키보드 입력 연결됨':'');
     }
@@ -174,7 +174,7 @@ export function showReferenceContextReview(
             const count=filtered().length;
             if(count)index=(index+(matchesKey(key,'up')?-1:1)+count)%count;
             scroll=0;error='';
-          }else if(matchesKey(key,'space')){
+          }else if(matchesKey(key,'space')&&!search){
             const u=current();
             if(u){if(chosen.has(u.id))chosen.delete(u.id);else chosen.add(u.id);}
             error='';
@@ -183,7 +183,7 @@ export function showReferenceContextReview(
           }else if(matchesKey(key,'e')&&!search){
             mode='evidence';scroll=0;
           }else if(matchesKey(key,'n')&&!search){
-            return done({type:'note',selected:selected(),focus:index});
+            return done({type:'note',selected:selected(),focus:Math.max(0,units.findIndex(u=>u.id===current()?.id))});
           }else if(matchesKey(key,'return')||matchesKey(key,'enter')){
             if(!chosen.size)error='Space로 전달할 맥락을 하나 이상 선택해주세요.';
             else try{
@@ -197,7 +197,7 @@ export function showReferenceContextReview(
             query=[...query].slice(0,-1).join('');index=0;
           }else if(search){
             const ch=decodeKittyPrintable(key)??(key.length===1?key:undefined);
-            if(ch&&ch!==' '&&ch.charCodeAt(0)>=32){
+            if(ch&&ch.charCodeAt(0)>=32){
               query+=ch;index=0;scroll=0;
             }
           }
