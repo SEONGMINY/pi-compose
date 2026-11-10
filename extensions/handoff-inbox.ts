@@ -225,7 +225,7 @@ export function registerHandoffInbox(pi:ExtensionAPI) {
     const action=await previewHandoff(ctx,item.pkg,'incoming',comparison);
     if(action==='later')return;
     if(ctx.sessionManager.getLeafId()!==leaf||
-       ctx.sessionManager.getSessionId()!==owner.sessionId){
+       ctx.sessionManager.getSessionId()!==owner.sessionId||!ctx.isIdle()){
       ctx.ui.notify('Main 분기가 변경되었습니다. 검토를 다시 열어주세요.','warning');return;
     }
     if(action==='archive'||action==='duplicate'){
