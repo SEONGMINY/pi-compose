@@ -5,6 +5,7 @@ import { hashMessage, renderPackage, validateHandoffPackage, createSelectedHando
 import { contextReviewUnits, selectContextPackage } from '../src/handoff/context-review.ts';
 import { prepareManualHandoffCandidates } from '../extensions/handoff-candidates.ts';
 import { findVerificationReportQuote } from '../src/handoff/report-verification.ts';
+import { renderApprovedMainBrief } from '../src/handoff/brief.ts';
 
 function twoUnits():HandoffPackage {
   const body={
@@ -192,3 +193,18 @@ test('manual < accepts in-progress findings instead of requiring task completion
     assert.equal(prepared.draft.candidates[0]?.quote,final);
   }
 });
+
+test('Main receives the exact Work-approved Brief, not a separately rewritten selection',()=>{
+  const full=twoUnits();
+  const first=selectContextPackage(full,['HC1'],'review-first','Please discuss this with Main.');
+  const brief=first.approvedMainBrief;
+  assert.equal(brief,renderApprovedMainBrief(first));
+  assert.equal(first.approvedMainBriefHash,hashMessage(brief!));
+  assert.ok(brief?.includes('Keep the role permission rule unchanged.'));
+  assert.ok(brief?.includes('Please discuss this with Main.'));
+  assert.ok(!brief?.includes('Consider caching the list.'));
+  assert.ok(brief?.includes('NOT new user policy approval'));
+  assert.throws(()=>validateHandoffPackage({...first,approvedMainBrief:brief+' extra text'}),
+    /handoff-approved-brief-mismatch/);
+});
+
