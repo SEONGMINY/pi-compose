@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { Text, matchesKey } from '@earendil-works/pi-tui';
 import { readAgentRelationship } from '../src/agent-relationships.ts';
@@ -6,7 +7,9 @@ import { listInbox, readHandoff, setInboxStatus } from '../src/handoff/store.ts'
 import { compareHandoffWithMain, type MainComparison } from '../src/handoff/compare.ts';
 
 const REGISTER = 'intercom:extension-register';
-const CHANNEL_NS = 'pi-compose/handoff-inbox/v1';
+const channelNamespace = (product:string) =>
+  'pi-compose/handoff-inbox/v1/' +
+    createHash('sha256').update(product).digest('hex').slice(0,24);
 type Channel = {
   publish(data:unknown,options?:{audience?:'capable'|'owner'}):void;
   snapshot():{connected:boolean;supported:boolean};
@@ -93,8 +96,8 @@ export async function previewHandoff(
  * Durable storage remains authoritative when intercom is disconnected.
  */
 export function registerHandoffInbox(pi:ExtensionAPI) {
-  let channel:Channel|undefined;
-  let registered=false;
+  const channels=new Map<string,Channel>();
+  const registered=new Set<string>();
   let current:ExtensionContext|undefined;
   let discussionTools: {sessionId:string;before:string[]}|undefined;
   pi.on('agent_settled',()=>{
@@ -119,38 +122,49 @@ export function registerHandoffInbox(pi:ExtensionAPI) {
       ctx.ui.setWidget('pi-compose/main-inbox',['Main · Handoff 보관함 확인 필요 · /compose inbox']);
     }
   }
-  pi.on('session_start',(_event,ctx)=>{
-    current=ctx;
-    void refreshInboxWidget(ctx);
-    if(registered) return;
-    registered=true;
+  const registerFor=(ctx:ExtensionContext)=>{
+    const owner=readAgentRelationship(ctx.sessionManager.getSessionId(),ctx.sessionManager.getEntries());
+    if(!owner||registered.has(owner.product))return;
+    const product=owner.product;
     pi.events.emit(REGISTER,{
-      namespace:CHANNEL_NS,ownerEligible:false,
-      onReady:(ready:Channel)=>{channel=ready;},
+      namespace:channelNamespace(product),ownerEligible:false,
+      onReady:(ready:Channel)=>{channels.set(product,ready);registered.add(product);},
       onEvent:(raw:unknown)=>{
         const ev=raw as {type?:unknown;payload?:unknown};
-        if(ev?.type!=='message'||!ev.payload||typeof ev.payload!=='object') return;
+        if(ev?.type!=='message'||!ev.payload||typeof ev.payload!=='object')return;
         const data=ev.payload as Record<string,unknown>;
         const session=current;
-        if(!session||data.type!=='handoff-available'||data.toMainSessionId!==session.sessionManager.getSessionId()) return;
-        const owner=readAgentRelationship(session.sessionManager.getSessionId(),session.sessionManager.getEntries());
-        if(owner?.role!=='main')return;
-        // Notification is untrusted; read actual local package before reporting success.
-        if(typeof data.packageId!=='string') return;
-        void readHandoff(owner.sessionId,data.packageId).then(pkg=>{
-          if(pkg.product===owner.product &&
-              current?.sessionManager.getSessionId()===owner.sessionId) {
+        if(!session||data.type!=='handoff-available' ||
+            data.toMainSessionId!==session.sessionManager.getSessionId())return;
+        const active=readAgentRelationship(session.sessionManager.getSessionId(),
+          session.sessionManager.getEntries());
+        if(active?.role!=='main'||active.product!==product||
+            typeof data.packageId!=='string')return;
+        void readHandoff(active.sessionId,data.packageId).then(pkg=>{
+          if(pkg.product===active.product &&
+             current?.sessionManager.getSessionId()===active.sessionId){
             session.ui.notify('Work Handoff 수신 · /compose inbox에서 검토 가능 (Main 실행 없음)','info');
             void refreshInboxWidget(session);
           }
         }).catch(()=>{});
       },
     });
+  };
+  pi.on('session_start',(_event,ctx)=>{
+    current=ctx;
+    void refreshInboxWidget(ctx);
+    registerFor(ctx);
+  });
+  // Recover from a Pi extension load-order race without re-registering a
+  // successfully attached namespace.
+  pi.events.on('intercom:extension-registry-ready',()=>{
+    if(current)registerFor(current);
   });
   pi.on('session_tree',(_event,ctx)=>{current=ctx;void refreshInboxWidget(ctx);});
   pi.on('session_shutdown',()=>{current=undefined;});
 
   function announce(pkg:HandoffPackage):void {
+    const channel=channels.get(pkg.product);
     if(!channel?.snapshot().connected||!channel.snapshot().supported) return;
     try {
       channel.publish({type:'handoff-available',
