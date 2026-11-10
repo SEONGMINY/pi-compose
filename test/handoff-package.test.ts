@@ -78,3 +78,17 @@ test('package ID is replay-stable for one approved review, changes when selected
   assert.notEqual(first,changed);
   assert.match(first,/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-8[0-9a-f]{3}-[0-9a-f]{12}$/);
 });
+
+test('semantic review receipt proves only which exact body was inspected, not factual truth',()=>{
+  const pkg=samplePackage();
+  pkg.qualityReview={
+    verdict:'acceptable',
+    method:'model-semantic-review',
+    modelId:'test-evaluator',
+    reviewedAt:'2026-11-10T00:00:00Z',
+    checkedBodyHash:pkg.finalMessageHash,
+  };
+  assert.equal(validateHandoffPackage(pkg).qualityReview?.modelId,'test-evaluator');
+  pkg.qualityReview.checkedBodyHash='0'.repeat(64);
+  assert.throws(()=>validateHandoffPackage(pkg),/handoff-quality-receipt-body-mismatch/);
+});
