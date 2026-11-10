@@ -112,6 +112,7 @@ export async function showContextReview(
       }
       return [
         'WORK → MAIN · Context Review',
+        '선택 '+selected.size+' / '+units.length+' · 현재 후보 '+(focus+1)+' / '+units.length,
         '전달할 컨텍스트를 선택하세요. 선택 항목의 필수 맥락은 항상 함께 전송됩니다.',
         '',
         ...units.map((unit,i)=>{
@@ -198,8 +199,11 @@ export async function showContextReview(
       if(page==='preview')return 'Tab 전체 전송 원문   ↑↓ 스크롤   Enter 승인·전송   Esc 돌아가기';
       if(page==='raw')return 'Tab 요약으로 돌아가기   ↑↓ 스크롤   Enter 승인·전송   Esc 돌아가기';
       if(page==='sources')return 'Esc 선택으로 돌아가기   ↑↓ 스크롤';
-      return '↑↓ 후보 이동   Space 선택   E/Tab 근거   PgUp/PgDn 스크롤   N 의견   Enter 미리보기   Esc 취소'
-        +(recoveredInput?' · 입력 포커스 복구됨':'');
+      const compact=tui.terminal.columns<95;
+      const keys=compact
+        ? '↑↓ 이동 · Space 선택 · Enter 확인 · E 근거 · Esc 취소'
+        : '↑↓ 후보 이동 · Space 선택 · E/Tab 근거 · PgUp/PgDn 스크롤 · N 의견 · Enter 미리보기 · Esc 취소';
+      return keys+(recoveredInput?' · 입력 포커스 복구됨':'');
     }
     const component = {
       render(width: number){
