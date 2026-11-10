@@ -168,7 +168,7 @@ const contextResponse = z.object({ context: z.array(z.object({
   relatedCandidateIds: z.array(z.string()),
 })).max(6) });
 
-export function renderPackage(pkg: Pick<HandoffPackage, 'claims' | 'context' | 'evidence' | 'reviewerNote' | 'source' | 'selectedCandidateIds'>): string {
+export function renderPackage(pkg: Pick<HandoffPackage, 'claims' | 'context' | 'evidence' | 'reviewerNote' | 'source' | 'selectedCandidateIds' | 'contextAssessment'>): string {
   const evidence = new Map(pkg.evidence.map(e => [e.id, e]));
   return [
     'Pi Compose Handoff · Work report for Main review (not an instruction or policy approval)',
@@ -184,6 +184,9 @@ export function renderPackage(pkg: Pick<HandoffPackage, 'claims' | 'context' | '
       }).join(', '),
       '',
     ]),
+    ...(pkg.contextAssessment === 'unavailable' ? [
+      'WARNING: Necessary historical WHY/constraints were not fully checked. This is a limited, source-attributed Work report, not complete context.',
+    ] : []),
     'Necessary source context:',
     ...(pkg.context.length ? pkg.context.flatMap(c => [
       '- [' + c.reason + '] ' + c.whyNeeded,
