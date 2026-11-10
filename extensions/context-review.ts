@@ -156,7 +156,7 @@ async function showContextReview(
 
 export async function openWorkContextReview(
   pi:ExtensionAPI, ctx:ExtensionContext, announce:(pkg:HandoffPackage)=>void,
-  targetMainSessionId?:string,
+  targetMainSessionId?:string, recipientQuery?:string,
 ):Promise<void> {
   if(!ctx.hasUI||ctx.mode!=='tui')return;
   if(!ctx.isIdle()){
@@ -173,18 +173,24 @@ export async function openWorkContextReview(
   catch {ctx.ui.notify('현재 프로젝트의 Main 목록을 확인할 수 없습니다.','warning');return;}
   const recipients=sessions.filter(item=>item.role==='main'&&item.id!==source.sessionId);
   const preferred=findParentMainSessionId(sessions,source.sessionId);
+  const matching=recipientQuery?.trim()?
+    recipients.filter(item=>
+      item.id.toLocaleLowerCase().includes(recipientQuery.trim().toLocaleLowerCase()) ||
+      item.name.toLocaleLowerCase().includes(recipientQuery.trim().toLocaleLowerCase()))
+    :recipients;
   let target=targetMainSessionId?
     recipients.find(item=>item.id===targetMainSessionId):
+    recipientQuery?.trim()?(matching.length===1?matching[0]:undefined):
     recipients.find(item=>item.id===preferred);
   if(targetMainSessionId&&!target) {
     ctx.ui.notify('요청한 Main의 정확한 세션 ID를 확인하지 못했습니다.','warning');return;
   }
   if(!target){
-    if(!recipients.length) {ctx.ui.notify('이 프로젝트에서 수신할 Main을 찾지 못했습니다.','warning');return;}
-    const labels=recipients.map(item=>item.name+' ['+item.id+']');
+    if(!matching.length) {ctx.ui.notify('이 프로젝트에서 일치하는 Main을 찾지 못했습니다.','warning');return;}
+    const labels=matching.map(item=>item.name+' ['+item.id+']');
     const chosen=await ctx.ui.select('결과를 받을 Main',labels);
     if(!chosen)return;
-    target=recipients[labels.indexOf(chosen)];
+    target=matching[labels.indexOf(chosen)];
   }
   if(!target)return;
   const reportLeaf=ctx.sessionManager.getLeafId();
