@@ -37,7 +37,7 @@ async function showContextReview(
     let focus=Math.min(Math.max(0,initial.focus),units.length-1);
     let focusArea:'list'|'details'='list';
     let note=initial.note;
-    let page:'review'|'sources'|'preview'='review';
+    let page:'review'|'sources'|'preview'|'raw'='review';
     let scroll=0;
     let maximum=0;
     let preview:HandoffPackage|undefined;
@@ -48,17 +48,30 @@ async function showContextReview(
     }
     function lines():string[] {
       const current=units[focus];
+      if(page==='raw')return [
+        'WORK → MAIN · 정확한 전송 원문',
+        '',
+        preview?.finalMessage??'',
+      ];
       if (page==='preview') {
         return [
           'WORK → MAIN · 전송 전 최종 확인',
-          '',
           '대상 Main: '+pkg.targetMainSessionId,
-          '전송할 컨텍스트: '+selected.size+'건',
-          ...(pkg.contextAssessment==='unavailable'
-            ? ['⚠ 필수 맥락 검색을 확인하지 못했습니다. 불완전한 보고임을 명시합니다.',''] : []),
+          '선택한 컨텍스트: '+selected.size+'건',
           '',
-          '━━━━ 실제 전송할 본문 ━━━━',
-          preview?.finalMessage ?? '',
+          ...(preview?.claims.flatMap((claim,i)=>[
+            (i+1)+'. '+claim.title,
+            '  '+claim.summary,
+            '  검증 수준: '+claim.verification,
+            ...preview.context.filter(c=>c.requiredByClaimIds.includes(claim.candidateId))
+              .map(c=>'  함께 보내는 '+c.reason+': '+c.whyNeeded+' — '+c.quote),
+            '',
+          ])??[]),
+          ...(note?['사용자 추가 의견 (검증된 Work 사실 아님): '+note,'']:[]),
+          ...(pkg.contextAssessment==='unavailable'
+            ? ['⚠ 필수 과거 WHY·제약 검색 미확인. 제한된 원문 보고로 전송합니다.',''] : []),
+          '각 항목의 실제 원문 인용·Pi Entry ID도 함께 보관됩니다.',
+          'Tab을 누르면 미리보기에서 생성된 정확한 전체 전송문을 볼 수 있습니다.',
         ];
       }
       if (page==='sources') {
@@ -157,7 +170,8 @@ async function showContextReview(
       return [...rows,theme.fg('dim',footer())];
     }
     function footer():string {
-      if(page==='preview')return 'Enter 전송 승인   Esc 선택으로 돌아가기   ↑↓ 스크롤';
+      if(page==='preview')return 'Tab 전체 전송 원문   ↑↓ 스크롤   Enter 승인·전송   Esc 돌아가기';
+      if(page==='raw')return 'Tab 요약으로 돌아가기   ↑↓ 스크롤   Enter 승인·전송   Esc 돌아가기';
       if(page==='sources')return 'Esc 선택으로 돌아가기   ↑↓ 스크롤';
       return 'Tab 목록/상세   ↑↓ 이동/스크롤   Space 선택   E 원문   N 의견·근거 보완   Enter 미리보기   Esc 취소';
     }
@@ -206,9 +220,13 @@ async function showContextReview(
             }
           }
         }else {
-          if(matchesKey(key,'up'))scroll=Math.max(0,scroll-1);
+          if(matchesKey(key,'tab')&&(page==='preview'||page==='raw')){
+            page=page==='preview'?'raw':'preview';scroll=0;
+          }
+          else if(matchesKey(key,'up'))scroll=Math.max(0,scroll-1);
           else if(matchesKey(key,'down'))scroll=Math.min(maximum,scroll+1);
-          else if(page==='preview'&&(matchesKey(key,'return')||matchesKey(key,'enter'))&&preview) {
+          else if((page==='preview'||page==='raw')&&
+            (matchesKey(key,'return')||matchesKey(key,'enter'))&&preview) {
             return done({type:'send',selected:[...selected],note});
           }
         }
