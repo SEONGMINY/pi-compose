@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { z } from 'zod';
 import type { PreparedHandoff } from '../../extensions/handoff-candidates.ts';
@@ -57,7 +57,21 @@ export const candidateKey = (index: number) => 'HC' + (index + 1);
 export const candidateOption = (candidate: PreparedHandoff['candidates'][number], index: number) =>
   '[' + candidateKey(index) + '] ' + candidate.title;
 
-export type CandidateChoice = { ids: string[]; note?: string };
+export type CandidateChoice = { ids: string[]; note?: string; reviewEntryId?: string; reviewCreatedAt?: string };
+
+/** Stable per reviewed selection to recover after a crash between store and acknowledgement. */
+export function stablePackageId(
+  workId:string, reportId:string, reviewId:string, mainId:string,
+  selectedIds:readonly string[], note:string,
+):string {
+  const hex=createHash('sha256').update(JSON.stringify([
+    'handoff-v1',workId,reportId,reviewId,mainId,[...selectedIds].sort(),note,
+  ])).digest('hex');
+  // RFC 4122 variant/version; deterministic UUIDv5-shaped local identifier.
+  return [hex.slice(0,8),hex.slice(8,12),'5'+hex.slice(13,16),
+    '8'+hex.slice(17,20),hex.slice(20,32)].join('-');
+}
+
 export function parseCandidateChoice(details: unknown, draft: PreparedHandoff): CandidateChoice | undefined {
   const answer = details as { cancelled?: unknown; response?: { kind?: unknown; selections?: unknown; comment?: unknown; text?: unknown } } | null;
   if (!answer || answer.cancelled === true || !answer.response) return;
@@ -276,7 +290,9 @@ export async function createSelectedHandoffPackage(
   if (ctx.sessionManager.getLeafId() !== startLeaf ||
       ctx.sessionManager.getSessionId() !== draft.sessionId) throw Error('work-branch-changed');
   const base = {
-    version:1 as const,id:randomUUID(),createdAt:new Date().toISOString(),
+    version:1 as const,id:stablePackageId(draft.sessionId,draft.reportEntryId,
+      choice.reviewEntryId??draft.reportEntryId,targetMainSessionId,choice.ids,choice.note??''),
+    createdAt:choice.reviewCreatedAt??draft.createdAt,
     product:owner.product,
     source:{workSessionId:draft.sessionId,forkSourceSessionId:owner.forkSourceSessionId,
       forkLeafId:owner.forkSourceLeafId,workReportEntryId:draft.reportEntryId},
