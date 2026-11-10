@@ -36,6 +36,17 @@ export async function assessHandoffQuality(
   const originSession=ctx.sessionManager.getSessionId();
   const leaf=ctx.sessionManager.getLeafId();
   if(originSession!==pkg.source.workSessionId||!leaf)throw Error('quality-source-session-mismatch');
+  // Read only the active Work/Fork branch. Historical user instructions are
+  // evidence of past intent, not current Main authority. Keep bounded excerpts
+  // so omitted WHY/negations can be detected independently of context selection.
+  const historical=ctx.sessionManager.getBranch().filter(entry=>
+    entry.type==='message' &&
+    (entry.message.role==='user'||entry.message.role==='assistant') &&
+    entry.id!==pkg.source.workReportEntryId)
+    .slice(-18).map(entry=>entry.type==='message'?
+      {entryId:entry.id,role:entry.message.role,text:textOf(entry.message.content).slice(0,1800)}
+      :undefined).filter((entry):entry is {entryId:string;role:'user'|'assistant';text:string}=>
+      Boolean(entry?.text));
   const response=await ctx.modelRegistry.streamSimple(ctx.model,{
     systemPrompt:[
       'Audit a Work-to-Main Handoff. Return only JSON with verdict and issues.',
@@ -44,6 +55,8 @@ export async function assessHandoffQuality(
       'Check that every generated title, context whyNeeded, and explanatory phrase',
       'preserves NEGATION, scope, approval authority, test-execution state, and uncertainties.',
       'Check whether the selected claim could mislead Main without required historical Fork context.',
+      'Use historicalForkExcerpts only to identify omitted constraints or WHY; they may be superseded after Fork.',
+      'If a missing essential context item can be found, cite its entry ID and describe the omission.',
       'Check for unrelated unselected topics inserted by the draft.',
       'Never treat a Work proposal as approved by the user or a shell command as a verified test pass.',
       'Return verdict needs-revision for a material error or missing essential context.',
@@ -55,6 +68,7 @@ export async function assessHandoffQuality(
       selectedIds:pkg.selectedCandidateIds,
       claims:pkg.claims,context:pkg.context,evidence:pkg.evidence,
       finalMessage:pkg.finalMessage,contextAssessment:pkg.contextAssessment,
+      historicalForkExcerpts:historical,
     }),timestamp:Date.now()}],
   },{reasoning:'low',maxTokens:2200,signal:AbortSignal.timeout(40000)}).result();
   if(ctx.sessionManager.getSessionId()!==originSession||ctx.sessionManager.getLeafId()!==leaf)
