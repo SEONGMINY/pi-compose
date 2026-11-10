@@ -5,6 +5,7 @@ import type { PreparedHandoff } from '../../extensions/handoff-candidates.ts';
 import type { AgentRelationship } from '../agent-relationships.ts';
 import { selectForkHistory } from './retrieve.ts';
 import { findVerificationReportQuote } from './report-verification.ts';
+import { renderApprovedMainBrief } from './brief.ts';
 
 const evidenceSchema = z.object({
   id: z.string().min(1),
@@ -59,6 +60,10 @@ export const handoffPackageSchema = z.object({
   }).optional(),
   finalMessage: z.string().min(1).max(14000),
   finalMessageHash: z.string().regex(/^[0-9a-f]{64}$/),
+  // A short, exact user-approved Main payload, separate from durable evidence.
+  // Optional only for compatibility with previously stored Handoff packages.
+  approvedMainBrief: z.string().min(1).max(14000).optional(),
+  approvedMainBriefHash: z.string().regex(/^[0-9a-f]{64}$/).optional(),
 });
 export type HandoffPackage = z.infer<typeof handoffPackageSchema>;
 export type HandoffClaim = HandoffPackage['claims'][number];
@@ -121,6 +126,13 @@ export function hashMessage(message: string): string {
 export function validateHandoffPackage(value: unknown): HandoffPackage {
   const data = handoffPackageSchema.parse(value);
   if (hashMessage(data.finalMessage) !== data.finalMessageHash) throw Error('handoff-body-hash-mismatch');
+  if(Boolean(data.approvedMainBrief)!==Boolean(data.approvedMainBriefHash))
+    throw Error('handoff-approved-brief-pair-invalid');
+  if(data.approvedMainBrief &&
+    (hashMessage(data.approvedMainBrief)!==data.approvedMainBriefHash ||
+     renderApprovedMainBrief(data)!==data.approvedMainBrief ||
+     !safeText(data.approvedMainBrief)))
+    throw Error('handoff-approved-brief-mismatch');
   if(data.qualityReview && data.qualityReview.checkedBodyHash!==data.finalMessageHash)
     throw Error('handoff-quality-receipt-body-mismatch');
   if (new Set(data.selectedCandidateIds).size !== data.selectedCandidateIds.length ||
