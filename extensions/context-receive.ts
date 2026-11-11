@@ -5,7 +5,7 @@ import { readAgentRelationship } from '../src/agent-relationships.ts';
 import { type HandoffPackage } from '../src/handoff/package.ts';
 import { compareHandoffWithMain, type MainComparison } from '../src/handoff/compare.ts';
 import { renderMainImport } from '../src/handoff/import.ts';
-import { listInbox, setInboxStatus, type InboxItem } from '../src/handoff/store.ts';
+import { listInbox, setInboxStatus, watchHandoffPackages, type InboxItem } from '../src/handoff/store.ts';
 import { decideAutomaticAdoption } from '../src/handoff/automatic-adoption.ts';
 import { measuredHandoffCall, recordHandoffMetric } from '../src/handoff/metrics.ts';
 
@@ -217,6 +217,13 @@ export function registerAutomaticMainAdoption(pi:ExtensionAPI):{
 }{
   const processing=new Set<string>();
   const retryAfterCurrent=new Set<string>();
+  let watcher:{sessionId:string;close:()=>void}|undefined;
+  let watcherEpoch=0;
+  function closeWatcher(){
+    watcherEpoch++;
+    watcher?.close();
+    watcher=undefined;
+  }
   async function check(ctx:ExtensionContext):Promise<void>{
     if(!ctx.isIdle())return;
     const owner=readAgentRelationship(
@@ -348,11 +355,43 @@ export function registerAutomaticMainAdoption(pi:ExtensionAPI):{
     }
   }
   const onAvailable=(ctx:ExtensionContext)=>{void check(ctx);};
-  // A pending package is durable, so a fresh Main may recover it without
-  // any intercom message. Do not do work on Work/Support sessions.
-  pi.on('session_start',(_event,ctx)=>onAvailable(ctx));
-  pi.on('session_tree',(_event,ctx)=>onAvailable(ctx));
+  async function activate(ctx:ExtensionContext):Promise<void>{
+    const owner=readAgentRelationship(
+      ctx.sessionManager.getSessionId(),ctx.sessionManager.getEntries());
+    if(owner?.role!=='main'){
+      closeWatcher();
+      return;
+    }
+    if(watcher?.sessionId===owner.sessionId){
+      onAvailable(ctx);
+      return;
+    }
+    closeWatcher();
+    const epoch=watcherEpoch;
+    try{
+      const close=await watchHandoffPackages(owner.sessionId,()=>{
+        // Work may send without connected intercom. An event only prompts
+        // a fresh read/validation of the durable package.
+        if(ctx.sessionManager.getSessionId()===owner.sessionId)onAvailable(ctx);
+      });
+      if(epoch!==watcherEpoch||ctx.sessionManager.getSessionId()!==owner.sessionId){
+        close();
+        return;
+      }
+      watcher={sessionId:owner.sessionId,close};
+    }catch(error){
+      if(ctx.hasUI)ctx.ui.notify(
+        'Main 보관함 자동 감시를 사용할 수 없습니다. 세션 재개 및 intercom 수신 시 복구합니다: '+
+        String(error),'warning');
+    }
+    onAvailable(ctx);
+  }
+  // Subscribe BEFORE the initial inbox scan: no lost notification between them.
+  pi.on('session_start',(_event,ctx)=>{void activate(ctx);});
+  pi.on('session_tree',(_event,ctx)=>{void activate(ctx);});
   pi.on('agent_settled',(_event,ctx)=>onAvailable(ctx));
   pi.on('model_select',(_event,ctx)=>onAvailable(ctx));
+  pi.on('session_before_switch',()=>closeWatcher());
+  pi.on('session_shutdown',()=>closeWatcher());
   return {onAvailable};
 }
