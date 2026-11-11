@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { selectApprovalEvidence, recentMessages } from '../extensions/policy-main.ts';
+import { selectApprovalEvidence, recentMessages, resolveApprovedSource,
+  explicitApprovalFallback } from '../extensions/policy-main.ts';
+import { couldBeApproval, decisionId, branchDecisions,
+  selfContainedApprovedPolicyQuote } from '../src/policy/decisions.ts';
+import { makePolicySnapshot } from '../src/policy/store.ts';
 
 test('B-option lookup retrieves the actual proposal outside the recent context window',()=>{
   const earlier=[
@@ -77,4 +81,55 @@ test('policy extraction skips BashExecutionMessage variants without content',()=
   assert.deepEqual(recentMessages(ctx),[
     {id:'approved',role:'user',text:'B안으로 확정합니다.'},
   ]);
+});
+
+
+test('regression: explicit B approval is a policy even if model points at the approving USER',()=>{
+  const exact='B안으로 확정합니다. 로그인 정책은 비밀번호 로그인을 제거하고 패스키로만 로그인하는 것으로 결정합니다. 이 정책은 현재 개발 중인 Work에도 즉시 적용합니다.';
+  const approval={id:'approve-b',role:'user',text:exact};
+  const quote=selfContainedApprovedPolicyQuote(exact);
+  assert.equal(quote,'로그인 정책은 비밀번호 로그인을 제거하고 패스키로만 로그인하는 것으로 결정합니다.');
+  const selected=resolveApprovedSource(approval,[],approval.id,exact);
+  assert.equal(selected?.source.id,approval.id);
+  assert.equal(selected?.quote,quote);
+  const parsed=explicitApprovalFallback(approval,[]);
+  assert.equal(parsed?.status,'approved');
+  assert.equal(parsed?.sourceQuote,quote);
+  assert.equal(parsed?.subject,'로그인 정책');
+  const decision={
+    id:decisionId('main-1',approval.id,approval.id,quote!),
+    mainSessionId:'main-1',approvalEntryId:approval.id,sourceEntryId:approval.id,
+    approvalQuote:exact,sourceQuote:quote!,subject:'로그인 정책',
+    decision:quote!,reason:'',scope:'owner-main',targetWorkIds:[],effective:'now',
+  };
+  const branch=[{id:approval.id,type:'message',message:{role:'user',content:exact}},
+    {id:'policy-entry',type:'custom',customType:'compose_policy_decision',data:decision}];
+  assert.equal(makePolicySnapshot('main-1','test','policy-entry',branch).decisions.length,1);
+  assert.deepEqual(branchDecisions(branch,'main-1').map(d=>d.id),[decision.id]);
+});
+
+test('bare B approval must still use concrete earlier assistant evidence',()=>{
+  const approval={id:'approve-b',role:'user',text:'B안으로 확정합니다.'};
+  assert.equal(selfContainedApprovedPolicyQuote(approval.text),undefined);
+  assert.equal(explicitApprovalFallback(approval,[]),undefined);
+  assert.equal(resolveApprovedSource(approval,[],approval.id,approval.text),undefined);
+  const proposal={id:'proposal-b',role:'assistant',
+    text:'B안: 패스키만 허용하고 비밀번호 로그인은 제거합니다.'};
+  assert.deepEqual(resolveApprovedSource(approval,[proposal],proposal.id,proposal.text),
+    {source:proposal,quote:proposal.text});
+});
+
+test('implementation versus documentation is not a second policy approval',()=>{
+  for(const choice of ['문서화 진행','문서화로 진행하겠습니다','문서화로 진행해주세요',
+    '문서만','구현으로 진행합니다']){
+    assert.equal(couldBeApproval(choice),false,choice);
+    assert.equal(selfContainedApprovedPolicyQuote(choice),undefined,choice);
+  }
+  assert.equal(couldBeApproval('B안으로 확정합니다.'),true);
+});
+
+test('user text without a concrete rule cannot bypass the old B-option source requirement',()=>{
+  const onlyPointer={id:'user',role:'user',text:'B안으로 확정합니다. Work에 즉시 전파해주세요.'};
+  assert.equal(explicitApprovalFallback(onlyPointer,[]),undefined);
+  assert.equal(resolveApprovedSource(onlyPointer,[],'user',onlyPointer.text),undefined);
 });
