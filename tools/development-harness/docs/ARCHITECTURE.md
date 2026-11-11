@@ -4,7 +4,7 @@
 
 ## Requirements / scope gate
 
-`contracts/pi-compose-maintenance.json` is the single versioned, user-confirmed scope contract. At Task start `captureScope` stores its id, revision, SHA-256 and structural assessment in the JSON Task record. After trusted checks `assessTaskScope` reads the current contract and Git baseline, records a separate `scopeGate` JSON result, and prevents `completed` or automated improvement if an approved policy/contract changed. This is a structural gate, **not** full semantic review or user approval. Previously queued candidates and direct `improve` invocations must also respect blocked/stale scope.
+`contracts/pi-compose-maintenance.json` is the single versioned, user-confirmed scope contract. At Task start `captureScope` stores its id, revision, SHA-256 and structural assessment in the JSON Task record. After trusted checks `assessTaskScope` reads the current contract and Git baseline, records a separate `scopeGate` JSON result, and prevents `completed` or automated improvement if an approved policy/contract changed. The installer ignores only known local adapter/config files via Git `info/exclude`, and the Task snapshots their SHA-256 at start; hidden settings edits still trigger scope review. This is a structural gate, **not** full semantic review or user approval. Previously queued candidates and direct `improve` invocations must also respect blocked/stale scope.
 
 The Task JSON report derives Step criterion/evidence views from `steps` plus worker receipts without duplicating writable requirement state. Worktree-shared private `state.json` remains the canonical runtime store. Future models may propose scope changes but cannot grant approval by changing JSON.
 

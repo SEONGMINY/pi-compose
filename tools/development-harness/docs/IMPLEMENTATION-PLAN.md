@@ -5,6 +5,7 @@
 - Machine-readable approved scope: [`../contracts/pi-compose-maintenance.json`](../contracts/pi-compose-maintenance.json).
 - New Task pins scope identity/version/hash before implementation. `devh contract` and `devh task ID` expose current contract and individual Task evidence as JSON.
 - Worker records `scopeGate` independently of functional acceptance. Contract/policy edits prevent automatic completed status and auto-improvement; running candidate and direct improve paths recheck scope.
+- Installer excludes only the generated local config/Hook files through Git's private exclude, and the Task records their digests to detect hidden setting changes. Existing installations need one additional `devh install .` to apply that local exclude policy.
 - Unit/synthetic Git tests cover policy modification, contract drift, approved path protection, missing/dirty baselines, candidate blocking and JSON view. These do **not** verify authenticated workstation Hooks or complete semantic requirements.
 
 ## Implemented in current iteration

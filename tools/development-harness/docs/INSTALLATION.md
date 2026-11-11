@@ -53,3 +53,9 @@ Replace the path with a real, narrowly chosen file. `draft` only saves a verifie
 A normal development prompt records Task/Step/Run and pre-work forecast. At agent settled/Stop a detached worker runs configured project checks, emits independent Step receipts when declared, triages cheaply and registers reviews. When enabled, a read-only Pi agent reviews the queue and an isolated improvement is attempted only under an existing approved policy. Interrupted workers are resumed at the next agent-triggered process invocation.
 
 There is **no automatic cross-device sync, daemon, fully validated semantic acceptance, or real Pi/Codex E2E claim** yet. Token coverage remains partial if provider events lack stable IDs or nested agent telemetry.
+
+## Local Git setup and scope verification
+
+The installer adds only `.devh.json`, `.codex/hooks.json`, `.pi/settings.json` and its merge-example suggestions to the local Git `info/exclude` if they are untracked. Existing tracked files remain tracked. The installer does not edit the repository `.gitignore`, override Hook/settings files, or approve a changed project policy. Run the installation command again **once** if you installed an earlier version of this harness.
+
+The JSON scope contract is committed at `tools/development-harness/contracts/pi-compose-maintenance.json`. Each Task pins that contract SHA and hashes the local Hook/settings contents before work. A settings change during a Task therefore yields `scope-review-required` even though the file is ignored by Git. Running ordinary development never requires per-task commands.

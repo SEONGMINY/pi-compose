@@ -194,3 +194,32 @@ test('An automatic improvement policy cannot allow edits to the approval contrac
    await assert.rejects(()=>readPolicy(cwd,file),/Invalid exact allowed paths/);
  }
 });
+
+test('One-time project-local install does not poison clean source attribution or auto-review eligibility',async t=>{
+ const cwd=await mkdtemp(join(tmpdir(),'devh-scope-install-'));
+ t.after(()=>rm(cwd,{recursive:true,force:true}));
+ git(cwd,'init','-q');git(cwd,'config','user.name','Test');git(cwd,'config','user.email','test@example.com');
+ await writeFile(join(cwd,'package.json'),JSON.stringify({name:'pi-compose',version:'0.0.0'}));
+ await mkdir(join(cwd,'tools/development-harness/contracts'),{recursive:true});
+ await writeFile(join(cwd,SCOPE_CONTRACT_PATH),await readFile(reference,'utf8'));
+ git(cwd,'add','.');git(cwd,'commit','-qm','baseline');
+ const {installProject}=await import('../src/install.mjs');
+ const {sourceRevision}=await import('../src/improvement/impact.mjs');
+ const result=await installProject(cwd);
+ assert.ok(result.changes.some(x=>x.startsWith('Git local info/exclude')));
+ assert.equal(git(cwd,'status','--porcelain=v1','--untracked-files=all'),'');
+ assert.equal(sourceRevision(cwd).clean,true);
+ await start(cwd);
+ const checked=await run(cwd);
+ assert.equal(checked.scopeGate.status,'no-violation-observed');
+ assert.equal(checked.state,'completed');
+});
+
+test('Ignored project-local Hook or settings changes still require scope review',async t=>{
+ const cwd=await fixture(t);await start(cwd);
+ await writeFile(join(cwd,'.devh.json'),JSON.stringify({checks:[],improvement:{autoReview:false,autoImprove:true}}));
+ const result=await run(cwd);
+ assert.equal(result.state,'scope-review-required');
+ assert.equal(result.scopeGate.basis,'local-harness-settings-changed');
+ assert.ok(result.scopeGate.changedPaths.includes('.devh.json'));
+});
