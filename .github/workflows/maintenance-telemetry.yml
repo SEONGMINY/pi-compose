@@ -6,12 +6,20 @@ on:
       - 'test/maintenance*.test.mjs'
       - 'docs/maintenance/**'
       - '.github/workflows/maintenance-telemetry.yml'
+      - 'src/**'
+      - 'extensions/**'
+      - 'package.json'
+      - 'tsconfig.json'
   pull_request:
     paths:
       - 'maintenance/**'
       - 'test/maintenance*.test.mjs'
       - 'docs/maintenance/**'
       - '.github/workflows/maintenance-telemetry.yml'
+      - 'src/**'
+      - 'extensions/**'
+      - 'package.json'
+      - 'tsconfig.json'
 jobs:
   telemetry-test:
     runs-on: ubuntu-latest
