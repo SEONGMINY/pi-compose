@@ -56,7 +56,8 @@ export async function recordHandoffMetric(metric:HandoffMetric):Promise<void> {
   for(const dir of [pi,compose]){
     await mkdir(dir,{recursive:true,mode:0o700});
     const stat=await lstat(dir);
-    if(!stat.isDirectory()||stat.isSymbolicLink()||(stat.mode&0o077)!==0||
+    if(!stat.isDirectory()||stat.isSymbolicLink()||
+       (stat.mode&(dir===pi?0o022:0o077))!==0||
        (typeof process.getuid==='function'&&stat.uid!==process.getuid()))
       throw Error('unsafe-handoff-metrics-directory');
   }
