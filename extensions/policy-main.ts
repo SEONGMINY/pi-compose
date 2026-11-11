@@ -77,10 +77,11 @@ export function resolveApprovedSource(
   const source=[...earlier,approval].find(x=>x.id===sourceEntryId);
   const selfContained=selfContainedApprovedPolicyQuote(approval.text);
   const reference=/(?:[A-Z가-힣]\s*안(?:으로|을|이|은|에|$|\s)|\boption\s+[A-Z]\b)/i.test(approval.text);
+  // The user's explicit, complete rule outranks an earlier assistant option.
+  // A revised B option must not silently revert to the older proposed wording.
+  if(reference&&selfContained)return {source:approval,quote:selfContained};
   if(source&&quote.length>=10&&quote.length<=1600&&source.text.includes(quote)){
     if(source.id!==approval.id||!reference)return {source,quote};
-    // For "B안으로 확정", never send the bare label as a policy.
-    if(selfContained)return {source:approval,quote:selfContained};
   }
   if(selfContained)return {source:approval,quote:selfContained};
 }
