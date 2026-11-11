@@ -414,7 +414,6 @@ export async function prepareManualHandoffCandidates(ctx: ExtensionContext): Pro
   }catch{
     if(ctx.sessionManager.getSessionId()!==sessionId||
        ctx.sessionManager.getLeafId()!==sourceLeafId){
-      metricOutcome='error';
       return {status:'stale',reason:'branch-changed-during-preparation'};
     }
     return fallback();
