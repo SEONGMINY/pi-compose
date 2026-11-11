@@ -6,6 +6,16 @@ import {join} from 'node:path';
 
 export const SCOPE_CONTRACT_PATH = 'tools/development-harness/contracts/pi-compose-maintenance.json';
 const hash = value=>createHash('sha256').update(value).digest('hex');
+const LOCAL_SETUP_FILES=['.devh.json','.codex/hooks.json','.pi/settings.json',
+  '.codex/devh-hooks.merge-example.json','.pi/devh-settings.merge-example.json'];
+async function localSetupDigests(root){
+  const files={};
+  for(const path of LOCAL_SETUP_FILES){
+    try{files[path]=hash(await readFile(join(root,path)))}
+    catch(e){if(e.code==='ENOENT')files[path]=null;else throw e;}
+  }
+  return files;
+}
 const nonempty = s=>typeof s==='string'&&s.trim().length>0&&s.length<=500;
 const validPath = s=>typeof s==='string'&&s.length>0&&!s.startsWith('/')&&!s.includes('..')&&!s.includes('\\');
 
@@ -62,6 +72,7 @@ export async function captureScope(root,prompt){
   return {
     status:identityMatches&&!explicitExternal?'repository-anchored':'needs-review',
     basis:!identityMatches?'repository-identity-mismatch':explicitExternal?'explicit-external-target':'repo-identity-only',
+    localSetup:await localSetupDigests(root),
     contract:{id:contract.id,revision:contract.revision,sha256,path:SCOPE_CONTRACT_PATH,
       requirementIds:contract.requirements.map(r=>r.id)},
     reason:!identityMatches?'Project package does not match the approved target':explicitExternal?'Request explicitly targets the upstream agent, not pi-compose':null,
@@ -78,6 +89,10 @@ export async function assessTaskScope(root,task){
   try{current=await load(root)}catch(e){return {status:'needs-review',basis:'contract-invalid-after-work',reason:String(e.message??e).slice(0,200),changedPaths:null};}
   if(!current||current.sha256!==before.contract.sha256)return {
     status:'needs-review',basis:'scope-contract-changed',reason:'The approved contract changed after Task start; no automatic approval is inferred.',changedPaths:null};
+  const currentSetup=await localSetupDigests(root);
+  const modifiedSetup=Object.keys(currentSetup).filter(path=>currentSetup[path]!==before.localSetup?.[path]);
+  if(modifiedSetup.length)return {status:'needs-review',basis:'local-harness-settings-changed',
+    reason:'Local hook/configuration state changed after Task start; approval is not implied.',changedPaths:modifiedSetup};
   if(task.source?.clean!==true||!task.source.head)return {
     status:'unverified',basis:'no-clean-git-baseline',reason:'Cannot attribute the modified files to this Task.',changedPaths:null};
   let files=[];

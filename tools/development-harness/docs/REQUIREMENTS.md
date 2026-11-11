@@ -4,7 +4,7 @@
 
 The single authoritative scope/approved-requirements contract for the current project is [`../contracts/pi-compose-maintenance.json`](../contracts/pi-compose-maintenance.json). It explicitly binds this harness to **pi-compose feature maintenance**, with Pi/Codex as tools, not upstream development targets. The contract is versioned; its SHA-256 is pinned before Task execution and cannot self-approve a later change. The private Git-common Task/Step/Run ledger and scope-gate results are JSON; `devh task ID` produces an inspectable JSON view with criterion evidence. Markdown files describe rationale and limitations but do not hold separate mutable task states.
 
-The gate is conservative: it checks project identity, a narrow set of explicit external-target hints, contract integrity and protected policy Git paths. These signals cannot establish semantic correctness. Uncertain scope or a dirty Git start is recorded as unverified. A changed approved contract/policy is held for review rather than silently promoted by passing tests.
+The gate is conservative: it checks project identity, a narrow set of explicit external-target hints, contract integrity and protected policy Git paths. These signals cannot establish semantic correctness. Uncertain scope or a dirty Git start is recorded as unverified. A changed approved contract/policy or pinned project-local Hook/config file is held for review rather than silently promoted by passing tests. Installation-generated local settings are ignored through the local Git exclude file, not a repository-wide `.gitignore` edit.
 
 ## Target workflow
 

@@ -1,4 +1,4 @@
-import {mkdir,readFile,writeFile} from 'node:fs/promises';
+import {mkdir,readFile,writeFile,appendFile} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {execFileSync} from 'node:child_process';
@@ -46,6 +46,23 @@ export async function installProject(project){
      if(!(await readJson(dest)))await safeWrite(dest,proposal);
      changes.push('.pi/devh-settings.merge-example.json (review and merge manually)');
    }else{await safeWrite(settingsPath,proposal);changes.push('.pi/settings.json')}
+ }
+ // Local adapter and machine-specific paths must not make every future Task
+ // look like it starts from a dirty source checkout. Never edit .gitignore or
+ // overwrite the owner's excludes. Already tracked files stay tracked.
+ const localExclusions=['/.devh.json','/.codex/hooks.json','/.pi/settings.json',
+   '/.codex/devh-hooks.merge-example.json','/.pi/devh-settings.merge-example.json'];
+ const excludeRelative=execFileSync('git',['rev-parse','--git-path','info/exclude'],
+   {cwd:root,encoding:'utf8'}).trim();
+ const excludePath=resolve(root,excludeRelative);
+ let excludeText='';try{excludeText=await readFile(excludePath,'utf8')}catch(e){if(e.code!=='ENOENT')throw e}
+ const existingExcludes=new Set(excludeText.split(/\r?\n/));
+ const missing=localExclusions.filter(x=>!existingExcludes.has(x));
+ if(missing.length){
+   await mkdir(resolve(excludePath,'..'),{recursive:true});
+   await appendFile(excludePath,(excludeText&&!excludeText.endsWith('\n')?'\n':'')+
+     '# development-harness project-local setup (not tracked by default)\n'+missing.join('\n')+'\n');
+   changes.push('Git local info/exclude: '+missing.join(', '));
  }
  return {root,changes,requiresTrust:'Review project hooks with Codex /hooks and trust the project in Pi',
    requiresChecks:!(config?.checks??(pkg?.scripts?.check?[1]:[])).length};
