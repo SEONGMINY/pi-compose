@@ -25,8 +25,15 @@ async function publishSnapshot(ctx:ExtensionContext):Promise<void>{
   if(!owner)return;
   const leaf=ctx.sessionManager.getLeafId();
   if(!leaf)return;
+  const branch=ctx.sessionManager.getBranch();
+  const reviewed=new Set(branch.flatMap(e=>
+    e.type==='custom'&&e.customType===REVIEW_ENTRY &&
+    e.data&&typeof e.data==='object'&&'approvalEntryId' in e.data &&
+    typeof e.data.approvalEntryId==='string'?[e.data.approvalEntryId]:[]));
+  const unresolved=recentMessages(ctx).filter(x=>x.role==='user' &&
+    couldBeApproval(x.text)&&!reviewed.has(x.id)).map(x=>x.id);
   const snapshot=makePolicySnapshot(owner.sessionId,owner.product,leaf,
-    ctx.sessionManager.getBranch());
+    branch,unresolved);
   await writePolicySnapshot(snapshot);
 }
 
