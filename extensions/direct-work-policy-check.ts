@@ -18,8 +18,13 @@ export function registerDirectWorkPolicyCheck(pi:ExtensionAPI):void{
   const readOnly=new Set(['read','grep','find','ls','glob']);
 
   pi.on('input',async(event,ctx)=>{
-    if(event.source!=='interactive'||!/^\?p(?:\s|$)/.test(event.text))
+    if(event.source!=='interactive')return {action:'continue'};
+    if(!/^\s*\?p(?:\s|$)/.test(event.text)){
+      // A prior transformed turn may have failed to start; do not carry a
+      // read-only guard over into an unrelated later user request.
+      if(activeReview&&ctx.isIdle())activeReview=undefined;
       return {action:'continue'};
+    }
     if(!ctx.hasUI)return {action:'handled'};
     if(!isWorkPolicyShortcut(event.text)){
       ctx.ui.setEditorText(event.text);
@@ -71,6 +76,7 @@ export function registerDirectWorkPolicyCheck(pi:ExtensionAPI):void{
     if(activeReview?.sessionId===ctx.sessionManager.getSessionId())
       activeReview=undefined;
   });
+  pi.on('agent_end',()=>{activeReview=undefined;});
   pi.on('session_before_switch',()=>{activeReview=undefined;});
   pi.on('session_shutdown',()=>{activeReview=undefined;});
 }
