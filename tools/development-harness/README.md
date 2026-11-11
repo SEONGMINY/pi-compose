@@ -4,6 +4,23 @@ A standalone developer-maintenance harness. Target: **a developer uses Pi or Cod
 
 **Status: pre-release implementation; synthetic and local Git tests only, not authenticated Pi/Codex E2E.** Currently embedded in pi-compose under `tools/development-harness/`; extraction is deferred by user decision. Source baseline research: [pi-compose Draft PR #29](https://github.com/SEONGMINY/pi-compose/pull/29), [mofit-ios task-create](https://github.com/vibemafiaclub/mofit-ios/blob/main/prompts/task-create.md). The package is embedded under `tools/development-harness/` for now; repository extraction is deferred.
 
+## Approved scope and machine-readable Task state
+
+The **current application** of this embedded harness is *maintaining and extending `pi-compose`*, using Pi or Codex as coding tools. It does **not** develop the Pi/Codex upstream source or expose a new `pic` product runtime feature. Future repository extraction is deferred.
+
+- **Authoritative scope and approved requirements (JSON):** [`contracts/pi-compose-maintenance.json`](contracts/pi-compose-maintenance.json). Do not treat a model proposal or a passing test as an approved scope change. The original contract revision and SHA-256 are pinned to each new Task.
+- **Dynamic Task and verification state (JSON):** the existing private Git-common `development-harness/state.json`; no parallel Markdown Task files are created. `devh task TASK_ID` presents the objective, versioned plan, each Step criterion and its evidence, measured usage, and before/after scope gate as compact JSON. `devh contract` displays the currently installed contract.
+- **Scope gate:** before development it checks the repository identity and clear explicit external-target requests; after verification it compares the pinned contract with the current file and checks approved policy paths against the Git diff. If a policy/contract change is found, the work is `scope-review-required` even if executable checks pass; existing improvement candidates cannot bypass that state.
+- **Evidence limits:** this is *not* comprehensive intent or semantic diff review. A dirty or missing Git baseline yields `unverified`; even `no-violation-observed` only establishes that the checked structural conditions held. Do not claim that every user requirement was met. Ordinary development is not blocked by telemetry failures.
+
+Run from the **pi-compose project root**, after the project-local one-time adapter installation:
+
+```sh
+node tools/development-harness/bin/devh.mjs contract
+node tools/development-harness/bin/devh.mjs report
+node tools/development-harness/bin/devh.mjs task TASK_ID
+```
+
 ## Important semantics
 - One **Task** = user's development goal; one or more **Steps** = verifiable milestones; **Runs** = actual agent turns/retries. Steps do not necessarily imply new sessions or commits.
 - Numbered/bulleted *requirements* are not treated as separate implementation Steps. Only explicitly named `Step N` / `Phase N` / `N단계` lines split deterministically; otherwise a single Step prevents excessive planning overhead. More sophisticated AI planning is a future bounded adapter with schema validation.

@@ -1,5 +1,12 @@
 # Development harness implementation status
 
+## Current JSON contract gate (2026-11-11)
+
+- Machine-readable approved scope: [`../contracts/pi-compose-maintenance.json`](../contracts/pi-compose-maintenance.json).
+- New Task pins scope identity/version/hash before implementation. `devh contract` and `devh task ID` expose current contract and individual Task evidence as JSON.
+- Worker records `scopeGate` independently of functional acceptance. Contract/policy edits prevent automatic completed status and auto-improvement; running candidate and direct improve paths recheck scope.
+- Unit/synthetic Git tests cover policy modification, contract drift, approved path protection, missing/dirty baselines, candidate blocking and JSON view. These do **not** verify authenticated workstation Hooks or complete semantic requirements.
+
 ## Implemented in current iteration
 
 1. **Step acceptance evidence**: project-owner exact criterion/check bindings, worker-issued command/exit receipts, immutable plan extensions, no model-originated self-attestation. Generic project checks alone do not mark a task semantically complete.

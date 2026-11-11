@@ -6,6 +6,7 @@ import {executeImprovement,listAttempts} from './change.mjs';
 import {join} from 'node:path';
 import {stat} from 'node:fs/promises';
 import {reviewPending,listReviews} from './review.mjs';
+import {trustedImprovementScope} from '../scope.mjs';
 export async function processReviews(cwd,{runModel,maxBatches=1,dryRun=false}={}){
   const {root,dir}=projectPaths(cwd);
   let result;
@@ -28,7 +29,9 @@ export async function processReviews(cwd,{runModel,maxBatches=1,dryRun=false}={}
   const reviews=await listReviews(dir);
   await withState(dir,state=>{
     for(const review of reviews){
-      if(review.candidate?.executionState==='proposed-not-approved'&&!state.queue[`improve:${review.id}`])
+      const scopeBlocked=!(review.taskIds??[]).length ||
+        !(review.taskIds??[]).every(id=>trustedImprovementScope(state.tasks[id]));
+      if(!scopeBlocked&&review.candidate?.executionState==='proposed-not-approved'&&!state.queue[`improve:${review.id}`])
         state.queue[`improve:${review.id}`]={type:'improve',reviewId:review.id,taskId:review.taskIds[0],state:'pending',
           attempts:0,reason:'cost-aware-evidence-backed-candidate',createdAt:new Date().toISOString()};
       for(const taskId of review.taskIds??[]){
@@ -54,6 +57,11 @@ export async function processImprovementQueue(cwd,{propose,verify,checks}={}){
     // The process can die after writing a verified attempt but before queue ack.
     for(const q of Object.values(state.queue))if(q.type==='improve'&&previouslyAccepted.has(q.reviewId)){
       q.state='done';q.finishedAt??=new Date().toISOString();q.reason='already-accepted-attempt';
+    }
+    // Existing candidates cannot bypass a later scope-review hold.
+    for(const q of Object.values(state.queue))if(q.type==='improve'&&
+      !trustedImprovementScope(state.tasks[q.taskId])){
+      q.state='blocked';q.reason='scope-review-required';
     }
     const pick=Object.entries(state.queue).find(([_,q])=>q.type==='improve'&&q.state==='pending'&&
       !previouslyAccepted.has(q.reviewId)&&(!q.nextAttemptAt||Date.parse(q.nextAttemptAt)<=Date.now()));

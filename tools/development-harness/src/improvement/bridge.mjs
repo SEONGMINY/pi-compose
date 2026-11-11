@@ -2,6 +2,7 @@
  * contract of PR #29. This does not migrate historic JSONL or alter product UX.
  */
 import {readState} from '../store.mjs';
+import {trustedImprovementScope} from '../scope.mjs';
 import {readdir,readFile} from 'node:fs/promises';
 import {join} from 'node:path';
 const finite=n=>typeof n==='number'&&Number.isFinite(n)&&n>=0;
@@ -25,7 +26,8 @@ export async function pendingRootCauseReviews(dir){
     reviews=await Promise.all(names.filter(n=>/^[a-f0-9-]{36}\.json$/.test(n)).map(async n=>JSON.parse(await readFile(join(dir,'reviews',n),'utf8'))));
   }catch(e){if(e.code!=='ENOENT')throw e;}
   const reviewed=new Set(reviews.flatMap(x=>x.taskIds??[]));
-  return Object.values(state.queue).filter(q=>q.type==='review'&&q.state==='pending'&&(!q.nextAttemptAt||Date.parse(q.nextAttemptAt)<=Date.now())&&!reviewed.has(q.taskId))
+  return Object.values(state.queue).filter(q=>q.type==='review'&&q.state==='pending'&&(!q.nextAttemptAt||Date.parse(q.nextAttemptAt)<=Date.now())&&!reviewed.has(q.taskId)&&
+      trustedImprovementScope(state.tasks[q.taskId]))
     .map(q=>{
       const task=state.tasks[q.taskId];if(!task)return null;
       const actual=task.actual;

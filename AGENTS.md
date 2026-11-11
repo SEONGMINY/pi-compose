@@ -19,7 +19,7 @@ AI Coding Agent와 장기간 협업하더라도 **설계와 결정의 맥락을 
 - `extensions/` — Pi Extension 및 위임·Handoff 연결
 - `src/` — 세션·Fork·Ghostty·Git·Handoff 처리
 - `packages/optional/` — 선택형 기능
-- `tools/development-harness/` — 내부 유지보수 계측·분석 하네스 프로토타입 (제품 런타임과 분리)
+- `tools/development-harness/` — 내부 유지보수 계측·분석 하네스 프로토타입 (제품 런타임과 분리; 적용 범위 정본: `tools/development-harness/contracts/pi-compose-maintenance.json`)
 - `test/` — 검증 코드
 - `docs/` — 비전·문제·요구사항·설계·결정·검증 기록
 
