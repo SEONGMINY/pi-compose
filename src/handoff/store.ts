@@ -177,5 +177,8 @@ export async function watchHandoffPackages(
     if(!ID.test(name.slice(0,-5)))return;
     onPackage();
   });
+  // A removed/invalidated directory must never crash the Pi process.
+  // Intercom and session-resume scans remain fallback delivery paths.
+  watcher.on('error',()=>watcher.close());
   return ()=>watcher.close();
 }
