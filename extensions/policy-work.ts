@@ -44,10 +44,10 @@ async function check(ctx:ExtensionContext,mainId:string):Promise<{
   const pending=delta.added.length>0||delta.withdrawn.length>0;
   // A durable update message can be recorded *after* the last Work turn.
   // Do not report it as reviewed or applied until another Work response exists.
-  const lastReceipt=branch.findLastIndex(e=>e.type==='custom_message' &&
+  const lastReceipt=branch.reduce((found,e,index)=>e.type==='custom_message' &&
     e.customType===POLICY_MESSAGE &&
     e.details&&typeof e.details==='object'&&!Array.isArray(e.details) &&
-    (e.details as {mainSessionId?:string}).mainSessionId===mainId);
+    (e.details as {mainSessionId?:string}).mainSessionId===mainId?index:found,-1);
   const answeredAfter=lastReceipt<0 || branch.slice(lastReceipt+1).some(e=>
     e.type==='message'&&e.message.role==='assistant'&&e.message.stopReason==='stop');
   const status:WorkPolicyStatus={
