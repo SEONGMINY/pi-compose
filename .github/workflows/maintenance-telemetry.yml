@@ -27,5 +27,18 @@ jobs:
           node --check maintenance/review.mjs
           node --check maintenance/usage.mjs
           node --check maintenance/improve.mjs
+          node --check maintenance/forecast.mjs
       - name: Run unit tests
         run: node --test test/maintenance*.test.mjs
+
+  full-project-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+      - name: Install project dependencies without lifecycle scripts
+        run: npm install --no-package-lock --ignore-scripts --no-audit --no-fund
+      - name: Validate full project contracts
+        run: npm run check
