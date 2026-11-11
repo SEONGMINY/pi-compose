@@ -209,6 +209,7 @@ export function registerPolicyMain(pi:ExtensionAPI):void{
           if(!parsed)break;
           if(ctx.sessionManager.getLeafId()!==startLeaf||!ctx.isIdle())break;
           let record:PolicyDecision|undefined;
+          let failureReason='승인 대상 또는 원문을 모델이 확정하지 못함';
           if(parsed.status==='approved'){
             const evidence=resolveApprovedSource(approval,earlier,
               parsed.sourceEntryId,parsed.sourceQuote);
@@ -227,6 +228,15 @@ export function registerPolicyMain(pi:ExtensionAPI):void{
               quote.length<=1600 && approval.text.length<=1200 &&
               source && quote.length>=10 &&
               source.text.includes(quote);
+            if(!source)failureReason='승인한 정책의 실제 원문을 찾지 못함';
+            else if(!validSupersession)failureReason='대체 대상 정책 ID가 유효하지 않음';
+            else if(overlapping && parsed.supersedesId===null)
+              failureReason='이전 확정 정책을 대체할지 확인 필요';
+            else if(!broadStop)failureReason='전체 Work 중단 지시의 범위가 불명확함';
+            else if(containsSensitivePolicyText(quote)||
+                    containsSensitivePolicyText(approval.text))
+              failureReason='민감한 내용이 포함되어 자동 전파하지 않음';
+            else if(!validSource)failureReason='승인 원문의 길이·출처 검증에 실패함';
             if(validSource && !containsSensitivePolicyText(quote) &&
                !containsSensitivePolicyText(approval.text)){
               record={
@@ -253,12 +263,13 @@ export function registerPolicyMain(pi:ExtensionAPI):void{
             }
           }else if(parsed.status==='ambiguous'||parsed.status==='approved'){
             if(ctx.hasUI)ctx.ui.notify(
-              '정책 승인 후보 ['+approval.id.slice(0,8)+']의 원문 또는 적용 범위를 확인하지 못했습니다. 전파하지 않고 보관했습니다.',
+              '정책 승인 후보 ['+approval.id.slice(0,8)+'] 전파 보류: '+failureReason+'. 원문은 보관됩니다.',
               'warning');
           }
           pi.appendEntry(REVIEW_ENTRY,{approvalEntryId:approval.id,
             reviewVersion:REVIEW_VERSION,
-            status:record?'published':parsed.status==='not-a-decision'?'ignored':'ambiguous'});
+            status:record?'published':parsed.status==='not-a-decision'?'ignored':'ambiguous',
+            ...(record||parsed.status==='not-a-decision'?{}:{reason:failureReason})});
         }catch(error){
           if(ctx.hasUI)ctx.ui.notify(
             '자동 정책 결정 확인 실패 (전파하지 않음, 다음 실행에 재시도): '+String(error),'warning');
