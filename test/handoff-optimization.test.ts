@@ -9,12 +9,13 @@ import { measuredHandoffCall, type HandoffMetric } from '../src/handoff/metrics.
 
 const policy='Customers without replies must not be marked resolved.';
 const report='Implemented inquiry status checks. Tests were not run.';
-const workId='work-unified-1';
-const owner={
-  role:'work' as const,sessionId:workId,product:'demo',
-  forkSourceSessionId:'main-unified-1',forkSourceLeafId:'main-leaf',
-};
+let fixtureCounter=0;
 function fixture(mode:'valid'|'invalid-context'|'missing-context'='valid'){
+  const workId='work-unified-'+(++fixtureCounter);
+  const owner={
+    role:'work' as const,sessionId:workId,product:'demo',
+    forkSourceSessionId:'main-unified-1',forkSourceLeafId:'main-leaf',
+  };
   let calls=0;
   const metrics:HandoffMetric[]=[];
   const branch=[
@@ -69,7 +70,7 @@ function fixture(mode:'valid'|'invalid-context'|'missing-context'='valid'){
       },
     },
   } as unknown as ExtensionContext;
-  return {ctx,branch,metrics,calls:()=>calls,
+  return {ctx,owner,branch,metrics,calls:()=>calls,
     record:async(metric:HandoffMetric)=>{metrics.push(metric)}};
 }
 
@@ -80,7 +81,7 @@ test('one Work model pass supplies candidates AND source-linked WHY to the Main 
   if(prepared.status!=='prepared')return;
   assert.equal(prepared.draft.contextAssessment,'selected');
   assert.equal(prepared.draft.linkedContext?.[0]?.sourceEntryId,'policy');
-  const pkg=await createSelectedHandoffPackage(env.ctx,owner,prepared.draft,{
+  const pkg=await createSelectedHandoffPackage(env.ctx,env.owner,prepared.draft,{
     ids:['HC1'],reviewEntryId:'report',
   },'main-unified-1');
   assert.equal(env.calls(),1,'WHY preparation must not trigger a second model call');
@@ -118,7 +119,7 @@ test('unverifiable linked WHY is not attached and can be recovered with the old 
   if(prepared.status!=='prepared')return;
   assert.equal(prepared.draft.linkedContext,undefined);
   assert.equal(env.calls(),1);
-  const pkg=await createSelectedHandoffPackage(env.ctx,owner,prepared.draft,{
+  const pkg=await createSelectedHandoffPackage(env.ctx,env.owner,prepared.draft,{
     ids:['HC1'],reviewEntryId:'report',
   },'main-unified-1');
   assert.equal(env.calls(),2,'Legacy WHY model fallback is exception-only');
@@ -131,7 +132,7 @@ test('missing context array invokes guarded legacy lookup, not false none-needed
   assert.equal(prepared.status,'prepared');
   if(prepared.status!=='prepared')return;
   assert.equal(prepared.draft.contextAssessment,undefined);
-  const pkg=await createSelectedHandoffPackage(env.ctx,owner,prepared.draft,{
+  const pkg=await createSelectedHandoffPackage(env.ctx,env.owner,prepared.draft,{
     ids:['HC1'],reviewEntryId:'report',
   },'main-unified-1');
   assert.equal(env.calls(),2);
