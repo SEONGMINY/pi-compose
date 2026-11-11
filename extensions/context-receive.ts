@@ -30,6 +30,25 @@ export function hasImportReceipt(ctx:ExtensionContext,id:string):boolean {
     (entry.details as Record<string,unknown>).packageId===id);
 }
 
+/**
+ * Only byte-identical approved Work Briefs from the same source on THIS
+ * active Main branch are exact duplicates. Not a semantic policy comparison.
+ */
+export function hasImportedIdenticalWorkBrief(
+  ctx:ExtensionContext,pkg:HandoffPackage,
+):boolean {
+  if(!pkg.approvedMainBrief||!pkg.approvedMainBriefHash)return false;
+  return ctx.sessionManager.getBranch().some(entry=>{
+    if(entry.type!=='custom_message'||entry.customType!==IMPORT_TYPE||
+       !entry.details||typeof entry.details!=='object'||
+       Array.isArray(entry.details))return false;
+    const details=entry.details as Record<string,unknown>;
+    return details.approvedMainBriefHash===pkg.approvedMainBriefHash &&
+      details.sourceWorkSessionId===pkg.source.workSessionId &&
+      textFromContent(entry.content)===pkg.approvedMainBrief;
+  });
+}
+
 /** The Main's < opens received context in place, without an Inbox command. */
 export async function openMainContextReceive(
   pi:ExtensionAPI,ctx:ExtensionContext,
@@ -232,6 +251,17 @@ export function registerAutomaticMainAdoption(pi:ExtensionAPI):{
         if(item.status.status==='import-requested' &&
            (!item.status.comparedLeafId || !branchIds.has(item.status.comparedLeafId)))
           continue;
+        // The same Work-approved body is already present on the active Main
+        // branch. Its exact import receipt is stronger evidence of duplication
+        // than a second, fallible model comparison.
+        if(pkg.source.forkSourceSessionId===mainId &&
+           branchIds.has(pkg.source.forkLeafId) &&
+           hasImportedIdenticalWorkBrief(ctx,pkg)){
+          await setInboxStatus(mainId,pkg.id,'duplicate',baseLeaf);
+          if(ctx.hasUI)ctx.ui.notify(
+            '동일한 Work Brief가 이미 Main에 기록되어 중복 처리를 건너뛰었습니다.','info');
+          continue;
+        }
         if(!pkg.approvedMainBrief||!pkg.approvedMainBriefHash ||
            pkg.source.forkSourceSessionId!==mainId ||
            !branchIds.has(pkg.source.forkLeafId) ||
