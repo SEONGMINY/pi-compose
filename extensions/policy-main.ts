@@ -2,7 +2,8 @@ import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-a
 import { z } from 'zod';
 import { readAgentRelationship } from '../src/agent-relationships.ts';
 import { DECISION_ENTRY, REVIEW_ENTRY, couldBeApproval, decisionId,
-  textParts, containsSensitivePolicyText, branchDecisions, type PolicyDecision } from '../src/policy/decisions.ts';
+  textParts, containsSensitivePolicyText, branchDecisions,
+  selfContainedApprovedPolicyQuote, type PolicyDecision } from '../src/policy/decisions.ts';
 import { makePolicySnapshot, writePolicySnapshot } from '../src/policy/store.ts';
 
 const extraction = z.object({
@@ -26,10 +27,13 @@ async function publishSnapshot(ctx:ExtensionContext):Promise<void>{
   const leaf=ctx.sessionManager.getLeafId();
   if(!leaf)return;
   const branch=ctx.sessionManager.getBranch();
-  const reviewed=new Set(branch.flatMap(e=>
-    e.type==='custom'&&e.customType===REVIEW_ENTRY &&
-    e.data&&typeof e.data==='object'&&'approvalEntryId' in e.data &&
-    typeof e.data.approvalEntryId==='string'?[e.data.approvalEntryId]:[]));
+  const reviewed=new Set(branch.flatMap(e=>{
+    if(e.type!=='custom'||e.customType!==REVIEW_ENTRY||
+       !e.data||typeof e.data!=='object')return [];
+    const d=e.data as {approvalEntryId?:unknown;status?:unknown};
+    return typeof d.approvalEntryId==='string' &&
+      (d.status==='published'||d.status==='ignored')?[d.approvalEntryId]:[];
+  }));
   const unresolved=recentMessages(ctx).filter(x=>x.role==='user' &&
     couldBeApproval(x.text)&&!reviewed.has(x.id)).map(x=>x.id);
   const snapshot=makePolicySnapshot(owner.sessionId,owner.product,leaf,
@@ -64,6 +68,36 @@ export function recentMessages(ctx:ExtensionContext):Msg[]{
  * Keep the reference for "B안" even when the proposal is older than the
  * most recent turns. This is lexical retrieval, not approval classification.
  */
+
+/** A source may be the approving user when their message states the full rule. */
+export function resolveApprovedSource(
+  approval:Msg, earlier:readonly Msg[], sourceEntryId:string, sourceQuote:string,
+):{source:Msg;quote:string}|undefined{
+  const quote=sourceQuote.trim();
+  const source=[...earlier,approval].find(x=>x.id===sourceEntryId);
+  const selfContained=selfContainedApprovedPolicyQuote(approval.text);
+  const reference=/(?:[A-Z가-힣]\s*안(?:으로|을|이|은|에|$|\s)|\boption\s+[A-Z]\b)/i.test(approval.text);
+  if(source&&quote.length>=10&&quote.length<=1600&&source.text.includes(quote)){
+    if(source.id!==approval.id||!reference)return {source,quote};
+    // For "B안으로 확정", never send the bare label as a policy.
+    if(selfContained)return {source:approval,quote:selfContained};
+  }
+  if(selfContained)return {source:approval,quote:selfContained};
+}
+
+/** Deterministic recovery for explicit USER approvals with full policy wording. */
+export function explicitApprovalFallback(
+  approval:Msg,active:readonly PolicyDecision[],
+):z.infer<typeof extraction>|undefined{
+  const quote=selfContainedApprovedPolicyQuote(approval.text);
+  if(!quote)return;
+  const subject=quote.match(/^(.{2,80}?)(?:은|는|:)/)?.[1]?.trim()||'사용자 확정 정책';
+  // Do not blindly replace an already-approved policy in the same subject.
+  if(active.some(d=>d.subject===subject))return;
+  return {status:'approved',sourceEntryId:approval.id,sourceQuote:quote,
+    subject,reason:'',effective:'now',supersedesId:null};
+}
+
 export function selectApprovalEvidence(approval:Msg,earlier:readonly Msg[]):Msg[]{
   const selected=new Map<string,Msg>();
   const label=approval.text.match(/([A-Z가-힣])\s*안/i)?.[1];
@@ -98,7 +132,9 @@ async function inspectApproval(ctx:ExtensionContext, approval:Msg,
       'The final USER entry is the approval candidate. Other assistant text is proposals, not approval.',
       'Return approved ONLY if that user clearly decides, confirms, revises or stops a concrete policy or work constraint.',
       'A request to do ordinary coding work is NOT itself a newly approved policy.',
-      'If the user says B option, find the exact earlier B option. Never guess what B stands for.',
+      'If the user says B option, find the earlier B option where available. Never guess what B stands for.',
+      'If the approving USER explicitly restates the full policy after B option, the USER entry itself is a valid source. Return its exact literal policy sentence as sourceQuote and approvalEntryId as sourceEntryId.',
+      'Choosing documentation instead of code implementation through ask_user is a delivery-mode choice, not a new product policy and does not revoke the previously approved policy.',
       'For approved, sourceEntryId must be the ID of the entry containing the policy text;',
       'sourceQuote must be a verbatim contiguous substring of that entry giving the actual decision, not just the words B option.',
       'Do not include secret credentials. If no complete source quote, return ambiguous.',
@@ -131,6 +167,7 @@ export function registerPolicyMain(pi:ExtensionAPI):void{
       catch(error){if(ctx.hasUI)ctx.ui.notify('정책 변경 인덱스 저장 실패: '+String(error),'warning');}
     });
   };
+  const REVIEW_VERSION=2;
   let inspecting=false;
   async function inspect(ctx:ExtensionContext):Promise<void>{
     if(!mainOwner(ctx)){queuePublish(ctx);return;}
@@ -140,10 +177,15 @@ export function registerPolicyMain(pi:ExtensionAPI):void{
       const all=recentMessages(ctx);
       const branch=ctx.sessionManager.getBranch();
       const active=branchDecisions(branch,ctx.sessionManager.getSessionId());
-      const inspected=new Set(branch.flatMap(e=>
-        e.type==='custom'&&e.customType===REVIEW_ENTRY &&
-        e.data&&typeof e.data==='object'&&'approvalEntryId' in e.data &&
-        typeof e.data.approvalEntryId==='string'?[e.data.approvalEntryId]:[]));
+      const inspected=new Set(branch.flatMap(e=>{
+        if(e.type!=='custom'||e.customType!==REVIEW_ENTRY||
+           !e.data||typeof e.data!=='object')return [];
+        const d=e.data as {approvalEntryId?:unknown;status?:unknown;reviewVersion?:unknown};
+        // Old ambiguous decisions were permanently skipped by the first
+        // implementation. Give those exact user entries one safe re-evaluation.
+        const handled=d.status!=='ambiguous'||d.reviewVersion===REVIEW_VERSION;
+        return handled&&typeof d.approvalEntryId==='string'?[d.approvalEntryId]:[];
+      }));
       // Recover previously missed explicit approvals on restart, bounded per settle.
       const candidates=all.filter(x=>x.role==='user'&&!inspected.has(x.id)&&couldBeApproval(x.text));
       for(const approval of candidates.slice(-3)){
@@ -153,15 +195,25 @@ export function registerPolicyMain(pi:ExtensionAPI):void{
         const index=all.findIndex(x=>x.id===approval.id);
         const earlier=all.slice(0,index);
         try{
-          const parsed=await inspectApproval(ctx,approval,earlier,active);
+          // The actual approving USER can provide the entire policy even
+          // if the earlier assistant proposal was compacted or not quoted.
+          const fallback=explicitApprovalFallback(approval,active);
+          let parsed:Awaited<ReturnType<typeof inspectApproval>>;
+          try{parsed=await inspectApproval(ctx,approval,earlier,active);}
+          catch(error){
+            if(!fallback)throw error;
+            parsed=undefined;
+          }
+          if(parsed?.status!=='approved' && fallback)parsed=fallback;
           if(!parsed)break;
           if(ctx.sessionManager.getLeafId()!==startLeaf||!ctx.isIdle())break;
           let record:PolicyDecision|undefined;
           if(parsed.status==='approved'){
-            const source=[...earlier,approval].find(x=>x.id===parsed.sourceEntryId);
-            const quote=parsed.sourceQuote.trim();
+            const evidence=resolveApprovedSource(approval,earlier,
+              parsed.sourceEntryId,parsed.sourceQuote);
+            const source=evidence?.source;
+            const quote=evidence?.quote??'';
             const text=approval.text;
-            const pointer=/(?:[A-Z가-힣]\s*안(?:으로|을|이|은|에|$|\s)|\boption\s+[A-Z]\b)/i.test(text);
             const validSupersession=parsed.supersedesId===null ||
               active.some(d=>d.id===parsed.supersedesId);
             const overlapping=active.some(d=>d.subject===parsed.subject);
@@ -173,8 +225,7 @@ export function registerPolicyMain(pi:ExtensionAPI):void{
               (!overlapping || parsed.supersedesId!==null) &&
               quote.length<=1600 && approval.text.length<=1200 &&
               source && quote.length>=10 &&
-              source.text.includes(quote) &&
-              (!pointer || source.id!==approval.id);
+              source.text.includes(quote);
             if(validSource && !containsSensitivePolicyText(quote) &&
                !containsSensitivePolicyText(approval.text)){
               record={
@@ -201,10 +252,11 @@ export function registerPolicyMain(pi:ExtensionAPI):void{
             }
           }else if(parsed.status==='ambiguous'||parsed.status==='approved'){
             if(ctx.hasUI)ctx.ui.notify(
-              '정책 결정의 정확한 대상·원문을 확인하지 못해 자동 전파하지 않았습니다. Main에서 명확히 결정해 주세요.',
+              '정책 승인 후보 ['+approval.id.slice(0,8)+']의 원문 또는 적용 범위를 확인하지 못했습니다. 전파하지 않고 보관했습니다.',
               'warning');
           }
           pi.appendEntry(REVIEW_ENTRY,{approvalEntryId:approval.id,
+            reviewVersion:REVIEW_VERSION,
             status:record?'published':parsed.status==='not-a-decision'?'ignored':'ambiguous'});
         }catch(error){
           if(ctx.hasUI)ctx.ui.notify(
