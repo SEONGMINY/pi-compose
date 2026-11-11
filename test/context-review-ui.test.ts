@@ -34,7 +34,7 @@ function fixture():HandoffPackage {
   return validateHandoffPackage({...payload,finalMessage,finalMessageHash:hashMessage(finalMessage)});
 }
 
-function reviewHarness(focusOnDialog:boolean, columns=110) {
+function reviewHarness(focusOnDialog:boolean, columns=110, initiallySelected:string[]=[]) {
   let component: {
     render:(width:number)=>string[];
     handleInput:(key:string)=>void;
@@ -78,7 +78,7 @@ function reviewHarness(focusOnDialog:boolean, columns=110) {
   const ctx={ui,hasUI:true,mode:'tui'} as unknown as ExtensionContext;
   return {
     ctx,
-    run:()=>showContextReview(ctx,fixture(),{selected:[],focus:0,note:''},{
+    run:()=>showContextReview(ctx,fixture(),{selected:initiallySelected,focus:0,note:''},{
       onToggleZoom:async()=>{zoomCalls++;return 'Split 전환 완료';},
     }),
     key:(raw:string)=>{
@@ -180,4 +180,22 @@ test('review progress clears after completion and remains idempotent',()=>{
   assert.equal(changes.length,4);
   assert.ok(changes.slice(0,3).every(item=>item.content?.length));
   assert.equal(changes[3]?.content,undefined);
+});
+
+
+test('Work first < displays exact Main-bound text, and selection changes that text',async()=>{
+  for(const width of [82,130]){
+    const ui=reviewHarness(true,width,['HC1','HC2']);
+    const result=ui.run();
+    // Assert meaningful content, not line wrapping, widget dimensions or copy.
+    assert.ok(ui.text().includes('Implemented fix.'));
+    assert.ok(ui.text().includes('Suggest a cache.'));
+    ui.key('\x1b[B'); // focus HC2
+    ui.key(' '); // exclude HC2
+    assert.ok(ui.text().includes('Implemented fix.'));
+    assert.ok(!ui.text().includes('Suggest a cache.'));
+    ui.key('\r'); // exact final preview
+    ui.key('\r'); // one approval
+    assert.deepEqual(await result,{type:'send',selected:['HC1'],note:''});
+  }
 });
