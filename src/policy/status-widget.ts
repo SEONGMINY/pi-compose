@@ -40,8 +40,8 @@ export function policyNotice(state: PolicyIndicatorState): PolicyNotice | undefi
     if (state.unreviewedApprovalCount) {
       return {
         tone: 'warning',
-        compact: '! Main 결정 검토 대기',
-        detailed: '! Main 승인 후보 ' + state.unreviewedApprovalCount + '건 · 정책 최신성 미확인',
+        compact: '! Main 승인 후보 · Main >p',
+        detailed: '! Main 승인 후보 ' + state.unreviewedApprovalCount + '건 · Main에서 >p로 확인',
       };
     }
     const reason = state.unavailableReason === 'owner'
