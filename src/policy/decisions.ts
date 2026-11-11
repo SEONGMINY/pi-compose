@@ -1,6 +1,12 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 
+/** Never auto-forward obvious credentials from conversation history. */
+export function containsSensitivePolicyText(text:string):boolean {
+  return /(?:password|private.?key|api.?key|secret|credential|authorization|bearer)\\s*[:=]/i.test(text) ||
+    /-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(text);
+}
+
 export const DECISION_ENTRY = 'compose_policy_decision';
 export const REVIEW_ENTRY = 'compose_policy_reviewed';
 export const POLICY_MESSAGE = 'compose_policy_update';
@@ -53,7 +59,9 @@ export function branchDecisions(entries: readonly BranchEntry[], mainSessionId: 
     const d = parsed.data;
     const approval = byId.get(d.approvalEntryId);
     const source = byId.get(d.sourceEntryId);
-    if (approval?.type !== 'message' || approval.message?.role !== 'user' ||
+    if (containsSensitivePolicyText(d.approvalQuote) ||
+        containsSensitivePolicyText(d.sourceQuote) ||
+        approval?.type !== 'message' || approval.message?.role !== 'user' ||
         !textParts(approval.message.content).includes(d.approvalQuote) ||
         source?.type !== 'message' || !['user', 'assistant'].includes(source.message?.role ?? '') ||
         !textParts(source.message?.content).includes(d.sourceQuote) ||
