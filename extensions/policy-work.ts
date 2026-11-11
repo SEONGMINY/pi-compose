@@ -6,7 +6,7 @@ import { resolvePolicyMain } from '../src/policy/owners.ts';
 import { readPolicySnapshot, watchPolicySnapshot } from '../src/policy/store.ts';
 
 export type WorkPolicyStatus = {
-  status:'checked'|'pending'|'unavailable';
+  status:'checked'|'delivered'|'pending'|'unavailable';
   mainSessionId?:string;
   revision?:string;
   pendingDecisionIds:string[];
@@ -42,8 +42,16 @@ async function check(ctx:ExtensionContext,mainId:string):Promise<{
   const eligible=snapshot.decisions.filter(d=>
     d.scope==='owner-main'||d.targetWorkIds.includes(work.sessionId));
   const pending=delta.added.length>0||delta.withdrawn.length>0;
+  // A durable update message can be recorded *after* the last Work turn.
+  // Do not report it as reviewed or applied until another Work response exists.
+  const lastReceipt=branch.findLastIndex(e=>e.type==='custom_message' &&
+    e.customType===POLICY_MESSAGE &&
+    e.details&&typeof e.details==='object'&&!Array.isArray(e.details) &&
+    (e.details as {mainSessionId?:string}).mainSessionId===mainId);
+  const answeredAfter=lastReceipt<0 || branch.slice(lastReceipt+1).some(e=>
+    e.type==='message'&&e.message.role==='assistant'&&e.message.stopReason==='stop');
   const status:WorkPolicyStatus={
-    status:pending?'pending':'checked',
+    status:pending?'pending':answeredAfter?'checked':'delivered',
     mainSessionId:mainId,revision:snapshot.revision,
     pendingDecisionIds:delta.added.map(d=>d.id),
     withdrawnDecisionIds:delta.withdrawn,
@@ -102,7 +110,8 @@ export function registerPolicyWork(pi:ExtensionAPI):void{
         result.status.status==='pending'
           ?'Main 정책 변경 '+(result.status.pendingDecisionIds.length+
             result.status.withdrawnDecisionIds.length)+'건 확인 필요'
-          :result.status.status==='unavailable'?'Main 정책 최신성 미확인':undefined);
+          :result.status.status==='unavailable'?'Main 정책 최신성 미확인':
+          result.status.status==='delivered'?'Main 정책 알림 수신 · Work 검토 미확인':undefined);
     }catch(error){
       if(ctx.hasUI)ctx.ui.setStatus('pi-compose/policy-sync','Main 정책 조회 실패');
     }
