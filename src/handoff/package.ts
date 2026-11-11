@@ -50,7 +50,7 @@ export const handoffPackageSchema = z.object({
   reviewerNote: z.string().max(1200).optional(),
   contextAssessment: z.enum(['selected', 'none-needed', 'unavailable']),
   policySync: z.object({
-    status: z.enum(['checked','pending','unavailable']),
+    status: z.enum(['checked','delivered','pending','unavailable']),
     mainSessionId: z.string().min(1).optional(),
     revision: z.string().min(1).optional(),
     pendingDecisionIds: z.array(z.string().min(1)).max(200),
