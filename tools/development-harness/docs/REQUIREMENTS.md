@@ -14,6 +14,7 @@ Maintain time and token as distinct resources. Forecast provenance and original 
 - Pi and Codex adapters collect events; Codex attempt pairing uses available `agent_id` and reports uncorrelated requests as incomplete.
 - Cheap post-run analysis, durable review and improvement queues, evidence-linked hypotheses, economics and allowlisted worktree change proposal with independent verifier and project checks.
 - Automatic review/auto-improve eligible by trusted configuration; code modifications still require a separately approved local Git-common-dir policy. No remote push, no Docker, no server.
+- Git revision evidence for Task start; post-change impact snapshots comparing accepted Tasks only after confirmed local-main integration. Review/attempt wall costs, including failed attempts, are accounted for directionally; provider model tokens are explicitly unknown. See [IMPACT.md](IMPACT.md).
 
 ## Not yet proven / gaps
 
@@ -22,7 +23,7 @@ Maintain time and token as distinct resources. Forecast provenance and original 
 - Automatically calibrated P30/P50/P80 at cold start; numeric priors require history or configured uncalibrated seeds. Optional model planner is not a calibrated numeric forecaster.
 - Guaranteed model-attempt deduplication if provider events lack stable IDs, and a hard cumulative token budget for AI root-cause analysis.
 - Unbounded codebase-dependent planning is intentionally omitted; bounded plan generation is optional and must be empirically evaluated.
-- Causal net ROI measurement across comparable post-change tasks; current analyses offer hypotheses and directional estimates only.
+- Causal net ROI measurement and full two-resource attribution are still missing. Current impact snapshots are observational and model-review/proposal/verification tokens remain unobserved. The harness must not equate directional median changes with proven savings.
 
 ## Security, trust and lifecycle
 

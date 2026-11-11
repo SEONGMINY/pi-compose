@@ -2,6 +2,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { withState, readState, projectPaths, readProjectConfig, enqueue } from './store.mjs';
 import { initialPlan, validatePlan, classifyFollowup, isClearlyNonDevelopment } from './plan.mjs';
 import { chooseForecast } from './forecast.mjs';
+import { sourceRevision } from './improvement/impact.mjs';
 
 const iso = () => new Date().toISOString();
 const digest = s=>createHash('sha256').update(s).digest('hex');
@@ -24,6 +25,8 @@ export async function ingest({cwd,agent,sessionId,turnId,event,prompt,usage,even
   if(!['pi','codex','other'].includes(agent)||!validId(sessionId)||!validId(turnId))throw Error('Invalid agent/session/turn');
   const {dir,root}=projectPaths(cwd);
   const cfg=await readProjectConfig(root);
+  // Capture the starting code version *before* the agent can change it.
+  const source=event==='prompt'?sourceRevision(root):null;
   return withState(dir, state=>{
     const sessionKey=`${agent}:${sessionId}`;
     // No stable provider attempt id is guaranteed for usage events; do not fabricate one.
@@ -56,7 +59,7 @@ export async function ingest({cwd,agent,sessionId,turnId,event,prompt,usage,even
         const forecast=chooseForecast(state.tasks,{agent,kind,seed:cfg.forecastSeed});
         const steps=validatePlan(plan??initialPlan(prompt)).map(p=>({...p,status:'pending',runs:[]}));
         task={id,agent,sessionId,kind,title:prompt.slice(0,200),originalPromptHash:digest(prompt),steps,planProvenance:planProvenance??'deterministic',
-          forecast,status:'running',startedAt:iso(),startedAtMs:Date.now(),runs:[],
+          forecast,status:'running',source,startedAt:iso(),startedAtMs:Date.now(),runs:[],
           tokenUsage:{observed:0,events:0,missingEvents:0,coverage:'observed-events-only'},
           checks:cfg.checks,acceptanceContracts:cfg.acceptanceContracts,workdir:root,verification:null,actual:null,
           relatedTaskId:previous?.id??null,relation:previous?classification.intent:'initial',

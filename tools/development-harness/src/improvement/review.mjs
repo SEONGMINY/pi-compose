@@ -4,6 +4,7 @@ import { mkdir, open, readFile, readdir, realpath, rename, unlink, writeFile } f
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { getTask, pendingRootCauseReviews } from './bridge.mjs';
+import {recentImpactEvidence} from './impact.mjs';
 
 export const IMPROVEMENT_LAYERS = ['architecture', 'gate', 'ai_instructions', 'user_behavior'];
 const MAX_BATCH = 4;
@@ -183,7 +184,7 @@ export async function validateModelReview(raw, batch, cwd) {
     provenanceCaveat: 'Repository evidence was checked against current files, not historical task-time source.' };
 }
 
-function promptFor(batch) {
+function promptFor(batch, impactEvidence = []) {
   const items = batch.tasks.map(({ task, triage }) => ({ id: task.id, title: task.title, kind: task.kind,
     state: task.state, forecast: task.forecast, assumptions: task.assumptions,
     startedAt: task.startedAt, endedAt: task.endedAt, measurement: task.measurement,
@@ -205,6 +206,7 @@ function promptFor(batch) {
     'proposal: null or {title,expectedSignal,verification:[specific checks]}. Treat it only as a suggestion, never an authorization.',
     'No user behavior change when an architectural or automated solution remains viable.',
     'Do not read .git, .maintenance, node_modules, auth files or secrets.',
+    'Prior impact observations are directional, never causal. They do not authorize changes: '+JSON.stringify(impactEvidence).slice(0,2_500),
     'Task evidence (bounded): '+JSON.stringify(items).slice(0,14_000),
   ].join('\n\n');
 }
@@ -244,14 +246,16 @@ export async function reviewPending({dir, cwd = process.cwd(), dryRun = false, m
     const batches = groupPendingReviews(records).slice(0, maxBatches);
     if (dryRun) return { pending: triages.length, batches: batches.map((b) => ({signature:b.signature, taskIds:b.tasks.map(({task})=>task.id)})), dryRun:true };
     const saved = [];
+    const impactEvidence = await recentImpactEvidence(dir);
     for (const batch of batches) {
+      const batchStarted = performance.now();
       const modelStarted = performance.now();
-      const output = await runModel(promptFor(batch), cwd);
+      const output = await runModel(promptFor(batch,impactEvidence), cwd);
       const modelWallMs = performance.now() - modelStarted;
       const review = await validateModelReview(output, batch, cwd);
       const id = randomUUID();
       const record = { schemaVersion:1, id, reviewedAt:new Date().toISOString(), modelCost:'unmeasured',
-        modelWallMs,
+        modelTokens:null, tokenCoverage:'unknown', modelWallMs, reviewWallMs:performance.now()-batchStarted,
         ...review };
       const path = resolve(dir, 'reviews', `${id}.json`);
       await mkdir(resolve(dir, 'reviews'), {recursive:true});

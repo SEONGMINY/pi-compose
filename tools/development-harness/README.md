@@ -2,7 +2,7 @@
 
 A standalone developer-maintenance harness. Target: **a developer uses Pi or Codex normally** and the harness records a Task (with Steps and Runs), pre-development forecast, observed execution, then queues relevant improvement reviews after completion. This is *not* a pi-compose runtime feature.
 
-**Status: pre-release implementation; synthetic and local Git tests only, not authenticated Pi/Codex E2E.** Currently embedded in pi-compose under `tools/development-harness/`; extraction is deferred by user decision. Source baseline research: [pi-compose Draft PR #29](https://github.com/SEONGMINY/pi-compose/pull/29), [mofit-ios task-create](https://github.com/vibemafiaclub/mofit-ios/blob/main/prompts/task-create.md). The existing embedded package is on pi-compose `main`; changes in this iteration are implemented and tested separately before merge.
+**Status: pre-release implementation; synthetic and local Git tests only, not authenticated Pi/Codex E2E.** Currently embedded in pi-compose under `tools/development-harness/`; extraction is deferred by user decision. Source baseline research: [pi-compose Draft PR #29](https://github.com/SEONGMINY/pi-compose/pull/29), [mofit-ios task-create](https://github.com/vibemafiaclub/mofit-ios/blob/main/prompts/task-create.md). The package is embedded under `tools/development-harness/` for now; repository extraction is deferred.
 
 ## Important semantics
 - One **Task** = user's development goal; one or more **Steps** = verifiable milestones; **Runs** = actual agent turns/retries. Steps do not necessarily imply new sessions or commits.
@@ -69,6 +69,10 @@ After initial trusted Hook setup, both `autoReview` and `autoImprove` are automa
 
 The above is an **illustrative placeholder** and must be replaced with real, existing permitted files before activation. `draft` makes a locally verified attempt branch; `local-main` additionally requires explicit `allowAutoMain: true` and an unchanged clean local `main`. The review agent uses read-only tools, a bounded review batch and retries failures with backoff. Lack of measured provider tokens remains a limitation to hard cost caps.
 
+## Improvement impact evaluation
+
+Every Task captures its original Git revision before implementation when observable. After a confirmed **local-main** improvement, the verification worker refreshes directional before/after observations for comparable accepted Tasks. Draft branches, dirty/missing revisions and unobserved tokens cannot establish a positive ROI. The analysis includes known review and improvement attempt wall time, including blocked attempts, while unknown model tokens remain `null`. Use `devh impact` to inspect the evidence; developers do not need to run it for each Task. See [Impact evidence and limits](docs/IMPACT.md) for the method and its causal limitations.
+
 ## Limitations and roadmap
 
-See `docs/REQUIREMENTS.md`. Declarative Step acceptance receipts and the separate improvement queue are implemented. **Real Pi/Codex integration, automatic AI plan generation, full semantic acceptance and bounded measured AI costs remain unverified or incomplete.**
+See `docs/REQUIREMENTS.md`. Declarative Step acceptance receipts and the separate improvement queue are implemented. **Real Pi/Codex integration, automatic AI plan generation, full semantic acceptance, AI token attribution and causal net ROI remain unverified or incomplete.**

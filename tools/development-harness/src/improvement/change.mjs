@@ -11,7 +11,7 @@ import { projectPaths } from '../store.mjs';
 const MAX_EDITS = 8;
 const MAX_CHANGED_BYTES = 120_000;
 const SAFE = /^(?:src|extensions|maintenance|docs\/maintenance|tools\/development-harness)\/[a-zA-Z0-9_.\/-]+$/;
-const INTERNAL_GUARD = /^(?:maintenance\/(?:core|cli|review|usage|improve)\.mjs|tools\/development-harness\/(?:src\/(?:core|store|acceptance|worker)\.mjs|src\/improvement\/(?:review|change|queue|bridge)\.mjs|bin\/devh\.mjs|adapters\/[^/]+))$/;
+const INTERNAL_GUARD = /^(?:maintenance\/(?:core|cli|review|usage|improve)\.mjs|tools\/development-harness\/(?:src\/(?:core|store|acceptance|worker|forecast|planner|plan)\.mjs|src\/improvement\/(?:review|change|queue|bridge|impact)\.mjs|bin\/devh\.mjs|adapters\/[^/]+))$/;
 const ALLOWED_CHECKS = new Set(['maintenance', 'project', 'harness']);
 function requireThat(value, message) { if (!value) throw new Error(message); }
 function hash(text) { return createHash('sha256').update(text).digest('hex'); }
@@ -131,6 +131,7 @@ export async function runTrustedChecks(worktree, checks, runner = command) {
   for(const check of checks) {
     requireThat(ALLOWED_CHECKS.has(check),'Untrusted check identifier');
     let bin,args;
+    const start=performance.now();
     if(check==='maintenance') {
       const names=(await readdir(join(worktree,'test'))).filter(n=>/^maintenance.*\.test\.mjs$/.test(n)).sort();
       requireThat(names.length>0,'No maintenance tests available');
@@ -144,7 +145,6 @@ export async function runTrustedChecks(worktree, checks, runner = command) {
       requireThat(r.code===0 && !r.timedOut,`Required check failed: ${check}`);
       continue;
     }}
-    const start=performance.now();
     const r=await runner(bin,args,{cwd:worktree,timeoutMs:240_000});
     results.push({name:check,bin,args,durationMs:performance.now()-start,exitCode:r.code,
       timedOut:r.timedOut,outputTail:(r.stdout+'\n'+r.stderr).slice(-2500)});
@@ -206,7 +206,8 @@ export async function executeImprovement({repo,dir,reviewId,policyFile,dryRun=fa
   const started=performance.now();
   const receipt={schemaVersion:1,id:randomUUID(),reviewId,relatedTaskIds:review.taskIds??[],
     policyDigest:policy.sha256,base,mode:policy.mode,startedAt:new Date().toISOString(),
-    state:'running',modelTokens:'unmeasured'};
+    state:'running',modelTokens:null,modelTokenCoverage:'unknown',
+    stages:{prepareMs:null,proposeMs:null,checksMs:null,verifyMs:null,integrateMs:null}};
   let temp,worktree;
   try {
     requireThat(!(await listAttempts(dir)).some(a=>a.reviewId===reviewId && ['verified-draft','integrated-local'].includes(a.state)),
@@ -214,8 +215,11 @@ export async function executeImprovement({repo,dir,reviewId,policyFile,dryRun=fa
     temp=await mkdtemp(join(tmpdir(),'pi-maintenance-'));
     worktree=join(temp,'worktree');
     await git(root,'worktree','add','--detach',worktree,base);
+    receipt.stages.prepareMs=performance.now()-started;
     receipt.proposeStart=new Date().toISOString();
+    const proposeStarted=performance.now();
     const proposed=await propose(editPrompt(review,policy),worktree);
+    receipt.stages.proposeMs=performance.now()-proposeStarted;
     receipt.editedPaths=await applyEdits(worktree,proposed,policy);
     const changed=await worktreePaths(worktree);
     requireThat(changed.length>0 && changed.length===receipt.editedPaths.length &&
@@ -224,10 +228,14 @@ export async function executeImprovement({repo,dir,reviewId,policyFile,dryRun=fa
     const diff=await git(worktree,'diff','--no-ext-diff','--no-color');
     requireThat(diff.length>0 && diff.length<=MAX_CHANGED_BYTES,'Diff size invalid');
     receipt.patchSha256=hash(diff); receipt.patch=diff;
+    const checksStarted=performance.now();
     receipt.tests=await checks(worktree,policy.checks);
+    receipt.stages.checksMs=performance.now()-checksStarted;
     requireThat((await worktreePaths(worktree)).every(p=>receipt.editedPaths.includes(p)),
       'Checks created unexpected repository changes');
+    const verifyStarted=performance.now();
     receipt.verifier=parseVerdict(await verify(verifierPrompt(review,diff,receipt.tests),worktree));
+    receipt.stages.verifyMs=performance.now()-verifyStarted;
     requireThat(receipt.verifier.verdict==='pass' && receipt.verifier.risks.length===0 &&
       receipt.verifier.limitations.length===0,'Independent review blocked integration');
     requireThat((await git(root,'rev-parse','refs/heads/main'))===base,'Main changed during verification');
@@ -243,9 +251,11 @@ export async function executeImprovement({repo,dir,reviewId,policyFile,dryRun=fa
     receipt.state='verified-draft';
     await persist(dir,receipt); // durable verified receipt BEFORE any automatic Main update
     if(policy.mode==='local-main') {
+      const integrateStarted=performance.now();
       // Safe fast-forward only. Never push or rewrite a branch.
       await git(root,'merge','--ff-only',receipt.commit);
       requireThat((await git(root,'rev-parse','HEAD'))===receipt.commit,'Main integration not confirmed');
+      receipt.stages.integrateMs=performance.now()-integrateStarted;
       receipt.state='integrated-local';
     }
   }catch(e){ receipt.state='blocked';receipt.error=String(e?.message??e); }

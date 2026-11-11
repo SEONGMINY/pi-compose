@@ -7,6 +7,7 @@
 3. **Provider adapters**: Pi custom-run guard, stable message timestamp ID fallback, Codex agent-specific attempt pairing and outcome reporting, explicit SessionEnd installation, recursive improvement-run exclusion. Synthetic Codex end-to-end and event contracts tested.
 4. **Durable work**: retryable verification queue, stale worker recovery, review-model backoff, acknowledgement only after persisted receipts, accepted improvements not repeated.
 5. **Improvement loop**: evidence validation, cost-aware layer selection and worktree change engine adapted from Draft PR #29. Generated candidates create an improvement queue item; optional automatic execution requires local explicit allowlist policy and passes fixed checks/independent model verification. Local-main requires explicit opt-in and can only fast-forward locally.
+6. **Directional impact feedback**: record pre-work Git revisions, separate review and change attempt wall costs, and compare only clean/ancestry-confirmed accepted tasks after local integration. Refresh durable impact snapshots on post-task workers, expose `devh impact`, pass a bounded non-causal summary into the next independent review. Prevent automatic edits to impact/forecast/worker control code. [Method](IMPACT.md).
 
 ## Still open — do not claim production complete
 
@@ -15,7 +16,7 @@
 - Real authenticated Pi 1.4/Codex on the user's machine, Hook trust and concurrent process E2E. Our environment has neither installed provider binary.
 - Stable provider model-request IDs, subagent coverage and deduplicated actual provider invoices, plus global budget accounting for review agents.
 - Cross-device synchronization and always-on processing while the host is offline, intentionally out of scope.
-- Fully measured net ROI from successive real tasks and regression outcomes.
+- **Verified net ROI and regression outcomes** from truly comparable real tasks. Directional impact snapshots now exist, but task difficulty, tokens spent by analysis agents, external resource use, test failures and rework still prevent a causal two-resource verdict.
 
 ## Verification to finish deployment
 
