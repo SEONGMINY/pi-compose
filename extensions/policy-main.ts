@@ -273,6 +273,80 @@ export function registerPolicyMain(pi:ExtensionAPI):{
       queuePublish(ctx);
     }
   }
+  async function openReview(ctx:ExtensionContext):Promise<void>{
+    const owner=mainOwner(ctx);
+    if(!owner||!ctx.hasUI||ctx.mode!=='tui'){
+      if(ctx.hasUI)ctx.ui.notify('정책 후보 판정은 소유 Main에서만 가능합니다. Main에서 >p를 입력하세요.','warning');
+      return;
+    }
+    if(!ctx.isIdle()){
+      ctx.ui.notify('Main 응답이 끝난 뒤 >p로 승인 후보를 검토해주세요.','warning');
+      return;
+    }
+    const branch=ctx.sessionManager.getBranch();
+    const reviews=latestPolicyReviews(branch);
+    const resolved=resolvedApprovalIds(branch);
+    const pending=recentMessages(ctx).filter(x=>x.role==='user' &&
+      couldBeApproval(x.text)&&!resolved.has(x.id));
+    if(!pending.length){
+      ctx.ui.notify('미해결 Main 승인 후보가 없습니다. 정책 최신성 인덱스를 갱신합니다.','info');
+      queuePublish(ctx);
+      return;
+    }
+    const originalLeaf=ctx.sessionManager.getLeafId();
+    const labels=pending.map((m,i)=>{
+      const reason=reviews.get(m.id)?.reason??'정책 승인 여부 확인 전';
+      return String(i+1)+'. '+m.text.replace(/\s+/g,' ').slice(0,75)+
+        ' ['+m.id.slice(0,8)+'] · '+reason.slice(0,55);
+    });
+    const chosen=await ctx.ui.select('Main 미해결 정책 승인 후보 '+pending.length+'건',labels);
+    if(!chosen)return;
+    const candidate=pending[labels.indexOf(chosen)];
+    if(!candidate)return;
+    const action=await ctx.ui.select('승인 후보 처리',[
+      '이미 확정한 정책에 포함됨 · 기존 결정 연결',
+      '정책 확정이 아닌 발화 · 후보에서 제외',
+      '나중에 확인 · 변경하지 않음',
+    ]);
+    if(!action||action.startsWith('나중에'))return;
+    const common={approvalEntryId:candidate.id,reviewVersion:REVIEW_VERSION,
+      userReviewed:true as const};
+    let result:{
+      approvalEntryId:string;reviewVersion:number;userReviewed:true;
+      status:'ignored'|'resolved';resolution:'not-policy'|'covered-by-decision';
+      coveredByDecisionId?:string;
+    };
+    if(action.startsWith('이미')){
+      const decisions=branchDecisions(branch,owner.sessionId);
+      if(!decisions.length){
+        ctx.ui.notify('선택 가능한 기존 확정 정책이 없습니다. 먼저 Main에서 실제 정책을 확정해주세요.','warning');
+        return;
+      }
+      const options=decisions.map((d,i)=>String(i+1)+'. '+d.subject+' · '+
+        d.decision.replace(/\s+/g,' ').slice(0,95)+' ['+d.id.slice(0,8)+']');
+      const selected=await ctx.ui.select('어떤 확정 정책에 포함됐나요?',options);
+      if(!selected)return;
+      const matched=decisions[options.indexOf(selected)];
+      if(!matched)return;
+      result={...common,status:'resolved',resolution:'covered-by-decision',
+        coveredByDecisionId:matched.id};
+    }else{
+      const confirm=await ctx.ui.confirm('정책 후보에서 제외하시겠습니까?',
+        '다음 발화를 승인된 정책으로 전파하지 않습니다. 실제 정책 확정이 아니었나요?\n\n'+
+        candidate.text.slice(0,500));
+      if(!confirm)return;
+      result={...common,status:'ignored',resolution:'not-policy'};
+    }
+    // Never attach the review to a different Main active branch after a modal.
+    if(ctx.sessionManager.getSessionId()!==owner.sessionId||
+       ctx.sessionManager.getLeafId()!==originalLeaf||!ctx.isIdle()){
+      ctx.ui.notify('선택 중 Main 세션·분기가 변경됐습니다. 다시 >p를 실행해주세요.','warning');
+      return;
+    }
+    pi.appendEntry(REVIEW_ENTRY,result);
+    queuePublish(ctx);
+    ctx.ui.notify('승인 후보의 처리 결과를 Main 원본에 기록했습니다. Work의 최신성 경고가 자동 갱신됩니다.','info');
+  }
   // Recovery scans only uninspected explicit approval candidates on the active
   // branch. It does not require the user to repeat a policy registration.
   pi.on('session_start',(_event,ctx)=>{
@@ -291,4 +365,5 @@ export function registerPolicyMain(pi:ExtensionAPI):{
     if(event.aborted){queuePublish(ctx);return;}
     await inspect(ctx);
   });
+  return {openReview};
 }
