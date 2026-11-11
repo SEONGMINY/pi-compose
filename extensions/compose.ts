@@ -8,6 +8,8 @@ import { registerHandoffInbox } from './handoff-inbox.ts';
 import { openWorkContextReview } from './context-review.ts';
 import { openMainContextReceive, registerMainContextImportReceipts, registerAutomaticMainAdoption } from './context-receive.ts';
 import { readAgentRelationship } from '../src/agent-relationships.ts';
+import { registerPolicyMain } from './policy-main.ts';
+import { registerPolicyWork } from './policy-work.ts';
 
 /**
  * The user starts a Work with >w and explicitly shares selected context with <.
@@ -17,6 +19,8 @@ import { readAgentRelationship } from '../src/agent-relationships.ts';
  */
 export default function composeExtension(pi: ExtensionAPI): void {
   registerAgentIdentity(pi);
+  registerPolicyMain(pi);
+  registerPolicyWork(pi);
   const { showHandoff, connectedRecipientIds } = registerHandoff(pi);
   const mainAdoption=registerAutomaticMainAdoption(pi);
   const receiver = registerHandoffInbox(pi,mainAdoption.onAvailable);
