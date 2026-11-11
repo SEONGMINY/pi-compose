@@ -43,6 +43,8 @@ test('unavailable, unresolved approvals, and stop are persistent and distinct',(
   const stop=policyNotice(state('checked',{stop:true}));
   assert.match(unavailable!.detailed,/최신성 확인 불가/);
   assert.match(unresolved!.detailed,/승인 후보 2건/);
+  assert.match(unresolved!.detailed,/Main에서 >p/);
+  assert.match(unresolved!.compact,/Main >p/);
   assert.match(wrongOwner!.detailed,/소유 Main 불명확/);
   assert.match(readError!.detailed,/조회 실패/);
   assert.equal(stop!.tone,'error');
