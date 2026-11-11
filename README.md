@@ -24,3 +24,7 @@ Overview/Sidebar 없이 `pic`에서 Main을 직접 시작하고, 필요할 때 `
 **이 흐름은 현재 `main`의 사용법이 아닙니다.** [Draft PR #25](https://github.com/SEONGMINY/pi-compose/pull/25)에서 구현을 검토 중이며, 코드 작성과 macOS/Pi/Ghostty 실사용 검증은 별개입니다. 세부 구현 현황은 해당 PR에서 확인하고, 완료된 기능으로 추정하지 마세요.
 
 [Vision](docs/VISION.md) · [제품 요구사항](docs/PRD.md) · [문서 안내](docs/README.md)
+
+## 내부 유지보수 하네스 (초기 구현)
+
+`tools/development-harness/`에는 Pi Compose 자체의 개발 작업을 Task → Step → Run으로 기록하고, Pi/Codex 실행 이벤트를 통해 예측·실측·기본 분석을 수행하는 **실험적 내부 도구**가 있습니다. `pic` 사용자 기능이 아니며 별도 최초 설치가 필요합니다. **실제 Pi/Codex 환경 E2E, 의미적 완료 판단, AI 개선 실행은 아직 완료되지 않았습니다.** 자세한 사항은 [하네스 README](tools/development-harness/README.md)를 참고하세요. 이전 계측·개선 엔진의 [Draft PR #29](https://github.com/SEONGMINY/pi-compose/pull/29)는 중복 병합을 피하기 위해 별도로 유지합니다.
