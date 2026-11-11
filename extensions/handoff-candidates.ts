@@ -127,6 +127,12 @@ function completionReportFallback(reportEntryId: string, reportText: string): Ha
 
 type Source = { id: string; role: 'assistant' | 'user' | 'toolResult'; text: string };
 
+/** Match package.ts's fail-closed secret screening for expanded Fork excerpts. */
+function safeHistorySource(text:string):boolean {
+  return !/(?:password|private.?key|api.?key|secret|credential|authorization|bearer)\s*[:=]/i.test(text) &&
+    !/-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(text);
+}
+
 function readText(content: unknown): string {
   const input = typeof content === 'string' ? content : Array.isArray(content)
     ? content.filter(item => item?.type === 'text' && typeof item.text === 'string')
@@ -319,7 +325,11 @@ export async function prepareManualHandoffCandidates(ctx: ExtensionContext, onMe
        (entry.message.role!=='user'&&entry.message.role!=='assistant'&&
         entry.message.role!=='toolResult'))return [];
     const text=readText(entry.message.content);
-    return text?[{id:entry.id,role:entry.message.role,text}]:[];
+    // Unlike the former candidate pass, unified preparation sees a larger
+    // history. Do not widen the old source exposure to credential-bearing
+    // messages merely to save one model call.
+    return text&&safeHistorySource(text)
+      ?[{id:entry.id,role:entry.message.role,text}]:[];
   }),source.reportText,36,1600);
 
   const fallback=():PreparationResult=>{
