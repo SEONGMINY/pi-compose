@@ -5,6 +5,8 @@ import { DECISION_ENTRY, REVIEW_ENTRY, couldBeApproval, decisionId,
   textParts, containsSensitivePolicyText, branchDecisions,
   selfContainedApprovedPolicyQuote, type PolicyDecision } from '../src/policy/decisions.ts';
 import { makePolicySnapshot, writePolicySnapshot } from '../src/policy/store.ts';
+import { latestPolicyReviews, resolvedApprovalIds, hasBeenInspected,
+  POLICY_REVIEW_VERSION } from '../src/policy/reviews.ts';
 
 const extraction = z.object({
   status: z.enum(['approved','not-a-decision','ambiguous']),
@@ -27,13 +29,7 @@ async function publishSnapshot(ctx:ExtensionContext):Promise<void>{
   const leaf=ctx.sessionManager.getLeafId();
   if(!leaf)return;
   const branch=ctx.sessionManager.getBranch();
-  const reviewed=new Set(branch.flatMap(e=>{
-    if(e.type!=='custom'||e.customType!==REVIEW_ENTRY||
-       !e.data||typeof e.data!=='object')return [];
-    const d=e.data as {approvalEntryId?:unknown;status?:unknown};
-    return typeof d.approvalEntryId==='string' &&
-      (d.status==='published'||d.status==='ignored')?[d.approvalEntryId]:[];
-  }));
+  const reviewed=resolvedApprovalIds(branch);
   const unresolved=recentMessages(ctx).filter(x=>x.role==='user' &&
     couldBeApproval(x.text)&&!reviewed.has(x.id)).map(x=>x.id);
   const snapshot=makePolicySnapshot(owner.sessionId,owner.product,leaf,
@@ -158,7 +154,9 @@ async function inspectApproval(ctx:ExtensionContext, approval:Msg,
   return extraction.parse(JSON.parse(raw));
 }
 
-export function registerPolicyMain(pi:ExtensionAPI):void{
+export function registerPolicyMain(pi:ExtensionAPI):{
+  openReview:(ctx:ExtensionContext)=>Promise<void>;
+}{
   // Never mutate the original Pi JSONL outside the owning live Pi API.
   let publishing=Promise.resolve();
   const queuePublish=(ctx:ExtensionContext)=>{
@@ -168,7 +166,7 @@ export function registerPolicyMain(pi:ExtensionAPI):void{
       catch(error){if(ctx.hasUI)ctx.ui.notify('정책 변경 인덱스 저장 실패: '+String(error),'warning');}
     });
   };
-  const REVIEW_VERSION=2;
+  const REVIEW_VERSION=POLICY_REVIEW_VERSION;
   let inspecting=false;
   async function inspect(ctx:ExtensionContext):Promise<void>{
     if(!mainOwner(ctx)){queuePublish(ctx);return;}
@@ -178,15 +176,9 @@ export function registerPolicyMain(pi:ExtensionAPI):void{
       const all=recentMessages(ctx);
       const branch=ctx.sessionManager.getBranch();
       const active=branchDecisions(branch,ctx.sessionManager.getSessionId());
-      const inspected=new Set(branch.flatMap(e=>{
-        if(e.type!=='custom'||e.customType!==REVIEW_ENTRY||
-           !e.data||typeof e.data!=='object')return [];
-        const d=e.data as {approvalEntryId?:unknown;status?:unknown;reviewVersion?:unknown};
-        // Old ambiguous decisions were permanently skipped by the first
-        // implementation. Give those exact user entries one safe re-evaluation.
-        const handled=d.status!=='ambiguous'||d.reviewVersion===REVIEW_VERSION;
-        return handled&&typeof d.approvalEntryId==='string'?[d.approvalEntryId]:[];
-      }));
+      const inspected=new Set([...latestPolicyReviews(branch)]
+        .filter(([,record])=>hasBeenInspected(record,REVIEW_VERSION))
+        .map(([id])=>id));
       // Recover previously missed explicit approvals on restart, bounded per settle.
       const candidates=all.filter(x=>x.role==='user'&&!inspected.has(x.id)&&couldBeApproval(x.text));
       for(const approval of candidates.slice(-3)){
