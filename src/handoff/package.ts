@@ -6,6 +6,7 @@ import type { AgentRelationship } from '../agent-relationships.ts';
 import { selectForkHistory } from './retrieve.ts';
 import { findVerificationReportQuote } from './report-verification.ts';
 import { renderApprovedMainBrief } from './brief.ts';
+import { measuredHandoffCall, type HandoffMetric, type MetricSink } from './metrics.ts';
 
 const evidenceSchema = z.object({
   id: z.string().min(1),
@@ -219,7 +220,7 @@ export function renderPackage(pkg: Pick<HandoffPackage, 'claims' | 'context' | '
 /** Only Work's active branch and Fork ancestry are consulted, never current Main. */
 export async function createSelectedHandoffPackage(
   ctx: ExtensionContext, owner: AgentRelationship, draft: PreparedHandoff,
-  choice: CandidateChoice, targetMainSessionId: string,
+  choice: CandidateChoice, targetMainSessionId: string, onMetric?:MetricSink,
 ): Promise<HandoffPackage> {
   if (owner.role !== 'work' || owner.sessionId !== draft.sessionId ||
       !owner.forkSourceSessionId || !owner.forkSourceLeafId)
@@ -299,6 +300,9 @@ export async function createSelectedHandoffPackage(
     contextAssessment=draft.contextAssessment==='unavailable'?'unavailable'
       :context.length?'selected':'none-needed';
   }else if (refs.length && ctx.model) {
+    const legacyStarted=performance.now();
+    let legacyUsage:unknown;
+    let legacyOutcome:HandoffMetric['outcome']='error';
     try {
       const result = await ctx.modelRegistry.streamSimple(ctx.model, {
         systemPrompt: [
@@ -319,6 +323,7 @@ export async function createSelectedHandoffPackage(
           sources:refs,
         }),timestamp:Date.now()}],
       }, {reasoning:'low',maxTokens:2600,signal:AbortSignal.timeout(30000)}).result();
+      legacyUsage=result;
       if (result.stopReason === 'stop') {
         const answer = textOf(result.content).replace(/^\s*```(?:json)?\s*([\s\S]*?)\s*```\s*$/i,'$1');
         const parsed = contextResponse.parse(JSON.parse(answer));
@@ -337,12 +342,18 @@ export async function createSelectedHandoffPackage(
             requiredByClaimIds:related,evidenceId});
         }
         contextAssessment = context.length ? 'selected' : 'none-needed';
+        legacyOutcome='ok';
       }
     } catch {
       // Fail safe: no invented context. The recipient sees the limitation.
       evidence.splice(claims.length);
       context.length = 0;
       contextAssessment = 'unavailable';
+    }finally{
+      if(onMetric)try{
+        await onMetric(measuredHandoffCall('work-context-fallback',legacyOutcome,
+          legacyStarted,ctx.model?.id,legacyUsage));
+      }catch{/* Metrics failures never change the package result. */}
     }
   } else if (!refs.length) {
     contextAssessment = 'none-needed';
