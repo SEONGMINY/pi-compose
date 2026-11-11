@@ -9,7 +9,7 @@ import { hasImportedIdenticalWorkBrief } from '../extensions/context-receive.ts'
 const policy='Customers without replies must not be marked resolved.';
 const report='Implemented inquiry status checks. Tests were not run.';
 let fixtureCounter=0;
-function fixture(mode:'valid'|'invalid-context'|'missing-context'='valid'){
+function fixture(mode:'valid'|'invalid-context'|'missing-context'|'legacy-transient'='valid'){
   const workId='work-unified-'+(++fixtureCounter);
   const owner={
     role:'work' as const,sessionId:workId,product:'demo',
@@ -40,7 +40,7 @@ function fixture(mode:'valid'|'invalid-context'|'missing-context'='valid'){
             quote:'Implemented inquiry status checks.'}],
           ...(mode==='missing-context'?{}:{context:[{
             sourceEntryId:'policy',
-            quote:mode==='invalid-context'?'Fabricated policy.':policy,
+            quote:(mode==='invalid-context'||mode==='legacy-transient')?'Fabricated policy.':policy,
             reason:'condition',
             whyNeeded:'No response is not a resolved state',
             relatedCandidateIds:['HC1'],
@@ -61,7 +61,9 @@ function fixture(mode:'valid'|'invalid-context'|'missing-context'='valid'){
         }
         return {result:async()=>({
           stopReason:'stop',
-          content:[{type:'text',text:JSON.stringify(response)}],
+          content:[{type:'text',text:mode==='legacy-transient'&&calls===2
+            ?'not-json'
+            :JSON.stringify(response)}],
           usage:{input:240,output:80,cacheRead:20,cacheWrite:0,
             totalTokens:340,cost:{total:0.0003}},
         })};
@@ -150,4 +152,20 @@ test('only byte-identical Work imports can bypass Main semantic comparison',()=>
   assert.equal(hasImportedIdenticalWorkBrief({
     sessionManager:{getBranch:()=>[]},
   } as unknown as ExtensionContext,pkg),false);
+});
+
+
+test('first < retries a transient WHY lookup without requiring a second user action',async()=>{
+  const env=fixture('legacy-transient');
+  const prepared=await prepareManualHandoffCandidates(env.ctx);
+  assert.equal(prepared.status,'prepared');
+  if(prepared.status!=='prepared')return;
+  assert.equal(prepared.draft.linkedContext,undefined);
+  const pkg=await createSelectedHandoffPackage(env.ctx,env.owner,prepared.draft,{
+    ids:['HC1'],reviewEntryId:'report',
+  },'main-unified-1');
+  // 1 unified call + 1 invalid legacy reply + 1 source-verified retry
+  assert.equal(env.calls(),3);
+  assert.equal(pkg.contextAssessment,'selected');
+  assert.equal(pkg.context[0]?.quote,policy);
 });
