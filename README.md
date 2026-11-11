@@ -1,6 +1,6 @@
 # Pi Compose
 
-> **현재 `main` 코드 기준:** `pic`을 인자 없이 실행하면 아직 **Overview**가 열립니다. 아래에 설명하는 `pic` 직접 Main 진입, `>w`/ `>s` 직접 위임과 간소화된 Work `<` → Main 수신 알림은 **목표 UX**입니다. 새 실행 흐름은 [Draft PR #25](https://github.com/SEONGMINY/pi-compose/pull/25)에 코드로 작성 중이고, `main`에는 아직 병합되지 않았습니다. 이 문서 병합만으로 실행 동작은 바뀌지 않습니다.
+> **현재 `main`과 차이:** 기본 `main`의 `pic` 실행 방식은 이 문서의 목표 UX와 다릅니다. 직접 Main 진입 및 Work Handoff는 [Draft PR #25](https://github.com/SEONGMINY/pi-compose/pull/25)에 있고, 자동 승인 정책 전파와 Work-owned Handoff 개선은 [후속 Draft PR #37](https://github.com/SEONGMINY/pi-compose/pull/37)에 작성 중입니다. 후속 구현의 CI 및 실제 macOS/Ghostty 검증은 미완료입니다.
 
 
 **Main의 설계·결정 맥락을 지키면서, 실제 개발은 그 대화를 Fork한 Work에서 진행하는 Pi 기반 Coding Agent Harness입니다.**
@@ -15,8 +15,8 @@ Main    문제·계약·선택 이유·확정된 결정
   ├── Work     실제 Pi 대화 Fork → 구현·수정·테스트 코드 작성
   └── Support  독립 탐색·조사·테스트 실행
 
-Work 결과 → Handoff Brief 한 번 승인 → 안전 검사 통과 시 Main에 참고 보고 반영
-                         └── 사용자가 선택한 내용만 명시적 반영
+Main 확정 결정 → 해당 Work의 변경분 조회·적용 검토
+Work 결과 → Work < 정확한 Brief 한 번 승인 → 계보·본문 검증 후 Main 참고 보고 자동 수신
 ```
 
 ## 목표 명령과 위임 (현재 main 미지원)
@@ -28,10 +28,12 @@ pic -r               # Pi 기본 저장 세션 선택
 
 Pi 입력창의 `>w 작업`은 현재 완료 대화를 Fork한 Work, `>s 작업`은 독립 Support를 시작합니다. `>>w`, `>>s`는 각각 새 Git Worktree에서 시작합니다. 세션과 파일 작업 공간은 서로 다른 선택입니다.
 
-## Handoff의 목표 경험
+## 정책 최신성과 Handoff의 목표 경험
 
-Work의 `<`에서 **핵심 결과를 이해하고 근거를 확인해 Handoff Brief를 한 번 승인**합니다. 같은 Main의 활성 Fork 계보에서 충돌 없이 검증되면 **승인한 내용 그대로 참고 보고**가 추가되며 모델은 자동 실행되지 않습니다. 충돌·불확실성이 있을 때만 Main의 `<`로 예외 검토합니다. Work 보고는 자동 정책 승인이 아닙니다. 검토 UI는 대화창을 계속 노출하는 보조 패널이 아니라 독립된 Pi 화면입니다. 검토 중 `Alt+Z`로 Ghostty Split 확대를 명시적으로 요청할 수 있습니다(확대 상태를 읽는 API가 없어 자동 토글은 하지 않음).
+Main에서 사용자가 기존 제안의 B안을 명확히 확정하면 추가 등록 조작 없이 결정의 원본·적용 범위를 확인해 관련 Work에 변경을 전달합니다. Work는 원래 Fork 세션을 유지하고 다음 안전한 모델 호출에서 변경분만 받아 자신의 개발 판단을 조정합니다. 변경이 없으면 추가 의미 분석을 시작하지 않습니다.
 
-**구현 상태:** [Draft PR #25](https://github.com/SEONGMINY/pi-compose/pull/25)에서 Handoff Brief 단일 검토와 Main의 안전 조건부 자동 참고 보고 경로를 Draft 코드로 연결했습니다. 자동 `ask_user` 및 `/compose inbox`는 최신 실행 경로에서 사용하지 않습니다. **검증은 별개**이며 macOS/Ghostty E2E 완료 전에는 프로덕션 준비가 끝났다고 주장하지 않습니다.
+Work는 `<`에서 결과·WHY·검증 및 정책 최신성 상태를 확인하고 **Main에 추가될 정확한 Brief를 한 번 승인**합니다. Main은 정상적인 수신에서 의미를 다시 평가하지 않고, 원본 대상·계보·본문 해시·중복만 기계적으로 검사해 참고 보고로 기록합니다. 보고는 정책 채택이나 Git 병합이 아닙니다.
+
+**구현 및 검증:** [Draft PR #37](https://github.com/SEONGMINY/pi-compose/pull/37)는 이 경로의 코드 구현을 포함하지만 자동 자연어 감지의 정확도·실제 Pi Hook 동작·macOS/Ghostty E2E는 아직 검증해야 합니다. 요구사항별 현황은 [정책 동기화 검증 JSON](docs/validation/policy-sync-20261111.json)에 구분합니다.
 
 [사용 흐름](docs/USAGE.md) · [문서 안내](docs/README.md) · [제품 요구사항](docs/PRD.md)
