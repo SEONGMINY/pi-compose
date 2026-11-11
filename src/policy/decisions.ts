@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 /** Never auto-forward obvious credentials from conversation history. */
 export function containsSensitivePolicyText(text:string):boolean {
-  return /(?:password|private.?key|api.?key|secret|credential|authorization|bearer)\\s*[:=]/i.test(text) ||
+  return /(?:password|private.?key|api.?key|secret|credential|authorization|bearer)\s*[:=]/i.test(text) ||
     /-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(text);
 }
 
