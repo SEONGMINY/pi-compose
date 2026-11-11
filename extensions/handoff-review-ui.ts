@@ -83,6 +83,21 @@ export function showReferenceContextReview(
         preview?.approvedMainBrief??'Brief를 준비하지 못했습니다.',
       ];
     }
+    function approvedText():string {
+      if(!chosen.size)return '전달 예정 항목이 없습니다. Space로 전송할 결과를 선택하세요.';
+      try{return draft().approvedMainBrief??'전달문 생성 실패';}
+      catch(error){return '전달문 검증 실패: '+String(error);}
+    }
+    function briefPreview(maxLines:number):string[]{
+      const body=approvedText().split('\n');
+      return [
+        '──── Main에 전달할 실제 본문 ────',
+        ...body.slice(0,maxLines),
+        ...(body.length>maxLines?[
+          '… 남은 본문 '+(body.length-maxLines)+'줄 · Enter로 전체 확인',
+        ]:[]),
+      ];
+    }
     function compactContext():string[]{
       const u=current();
       if(!u)return ['일치하는 항목이 없습니다. Esc로 검색을 지우세요.'];
@@ -110,7 +125,8 @@ export function showReferenceContextReview(
       const options=visible.slice(start,start+page);
       return [
         'Work → Main · Handoff Brief',
-        '전달할 맥락을 선택하세요. 출처·WHY는 연결된 채 보존됩니다.',
+        '현재 선택으로 Main에 보낼 내용입니다. Space로 포함/제외할 수 있습니다.',
+        ...briefPreview(7),
         '',
         '선택 '+chosen.size+' / '+units.length+' · 현재 후보 '+(index+1)+' / '+filtered().length+
           (search?'  검색: '+(query||'입력 중…'):'  / 검색'),
@@ -169,24 +185,22 @@ export function showReferenceContextReview(
       ];
       const currentUnit=current();
       const connected=currentUnit?.requiredContext??[];
+      // Show the same deterministic approved Brief used by final send.
+      // No separately paraphrased preview: selecting/unselecting a claim
+      // recalculates this EXACT Main-facing text.
       const right=[
-        '선택 항목의 의미',
+        'Main에 전달할 실제 본문 · 선택에 따라 즉시 갱신',
         '',
-        currentUnit?.title??'검색 결과가 없습니다',
+        ...approvedText().split('\n'),
         '',
-        currentUnit?.summary??'',
-        '',
+        '──── 현재 커서 항목의 관련 근거 ────',
+        currentUnit?.title??'검색 결과 없음',
         '검증: '+(currentUnit?.verification??'해당 없음'),
-        '',
-        '함께 보존할 WHY·제약 '+connected.length+'건',
         ...(expanded
           ?connected.flatMap(c=>['• '+c.whyNeeded,c.quote,''])
           :connected.map(c=>'• '+c.whyNeeded)),
-        ...(connected.length&&!expanded?['Ctrl+E로 원문 인용 펼치기']:[]),
-        '',
-        'E: 관련 출처·원문 자세히 보기',
-        ...(pkg.contextAssessment==='unavailable'?['⚠ 필수 WHY 검증 불완전']:[]),
-        ...(note?['사용자 메모: '+note]:[]),
+        ...(connected.length&&!expanded?['Ctrl+E로 원문 펼치기']:[]),
+        'E: 출처·원문 확인',
         ...(error?['안내: '+error]:[]),
         ...(zoomNotice?['Ghostty: '+zoomNotice]:[]),
       ];
