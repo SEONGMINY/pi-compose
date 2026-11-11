@@ -1,36 +1,29 @@
-# Development Harness — requirements and verification boundaries
+# Development harness — requirements and current gaps
 
-## In scope
-- Standalone repository/package. No pi-compose application behavior changes.
-- Normal Pi / Codex task request triggers Task creation automatically after one-time trusted installation.
-- Task > Step > Run, with a stable Task ID and durable run receipts; decomposition is proportional to task structure.
-- Before code work: P30/P50/P80 forecast in time and tokens, with data provenance. Never invent numerical forecasts without evidence or explicitly configured uncalibrated priors.
-- On completion: task wall-clock time (including idle user time) and summed agent-run + verification active minutes tracked separately, plus token usage with coverage, attempts, checks and deterministic low-cost triage.
-- Triage identifies repeated inefficiency and registers improvement review work, *not* direct edits in a hook.
-- Improvement is a separate bounded, independently reviewed, worktree-isolated loop. The original development result is delivered first.
-- No automation ever pushes remote `main`, bypasses permissions, changes project decisions, or silently modifies pi-compose Main context.
+## Target workflow
 
-## Not yet achieved in this first implementation
-- Reliable automatic semantic acceptance-criteria verification. A successful npm check does not prove a feature's complete requirements.
-- Pi/Codex live authenticated end-to-end verification on user's workstation. Hooks require user trust and installation.
-- Automatic AI cold-start forecasting with honest calibrated probabilities.
-- Complete nested/subagent usage observation or invoice cost reconciliation.
-- Automatic model-powered root-cause analysis, safe code modification, and empirically measured net ROI. Only the durable review candidate queue is implemented here.
-- Cross-device/cloud synchronization. Worktrees share the same Git common directory on one machine.
+The user only requests development normally in Pi or Codex. The harness automatically (1) identifies a development Task, (2) decomposes it into verifiable Steps only where worthwhile, (3) predicts P30/P50/P80 before implementation, (4) observes Run time/token usage and failures, (5) records independent completion evidence, (6) immediately performs cheap triage, and (7) queues expensive review and worktree improvement separately from the developer result. No per-task manual command is allowed.
 
-## Operational constraints
-- One-time opt-in per project: `.devh.json` and trusted hooks / Pi extension. No per-task commands.
-- Hooks should fail open for telemetry. Hook errors never block the developer. Persist failures to diagnostics later.
-- Hook `Stop` / Pi `agent_settled` means a run stopped, not necessarily that a product feature is complete. Passing project checks yields `delivered-unverified`, never automatic semantic `completed`.
-- Missing usage is unknown (not zero); observed hooks cannot claim exhaustive coverage.
-- State lock and worker leases require fault recovery. State writes must be atomic and idempotent.
-- Task original forecast must remain unchanged after code execution; scope changes are separate events.
-- No external services, servers, Docker, database, or long-running orchestrator required.
+Maintain time and token as distinct resources. Forecast provenance and original estimates must remain immutable. All unresolved observations are `unknown` rather than zero. The improvement layer priority is architecture → deterministic gate → AI instructions → human behavior. Compare future savings against the total cost of improvement and verification; avoid changes with negative expected net savings. Do not change unapproved project contracts or the Pi Compose product Main context.
 
-## Follow-up implementation gates
-1. Add explicit AC receipts for each step and a trustworthy, non-model-controlled completion predicate.
-2. Add agent-specific real-session telemetry and stable attempt identifiers / deduplication.
-3. Reliable worker recovery and crash-safe outbox for long-running AI analysis.
-4. Migrate adapted root-cause / cost-aware layer selection from pi-compose Draft PR #29.
-5. Separate improvement worker with allowlisted paths, independent verification and guard against self-triggering.
-6. Run end-to-end tests in installed Pi @earendil-works 1.4 and current Codex, including interrupted sessions, concurrent worktrees, multiple prompts, retries and privacy.
+## Implemented with local tests
+
+- Task → Step → Run, replayable identities, conservative topic boundaries, linked follow-ups and append-only scope extension.
+- Small tasks remain one Step. Complex task planning can use a *bounded optional* read-only Pi subprocess with strict schema and fallback; not exercised against a real provider.
+- Project-owner checks and exact Step AC bindings produce independent exit-code receipts. Without complete declared contracts the status is `delivered-unverified` rather than semantic completion.
+- Pi and Codex adapters collect events; Codex attempt pairing uses available `agent_id` and reports uncorrelated requests as incomplete.
+- Cheap post-run analysis, durable review and improvement queues, evidence-linked hypotheses, economics and allowlisted worktree change proposal with independent verifier and project checks.
+- Automatic review/auto-improve eligible by trusted configuration; code modifications still require a separately approved local Git-common-dir policy. No remote push, no Docker, no server.
+
+## Not yet proven / gaps
+
+- Actual Pi 1.4/Codex authenticated workstation E2E, Hook acceptance, cross-host restart and nested agent usage reconciliation.
+- Full functional AC verification without a project-specific executable contract: general test success is insufficient.
+- Automatically calibrated P30/P50/P80 at cold start; numeric priors require history or configured uncalibrated seeds. Optional model planner is not a calibrated numeric forecaster.
+- Guaranteed model-attempt deduplication if provider events lack stable IDs, and a hard cumulative token budget for AI root-cause analysis.
+- Unbounded codebase-dependent planning is intentionally omitted; bounded plan generation is optional and must be empirically evaluated.
+- Causal net ROI measurement across comparable post-change tasks; current analyses offer hypotheses and directional estimates only.
+
+## Security, trust and lifecycle
+
+The implementation must fail open for ordinary developer prompts if telemetry cannot be saved. Never let an `agent_settled` / `Stop` event claim semantic completion. Critical safety gates and tests are excluded from automated edits. Git worktrees isolate changed files from the working tree but **do not sandbox executed project scripts**. A user-approved policy and trusted repository are prerequisites. Persist queue receipts before acknowledgement; retry a crashed or blocked worker without duplicate integration and avoid self-triggering AI improvement loops.

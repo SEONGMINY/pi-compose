@@ -16,10 +16,10 @@ export async function installProject(project){
  const changes=[];
  if(!config){
    const checks=pkg?.scripts?.check?[['npm','run','check']]:[];
-   await safeWrite(join(root,'.devh.json'),{checks});changes.push('.devh.json');
+   await safeWrite(join(root,'.devh.json'),{checks,planning:{mode:'deterministic'},improvement:{autoReview:true,autoImprove:true}});changes.push('.devh.json');
  }
  const command=`node ${JSON.stringify(script)}`;
- for(const event of ['UserPromptSubmit','PreModelRequest','PostModelRequest','Stop','Interrupt']){
+ for(const event of ['UserPromptSubmit','PreModelRequest','PostModelRequest','Stop','Interrupt','SessionEnd']){
    const arr=existing.hooks[event]??[];
    if(!Array.isArray(arr))throw Error('Existing hook event has unsupported structure: '+event);
    if(!arr.some(g=>g?.hooks?.some(h=>h.command===command))){

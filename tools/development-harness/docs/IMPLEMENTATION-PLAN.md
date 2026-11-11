@@ -1,13 +1,26 @@
-# Next implementation gates (not yet completed)
+# Development harness implementation status
 
-1. **Trustworthy task completion**: technical delivery is now distinguished from semantic AC acceptance. Next: AC receipts scoped per Step, validated by a non-model verifier. Distinguish run stop, checks pass and semantically completed feature. Add human corrections and linked rework without falsely grouping unrelated prompts.
-2. **Automatic cold-start numerical forecasts**: budget a short no-write estimate before implementation, record its model and token costs, preserve uncertainty. Historical estimates require verified source coverage and empirical calibration.
-3. **Provider adapters E2E**: Codex Pre/Post model-request pairing was added to avoid relying on undocumented attempt IDs, but remains best-effort. Install in actual Pi `@earendil-works/pi-coding-agent` and Codex; verify lifecycle differences, subagents, retries, missing token data, hook trust, exact stable identities and interruption handling. Synthetic event tests are not live compatibility guarantees.
-4. **Resilient event journal**: upgrade JSON snapshot to append-only evidence/audit for crashing processes, session reuse, concurrent hooks, out-of-order provider attempts and cross-machine alignment; guarantee per-run idempotence with stable provider IDs.
-5. **Task decomposition**: arbitrary numbered requirements no longer force sequential Steps; current natural-language follow-up classification is heuristic. Next: bounded model-generated plan with evidence-linked dependencies and executable, verifiable AC. Do not force a new agent session per Step. Add scope-change versioning without overwriting initial forecasts.
-6. **Improvement loop**: port root-cause evidence validation and architecture → gate → AI instructions → user behavior ranking from pi-compose Draft PR #29 to an engine-neutral module; run from a separate durable queue, not the agent Stop Hook. Evaluate net time and token return including analysis and verification overhead. Guard recursion and enforce resource caps.
-7. **Safe code improvement**: project-specific allowlists, Worktree isolation, independent verifier, no remote main push or unapproved contract edits. Only a controlled local-main fast-forward after freshness/integration checks.
-8. **Deployment**: extract this embedded package into a separate remote repository in a future task and review whether to retire or split old pi-compose Draft PR #29. Never merge Draft #29 automatically.
+## Implemented in current iteration
 
-## Explicitly out of scope
-Context Hub, MCP knowledge services, personal architectural philosophy, pi-compose `pic` runtime UX, arbitrary new-agent orchestrators, Docker, servers and always-on databases.
+1. **Step acceptance evidence**: project-owner exact criterion/check bindings, worker-issued command/exit receipts, immutable plan extensions, no model-originated self-attestation. Generic project checks alone do not mark a task semantically complete.
+2. **Task/Step boundaries**: conservative continuation detector, new-target detection, parent/rework relation, immutable pre-work forecast, scope-change history. Numbered requirements alone do not force Step creation.
+3. **Provider adapters**: Pi custom-run guard, stable message timestamp ID fallback, Codex agent-specific attempt pairing and outcome reporting, explicit SessionEnd installation, recursive improvement-run exclusion. Synthetic Codex end-to-end and event contracts tested.
+4. **Durable work**: retryable verification queue, stale worker recovery, review-model backoff, acknowledgement only after persisted receipts, accepted improvements not repeated.
+5. **Improvement loop**: evidence validation, cost-aware layer selection and worktree change engine adapted from Draft PR #29. Generated candidates create an improvement queue item; optional automatic execution requires local explicit allowlist policy and passes fixed checks/independent model verification. Local-main requires explicit opt-in and can only fast-forward locally.
+
+## Still open — do not claim production complete
+
+- Semantic completeness beyond declared contracts; actual product behavior may require user validation. No automatic comprehensive functional AC generation.
+- Bounded autonomous model planner with real project-code dependencies; this iteration provides schema/guardrails, not live adaptive model planning.
+- Real authenticated Pi 1.4/Codex on the user's machine, Hook trust and concurrent process E2E. Our environment has neither installed provider binary.
+- Stable provider model-request IDs, subagent coverage and deduplicated actual provider invoices, plus global budget accounting for review agents.
+- Cross-device synchronization and always-on processing while the host is offline, intentionally out of scope.
+- Fully measured net ROI from successive real tasks and regression outcomes.
+
+## Verification to finish deployment
+
+1. Review/approve project-local Pi and Codex Hooks in the actual workstation (one-time).
+2. Run one small real feature + follow-up + failed acceptance, inspect report and queue provenance.
+3. Exercise duplicate/out-of-order Hook, parallel worktrees, app shutdown/restart and missing tokens.
+4. Confirm local improvement policy path and independent verifier on a disposable repo, then restrict auto-main paths.
+5. Compare real forecasts and actual costs across repeated comparable tasks; do not treat P30/P50/P80 as calibrated probabilities until evidence supports that.
