@@ -92,7 +92,8 @@ export async function getWorkPolicyStatus(
   if(!main)return {status:'unavailable',pendingDecisionIds:[],withdrawnDecisionIds:[]};
   const raw=(await check(ctx,main)).status;
   if(raw.status==='unavailable')return raw;
-  // This expensive read runs only from the explicit Work Handoff reviewer.
+  // The stronger persisted Main-branch read is reserved for explicit Work
+  // requests (?p / Handoff), not ordinary background widget refreshes.
   // A stale local snapshot never silently claims policy freshness.
   try{
     const snapshot=await readPolicySnapshot(main);
