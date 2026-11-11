@@ -123,7 +123,11 @@ export function registerPolicyMain(pi:ExtensionAPI):void{
             const validSupersession=parsed.supersedesId===null ||
               active.some(d=>d.id===parsed.supersedesId);
             const overlapping=active.some(d=>d.subject===parsed.subject);
-            const validSource=validSupersession &&
+            // A broad stop impacts every sibling Work. Only publish it when
+            // the user's exact instruction explicitly names that broad scope.
+            const broadStop=parsed.effective!=='stop'||
+              /(?:모든|전체|전부)\s*(?:Work|워크|에이전트)|(?:all|every)\s+(?:Work|workers|agents)/i.test(text);
+            const validSource=broadStop && validSupersession &&
               (!overlapping || parsed.supersedesId!==null) &&
               quote.length<=1600 && approval.text.length<=1200 &&
               source && quote.length>=10 &&
