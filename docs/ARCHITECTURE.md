@@ -34,26 +34,32 @@ bin/pic.mjs → Pi TUI Main (신규 또는 Pi 기본 Resume)
 
 원본 Pi JSONL 불변, 현재 명령을 입력한 Agent의 작업 디렉터리와 Fork 원본 대화의 독립성을 유지합니다.
 
-## 3. Work → Main 신뢰 경계 및 정보 흐름
+## 3. Main 결정 전파와 Work-owned Handoff
 
 ```text
-Work: 결과·실행 검증 상태·Fork 당시 WHY를 원문에 연결
-  └─ Work < → 전달할 결과/필수 제약 검토 → 실제 본문 한 번 승인
-       └─ Main의 외부 영속 보관함: 원본 수신·출처/해시/계보 검사
-            └─ Main 활성 분기의 Fork 이후 결정 정합성·중복 검사
-                 ├─ 확인됨: 동일 승인 Brief를 출처 있는 참고 보고로 추가
-                 ├─ 중복: 재삽입하지 않음
-                 ├─ 정책 충돌: 외부 보관, 기존 결정 유지, 필요한 판단만 요청
-                 └─ 근거/비교/전달 불확실: 외부 보관, 기술 복구/상태 안내
+Main: 사용자 확정 발화 + 원본 제안
+ └─ PolicyMain: 승인 문장과 원문 인용 확인 (모호하면 전파 금지)
+      └─ Main Pi custom entry (분기 상대적 결정 기록)
+           └─ local policy snapshot (빠른 조회 캐시 · 정본 아님)
+                └─ Work: 다음 모델 요청에서 변경분만 제공
+                     ├─ 기존 위임 범위에서 자율 재평가·수정
+                     ├─ 상태 불명확/정책 변경 미반영 명시
+                     └─ Work < 사용자 승인 Brief
+                          └─ Main inbox → 대상/계보/해시/중복 검증
+                               └─ 정확히 같은 Work 참고 보고
 ```
 
-**경계 1 — Work 보고의 신뢰:** Work가 자신의 작업과 Fork 당시 제약을 확인하고, 사용자가 어떤 내용을 보낼지 승인합니다. 이것은 내용의 **출처와 검증 상태가 명시된 보고**이며 독립적으로 입증된 모든 사실이나 새로운 Main 정책이 아닙니다.
+- `src/policy/decisions.ts`: 사용자 승인 근거·결정·활성 분기 및 Work 인지 상태의 계약
+- `extensions/policy-main.ts`: 확정으로 의심되는 사용자 발화만 제한적으로 모델 확인; Main 원본 세션에 `custom` 기록
+- `src/policy/store.ts`: 정책 소유 Main의 현재 활성 분기 결정 집합을 로컬 인덱스로 저장·조회. 파일 알림은 최적화; Work 시작/모델 경계/Handoff 시 재조회
+- `src/policy/owners.ts`: requester와 Fork 계보를 대조하여 Work가 구독할 Main 식별; 서로 다른 Main이면 조용히 추측하지 않음
+- `extensions/policy-work.ts`: 기존 Work Pi 세션 유지; `before_agent_start`와 `context`에서 변경된 결정만 모델에 전달. 영속 메시지 수신과 실제 코드 적용은 다름
+- `extensions/context-review.ts`: Work Handoff에 정책 최신성·미확인 변경을 정확한 승인 Brief에 포함. 검토 도중 변경되면 재검토
+- `extensions/context-receive.ts`: 메인에서 Work 전체 Claim 재심사를 제거; 승인한 원문 그대로 참고 정보로 반영, 영속 수신·실제 Pi receipt 분리
 
-**경계 2 — Main 원본 수신:** 저장소 수신은 Main Pi 대화/모델 컨텍스트 삽입과 다릅니다. 성공적으로 저장·검증된 원본을 임의로 재요약하거나 다시 승인받지 않습니다.
+**책임 경계:** 사용자 승인 정책은 Main 소유이며 Work 보고는 참고 정보입니다. 실시간 전파는 정책 승인·새 범위 위임·테스트 성공·Git Merge를 암묵적으로 수행하지 않습니다. 과거 분기로 이동하면 현재 Pi 계보에서 유효한 결정만 다시 계산합니다. Work의 전체 맥락이나 Main 대화 전체를 복제하지 않습니다.
 
-**경계 3 — Main 활성 컨텍스트 반영:** Main은 현재 활성 분기와 Fork 이후 **관련 결정 변경**의 정합성을 확인합니다. Work의 구현·테스트를 Main 대화 근거로 다시 심사하지 않습니다. 불확실하면 원본을 보존하고 무조건 사용자에게 정책 결정을 요구하지 않습니다. 승인된 Brief 자체를 새 정책으로 승격하지 않고, 모델 턴도 자동 시작하지 않습니다.
-
-**코드 현황:** `extensions/context-review.ts`와 `src/handoff/context-review.ts`는 Work 검토를, `src/handoff/store.ts`는 보관함을, `extensions/context-receive.ts`는 자동 수신과 예외 경로를, `src/handoff/brief.ts`는 승인 본문을 담당합니다. 현재 `src/handoff/compare.ts`의 Work 전체 재분류와 `insufficient` 일괄 보류는 위 목표보다 넓으므로 추후 좁혀야 합니다. PR #25는 Draft이고 기능 동작 검증은 별개입니다.
+**의도적 제한:** JSON 인덱스는 Main 원본 세션을 대체하지 않습니다. 현재 Main이 확정된 정책을 전파할 수 있다는 것은 모든 자연어 승인을 완벽히 추출한다는 보장이 아닙니다. 모델·저장·Hook 오류가 나면 확인 실패를 숨기지 않고 복구 가능한 상태를 유지합니다.
 
 ## 4. 원문 근거와 승인 경계
 
