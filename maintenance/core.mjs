@@ -142,7 +142,7 @@ export async function listTasks(dir) {
     JSON.parse(await readFile(join(tasks, name), 'utf8'))));
 }
 
-export async function startTask({ dir, title, kind = 'other', forecast, sessions = [], assumptions = '', environment = 'unknown' }) {
+export async function startTask({ dir, title, kind = 'other', forecast, sessions = [], assumptions = '', environment = 'unknown', forecastProvenance = {source:'manual'} }) {
   assert(typeof title === 'string' && title.trim(), 'Task title is required');
   assert(typeof kind === 'string' && /^[a-z][a-z0-9_-]{0,39}$/.test(kind), 'Invalid task kind');
   assert(typeof environment === 'string' && /^[a-z][a-z0-9_-]{0,39}$/.test(environment), 'Invalid task environment');
@@ -150,7 +150,7 @@ export async function startTask({ dir, title, kind = 'other', forecast, sessions
   const baselines = await snapshotSessions(sessions);
   const startedAt = new Date().toISOString();
   const task = { schemaVersion: VERSION, id: randomUUID(), title: title.trim(), kind, environment,
-    forecast: structuredClone(forecast), assumptions, startedAt, state: 'running', baselines };
+    forecast: structuredClone(forecast), forecastProvenance: structuredClone(forecastProvenance), assumptions, startedAt, state: 'running', baselines };
   const file = taskPath(dir, task.id);
   await mkdir(resolve(file, '..'), { recursive: true });
   await writeFile(file, JSON.stringify(task, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
