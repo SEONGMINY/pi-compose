@@ -1,2 +1,4 @@
 # Local pi-compose maintenance measurements (may include session paths)
 .maintenance/
+# Local dependencies installed for Worktree validation
+node_modules/
