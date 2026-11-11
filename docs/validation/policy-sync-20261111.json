@@ -209,8 +209,8 @@
   ],
   "testEvidence": {
     "githubActions": "NO_RUNS_FOR_BRANCH",
-    "localTypecheck": "NOT_RUN",
-    "localNodeTests": "NOT_RUN",
+    "localTypecheck": "NOT_RUN (github connector-only edit; local container cannot reach GitHub)",
+    "localNodeTests": "NOT_RUN (github connector-only edit; local container cannot reach GitHub)",
     "macOSGhostty": "PARTIAL_USER_REPORTED_E2E: Main approved B-only passkey policy, previously forked Work detected and understood 1 change, Work generated an exact Handoff Brief, and Main displayed [compose_context_review_import] with policy freshness checked and source attribution. No independent Pi receipt/session log or full resilience tests."
   },
   "nonGoals": [
@@ -281,6 +281,64 @@
         "widget rendering never exceeds narrow Ghostty split including CJK text",
         "watch callbacks after session switch must not overwrite the new session's widget",
         "no new agent turn, no custom footer override, no Sidebar/Overlay"
+      ]
+    }
+  ],
+  "featureAdditions": [
+    {
+      "id": "F01",
+      "title": "Resume existing Work with one command in Ghostty Split",
+      "syntax": [
+        ">r",
+        ">r @Work",
+        ">r @session-id"
+      ],
+      "implementedFiles": [
+        "extensions/direct-resume.ts",
+        "src/native-agent-launch.ts",
+        "src/product-sessions.ts",
+        "bin/native-agent-entry.mjs",
+        "extensions/compose.ts"
+      ],
+      "tests": [
+        "test/direct-resume-policy-shortcuts.test.ts"
+      ],
+      "status": "CODE_WRITTEN_UNVERIFIED",
+      "acceptance": [
+        "Selected saved Work session ID, original CWD and Fork ancestry preserved; no newly forked session, no new task",
+        "Existing live Work focuses original verified Ghostty terminal rather than starting duplicate Pi",
+        "Exited Work starts with --session file and without task separator in new Ghostty Split",
+        "Unknown process status requires explicit confirmation; failure leaves saved session untouched",
+        "Work previously launched in Git Worktree uses original Worktree directory",
+        "Autocomplete list product-scoped; no auto selection on ambiguous labels"
+      ]
+    },
+    {
+      "id": "F02",
+      "title": "Resolve stuck Main policy approval candidates with >p",
+      "syntax": [
+        ">p",
+        "/compose policy"
+      ],
+      "implementedFiles": [
+        "extensions/direct-policy-review.ts",
+        "extensions/policy-main.ts",
+        "src/policy/reviews.ts",
+        "src/policy/status-widget.ts",
+        "extensions/compose.ts"
+      ],
+      "tests": [
+        "test/direct-resume-policy-shortcuts.test.ts",
+        "test/policy-reviews.test.ts"
+      ],
+      "status": "CODE_WRITTEN_UNVERIFIED",
+      "acceptance": [
+        "Main >p opens unresolved original user message and its latest reason, no agent turn",
+        "User can classify as non-policy or attribute to specific existing approved decision",
+        "Classification appended to Main Pi session rather than written by Work",
+        "Latest review overrides previous ambiguous; snapshot pending count drops; Work widget clears via watch",
+        "New unknown policy is not falsely approved by this shortcut",
+        "Work widget indicates Main >p and no silent dismiss option"
       ]
     }
   ]
