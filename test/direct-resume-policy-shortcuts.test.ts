@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseWorkResumeShortcut } from '../extensions/direct-resume.ts';
 import { searchProductWorkResumeSessions } from '../src/product-sessions.ts';
-import { isPolicyReviewShortcut } from '../extensions/direct-policy-review.ts';
+import { isWorkPolicyShortcut } from '../extensions/direct-work-policy-check.ts';
 
 const candidates=[
   {id:'old-work-123',file:'/tmp/work1.jsonl',name:'로그인 정책 변경',
@@ -30,11 +30,12 @@ test('resume selection matches role-restricted saved Work by ID, label, or task'
   assert.deepEqual(searchProductWorkResumeSessions(candidates,'nonexistent'),[]);
 });
 
-test('>p is one exact Main policy-review shortcut, not a model instruction',()=>{
-  assert.equal(isPolicyReviewShortcut('>p'),true);
-  assert.equal(isPolicyReviewShortcut(' >p '),true);
-  assert.equal(isPolicyReviewShortcut('>p @work'),false);
-  assert.equal(isPolicyReviewShortcut('>p 구현해주세요'),false);
-  assert.equal(isPolicyReviewShortcut('>w 작업'),false);
-  assert.equal(isPolicyReviewShortcut('<'),false);
+test('?p is a Work-local policy review, not a directional delegation',()=>{
+  assert.equal(isWorkPolicyShortcut('?p'),true);
+  assert.equal(isWorkPolicyShortcut(' ?p '),true);
+  assert.equal(isWorkPolicyShortcut('?p @work'),false);
+  assert.equal(isWorkPolicyShortcut('?p 코드 수정'),false);
+  assert.equal(isWorkPolicyShortcut('>p'),false);
+  assert.equal(isWorkPolicyShortcut('>w 작업'),false);
+  assert.equal(isWorkPolicyShortcut('<'),false);
 });
