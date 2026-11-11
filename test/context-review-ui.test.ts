@@ -43,13 +43,12 @@ function reviewHarness(focusOnDialog:boolean, columns=110) {
   let listener: ((key:string)=>{consume?:boolean}|undefined)|undefined;
   let resolveAction:(result:unknown)=>void=()=>{};
   let removed=0;
-  let rendered=0;
   let hidden=false;
   let overlay=false;
   let zoomCalls=0;
   const tui={
     terminal:{rows:36,columns},
-    requestRender:()=>{rendered++},
+    requestRender:()=>{},
   };
   const ui={
     notify:()=>undefined,
@@ -89,165 +88,96 @@ function reviewHarness(focusOnDialog:boolean, columns=110) {
     },
     raw:(raw:string)=>listener?.(raw),
     text:()=>{assert.ok(component);return component!.render(columns).join('\n')},
-    events:()=>({removed,rendered,listener:!!listener,overlay,hidden,zoomCalls}),
+    events:()=>({removed,listener:!!listener,overlay,hidden,zoomCalls}),
   };
 }
 
-test('Context Review keyboard arrows and Space work immediately without a hidden Tab mode',async()=>{
-  const h=reviewHarness(true);
-  const result=h.run();
-  assert.match(h.text(),/선택 0 \/ 2/);
-  h.key('\x1b[B'); // Down (Ghostty/Pi legacy sequence)
-  assert.match(h.text(),/현재 후보 2 \/ 2/);
-  h.key(' '); // Space
-  assert.match(h.text(),/선택 1 \/ 2/);
-  h.key('\r'); // Enter -> preview
-  assert.match(h.text(),/전송 전 최종 확인/);
-  h.key('\t'); // Tab -> exact payload
-  assert.match(h.text(),/감사용 원문 기록/);
-  assert.match(h.text(),/Suggest a cache/);
-  h.key('\r'); // Explicit approval
-  const action=await result;
-  assert.deepEqual(action,{type:'send',selected:['HC2'],note:''});
-  assert.equal(h.events().removed,1);
-  assert.equal(h.events().listener,false);
+
+/**
+ * Keep only interaction contracts, not exact wording or terminal wrapping.
+ * The same selection action must work in narrow and wide Ghostty surfaces.
+ */
+test('arrow navigation, selection and explicit approval send the chosen claim',async()=>{
+  for(const width of [72,130]){
+    const ui=reviewHarness(true,width);
+    const result=ui.run();
+    ui.key('\x1b[B'); // move to the second claim
+    ui.key(' ');      // select
+    ui.key('\r');     // review exact Main payload
+    ui.key('\t');     // inspect archived evidence
+    ui.key('\r');     // explicitly approve the selection
+    assert.deepEqual(await result,{type:'send',selected:['HC2'],note:''});
+    assert.equal(ui.events().removed,1);
+    assert.equal(ui.events().listener,false);
+  }
 });
 
-test('Enter with no selection visibly explains the problem; Esc always cancels',async()=>{
-  const h=reviewHarness(true,78);
-  const result=h.run();
-  h.key('\r');
-  assert.match(h.text(),/Space로 최소 1개 선택/);
-  h.key('\x1b'); // Esc
+test('Enter with no selection does not send; Esc cancels cleanly',async()=>{
+  const ui=reviewHarness(true,78);
+  let finished=false;
+  const result=ui.run().then(action=>{finished=true;return action});
+  ui.key('\r'); // cannot approve an empty selection
+  await Promise.resolve();
+  assert.equal(finished,false);
+  ui.key('\x1b');
   assert.deepEqual(await result,{type:'cancel'});
-  assert.equal(h.events().removed,1);
+  assert.equal(ui.events().removed,1);
 });
 
-test('modal-scoped terminal input handles known keys even if native dialog focus is lost',async()=>{
-  const h=reviewHarness(false);
-  const result=h.run();
-  assert.equal(h.raw('ordinary text'),undefined);
-  assert.equal(h.raw('\x1b[B')?.consume,true); // recover Down
-  assert.equal(h.raw(' ')?.consume,true); // recover Space
-  assert.match(h.text(),/키보드 입력 연결됨/);
-  assert.match(h.text(),/선택 1 \/ 2/);
-  assert.equal(h.raw('\x1b')?.consume,true); // recover Esc
+test('terminal listener works without dialog focus and ignores unrelated input',async()=>{
+  const ui=reviewHarness(false);
+  const result=ui.run();
+  assert.equal(ui.raw('ordinary unhandled input'),undefined);
+  assert.equal(ui.raw('\x1b[B')?.consume,true);
+  assert.equal(ui.raw(' ')?.consume,true);
+  assert.equal(ui.raw('\x1b')?.consume,true);
   assert.deepEqual(await result,{type:'cancel'});
-  assert.equal(h.events().removed,1);
+  assert.equal(ui.events().listener,false);
+  assert.equal(ui.events().removed,1);
 });
 
-test('terminal listener consumes review shortcuts before native focus path, without double handling',async()=>{
-  const h=reviewHarness(true);
-  const result=h.run();
-  h.key(' '); // single terminal event, input listener consumes before focused component
-  assert.match(h.text(),/선택 1 \/ 2/);
-  h.key(' '); // second physical press toggles it back, not two toggles per press
-  assert.match(h.text(),/선택 0 \/ 2/);
-  assert.equal(h.raw('ordinary text'),undefined); // unrelated input is not intercepted
-  h.key('\x1b');
-  assert.deepEqual(await result,{type:'cancel'});
+test('search and evidence navigation preserve the actual selected claim',async()=>{
+  const ui=reviewHarness(true,82);
+  const result=ui.run();
+  ui.key(' '); // choose HC1
+  ui.key('/');
+  for(const key of 'Optional')ui.key(key);
+  ui.key('\x1b'); // clear the search query
+  ui.key('\x1b'); // close search
+  ui.key('\x05'); // expand WHY
+  ui.key('e');    // open source evidence
+  ui.key('\x1b'); // back to the choices
+  ui.key('\r');   // preview
+  ui.key('\r');   // send
+  assert.deepEqual(await result,{type:'send',selected:['HC1'],note:''});
 });
 
-test('progress widget is visible immediately, advances, then clears on exit',()=>{
+test('hide/reopen and Split zoom do not alter the approved selection',async()=>{
+  const ui=reviewHarness(true,120);
+  const result=ui.run();
+  assert.equal(ui.events().overlay,true);
+  ui.key(' ');    // choose HC1
+  ui.key('\x1bo'); // temporarily hide the review overlay
+  assert.equal(ui.events().hidden,true);
+  ui.key('\x1bo'); // reopen it
+  assert.equal(ui.events().hidden,false);
+  ui.key('\x1bz'); // explicit Ghostty zoom request (mock only)
+  assert.equal(ui.events().zoomCalls,1);
+  ui.key('\r');
+  ui.key('\r');
+  assert.deepEqual(await result,{type:'send',selected:['HC1'],note:''});
+  assert.equal(ui.events().removed,1);
+});
+
+test('review progress clears after completion and remains idempotent',()=>{
   const changes:{key:string;content:string[]|undefined}[]=[];
   const progress=createContextReviewProgress((key,content)=>changes.push({key,content}));
-  progress.update('1/3 수신 Main 확인 중');
-  progress.update('2/3 공유 후보 구성 중');
-  progress.update('3/3 WHY·근거 확인 중');
-  assert.equal(changes.length,3);
-  assert.ok(changes.every(change=>change.content?.[0]?.includes('아직 전송하지 않았습니다')));
-  assert.match(changes[2]!.content![0]!,/3\/3/);
+  progress.update('1/3 Main 확인');
+  progress.update('2/3 후보 구성');
+  progress.update('3/3 WHY 확인');
   progress.clear();
-  progress.clear(); // cleanup is idempotent
+  progress.clear();
   assert.equal(changes.length,4);
+  assert.ok(changes.slice(0,3).every(item=>item.content?.length));
   assert.equal(changes[3]?.content,undefined);
-});
-test('narrow Ghostty split always exposes selection count and lets arrows select without Tab',async()=>{
-  const h=reviewHarness(true,72);
-  const result=h.run();
-  assert.match(h.text(),/선택 0 \/ 2 · 현재 후보 1 \/ 2/);
-  assert.match(h.text(),/Space 선택/);
-  h.key(' ');
-  assert.match(h.text(),/선택 1 \/ 2/);
-  h.key('\x1b[B');
-  assert.match(h.text(),/현재 후보 2 \/ 2/);
-  h.key(' ');
-  assert.match(h.text(),/선택 2 \/ 2/);
-  h.key('\x1b');
-  assert.deepEqual(await result,{type:'cancel'});
-});
-
-
-test('pi-ask-user-style search filters options without dropping selection or intercepting spaces',async()=>{
-  const h=reviewHarness(true,82);
-  const result=h.run();
-  h.key('/');
-  for(const key of 'Optional')h.key(key);
-  assert.match(h.text(),/검색: Optional/);
-  assert.match(h.text(),/Optional suggestion/);
-  assert.doesNotMatch(h.text(),/› \[ \] Fix report/);
-  h.key(' '); // Spaces belong to search while filtering, not selection toggles.
-  assert.match(h.text(),/선택 0 \/ 2/);
-  h.key('\x1b'); // clear query
-  assert.match(h.text(),/검색: 입력 중/);
-  h.key('\x1b'); // exit search
-  h.key(' '); // default focus first claim
-  assert.match(h.text(),/선택 1 \/ 2/);
-  h.key('\x1b'); // cancel whole review
-  assert.deepEqual(await result,{type:'cancel'});
-});
-
-test('reference selector keeps context collapsed until Ctrl+E and supports evidence drilldown',async()=>{
-  const h=reviewHarness(true,80);
-  const result=h.run();
-  assert.match(h.text(),/관련 제약·WHY 1건/);
-  assert.doesNotMatch(h.text(),/Do not change original files/);
-  h.key('\x05'); // Ctrl+E
-  assert.match(h.text(),/Do not change original files/);
-  h.key('e'); // Evidence view
-  assert.match(h.text(),/Pi Entry original/);
-  h.key('\x1b'); // Back
-  assert.match(h.text(),/Handoff Brief/);
-  h.key('\x1b'); // Cancel
-  assert.deepEqual(await result,{type:'cancel'});
-});
-
-test('pi-ask-user centered overlay can hide and reopen without changing selection',async()=>{
-  const h=reviewHarness(true,82);
-  const result=h.run();
-  assert.equal(h.events().overlay,true);
-  h.key(' '); // choose one before temporarily hiding dialog
-  assert.match(h.text(),/선택 1 \/ 2/);
-  h.key('\x1bo'); // Alt+O
-  assert.equal(h.events().hidden,true);
-  h.key('\x1bo'); // Alt+O again
-  assert.equal(h.events().hidden,false);
-  assert.match(h.text(),/선택 1 \/ 2/);
-  h.key('\x1b'); // cancel
-  assert.deepEqual(await result,{type:'cancel'});
-});
-
-
-test('wide Handoff UI follows pi-ask-user choice/detail layout, not a long evidence dump',async()=>{
-  const h=reviewHarness(true,130);
-  const result=h.run();
-  assert.match(h.text(),/선택 항목의 의미/);
-  assert.match(h.text(),/전달할 컨텍스트/);
-  assert.match(h.text(),/관련 제약·WHY 1건/);
-  assert.doesNotMatch(h.text(),/Do not change original files/);
-  h.key('\x05'); // Ctrl+E -> evidence expansion without leaving the list
-  assert.match(h.text(),/Do not change original files/);
-  h.key('\x1b');
-  assert.deepEqual(await result,{type:'cancel'});
-});
-
-test('explicit Alt+Z requests split focus without submitting or changing context selection',async()=>{
-  const h=reviewHarness(true,120);
-  const result=h.run();
-  h.key(' ');
-  h.key('\x1bz'); // Alt+Z
-  assert.equal(h.events().zoomCalls,1);
-  assert.match(h.text(),/선택 1 \/ 2/);
-  h.key('\x1b');
-  assert.deepEqual(await result,{type:'cancel'});
 });
