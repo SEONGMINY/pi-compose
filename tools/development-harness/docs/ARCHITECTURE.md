@@ -25,6 +25,10 @@ The Task JSON report derives Step criterion/evidence views from `steps` plus wor
 
 No AI planner is invoked automatically: the default planner is conservative and only treats explicit Step/Phase headings as phases. No complete real Pi/Codex E2E was run in this environment. Codex attempt IDs and nested agents are not guaranteed; output tokens can be missing. AC tests verify only their declared commands, not arbitrary semantic user requirements. Cloud work and offline processing are outside scope. AI review token budgets cannot be enforced precisely without provider usage telemetry.
 
+## Separate semantic requirements-to-Diff gate
+
+`verify project checks → structural scope gate → semantic queue (opt-in) → bounded independent read-only model → evidence validator → Task JSON status`. The developer result is delivered first. Only work recorded in the Task's original Worktree may be evaluated; the diff and approved contract must remain unchanged through the audit. A changed or protected policy yields `scope-review-required` and cannot be self-approved by a model. Tasks with code changes and missing semantic evidence may be delivered, but cannot authorize automated improvement. The cost ledger stores a `scope-review` model-call receipt with unknown usage represented as null. No raw prompts or raw model responses are kept in the durable ledger. See README for one-time configuration and size/privacy limits.
+
 ## Improvement AI cost receipts
 
 The independent improvement subprocess runs Pi in **one-shot JSON event mode**. It never executes shell commands, uses only the read-only `read,grep,find,ls` tool allowlist, and disables extensions and MCP. The parser counts terminal assistant and compaction usage once, not cumulative streaming snapshots. All review/proposal/verification attempts, including exceptions, persist time/token receipts linked to the relevant Task, review, and change attempt in Git-common `development-harness/model-calls/`. No raw model content is retained. Missing usage is `null`, not zero. The observed-token per-call limit is best-effort; do not treat it as a guaranteed invoice cap or as a verified overall improvement budget.

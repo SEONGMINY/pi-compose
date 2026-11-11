@@ -22,6 +22,22 @@ node tools/development-harness/bin/devh.mjs report
 node tools/development-harness/bin/devh.mjs task TASK_ID
 ```
 
+## Independent requirements-to-Diff review (one-time opt-in)
+
+The structural scope gate catches approved-policy edits but **cannot spot unrelated implementation within permitted source files**. A separately queued, read-only Pi review can compare the original Task objective, Step AC, approved scope JSON, and a bounded Git diff. The verdict and anchored evidence live in the **Task JSON**, not a new Markdown task file.
+
+In the trusted `pi-compose` checkout, explicitly enable this review in the existing local `.devh.json` (after checking what code may be sent to the model):
+
+```json
+{"checks":[["npm","run","check"]],"semanticReview":{"enabled":true}}
+```
+
+After configured project checks, changed-code Tasks are queued as `semantic` work. The detached worker runs **at most one** review per process invocation, separately from the user's development turn; no new per-task commands. Optional diagnostic command: `node tools/development-harness/bin/devh.mjs semantic`. Inspect with `devh task ID` → `scope.independentSemanticReview` and the private `model-calls/*.json` receipts.
+
+A `no-drift-observed` result requires a model quote tied to an actual changed line in the claimed file. `drift-evidenced` sets `scope-review-required` and blocks pending automatic changes. `unverified` (missing provider, dirty source, unsupported/sensitive/large diff, invalid model output, or no opt-in) **never authorizes autonomous edits of changed code**. No-drift is advisory and **does not certify acceptance or authorize policy updates**. A reopened Task is audited again.
+
+**Cost/privacy boundary:** code is sent only with one-time opt-in; diffs above 28 KB, more than 12 files, suspicious secrets, binary and unsupported paths fail closed. The independent subprocess has no tools, runs for at most 30 seconds and attempts a 6,000 *observed-token* cap. These are not billing guarantees if usage events are missing; model failures and retries are metered. Model-based semantic checks are not a substitute for actual product tests or user's decisions. Live authenticated workstation behavior remains unverified.
+
 ## Important semantics
 - One **Task** = user's development goal; one or more **Steps** = verifiable milestones; **Runs** = actual agent turns/retries. Steps do not necessarily imply new sessions or commits.
 - Numbered/bulleted *requirements* are not treated as separate implementation Steps. Only explicitly named `Step N` / `Phase N` / `N단계` lines split deterministically; otherwise a single Step prevents excessive planning overhead. More sophisticated AI planning is a future bounded adapter with schema validation.

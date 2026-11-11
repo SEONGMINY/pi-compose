@@ -139,7 +139,7 @@ export async function runPiJson(prompt,cwd,{executable='pi',timeoutMs=120_000,to
 /** Persist a receipt for every attempted model call, including errors. No raw
  * prompts or responses are written. Unknown usage remains null. */
 export async function recordModelCall({dir,purpose,taskIds=[],reviewId=null,attemptId=null,signature=null},invoke){
-  if(!['review','propose','verify'].includes(purpose))throw Error('Unknown improvement model call purpose');
+  if(!['review','propose','verify','scope-review'].includes(purpose))throw Error('Unknown improvement model call purpose');
   const id=randomUUID(),startedAt=new Date().toISOString(),start=performance.now();
   let output,error=null,usage={totalTokens:null,coverage:'unknown'};
   try{

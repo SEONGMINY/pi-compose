@@ -45,7 +45,7 @@ export async function ingest({cwd,agent,sessionId,turnId,event,prompt,usage,even
       if(previousRunTask)return {duplicate:true,taskId:previousRunTask.id,runId,forecast:previousRunTask.forecast};
       const previous=task??(session.lastTaskId?state.tasks[session.lastTaskId]:null);
       const classification=taskIntent==='auto'?classifyFollowup(prompt,previous?.title??''):{intent:taskIntent,basis:'provider-explicit'};
-      const resumable=previous && ['running','awaiting-verification','delivered-unverified','verification-failed','interrupted'].includes(previous.status);
+      const resumable=previous && ['running','awaiting-verification','delivered-unverified','verification-failed','interrupted','scope-review-required'].includes(previous.status);
       const reuse=resumable && ['continue','rework'].includes(classification.intent);
       if(reuse){
         task=previous;
@@ -53,7 +53,8 @@ export async function ingest({cwd,agent,sessionId,turnId,event,prompt,usage,even
           task.deliveries??=[];
           if(task.actual)task.deliveries.push({actual:structuredClone(task.actual),analysis:task.analysis??null,at:task.finishedAt??iso()});
           task.reopenCount=(task.reopenCount??0)+1;
-          task.actual=null;task.analysis=null;task.verification=null;task.finishedAt=null;
+          task.actual=null;task.analysis=null;task.verification=null;task.acceptance=null;
+          task.scopeGate=null;task.semanticGate=null;task.finishedAt=null;
         }
         task.status='running';session.activeTaskId=task.id;
       }else{
@@ -171,7 +172,7 @@ export async function ingest({cwd,agent,sessionId,turnId,event,prompt,usage,even
 export function taskJsonView(task){
   if(!task)return null;
   return {schemaVersion:1,id:task.id,objective:task.title,kind:task.kind,agent:task.agent,
-    status:task.status,scope:{atStart:task.scope??null,afterVerification:task.scopeGate??null},
+    status:task.status,scope:{atStart:task.scope??null,afterVerification:task.scopeGate??null,independentSemanticReview:task.semanticGate??null},
     originalForecast:task.forecast,actual:task.actual??null,
     plan:{revision:task.revision??0,provenance:task.planProvenance??null,
       steps:(task.steps??[]).map(s=>({id:s.id,goal:s.goal,status:s.status,dependencies:s.dependencies,

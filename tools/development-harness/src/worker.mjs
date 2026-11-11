@@ -1,5 +1,5 @@
 import {spawnSync} from 'node:child_process';
-import {projectPaths, withState, readState, enqueue} from './store.mjs';
+import {projectPaths, withState, readState, enqueue, readProjectConfig} from './store.mjs';
 import {acceptanceForStep} from './acceptance.mjs';
 import {assessTaskScope} from './scope.mjs';
 
@@ -57,7 +57,8 @@ async function runChecks(task){
       limitation:'Only the project-owner-declared executable criteria were checked; unlisted feature behavior is not proven'}};
 }
 export async function processQueue(cwd,{limit=10,run=runChecks}={}){
-  const {dir}=projectPaths(cwd);let processed=[];
+  const {dir,root}=projectPaths(cwd);let processed=[];
+  const settings=await readProjectConfig(root);
   for(let i=0;i<limit;i++){
     const item=await withState(dir,s=>{
       const pick=Object.entries(s.queue).find(([_,q])=>q.type==='verify'&&q.state==='pending');
@@ -99,6 +100,19 @@ export async function processQueue(cwd,{limit=10,run=runChecks}={}){
       task.actual={wallMinutes,tokens,coverage:tokens===null?'unknown':task.tokenUsage.missingEvents>0?'partial-observed':'observed-hooks-only',
         activeMinutes,agentRunMinutes:agentRunMs/60_000,checkMinutes:checkMs/60_000};
       task.analysis=triage(task,Object.values(s.tasks));
+      // The cheap structural gate cannot prove semantic intent. A code-changing
+      // Task needs an independent read-only audit before it may authorize
+      // autonomous improvements. That audit never runs in this check worker.
+      if(task.scope?.contract?.id==='pi-compose-maintenance' && scopeGate.status==='no-violation-observed'){
+        if(scopeGate.changedPaths?.length){
+          if(settings.semanticReview?.enabled){
+            task.semanticGate={schemaVersion:1,status:'pending',reason:'awaiting-independent-review'};
+            const semanticId=enqueue(s,'semantic',task.id,'requirements-to-diff-review');
+            if(s.queue[semanticId].state==='done')s.queue[semanticId].state='pending';
+          }else task.semanticGate={schemaVersion:1,status:'unverified',reason:'one-time-semantic-review-opt-in-required'};
+        }else task.semanticGate={schemaVersion:1,status:'not-applicable',reason:'no-changed-files'};
+      }
+
       // Cheap triage is done synchronously; unverified delivery is NOT accepted completion.
       // Expensive AI review is a separate queue.
       if(scopeGate.status!=='needs-review'&&task.analysis.needsReview)enqueue(s,'review',task.id,'anomaly-or-repeat');
@@ -119,7 +133,7 @@ export async function recoverQueue(cwd,{olderThanMs=600_000}={}){
   return withState(dir,s=>{
     const recovered=[];
     for(const [id,q] of Object.entries(s.queue)){
-      if(['verify','improve'].includes(q.type)&&q.state==='running'&&Date.now()-Date.parse(q.startedAt)>olderThanMs){
+      if(['verify','semantic','improve'].includes(q.type)&&q.state==='running'&&Date.now()-Date.parse(q.startedAt)>olderThanMs){
         q.state='pending';q.reason='recovered-stale-worker';recovered.push(id)
       }
     }

@@ -24,3 +24,11 @@
 - Local synthetic tests cover successful/missing/partial usage, streams with recoverable model errors, invalid JSON, aborted output, observed-token cap, failed model review and rejected verifier retries. The real Git Worktree checks and existing integration tests are retained.
 - Local `npm run check` passes **68/68** tests before remote CI. This is **not** a live authenticated Pi/Codex test; the installed Pi executable is unavailable in this environment.
 - `modelTokens` is reported only with complete provider-observed call receipts; otherwise `observedModelTokens` remains a lower bound and net savings stay `null`. Provider billing and subagent costs can still be missing. No main product behavior change.
+
+## 2026-11-11 independent semantic audit iteration
+
+- Source baseline: current `pi-compose/main` after PR #36 (`0b665817`), with 83 existing harness tests passing.
+- Exact diff evidence and user-approved scope are read independently; evidence quotes must refer to changed code lines in the claimed file. Scope/model outcomes are JSON Task state, not Markdown Task files.
+- Tested structural scope drift during model execution, unrelated-code mismatch, invented evidence rejection, pending queue recovery, model failure/backoff, sensitive-diff blocking and cross-Worktree isolation.
+- One-time opt-in protects code exposure. Tests use synthetic model responses; no authenticated Pi/Codex runtime E2E and no proof of semantic completeness.
+- The semantic model's bounded duration/tokens are observed best effort; review overhead is recorded separately, not presented as proven net productivity gains.

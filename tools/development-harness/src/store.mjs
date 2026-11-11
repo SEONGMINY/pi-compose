@@ -64,6 +64,8 @@ export async function readProjectConfig(root) {
   if(config.planning!==undefined && (!config.planning || !['deterministic','bounded-pi'].includes(config.planning.mode) ||
     (config.planning.timeoutMs!==undefined && (!Number.isInteger(config.planning.timeoutMs)||config.planning.timeoutMs<1_000||config.planning.timeoutMs>10_000))))
     throw Error('Invalid planning mode or timeout');
+  if(config.semanticReview!==undefined && (typeof config.semanticReview!=='object'||config.semanticReview===null||
+    typeof config.semanticReview.enabled!=='boolean'))throw Error('semanticReview requires an explicit enabled boolean');
   if(config.improvement!==undefined && (typeof config.improvement!=='object'||config.improvement===null||
     (config.improvement.autoReview!==undefined&&typeof config.improvement.autoReview!=='boolean')||
     (config.improvement.autoImprove!==undefined&&typeof config.improvement.autoImprove!=='boolean')))throw Error('Invalid improvement configuration');

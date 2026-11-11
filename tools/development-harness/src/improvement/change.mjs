@@ -14,7 +14,7 @@ import {recordModelCall,listModelCalls} from './model-run.mjs';
 const MAX_EDITS = 8;
 const MAX_CHANGED_BYTES = 120_000;
 const SAFE = /^(?:src|extensions|maintenance|docs\/maintenance|tools\/development-harness)\/[a-zA-Z0-9_.\/-]+$/;
-const INTERNAL_GUARD = /^(?:maintenance\/(?:core|cli|review|usage|improve)\.mjs|tools\/development-harness\/(?:src\/(?:core|store|scope|acceptance|worker|forecast|planner|plan)\.mjs|src\/improvement\/(?:review|change|queue|bridge|impact|model-run)\.mjs|bin\/devh\.mjs|adapters\/[^/]+|contracts\/[^/]+))$/;
+const INTERNAL_GUARD = /^(?:maintenance\/(?:core|cli|review|usage|improve)\.mjs|tools\/development-harness\/(?:src\/(?:core|store|scope|semantic|acceptance|worker|forecast|planner|plan)\.mjs|src\/improvement\/(?:review|change|queue|bridge|impact|model-run)\.mjs|bin\/devh\.mjs|adapters\/[^/]+|contracts\/[^/]+))$/;
 const ALLOWED_CHECKS = new Set(['maintenance', 'project', 'harness']);
 function requireThat(value, message) { if (!value) throw new Error(message); }
 function hash(text) { return createHash('sha256').update(text).digest('hex'); }

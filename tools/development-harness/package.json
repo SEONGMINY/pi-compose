@@ -12,6 +12,6 @@
   },
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "check": "node --check src/core.mjs && node --check src/scope.mjs && node --check src/worker.mjs && node --check src/acceptance.mjs && node --check src/planner.mjs && node --check src/improvement/review.mjs && node --check src/improvement/change.mjs && node --check src/improvement/bridge.mjs && node --check src/improvement/queue.mjs && node --check src/improvement/impact.mjs && node --check src/improvement/model-run.mjs && node --check bin/devh.mjs && node --check adapters/codex-hook.mjs && npm test"
+    "check": "node --check src/core.mjs && node --check src/scope.mjs && node --check src/semantic.mjs && node --check src/worker.mjs && node --check src/acceptance.mjs && node --check src/planner.mjs && node --check src/improvement/review.mjs && node --check src/improvement/change.mjs && node --check src/improvement/bridge.mjs && node --check src/improvement/queue.mjs && node --check src/improvement/impact.mjs && node --check src/improvement/model-run.mjs && node --check bin/devh.mjs && node --check adapters/codex-hook.mjs && npm test"
   }
 }
