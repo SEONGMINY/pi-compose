@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { lstat, mkdir, mkdtemp, open, readFile, readdir, realpath, rename, rm, unlink, writeFile } from 'node:fs/promises';
+import { access, lstat, mkdir, mkdtemp, open, readFile, readdir, realpath, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -131,12 +131,30 @@ export async function runTrustedChecks(worktree, checks, runner = command) {
       const names=(await readdir(join(worktree,'test'))).filter(n=>/^maintenance.*\.test\.mjs$/.test(n)).sort();
       requireThat(names.length>0,'No maintenance tests available');
       bin=process.execPath;args=['--test',...names.map(n=>`test/${n}`)];
-    }else {bin='npm';args=['run','check'];}
+    } else {
+      // A newly created worktree never contains the parent checkout's node_modules.
+      // Install dependency files locally without scripts or a new lockfile only
+      // when the TypeScript binary is missing. Build/test remain host-local.
+      const manifest=join(worktree,'package.json');
+      await access(manifest);
+      let installed=true;
+      try { await access(join(worktree,'node_modules','.bin','tsc')); }
+      catch { installed=false; }
+      if(!installed) {
+        const installArgs=['install','--no-package-lock','--ignore-scripts','--no-audit','--no-fund'];
+        const begin=performance.now();
+        const install=await runner('npm',installArgs,{cwd:worktree,timeoutMs:240_000});
+        results.push({name:'dependencies',bin:'npm',args:installArgs,durationMs:performance.now()-begin,
+          exitCode:install.code,timedOut:install.timedOut,outputTail:(install.stdout+'\n'+install.stderr).slice(-2500)});
+        requireThat(install.code===0 && !install.timedOut && !install.truncated,'Dependency install failed');
+      }
+      bin='npm';args=['run','check'];
+    }
     const start=performance.now();
     const r=await runner(bin,args,{cwd:worktree,timeoutMs:240_000});
     results.push({name:check,bin,args,durationMs:performance.now()-start,exitCode:r.code,
       timedOut:r.timedOut,outputTail:(r.stdout+'\n'+r.stderr).slice(-2500)});
-    requireThat(r.code===0 && !r.timedOut,`Required check failed: ${check}`);
+    requireThat(r.code===0 && !r.timedOut && !r.truncated,`Required check failed: ${check}`);
   }
   return results;
 }
