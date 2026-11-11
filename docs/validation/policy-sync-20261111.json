@@ -204,7 +204,7 @@
     "githubActions": "NO_RUNS_FOR_BRANCH",
     "localTypecheck": "NOT_RUN",
     "localNodeTests": "NOT_RUN",
-    "macOSGhostty": "NOT_RUN"
+    "macOSGhostty": "PARTIAL_USER_REPORTED: Main B decision auto-recorded; existing Work displayed 1 pending policy change and successfully understood B-only passkey policy. Handoff/branch/offline not yet exercised."
   },
   "nonGoals": [
     "pi-compose internal development harness modifications",
@@ -221,8 +221,22 @@
     "An already-running tool cannot be retroactively cancelled. Stop takes effect on subsequent tool-call boundaries.",
     "B-option resolution can still be ambiguous when source has been compacted or heavily ContextEdited; it is held rather than guessed.",
     "Actual npm typecheck and Node tests are unexecuted because the GitHub connector has no runner and this environment cannot fetch the repo/dependencies.",
-    "macOS/Ghostty native Split and Pi end-to-end behaviors remain unverified.",
+    "macOS/Ghostty partial user-reported Main→Work policy propagation succeeded; native Split, full Handoff and branch/offline scenarios still require validation.",
     "Draft PR #37 is dependent on unmerged Draft PR #25. Neither main nor the internal development harness has been changed.",
-    "Observed user scenario (B approval → ask_user documentation-only → generic warning) was repaired at code level; real Pi replay and Work delivery remain unverified. Existing ambiguous entries should be revisited upon Main session resume."
+    "Observed user scenario (B approval → ask_user documentation-only → original warning): user subsequently confirmed Main decision auto-recorded and existing Work received/understood the change. Actual source logs, typecheck, and Handoff E2E remain unverified."
+  ],
+  "userReportedScenarios": [
+    {
+      "scenario": "B option approved, documentation selected, original ambiguous warning recovered; Main reported '확정된 Main 결정이 Work 동기화 기록에 반영됐습니다.'",
+      "status": "USER_REPORTED_PASS",
+      "verifiedBy": "user conversation",
+      "limitations": "No independent runtime/session log inspection"
+    },
+    {
+      "scenario": "Previously forked Work showed 'Main 정책 변경 1건 확인 필요' and, after the requested verification prompt, user reported that it worked.",
+      "status": "USER_REPORTED_PASS",
+      "verifiedBy": "user conversation",
+      "limitations": "No Work session logs or actual Handoff receipt inspected"
+    }
   ]
 }
