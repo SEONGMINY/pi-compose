@@ -21,7 +21,7 @@
 ## Operational constraints
 - One-time opt-in per project: `.devh.json` and trusted hooks / Pi extension. No per-task commands.
 - Hooks should fail open for telemetry. Hook errors never block the developer. Persist failures to diagnostics later.
-- Hook `Stop` / Pi `agent_settled` means a run stopped, not necessarily that a product feature is complete.
+- Hook `Stop` / Pi `agent_settled` means a run stopped, not necessarily that a product feature is complete. Passing project checks yields `delivered-unverified`, never automatic semantic `completed`.
 - Missing usage is unknown (not zero); observed hooks cannot claim exhaustive coverage.
 - State lock and worker leases require fault recovery. State writes must be atomic and idempotent.
 - Task original forecast must remain unchanged after code execution; scope changes are separate events.

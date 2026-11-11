@@ -2,13 +2,13 @@
 
 A standalone developer-maintenance harness. Target: **a developer uses Pi or Codex normally** and the harness records a Task (with Steps and Runs), pre-development forecast, observed execution, then queues relevant improvement reviews after completion. This is *not* a `pic` runtime feature; installation is explicit and separate from normal `pic` usage.
 
-**Status: pre-release implementation / integration not yet verified with real Pi and Codex.** This package is currently embedded under `tools/development-harness/` in `pi-compose` and is designed for later extraction to its own repository. Source baseline research: [pi-compose Draft PR #29](https://github.com/SEONGMINY/pi-compose/pull/29), [mofit-ios task-create](https://github.com/vibemafiaclub/mofit-ios/blob/main/prompts/task-create.md). This package is being integrated into the pi-compose main branch.
+**Status: pre-release implementation / integration not yet verified with real Pi and Codex.** This package is currently embedded under `tools/development-harness/` in `pi-compose` and is designed for later extraction to its own repository. Source baseline research: [pi-compose Draft PR #29](https://github.com/SEONGMINY/pi-compose/pull/29), [mofit-ios task-create](https://github.com/vibemafiaclub/mofit-ios/blob/main/prompts/task-create.md). This package is integrated in the pi-compose main branch.
 
 ## Important semantics
 - One **Task** = user's development goal; one or more **Steps** = verifiable milestones; **Runs** = actual agent turns/retries. Steps do not necessarily imply new sessions or commits.
-- Multi-line explicit numbered/bulleted requests may be split deterministically. Otherwise a single Step prevents excessive planning overhead. More sophisticated AI planning is a future bounded adapter with schema validation.
-- A Hook `Stop` does not prove feature completion. Project-defined trusted checks must pass; otherwise Task stays `awaiting-verification`. Even passing checks proves only those checks, **not** the complete functional acceptance criteria.
-- Automatic P30/P50/P80 is empirical once ≥8 same agent/category measurements of both minutes and tokens are available. Cold start only uses a configured, clearly *uncalibrated* prior. Otherwise numerical forecasts remain missing rather than fabricated.
+- Numbered/bulleted *requirements* are not treated as separate implementation Steps. Only explicitly named `Step N` / `Phase N` / `N단계` lines split deterministically; otherwise a single Step prevents excessive planning overhead. More sophisticated AI planning is a future bounded adapter with schema validation.
+- A Hook `Stop` does not prove feature completion. Project-defined trusted checks must pass; otherwise Task stays `awaiting-verification`. Passing checks records `delivered-unverified`, **not** `completed`; full functional acceptance criteria remain unverified.
+- Automatic P30/P50/P80 uses observed technical-delivery outcomes once ≥8 comparable time and token samples are available; these are **not** calibrated completion probabilities. Cold start only uses a configured, clearly *uncalibrated* prior. Otherwise numerical forecasts remain missing rather than fabricated.
 - Time: `wallMinutes` includes pauses between prompts, while `activeMinutes` sums observed agent runs and verification checks (parallel runs may overlap); forecasts and P80 triage use active time. Token totals are observed lower-bound/incomplete when provider events are not guaranteed. No tokens are inferred from character counts.
 - The queue stores `review` candidates for a separate improvement loop; **no AI-driven code modification, local-main merge or remote push is active in this initial package**.
 
@@ -35,7 +35,7 @@ When run from the pi-compose root, this creates project-local hooks / Pi extensi
 
 ## Codex integration
 
-Codex can load `.codex/hooks.json` with `UserPromptSubmit`, `PostModelRequest`, `Stop`, and `Interrupt`. After the initial trust review (`/hooks`), commands can point to this package's absolute `adapters/codex-hook.mjs` path. Hook payload is JSON on stdin. The adapter writes worktree-shared state into Git common-dir `development-harness/` and triggers a detached verification worker after `Stop`. Session termination or OS shutdown can still interrupt that worker; the next `process` call recovers stale verification jobs. **Do not install globally** without intending to track other projects. See `docs/INSTALLATION.md` for sample config.
+Codex can load `.codex/hooks.json` with `UserPromptSubmit`, `PreModelRequest`, `PostModelRequest`, `Stop`, and `Interrupt`. After the initial trust review (`/hooks`), commands can point to this package's absolute `adapters/codex-hook.mjs` path. Hook payload is JSON on stdin. The adapter writes worktree-shared state into Git common-dir `development-harness/` and triggers a detached verification worker after `Stop`. Session termination or OS shutdown can still interrupt that worker; the next `process` call recovers stale verification jobs. **Do not install globally** without intending to track other projects. See `docs/INSTALLATION.md` for sample config.
 
 ## Pi integration
 
