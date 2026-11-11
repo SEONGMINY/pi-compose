@@ -109,12 +109,12 @@ export async function getWorkPolicyStatus(
 const POLICY_UI_KEY='pi-compose/policy-sync';
 
 /** Keep the built-in model/token/cost footer; use a single editor-adjacent row. */
-function clearPolicyIndicator(ctx:ExtensionContext):void{
+export function clearPolicyIndicator(ctx:ExtensionContext):void{
   if(!ctx.hasUI)return;
   ctx.ui.setStatus(POLICY_UI_KEY,undefined);
   ctx.ui.setWidget(POLICY_UI_KEY,undefined,{placement:'aboveEditor'});
 }
-function renderPolicyIndicator(ctx:ExtensionContext,state:PolicyIndicatorState):void{
+export function renderPolicyIndicator(ctx:ExtensionContext,state:PolicyIndicatorState):void{
   if(!ctx.hasUI)return;
   // Clear the former footer slot even when a saved extension session resumes.
   ctx.ui.setStatus(POLICY_UI_KEY,undefined);
