@@ -112,7 +112,7 @@ export function registerPolicyMain(pi:ExtensionAPI):void{
             const source=[...earlier,approval].find(x=>x.id===parsed.sourceEntryId);
             const quote=parsed.sourceQuote.trim();
             const text=approval.text;
-            const pointer=/\b[A-Z]\s*(?:안|option)\b|\b[가-힣]\s*안\b/i.test(text);
+            const pointer=/(?:[A-Z가-힣]\\s*안(?:으로|을|이|은|에|$|\\s)|\\boption\\s+[A-Z]\\b)/i.test(text);
             const validSource=source && quote.length>=10 &&
               source.text.includes(quote) &&
               (!pointer || source.id!==approval.id);
@@ -124,7 +124,8 @@ export function registerPolicyMain(pi:ExtensionAPI):void{
                 sourceQuote:quote.slice(0,1600),
                 subject:parsed.subject.slice(0,140)||'Main 확정 결정',
                 decision:quote.slice(0,1600),
-                reason:parsed.reason.slice(0,800),
+                reason:parsed.reason && [...earlier,approval].some(x=>x.text.includes(parsed.reason))
+                  ?parsed.reason.slice(0,800):'',
                 scope:'owner-main',targetWorkIds:[],effective:parsed.effective,
               };
             }
