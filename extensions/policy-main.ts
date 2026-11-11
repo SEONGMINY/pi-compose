@@ -31,7 +31,7 @@ async function publishSnapshot(ctx:ExtensionContext):Promise<void>{
 }
 
 type Msg = {id:string;role:string;text:string};
-function recentMessages(ctx:ExtensionContext):Msg[]{
+export function recentMessages(ctx:ExtensionContext):Msg[]{
   // Pi projection follows active Compaction and ContextEdit. An edited-away
   // or compacted option must not be silently revived as a new user policy.
   return ctx.sessionManager.buildSessionProjection().entries.flatMap(projected=>{
