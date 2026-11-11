@@ -194,4 +194,22 @@
 
 **완료 여부:** Draft 코드 및 단위 테스트 코드 추가. 최신 `npm run check` 실행·Ghostty 1.3.1/macOS Split zoom·장문 화면/IME/키 바인딩 검증은 미확인. 기존 후보 추출 정확도와 오래된 작업 인용 문제는 이번 UI 개선의 범위를 벗어납니다.
 
-false
+## 2026-11-11 사용자 보고 3가지 Handoff 문제 직접 수정 (Draft)
+
+문제 1 — 첫 Work `<`에 WHY가 누락되고 재시도하면 나타남:
+- `extensions/handoff-candidates.ts`: 최신 Work 보고에서 후보와 역사적 WHY·제약을 같은 결과로 준비하고 검증된 결과만 동일 활성 leaf에 캐시. 연결 인용이 유효하지 않거나 모델이 실패하면 구형 WHY 검색으로 자동 복구
+- `src/handoff/package.ts`: 기존 구형 WHY 검색은 결과·JSON·출처 검증 실패 시 같은 첫 `<` 안에서 최대 한 번 다시 호출. 부분적으로 채택한 컨텍스트는 실패 시 전부 제거. 마지막에도 실패하면 `unavailable`을 유지하므로 정확성을 가장하지 않음
+
+문제 2 — 사용자가 Work에서 무엇이 전송되는지 볼 수 없음:
+- `extensions/context-review.ts`: 처음부터 Work 후보를 선택된 상태로 표시하되 사용자가 항목을 제외하고 한 번 명시 승인해야 전송
+- `extensions/handoff-review-ui.ts`: 좁은 화면에서 실제 승인 Brief의 일부를 첫 화면에서 보여주고, 넓은 화면에서 전체 승인 Brief를 선택에 따라 실시간 갱신. 정확한 본문은 `selectContextPackage()` 단일 생성기로 제공하며 `Enter`로 전체를 확인. 별도의 추정/재작성 미리보기 없음
+
+문제 3 — Main에서 두 번째 `<` 수신 필요:
+- `src/handoff/store.ts`: 안전한 Main의 영속 보관함에 새 패키지가 생성되면 `fs.watch`로 즉시 감지. Optional intercom이 연결되지 않아도 보관함을 새로 읽고 활성 Main 기준 비교 실행
+- `extensions/context-receive.ts`: Main 시작/분기 전환에 맞춰 감시를 생성·해제하고, 신규 보관함 변경으로 자동 처리. 일시적 모델 비교 오류는 `requires-review`로 승격해 Main `<`를 강요하지 않고 원본을 보존한 채 한 번 자동 재시도
+- `extensions/handoff-inbox.ts`: 단순 `pending`은 자동 검사 중임을 표시하고, `<` 안내는 진짜 예외 `requires-review`일 때만 제공
+- 여전히 충돌·WHY 원문 검증 불가·다른 Fork 분기라면 Main 모델 컨텍스트에 자동 반영하지 않음. 자동 수신은 신규 정책 승인이 아님
+
+범위에서 제외: 사용자가 요청하지 않은 `src/handoff/metrics.ts`와 영구 비용 로그·관련 연결·테스트 제거. Work 후보·WHY 통합, 캐시는 Handoff의 지연·재시도 문제에 직접 필요해 유지.
+
+검증 상태: 코드를 PR Draft 브랜치에 반영했지만 최신 `npm run check`, 실제 Ghostty/Pi 1.4.0 E2E, intercom 비연결 오프라인/재시작 테스트는 아직 통과가 확인되지 않았음.
