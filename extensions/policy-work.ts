@@ -5,6 +5,7 @@ import { POLICY_MESSAGE, policyDelta, renderPolicyDelta, workKnownDecisionIds,
 import { resolvePolicyMain } from '../src/policy/owners.ts';
 import { readPolicySnapshot, watchPolicySnapshot } from '../src/policy/store.ts';
 import { isSnapshotCurrentAtHandoff } from '../src/policy/verification.ts';
+import { policyNotice, policyNoticeLine, type PolicyIndicatorState } from '../src/policy/status-widget.ts';
 
 export type WorkPolicyStatus = {
   status:'checked'|'delivered'|'pending'|'unavailable';
@@ -13,6 +14,8 @@ export type WorkPolicyStatus = {
   pendingDecisionIds:string[];
   withdrawnDecisionIds:string[];
   unreviewedApprovalCount?:number;
+  pendingSubject?:string;
+  hasStop?:boolean;
 };
 type Change = {
   mainId:string;
@@ -57,6 +60,8 @@ async function check(ctx:ExtensionContext,mainId:string):Promise<{
       pending?'pending':answeredAfter?'checked':'delivered',
     mainSessionId:mainId,revision:snapshot.revision,
     unreviewedApprovalCount:snapshot.unreviewedApprovalEntryIds.length,
+    pendingSubject:delta.added[0]?.subject,
+    hasStop:eligible.some(d=>d.effective==='stop'),
     pendingDecisionIds:delta.added.map(d=>d.id),
     withdrawnDecisionIds:delta.withdrawn,
   };
@@ -101,11 +106,38 @@ export async function getWorkPolicyStatus(
  * No second agent run. A new policy is included before the next already-planned
  * model call; work performed before that safe boundary cannot be retroactively undone.
  */
+const POLICY_UI_KEY='pi-compose/policy-sync';
+
+/** Keep the built-in model/token/cost footer; use a single editor-adjacent row. */
+function clearPolicyIndicator(ctx:ExtensionContext):void{
+  if(!ctx.hasUI)return;
+  ctx.ui.setStatus(POLICY_UI_KEY,undefined);
+  ctx.ui.setWidget(POLICY_UI_KEY,undefined,{placement:'aboveEditor'});
+}
+function renderPolicyIndicator(ctx:ExtensionContext,state:PolicyIndicatorState):void{
+  if(!ctx.hasUI)return;
+  // Clear the former footer slot even when a saved extension session resumes.
+  ctx.ui.setStatus(POLICY_UI_KEY,undefined);
+  const notice=policyNotice(state);
+  ctx.ui.setWidget(POLICY_UI_KEY,notice
+    ? (_tui,theme)=>({
+      render(width:number):string[]{
+        return [' '+theme.fg(notice.tone,policyNoticeLine(notice,width-1))];
+      },
+      invalidate():void{},
+    })
+    :undefined,{placement:'aboveEditor'});
+}
+
 export function registerPolicyWork(pi:ExtensionAPI):void{
   let sessionId:string|undefined;
   let mainId:string|undefined;
   let stopWatch:(()=>void)|undefined;
-  const reset=()=>{stopWatch?.();stopWatch=undefined;sessionId=undefined;mainId=undefined;};
+  let renderRevision=0;
+  const reset=()=>{
+    renderRevision++;
+    stopWatch?.();stopWatch=undefined;sessionId=undefined;mainId=undefined;
+  };
   async function resolve(ctx:ExtensionContext):Promise<string|undefined>{
     const owner=workOwner(ctx);
     if(!owner)return;
@@ -115,30 +147,40 @@ export function registerPolicyWork(pi:ExtensionAPI):void{
     return found;
   }
   const notify=async(ctx:ExtensionContext)=>{
+    // Watch callbacks can complete out of order after a session/branch switch.
+    // Only the newest read for the same live Work may change its widget.
+    const revision=++renderRevision;
+    const owner=workOwner(ctx);
+    const observedSession=ctx.sessionManager.getSessionId();
+    if(!owner){clearPolicyIndicator(ctx);return;}
     const main=await resolve(ctx);
-    if(!main)return;
+    if(revision!==renderRevision||ctx.sessionManager.getSessionId()!==observedSession)return;
+    if(!main){
+      renderPolicyIndicator(ctx,{status:'unavailable',pendingCount:0,unavailableReason:'owner'});
+      return;
+    }
     try{
       const result=await check(ctx,main);
-      if(ctx.hasUI)ctx.ui.setStatus('pi-compose/policy-sync',
-        result.status.status==='pending'
-          ?'Main 정책 변경 '+(result.status.pendingDecisionIds.length+
-            result.status.withdrawnDecisionIds.length)+'건 확인 필요'
-          :result.status.status==='unavailable'
-            ?'Main 정책 최신성 미확인'+
-              (result.status.unreviewedApprovalCount
-                ?' · 승인 후보 '+result.status.unreviewedApprovalCount+'건 처리 대기':''):
-          result.status.status==='delivered'?'Main 정책 알림 수신 · Work 검토 미확인':undefined);
-    }catch(error){
-      if(ctx.hasUI)ctx.ui.setStatus('pi-compose/policy-sync','Main 정책 조회 실패');
+      if(revision!==renderRevision||ctx.sessionManager.getSessionId()!==observedSession)return;
+      const s=result.status;
+      renderPolicyIndicator(ctx,{
+        status:s.status,pendingCount:s.pendingDecisionIds.length+s.withdrawnDecisionIds.length,
+        subject:s.pendingSubject,stop:s.hasStop,
+        unreviewedApprovalCount:s.unreviewedApprovalCount,
+      });
+    }catch{
+      if(revision!==renderRevision||ctx.sessionManager.getSessionId()!==observedSession)return;
+      renderPolicyIndicator(ctx,{status:'unavailable',pendingCount:0,unavailableReason:'read'});
     }
   };
   async function start(ctx:ExtensionContext){
     reset();
+    clearPolicyIndicator(ctx);
     const owner=workOwner(ctx);
     if(!owner)return;
     const main=await resolve(ctx);
     if(!main){
-      if(ctx.hasUI)ctx.ui.setStatus('pi-compose/policy-sync','정책 소유 Main 불명확');
+      renderPolicyIndicator(ctx,{status:'unavailable',pendingCount:0,unavailableReason:'owner'});
       return;
     }
     try{
@@ -148,7 +190,8 @@ export function registerPolicyWork(pi:ExtensionAPI):void{
   }
   pi.on('session_start',(_event,ctx)=>{void start(ctx);});
   pi.on('session_tree',(_event,ctx)=>{void notify(ctx);});
-  pi.on('session_shutdown',()=>reset());
+  pi.on('session_before_switch',(_event,ctx)=>{reset();clearPolicyIndicator(ctx);});
+  pi.on('session_shutdown',(_event,ctx)=>{reset();clearPolicyIndicator(ctx);});
 
   pi.on('before_agent_start',async(_event,ctx)=>{
     const main=await resolve(ctx);
@@ -190,7 +233,7 @@ export function registerPolicyWork(pi:ExtensionAPI):void{
     if(!hasStop)return;
     const readOnly=new Set(['read','grep','find','ls','glob']);
     if(readOnly.has(event.toolName))return;
-    if(ctx.hasUI)ctx.ui.setStatus('pi-compose/policy-sync','Main 작업 중단 지시 · 수정 실행 차단');
+    renderPolicyIndicator(ctx,{status:'pending',pendingCount:0,stop:true});
     return {block:true,reason:
       'Current Main has an explicit stop-work decision. Do not modify files or invoke tools until that decision is resolved with the user.'};
   });
