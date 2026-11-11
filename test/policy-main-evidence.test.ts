@@ -133,3 +133,14 @@ test('user text without a concrete rule cannot bypass the old B-option source re
   assert.equal(explicitApprovalFallback(onlyPointer,[]),undefined);
   assert.equal(resolveApprovedSource(onlyPointer,[],'user',onlyPointer.text),undefined);
 });
+
+test('a self-contained user revision takes precedence over an older B-option proposal',()=>{
+  const old={id:'assistant-b',role:'assistant',
+    text:'B안: 비밀번호 로그인도 계속 허용합니다.'};
+  const user={id:'new-user-decision',role:'user',
+    text:'B안으로 확정합니다. 로그인 정책은 비밀번호 로그인을 제거하고 패스키 로그인만 허용합니다.'};
+  const evidence=resolveApprovedSource(user,[old],old.id,old.text);
+  assert.equal(evidence?.source.id,user.id);
+  assert.match(evidence?.quote??'',/비밀번호 로그인을 제거/);
+  assert.ok(!(evidence?.quote??'').includes('계속 허용'));
+});
