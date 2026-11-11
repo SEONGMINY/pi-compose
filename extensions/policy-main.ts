@@ -32,10 +32,18 @@ async function publishSnapshot(ctx:ExtensionContext):Promise<void>{
 
 type Msg = {id:string;role:string;text:string};
 function recentMessages(ctx:ExtensionContext):Msg[]{
-  return ctx.sessionManager.getBranch().flatMap(e=>{
-    if(e.type!=='message'||!['user','assistant'].includes(e.message.role))return [];
-    const text=textParts(e.message.content).trim();
-    return text?[{id:e.id,role:e.message.role,text}]:[];
+  // Pi projection follows active Compaction and ContextEdit. An edited-away
+  // or compacted option must not be silently revived as a new user policy.
+  return ctx.sessionManager.buildSessionProjection().entries.flatMap(projected=>{
+    const source=projected.sourceEntry;
+    if(source.type!=='message'||!['user','assistant'].includes(source.message.role))return [];
+    const original=textParts(source.message.content).trim();
+    const visible=projected.messages
+      .filter(m=>m.role===source.message.role)
+      .map(m=>textParts(m.content).trim());
+    // Do not attribute a rewritten ContextEdit fragment to the original quote.
+    if(!original||visible.length!==1||visible[0]!==original)return [];
+    return [{id:source.id,role:source.message.role,text:original}];
   });
 }
 
