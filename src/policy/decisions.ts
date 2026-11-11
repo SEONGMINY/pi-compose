@@ -48,6 +48,7 @@ export function textParts(content: unknown): string {
 }
 type BranchEntry = { id: string; type: string; customType?: string;
   data?: unknown; message?: { role?: string; content?: unknown };
+  summary?: unknown;
   targetId?: string; replacement?: unknown;
   details?: unknown };
 export function branchDecisions(entries: readonly BranchEntry[], mainSessionId: string): PolicyDecision[] {
@@ -83,8 +84,9 @@ export function branchDecisions(entries: readonly BranchEntry[], mainSessionId: 
     result.push(d);
   }
   // A newer, explicitly linked decision replaces an older decision on this branch.
-  const replaced = new Set(result.flatMap(d => d.supersedesId ? [d.supersedesId] : []));
-  return result.filter(d => !replaced.has(d.id));
+  const unique=[...new Map(result.map(d=>[d.id,d])).values()];
+  const replaced = new Set(unique.flatMap(d => d.supersedesId ? [d.supersedesId] : []));
+  return unique.filter(d => !replaced.has(d.id));
 }
 
 export function workKnownDecisionIds(entries: readonly BranchEntry[], mainId: string): string[] {
@@ -123,6 +125,11 @@ export function renderPolicyDelta(
     ...added.map(d => [
       '결정 ID: ' + d.id,
       '영역: ' + d.subject + ' / 적용: ' + d.effective,
+      ...(d.effective==='next-task'
+        ?['주의: 다음 작업부터 적용되는 결정입니다. 현재 진행 중 작업의 수정 지시가 아닙니다.']
+        :d.effective==='stop'
+          ?['중단 지시: 새로운 수정 작업을 진행하지 말고 Main에 필요한 확인을 요청하세요.']
+          :[]),
       '확정 내용: ' + d.decision,
       '원문 근거: ' + d.sourceQuote,
       '사용자 승인: ' + d.approvalQuote,
