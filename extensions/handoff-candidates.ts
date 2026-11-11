@@ -1,7 +1,6 @@
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { z } from 'zod';
 import { selectForkHistory, type HistoryExcerpt } from '../src/handoff/retrieve.ts';
-import { measuredHandoffCall, type HandoffMetric, type MetricSink } from '../src/handoff/metrics.ts';
 
 /**
  * A durable, non-context snapshot of proposed Work -> Main sharing material.
@@ -294,7 +293,7 @@ export async function prepareWorkHandoffCandidates(ctx: ExtensionContext): Promi
  * degrades to an attributed excerpt of the final Work report, never an invented
  * completion claim.
  */
-export async function prepareManualHandoffCandidates(ctx: ExtensionContext, onMetric?:MetricSink): Promise<PreparationResult> {
+export async function prepareManualHandoffCandidates(ctx: ExtensionContext): Promise<PreparationResult> {
   const source=latestAssistantReport(ctx);
   if(!source)return {status:'no-evidence',reason:'no-final-work-report'};
   const sessionId=ctx.sessionManager.getSessionId();
@@ -350,15 +349,7 @@ export async function prepareManualHandoffCandidates(ctx: ExtensionContext, onMe
   const cacheKey=JSON.stringify([sessionId,sourceLeafId,source.reportEntryId,
     ctx.model.id,'manual-prepare-v2']);
   const cached=manualCache.get(cacheKey);
-  if(cached){
-    if(onMetric)try{await onMetric(measuredHandoffCall('work-prepare','cache-hit',
-      performance.now(),ctx.model.id));}catch{/* Metrics never block Handoff. */}
-    return {status:'prepared',draft:cached};
-  }
-
-  const started=performance.now();
-  let answerForUsage:unknown;
-  let metricOutcome:HandoffMetric['outcome']='fallback';
+  if(cached)return {status:'prepared',draft:cached};
   try{
     const result=await ctx.modelRegistry.streamSimple(ctx.model,{
       systemPrompt:[
@@ -386,10 +377,8 @@ export async function prepareManualHandoffCandidates(ctx: ExtensionContext, onMe
         reportEntryId:source.reportEntryId,currentSources,historySources:history,
       }),timestamp:Date.now()}],
     },{reasoning:'low',maxTokens:5100,signal:AbortSignal.timeout(45000)}).result();
-    answerForUsage=result;
     if(ctx.sessionManager.getSessionId()!==sessionId||
        ctx.sessionManager.getLeafId()!==sourceLeafId){
-      metricOutcome='error';
       return {status:'stale',reason:'branch-changed-during-preparation'};
     }
     if(result.stopReason!=='stop')return fallback();
@@ -408,7 +397,6 @@ export async function prepareManualHandoffCandidates(ctx: ExtensionContext, onMe
       ?verifiedLinkedContext(parsed.context??(history.length?undefined:[]),
         history,candidates.length)
       :{items:[],assessment:'unavailable' as const};
-    metricOutcome=prepared.assessment==='unavailable'?'unavailable':'ok';
     const draft:PreparedHandoff={
       version:1,sessionId,sourceLeafId,reportEntryId:source.reportEntryId,
       createdAt:new Date().toISOString(),candidates,
@@ -430,11 +418,6 @@ export async function prepareManualHandoffCandidates(ctx: ExtensionContext, onMe
       return {status:'stale',reason:'branch-changed-during-preparation'};
     }
     return fallback();
-  }finally{
-    if(onMetric)try{
-      await onMetric(measuredHandoffCall('work-prepare',metricOutcome,started,
-        ctx.model.id,answerForUsage));
-    }catch{/* Failed telemetry must never change a send/hold decision. */}
   }
 }
 
