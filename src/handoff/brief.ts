@@ -33,6 +33,8 @@ export function renderApprovedMainBrief(
     ...(pkg.policySync ? [
       '정책 최신성 (Work 보고 · 실제 코드 반영의 독립 검증 아님):',
       '  확인 상태: '+pkg.policySync.status,
+      ...(pkg.policySync.unreviewedApprovalCount
+        ?['  Main에서 아직 분류하지 못한 승인 후보: '+pkg.policySync.unreviewedApprovalCount+'건']:[]),
       '  정책 소유 Main: '+(pkg.policySync.mainSessionId??'확인되지 않음'),
       '  변경 기준: '+(pkg.policySync.revision??'미확인'),
       ...(pkg.policySync.pendingDecisionIds.length
