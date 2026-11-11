@@ -112,7 +112,7 @@ export function registerPolicyMain(pi:ExtensionAPI):void{
             const source=[...earlier,approval].find(x=>x.id===parsed.sourceEntryId);
             const quote=parsed.sourceQuote.trim();
             const text=approval.text;
-            const pointer=/(?:[A-Z가-힣]\\s*안(?:으로|을|이|은|에|$|\\s)|\\boption\\s+[A-Z]\\b)/i.test(text);
+            const pointer=/(?:[A-Z가-힣]\s*안(?:으로|을|이|은|에|$|\s)|\boption\s+[A-Z]\b)/i.test(text);
             const validSource=source && quote.length>=10 &&
               source.text.includes(quote) &&
               (!pointer || source.id!==approval.id);
@@ -166,7 +166,9 @@ export function registerPolicyMain(pi:ExtensionAPI):void{
   });
   pi.on('session_tree',(_event,ctx)=>{
     queuePublish(ctx);
-    if(ctx.isIdle())void inspect(ctx);
+    if(ctx.isIdle())void inspect(ctx).catch(error=>{
+      if(ctx.hasUI)ctx.ui.notify('정책 결정 재조회 실패: '+String(error),'warning');
+    });
   });
   pi.on('agent_settled',async(event,ctx)=>{
     if(event.aborted){queuePublish(ctx);return;}
