@@ -94,7 +94,7 @@ export async function openWorkContextReview(
   try{
     full=await createSelectedHandoffPackage(ctx,source,draft,{
       ids,reviewEntryId:draft.sourceLeafId,reviewCreatedAt:draft.createdAt,
-    },target.id);
+    },target.id,recordHandoffMetric);
     verifyWorkSource(ctx,full);
   }catch(error){
     ctx.ui.notify('컨텍스트와 원문 근거 준비 실패: '+String(error)+'. 전송하지 않았습니다.','warning');
@@ -134,7 +134,7 @@ export async function openWorkContextReview(
         const refined=await createSelectedHandoffPackage(ctx,source,draft,{
           ids,reviewEntryId:draft.sourceLeafId,reviewCreatedAt:draft.createdAt,
           note:feedback.trim().slice(0,1200),
-        },target.id);
+        },target.id,recordHandoffMetric);
         verifyWorkSource(ctx,refined);
         const preserved=full.context.every(before=>
           refined.context.some(after=>after.quote===before.quote &&
