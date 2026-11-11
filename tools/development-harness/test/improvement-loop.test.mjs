@@ -39,6 +39,8 @@ test('Real queued anomaly is reviewed, task and file evidence checked, and recei
  const q=await processReviews(cwd,{runModel:async()=>JSON.stringify(modelReview(taskId))});
  assert.equal(q.reviewed.length,1);
  const reviews=await listReviews(projectPaths(cwd).dir);assert.equal(reviews.length,1);
+ assert.equal(reviews[0].modelTokens,null);
+ assert.ok(reviews[0].reviewWallMs>=reviews[0].modelWallMs);
  assert.equal(reviews[0].candidate.layer,'architecture');assert.equal(reviews[0].candidate.executionState,'proposed-not-approved');
  assert.equal((await getReport(cwd)).queue.find(x=>x.type==='review').state,'done');
  assert.equal((await processReviews(cwd,{runModel:async()=>{throw Error('Should not rerun')}})).reviewed.length,0);
@@ -70,6 +72,9 @@ test('Code improvement requires explicit policy and independent pass; draft pres
    propose:async()=>({edits:[{path:'src/worker.mjs',old:'true',replacement:'false'}],rationale:'remove repeated failure'}),
    verify:async()=>({verdict:'pass',summary:'Actual diff and tests checked',risks:[],limitations:[]})});
  assert.equal(allowed.state,'verified-draft');
+ assert.equal(allowed.modelTokens,null);
+ assert.ok(allowed.totalWallMs>0);
+ assert.ok(allowed.stages.proposeMs>=0 && allowed.stages.checksMs>=0 && allowed.stages.verifyMs>=0);
  assert.equal(await readFile(join(cwd,'src','worker.mjs'),'utf8'),'export const problem = true;\n');
  const branches=execFileSync('git',['branch','--list','maintenance/attempt-*'],{cwd,encoding:'utf8'});
  assert.match(branches,/maintenance\/attempt-/);
@@ -104,4 +109,28 @@ test('Cost layer rejects non-positive expected savings even when costs are below
  const economics={architecture:{implementationMinutes:15,implementationTokens:150,savingMinutesPerTask:10,savingTokensPerTask:100,expectedOccurrences:1,confidence:'high'}};
  const decision=chooseCostAwareLayer(layers,economics);
  assert.equal(decision.blocked,true);assert.match(decision.reason,/net savings/);
+});
+
+test('Local-main improvement is a real applied commit, but still has no claimed ROI without comparable post-tasks',async t=>{
+ const cwd=await fixture(t),taskId=await anomaly(cwd);
+ const q=await processReviews(cwd,{runModel:async()=>JSON.stringify(modelReview(taskId))});
+ const {dir}=projectPaths(cwd),before=execFileSync('git',['rev-parse','HEAD'],{cwd,encoding:'utf8'}).trim();
+ await writeFile(join(dir,'automation-policy.json'),JSON.stringify({schemaVersion:1,mode:'local-main',
+   allowedPaths:['src/worker.mjs'],checks:['project'],allowAutoMain:true}));
+ const result=await processImprovementQueue(cwd,{
+   propose:async()=>({edits:[{path:'src/worker.mjs',old:'true',replacement:'false'}],rationale:'reduce repeated check failures'}),
+   verify:async()=>({verdict:'pass',summary:'Verified patch and checks',risks:[],limitations:[]})
+ });
+ assert.equal(result.state,'integrated-local');
+ const after=execFileSync('git',['rev-parse','HEAD'],{cwd,encoding:'utf8'}).trim();
+ assert.notEqual(after,before);
+ assert.match(await readFile(join(cwd,'src','worker.mjs'),'utf8'),/false/);
+ const {evaluateImpact}=await import('../src/improvement/impact.mjs');
+ const evidence=await evaluateImpact(cwd);
+ assert.equal(evidence.length,1);
+ assert.equal(evidence[0].attemptState,'integrated-local');
+ assert.equal(evidence[0].changeCommit,after);
+ assert.equal(evidence[0].status,'insufficient-comparable-tasks');
+ assert.equal(evidence[0].causalClaim,false);
+ assert.equal(evidence[0].netSavings,null);
 });
