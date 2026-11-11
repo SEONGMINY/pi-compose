@@ -64,7 +64,8 @@ export default function composeExtension(pi: ExtensionAPI): void {
       }
       if(command==='messages'){await showHandoffHistory(ctx);return;}
       ctx.ui.notify(
-        '사용법: >w 새 Work · >r 기존 Work 재개 · Main >p 정책 후보 확인 · Work < Handoff. '+
+        '사용법: Main에서 >w 새 Work 위임 · Work에서 < Handoff 승인 · Main에서 < 예외 수신 확인. '+
+        '기타: >r 기존 Work 재개 · Main에서 >p 정책 후보 확인. '+
         '추가 명령: /compose policy, /compose handoff, /compose messages, /compose surfaces.',
         'warning',
       );
