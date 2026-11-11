@@ -2,7 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-a
 import { z } from 'zod';
 import { readAgentRelationship } from '../src/agent-relationships.ts';
 import { DECISION_ENTRY, REVIEW_ENTRY, couldBeApproval, decisionId,
-  textParts, type PolicyDecision } from '../src/policy/decisions.ts';
+  textParts, containsSensitivePolicyText, type PolicyDecision } from '../src/policy/decisions.ts';
 import { makePolicySnapshot, writePolicySnapshot } from '../src/policy/store.ts';
 
 const extraction = z.object({
@@ -116,7 +116,8 @@ export function registerPolicyMain(pi:ExtensionAPI):void{
             const validSource=source && quote.length>=10 &&
               source.text.includes(quote) &&
               (!pointer || source.id!==approval.id);
-            if(validSource){
+            if(validSource && !containsSensitivePolicyText(quote) &&
+               !containsSensitivePolicyText(approval.text)){
               record={
                 id:decisionId(owner.sessionId,approval.id,source.id,quote),
                 mainSessionId:owner.sessionId,approvalEntryId:approval.id,
@@ -159,7 +160,9 @@ export function registerPolicyMain(pi:ExtensionAPI):void{
   // branch. It does not require the user to repeat a policy registration.
   pi.on('session_start',(_event,ctx)=>{
     queuePublish(ctx);
-    if(ctx.isIdle())void inspect(ctx);
+    if(ctx.isIdle())void inspect(ctx).catch(error=>{
+      if(ctx.hasUI)ctx.ui.notify('정책 결정 재조회 실패: '+String(error),'warning');
+    });
   });
   pi.on('session_tree',(_event,ctx)=>{
     queuePublish(ctx);
