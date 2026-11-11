@@ -34,24 +34,26 @@ bin/pic.mjs → Pi TUI Main (신규 또는 Pi 기본 Resume)
 
 원본 Pi JSONL 불변, 현재 명령을 입력한 Agent의 작업 디렉터리와 Fork 원본 대화의 독립성을 유지합니다.
 
-## 3. Work → Main 정보 흐름
+## 3. Work → Main 신뢰 경계 및 정보 흐름
 
 ```text
-Work의 보고·원문 근거·필수 WHY
-    │
-    └─ Work < → Handoff Brief 선택 → 실제 Main 반영문 한 번 승인
-         │
-         └─ 대상 Main 영속 보관 (모델 턴 없음)
-               │
-               └─ Main 활성 Fork 계보·최신 결정·중복 검사 (읽기 전용)
-                     ├─ 안전: 승인한 동일 Brief를 Work 참고 보고로 추가
-                     ├─ 중복: Main에 추가하지 않음
-                     └─ 충돌/불확실/오프라인: 보류·재시도 또는 < 예외 검토
+Work: 결과·실행 검증 상태·Fork 당시 WHY를 원문에 연결
+  └─ Work < → 전달할 결과/필수 제약 검토 → 실제 본문 한 번 승인
+       └─ Main의 외부 영속 보관함: 원본 수신·출처/해시/계보 검사
+            └─ Main 활성 분기의 Fork 이후 결정 정합성·중복 검사
+                 ├─ 확인됨: 동일 승인 Brief를 출처 있는 참고 보고로 추가
+                 ├─ 중복: 재삽입하지 않음
+                 ├─ 정책 충돌: 외부 보관, 기존 결정 유지, 필요한 판단만 요청
+                 └─ 근거/비교/전달 불확실: 외부 보관, 기술 복구/상태 안내
 ```
 
-**확정 경계:** Work는 원본 Fork 시점 맥락과 자신의 Pi 분기만 읽습니다. Fork 이후 Main의 현재 정책을 몰래 조회하지 않습니다. 수신 Main은 **사용자가 Work에서 승인한 Work 참고 보고**만 활성 분기/최신 결정 검증 후 추가할 수 있습니다. 이때 Main 모델 턴·정책 승인·파일 변경은 자동으로 시작하지 않습니다. 충돌·불확실성은 Main 컨텍스트 밖에 보류합니다.
+**경계 1 — Work 보고의 신뢰:** Work가 자신의 작업과 Fork 당시 제약을 확인하고, 사용자가 어떤 내용을 보낼지 승인합니다. 이것은 내용의 **출처와 검증 상태가 명시된 보고**이며 독립적으로 입증된 모든 사실이나 새로운 Main 정책이 아닙니다.
 
-**PR #25 통합 중:** `extensions/context-review.ts`와 `src/handoff/context-review.ts`가 Work `<`의 후보·필수 맥락 검토를 담당합니다. `extensions/context-receive.ts`는 안전한 자동 참고 보고와 Main `<` 예외 검토를 담당합니다. `src/handoff/brief.ts`는 사용자가 승인하고 Main에 실제 추가되는 동일 본문을 구성합니다. 과거 자동 후보·`ask_user`·`/compose inbox` 경로는 파일로 남아 있지만 `extensions/compose.ts`의 기본 실행 경로에서 제외했습니다. 실제 통합 검증은 아직 완료되지 않았습니다. `src/handoff/store.ts`의 로컬 영속 보관과 `src/handoff/compare.ts`의 활성 분기 비교는 재사용 가능성 검토 대상입니다.
+**경계 2 — Main 원본 수신:** 저장소 수신은 Main Pi 대화/모델 컨텍스트 삽입과 다릅니다. 성공적으로 저장·검증된 원본을 임의로 재요약하거나 다시 승인받지 않습니다.
+
+**경계 3 — Main 활성 컨텍스트 반영:** Main은 현재 활성 분기와 Fork 이후 **관련 결정 변경**의 정합성을 확인합니다. Work의 구현·테스트를 Main 대화 근거로 다시 심사하지 않습니다. 불확실하면 원본을 보존하고 무조건 사용자에게 정책 결정을 요구하지 않습니다. 승인된 Brief 자체를 새 정책으로 승격하지 않고, 모델 턴도 자동 시작하지 않습니다.
+
+**코드 현황:** `extensions/context-review.ts`와 `src/handoff/context-review.ts`는 Work 검토를, `src/handoff/store.ts`는 보관함을, `extensions/context-receive.ts`는 자동 수신과 예외 경로를, `src/handoff/brief.ts`는 승인 본문을 담당합니다. 현재 `src/handoff/compare.ts`의 Work 전체 재분류와 `insufficient` 일괄 보류는 위 목표보다 넓으므로 추후 좁혀야 합니다. PR #25는 Draft이고 기능 동작 검증은 별개입니다.
 
 ## 4. 원문 근거와 승인 경계
 
