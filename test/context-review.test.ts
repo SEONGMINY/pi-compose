@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { hashMessage, renderPackage, validateHandoffPackage, createSelectedHandoffPackage, type HandoffPackage } from '../src/handoff/package.ts';
-import { contextReviewUnits, selectContextPackage } from '../src/handoff/context-review.ts';
+import { contextReviewUnits, selectContextPackage, withPolicySync } from '../src/handoff/context-review.ts';
 import { prepareManualHandoffCandidates } from '../extensions/handoff-candidates.ts';
 import { findVerificationReportQuote } from '../src/handoff/report-verification.ts';
 import { renderApprovedMainBrief } from '../src/handoff/brief.ts';
@@ -216,3 +216,21 @@ test('one shared WHY quote is included only once in the approved Main Brief',()=
   assert.ok(all.approvedMainBrief!.includes('(연결된 결과: HC1, HC2)'));
 });
 
+
+test('Handoff policy freshness is part of the exact approved body and stable replay ID',()=>{
+  const first=withPolicySync(twoUnits(),{
+    status:'pending',mainSessionId:'main-1',revision:'rev-1',
+    pendingDecisionIds:['D-new'],withdrawnDecisionIds:['D-old'],
+  });
+  const second=withPolicySync(twoUnits(),{
+    status:'checked',mainSessionId:'main-1',revision:'rev-2',
+    pendingDecisionIds:[],withdrawnDecisionIds:[],
+  });
+  const a=selectContextPackage(first,['HC1'],'policy-review');
+  const b=selectContextPackage(second,['HC1'],'policy-review');
+  assert.notEqual(a.id,b.id);
+  assert.ok(a.approvedMainBrief!.includes('미전달·미확인 변경: D-new'));
+  assert.ok(a.approvedMainBrief!.includes('철회된 이전 결정: D-old'));
+  assert.equal(a.approvedMainBriefHash,hashMessage(a.approvedMainBrief!));
+  assert.equal(validateHandoffPackage(a).id,a.id);
+});
