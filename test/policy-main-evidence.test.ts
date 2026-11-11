@@ -57,3 +57,24 @@ test('a compacted proposal absent from the projection cannot be treated as appro
   ]})}} as unknown as ExtensionContext;
   assert.deepEqual(recentMessages(ctx).map(m=>m.id),['approved']);
 });
+
+test('policy extraction skips BashExecutionMessage variants without content',()=>{
+  const ctx={sessionManager:{buildSessionProjection:()=>({entries:[
+    {
+      sourceEntry:{type:'message',id:'bash-entry',
+        message:{role:'bashExecution',command:'echo hi',output:'hi'}},
+      messages:[{role:'bashExecution',command:'echo hi',output:'hi'}],
+    },
+    {
+      sourceEntry:{type:'message',id:'approved',
+        message:{role:'user',content:'B안으로 확정합니다.'}},
+      messages:[
+        {role:'bashExecution',command:'echo hi',output:'hi'},
+        {role:'user',content:'B안으로 확정합니다.'},
+      ],
+    },
+  ]})}} as unknown as ExtensionContext;
+  assert.deepEqual(recentMessages(ctx),[
+    {id:'approved',role:'user',text:'B안으로 확정합니다.'},
+  ]);
+});
