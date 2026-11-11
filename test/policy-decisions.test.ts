@@ -137,3 +137,11 @@ test('ContextEdit revokes evidence authority; compaction alone does not revoke a
     replacement:'B안: 기존 인증 방식은 제거하고 패스키를 우선합니다.',
   }],'main-1').map(d=>d.id),[decision.id]);
 });
+
+test('unreviewed approval candidates affect freshness even before decision publication',()=>{
+  const {branch}=fixture();
+  const checked=makePolicySnapshot('main-1','sample','leaf-policy',branch);
+  const pending=makePolicySnapshot('main-1','sample','leaf-policy',branch,['u-pending']);
+  assert.notEqual(pending.revision,checked.revision);
+  assert.deepEqual(pending.unreviewedApprovalEntryIds,['u-pending']);
+});
