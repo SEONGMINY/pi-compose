@@ -180,12 +180,13 @@ export function registerPolicyWork(pi:ExtensionAPI):void{
     clearPolicyIndicator(ctx);
     const owner=workOwner(ctx);
     if(!owner)return;
+    const epoch=sessionEpoch;
     const main=await resolve(ctx);
+    if(epoch!==sessionEpoch||ctx.sessionManager.getSessionId()!==owner.sessionId)return;
     if(!main){
       renderPolicyIndicator(ctx,{status:'unavailable',pendingCount:0,unavailableReason:'owner'});
       return;
     }
-    const epoch=sessionEpoch;
     try{
       const close=await watchPolicySnapshot(main,()=>{
         if(epoch===sessionEpoch&&ctx.sessionManager.getSessionId()===owner.sessionId)
