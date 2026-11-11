@@ -25,3 +25,10 @@
 3. Exercise duplicate/out-of-order Hook, parallel worktrees, app shutdown/restart and missing tokens.
 4. Confirm local improvement policy path and independent verifier on a disposable repo, then restrict auto-main paths.
 5. Compare real forecasts and actual costs across repeated comparable tasks; do not treat P30/P50/P80 as calibrated probabilities until evidence supports that.
+
+## 2026-11-11 improvement-cost iteration
+
+- Added a reusable, read-only `pi --mode json` model runner for improvement analysis, patch proposal and independent verification. It parses authoritative `message_end` and `compaction_end` usage, avoids cumulative `message_update` double counts, treats model recovery correctly and enforces a best-effort observed-token cap per invocation.
+- Saves per-attempt success/failure **model-call receipts** with task/review/attempt links, wall time, observed tokens and coverage. No raw prompts or model responses are persisted.
+- Existing impact evaluation now includes tracked analysis failures and blocked changes in the observed cost ledger; incomplete calls cannot become a complete model token estimate. It still makes **no causal or net ROI claims**.
+- Next: validate real authenticated Pi JSON mode (specific installed version), actual Pi/Codex Hook integration and nested usage on a trusted workstation. Add cumulative budget and workload-matched, prospective evaluation before asserting realized savings.

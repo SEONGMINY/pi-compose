@@ -7,6 +7,7 @@ import {randomUUID} from 'node:crypto';
 import {mkdir,readFile,readdir,rename,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {projectPaths,readState} from '../store.mjs';
+import {listModelCalls} from './model-run.mjs';
 
 const numeric=n=>typeof n==='number'&&Number.isFinite(n)&&n>=0;
 const median=values=>{
@@ -52,7 +53,7 @@ function pair(before,after,selector){
     medianDifference:b===null||a===null?null:b-a};
 }
 
-export function assessAttempt(attempt,tasks,reviews,attempts,{repo,hasAncestor=ancestor,minCohort=3}={}){
+export function assessAttempt(attempt,tasks,reviews,attempts,{repo,hasAncestor=ancestor,minCohort=3,modelCalls=[]}={}){
   const base={schemaVersion:1,attemptId:attempt.id,reviewId:attempt.reviewId,
     changeCommit:attempt.commit??null,attemptState:attempt.state,attemptFinishedAt:attempt.finishedAt??null,
     causalClaim:false,netSavings:null,netTokenSavings:null,
@@ -61,11 +62,35 @@ export function assessAttempt(attempt,tasks,reviews,attempts,{repo,hasAncestor=a
   const charged=attempts.filter(a=>a.reviewId===attempt.reviewId&&numeric(a.totalWallMs));
   const reviewMs=numeric(review?.reviewWallMs)?review.reviewWallMs:
     numeric(review?.modelWallMs)?review.modelWallMs:null;
+  // All attempts, including blocked ones, are costs of pursuing this review.
+  const attemptIds=new Set(charged.map(a=>a.id));
+  const sameTasks=(one,two)=>Array.isArray(one)&&Array.isArray(two)&&one.length===two.length&&
+    one.every(id=>two.includes(id));
+  const calls=modelCalls.filter(c=>c.purpose==='review' && review && (
+    c.reviewId===review.id || (c.signature===review.signature && sameTasks(c.taskIds,review.taskIds) &&
+      c.startedAt<=(review.reviewedAt??'9999')))
+  || c.attemptId && attemptIds.has(c.attemptId));
+  const reviewCallIds=new Set(calls.filter(c=>c.purpose==='review').map(c=>c.id));
+  // The successful review's wall time already includes its model call. Failed
+  // earlier reviews consumed time but lack a completed review receipt.
+  const retryReviewMs=calls.filter(c=>c.purpose==='review' && c.id!==review?.modelCallId &&
+    numeric(c.durationMs)).reduce((n,c)=>n+c.durationMs,0);
   const timeCostLowerBoundMinutes=reviewMs===null?null:
-    (reviewMs+charged.reduce((n,a)=>n+a.totalWallMs,0))/60_000;
+    (reviewMs+retryReviewMs+charged.reduce((n,a)=>n+a.totalWallMs,0))/60_000;
+  const known=calls.filter(c=>numeric(c.tokens)),observedModelTokens=known.reduce((n,c)=>n+c.tokens,0);
+  const missingCalls=calls.filter(c=>!numeric(c.tokens)||!['assistant-and-compaction-events','provider-observed'].includes(c.tokenCoverage));
+  // A legacy attempt without receipts, or a missing completed review call,
+  // cannot justify a complete token-cost claim.
+  const untracedReview=!review?.modelCallId || !reviewCallIds.has(review.modelCallId);
+  const untracedAttempts=charged.some(a=>!Array.isArray(a.modelCallIds)||
+    a.modelCallIds.some(id=>!calls.some(c=>c.id===id)));
+  const complete=calls.length>0&&!missingCalls.length&&!untracedReview&&!untracedAttempts;
   const cost={timeCostLowerBoundMinutes,attemptCount:charged.length,
-    modelTokens:null,tokenCoverage:'unmeasured',
-    limitation:'Recorded review/attempt wall time is a lower bound on total improvement effort; AI tokens and external costs are not yet attributable.'};
+    modelCallCount:calls.length,observedModelTokens:known.length?observedModelTokens:null,
+    modelTokens:complete?observedModelTokens:null,
+    tokenCoverage:complete?'observed-provider-receipts':known.length?'partial':'unknown',
+    caveat:'Observed tokens are provider-reported; failed attempts and review retries are counted when linked. Unknown calls and legacy runs prevent complete cost attribution.',
+    limitation:'Time and token costs exclude untracked external work, provider billing and any unobserved calls; causal savings are not proven.'};
   if(attempt.state!=='integrated-local')return {...base,status:'not-applied',cost,
     reason:'A draft or blocked attempt is not a confirmed local-main integration.'};
   if(!attempt.commit||!repo)return {...base,status:'unverifiable-exposure',cost,reason:'Missing integration commit or repository.'};
@@ -103,22 +128,24 @@ export function assessAttempt(attempt,tasks,reviews,attempts,{repo,hasAncestor=a
   const status=!enoughTime?'insufficient-comparable-tasks':!enoughTokens?'incomplete-token-coverage':'directional-observation';
   const directionalTimeBalanceMinutes=enoughTime&&timeCostLowerBoundMinutes!==null?
     time.medianDifference*time.afterCount-timeCostLowerBoundMinutes:null;
+  const directionalTokenBalanceTokens=enoughTokens&&cost.modelTokens!==null?
+    tokens.medianDifference*tokens.afterCount-cost.modelTokens:null;
   return {...base,status,observationWindowEndsAt:nextIntervention?.finishedAt??null,
     cohort:{agent:agent[0],kind:kind[0],stepCount:stepCounts[0],acceptance:'completed'},
     beforeTaskIds:before.map(t=>t.id),afterTaskIds:after.map(t=>t.id),time,tokens,cost,
-    directionalTimeBalanceMinutes,
+    directionalTimeBalanceMinutes,directionalTokenBalanceTokens,
     signal:!enoughTime?'not-enough-comparable-tasks':
       time.medianDifference<0?'observed-slower':time.medianDifference>0?'observed-faster':'no-observed-time-difference',
-    caveat:'Directional time balance projects the median difference across observed follow-up tasks; it is NOT realized savings or causal net ROI. Token cost prevents a net two-resource verdict.'};
+    caveat:'Directional balances extrapolate median differences across observed follow-up tasks; they are NOT realized savings or causal net ROI. Unknown model costs or model/Task selection differences prevent a verified two-resource verdict.'};
 }
 
 export async function evaluateImpact(cwd,{hasAncestor,minCohort=3}={}){
   const {root,dir}=projectPaths(cwd);
-  const [state,reviews,attempts]=await Promise.all([
-    readState(dir),readJsonRows(join(dir,'reviews')),readJsonRows(join(dir,'attempts'))]);
+  const [state,reviews,attempts,modelCalls]=await Promise.all([
+    readState(dir),readJsonRows(join(dir,'reviews')),readJsonRows(join(dir,'attempts')),listModelCalls(dir)]);
   const tasks=Object.values(state.tasks);
   return attempts.filter(a=>['integrated-local','verified-draft'].includes(a.state))
-    .map(a=>assessAttempt(a,tasks,reviews,attempts,{repo:root,hasAncestor,minCohort}));
+    .map(a=>assessAttempt(a,tasks,reviews,attempts,{repo:root,hasAncestor,minCohort,modelCalls}));
 }
 
 /** Durable, replay-safe snapshots; never change the approved policy automatically. */

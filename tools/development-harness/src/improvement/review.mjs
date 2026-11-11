@@ -1,10 +1,10 @@
-import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, open, readFile, readdir, realpath, rename, unlink, writeFile } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { getTask, pendingRootCauseReviews } from './bridge.mjs';
 import {recentImpactEvidence} from './impact.mjs';
+import {runPiJson,recordModelCall} from './model-run.mjs';
 
 export const IMPROVEMENT_LAYERS = ['architecture', 'gate', 'ai_instructions', 'user_behavior'];
 const MAX_BATCH = 4;
@@ -211,24 +211,8 @@ function promptFor(batch, impactEvidence = []) {
   ].join('\n\n');
 }
 
-export async function runReadOnlyPi(prompt, cwd, executable = 'pi', timeoutMs = 120_000) {
-  return new Promise((resolveDone, reject) => {
-    const args = ['--print','--no-session','--no-extensions','--no-mcp','--tools','read,grep,find,ls','--',prompt];
-    const child = spawn(executable, args, {cwd, stdio: ['ignore','pipe','pipe'],
-      env:{...process.env,DEVH_IMPROVEMENT_WORKER:'1'}});
-    let stdout = '', stderr = '', timedOut = false;
-    const timeout = setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, timeoutMs);
-    child.once('error', (error) => { clearTimeout(timeout); reject(error); });
-    child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
-    child.stdout.on('data', (chunk) => { stdout += chunk; if (stdout.length > MAX_RESPONSE) child.kill(); });
-    child.stderr.on('data', (chunk) => { stderr = (stderr + chunk).slice(-2000); });
-    child.once('close', (code) => {
-      clearTimeout(timeout);
-      if (timedOut) return reject(new Error(`Read-only Pi review timed out after ${timeoutMs}ms`));
-      if (code !== 0) return reject(new Error(`Read-only Pi review failed (exit ${code}): ${stderr}`));
-      resolveDone(stdout);
-    });
-  });
+export async function runReadOnlyPi(prompt,cwd,executable='pi',timeoutMs=120_000){
+  return runPiJson(prompt,cwd,{executable,timeoutMs});
 }
 
 export async function reviewPending({dir, cwd = process.cwd(), dryRun = false, maxBatches = 1, runModel = runReadOnlyPi}) {
@@ -249,14 +233,20 @@ export async function reviewPending({dir, cwd = process.cwd(), dryRun = false, m
     const impactEvidence = await recentImpactEvidence(dir);
     for (const batch of batches) {
       const batchStarted = performance.now();
-      const modelStarted = performance.now();
-      const output = await runModel(promptFor(batch,impactEvidence), cwd);
-      const modelWallMs = performance.now() - modelStarted;
-      const review = await validateModelReview(output, batch, cwd);
       const id = randomUUID();
-      const record = { schemaVersion:1, id, reviewedAt:new Date().toISOString(), modelCost:'unmeasured',
-        modelTokens:null, tokenCoverage:'unknown', modelWallMs, reviewWallMs:performance.now()-batchStarted,
-        ...review };
+      // Every call is recorded before its output is validated. Invalid model
+      // JSON and failed providers still consume time and possibly tokens.
+      const measured = await recordModelCall({dir,purpose:'review',reviewId:id,
+        signature:batch.signature,taskIds:batch.tasks.map(({task})=>task.id)},
+        ()=>runModel(promptFor(batch,impactEvidence),cwd));
+      const review = await validateModelReview(measured.output, batch, cwd);
+      const record = { schemaVersion:1, id, reviewedAt:new Date().toISOString(),
+        modelCost:measured.receipt.tokens===null?'unmeasured':'observed-provider-tokens',
+        observedModelTokens:measured.receipt.tokens,
+        modelTokens:['assistant-and-compaction-events','provider-observed'].includes(measured.receipt.tokenCoverage)?measured.receipt.tokens:null,
+        tokenCoverage:measured.receipt.tokenCoverage,
+        modelCallId:measured.receipt.id,modelWallMs:measured.receipt.durationMs,
+        reviewWallMs:performance.now()-batchStarted,...review };
       const path = resolve(dir, 'reviews', `${id}.json`);
       await mkdir(resolve(dir, 'reviews'), {recursive:true});
       // Exclusive create. A review can never overwrite previous evidence.

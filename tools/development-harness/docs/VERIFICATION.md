@@ -16,3 +16,11 @@
 - Known model-token overhead remains `null` (not 0). Real-provider integration, token billing reconciliation and causal effects remain unverified.
 - Synthetic tests exercise independent Git commits, clean/dirty start conditions, draft vs integrated changes, failed source anomalies, non-overlapping observation windows, insufficient samples, model-token gaps, time costs including failed attempts and snapshot replay.
 - `npm run check` in the nested package passed locally (58/58 tests). GitHub CI and live Pi/Codex installation are separate verification gates.
+
+## 2026-11-11 model-call attribution iteration
+
+- Source baseline: `pi-compose/main` after PR #33 (`19089867`). Local baseline **58/58** tests passed.
+- Added Pi JSONL model-run accounting for each read-only review, proposal and verifier call; persistent, non-content model receipts; observed token cost integration into impact evaluation.
+- Local synthetic tests cover successful/missing/partial usage, streams with recoverable model errors, invalid JSON, aborted output, observed-token cap, failed model review and rejected verifier retries. The real Git Worktree checks and existing integration tests are retained.
+- Local `npm run check` passes **68/68** tests before remote CI. This is **not** a live authenticated Pi/Codex test; the installed Pi executable is unavailable in this environment.
+- `modelTokens` is reported only with complete provider-observed call receipts; otherwise `observedModelTokens` remains a lower bound and net savings stay `null`. Provider billing and subagent costs can still be missing. No main product behavior change.

@@ -134,3 +134,67 @@ test('Local-main improvement is a real applied commit, but still has no claimed 
  assert.equal(evidence[0].causalClaim,false);
  assert.equal(evidence[0].netSavings,null);
 });
+
+test('Closed improvement loop counts review/proposal/verifier provider tokens without treating a draft as applied',async t=>{
+ const {measuredModelOutput,listModelCalls}=await import('../src/improvement/model-run.mjs');
+ const {evaluateImpact}=await import('../src/improvement/impact.mjs');
+ const cwd=await fixture(t),taskId=await anomaly(cwd);
+ const q=await processReviews(cwd,{runModel:async()=>measuredModelOutput(
+   JSON.stringify(modelReview(taskId)),{totalTokens:130,coverage:'assistant-and-compaction-events'})});
+ const {dir}=projectPaths(cwd);
+ await writeFile(join(dir,'automation-policy.json'),JSON.stringify({schemaVersion:1,mode:'draft',
+  allowedPaths:['src/worker.mjs'],checks:['project'],allowAutoMain:false}));
+ const result=await processImprovementQueue(cwd,{
+  propose:async()=>measuredModelOutput({edits:[{path:'src/worker.mjs',old:'true',replacement:'false'}],rationale:'verified narrow fix'},
+   {totalTokens:210,coverage:'assistant-and-compaction-events'}),
+  verify:async()=>measuredModelOutput({verdict:'pass',summary:'Independent verifier',risks:[],limitations:[]},
+   {totalTokens:70,coverage:'assistant-and-compaction-events'})
+ });
+ assert.equal(result.state,'verified-draft');
+ const calls=await listModelCalls(dir);
+ assert.equal(calls.length,3);assert.deepEqual(calls.map(x=>x.tokens).sort((a,b)=>a-b),[70,130,210]);
+ const reviews=await listReviews(dir);assert.equal(reviews[0].modelTokens,130);
+ const assessments=await evaluateImpact(cwd);assert.equal(assessments[0].status,'not-applied');
+ assert.equal(assessments[0].cost.modelTokens,410);
+ assert.equal(assessments[0].cost.observedModelTokens,410);
+ assert.equal(assessments[0].cost.tokenCoverage,'observed-provider-receipts');
+ assert.equal(assessments[0].netTokenSavings,null);
+ assert.equal(await readFile(join(cwd,'src','worker.mjs'),'utf8'),'export const problem = true;\n');
+});
+
+test('Failed review and rejected verifier stay charged when the later retry succeeds',async t=>{
+ const {measuredModelOutput,listModelCalls}=await import('../src/improvement/model-run.mjs');
+ const {evaluateImpact}=await import('../src/improvement/impact.mjs');
+ const {withState}=await import('../src/store.mjs');
+ const cwd=await fixture(t),taskId=await anomaly(cwd);
+ const {dir}=projectPaths(cwd);
+ await assert.rejects(()=>processReviews(cwd,{runModel:async()=>{
+  const error=new Error('Pi model crashed');error.modelRun={usage:{totalTokens:22,coverage:'partial'}};throw error;
+ }}),/Pi model crashed/);
+ assert.equal((await listModelCalls(dir)).length,1);
+ await withState(dir,s=>{for(const q of Object.values(s.queue))if(q.type==='review')q.nextAttemptAt=null});
+ await processReviews(cwd,{runModel:async()=>measuredModelOutput(
+   JSON.stringify(modelReview(taskId)),{totalTokens:88,coverage:'assistant-and-compaction-events'})});
+ await writeFile(join(dir,'automation-policy.json'),JSON.stringify({schemaVersion:1,mode:'draft',
+  allowedPaths:['src/worker.mjs'],checks:['project'],allowAutoMain:false}));
+ const propose=async()=>measuredModelOutput({edits:[{path:'src/worker.mjs',old:'true',replacement:'false'}],rationale:'minimal change'},
+   {totalTokens:50,coverage:'assistant-and-compaction-events'});
+ const blocked=await processImprovementQueue(cwd,{propose,verify:async()=>measuredModelOutput(
+  {verdict:'block',summary:'Requires further testing',risks:['unclear impact'],limitations:[]},
+  {totalTokens:32,coverage:'assistant-and-compaction-events'})});
+ assert.equal(blocked.state,'blocked');
+ await withState(dir,s=>{for(const q of Object.values(s.queue))if(q.type==='improve')q.nextAttemptAt=null});
+ const accepted=await processImprovementQueue(cwd,{propose,verify:async()=>measuredModelOutput(
+  {verdict:'pass',summary:'Updated independent evidence',risks:[],limitations:[]},
+  {totalTokens:27,coverage:'assistant-and-compaction-events'})});
+ assert.equal(accepted.state,'verified-draft');
+ const assessments=await evaluateImpact(cwd);
+ assert.equal(assessments.length,1);
+ assert.equal(assessments[0].cost.modelCallCount,6);
+ assert.equal(assessments[0].cost.observedModelTokens,22+88+50+32+50+27);
+ // A failed provider call's partial usage is a lower bound; it cannot certify
+ // a complete AI token expense despite capturing every observed token.
+ assert.equal(assessments[0].cost.modelTokens,null);
+ assert.equal(assessments[0].cost.tokenCoverage,'partial');
+ assert.equal(assessments[0].cost.attemptCount,2);
+});
