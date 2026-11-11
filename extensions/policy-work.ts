@@ -134,7 +134,9 @@ export function registerPolicyWork(pi:ExtensionAPI):void{
   let mainId:string|undefined;
   let stopWatch:(()=>void)|undefined;
   let renderRevision=0;
+  let sessionEpoch=0;
   const reset=()=>{
+    sessionEpoch++;
     renderRevision++;
     stopWatch?.();stopWatch=undefined;sessionId=undefined;mainId=undefined;
   };
@@ -183,10 +185,20 @@ export function registerPolicyWork(pi:ExtensionAPI):void{
       renderPolicyIndicator(ctx,{status:'unavailable',pendingCount:0,unavailableReason:'owner'});
       return;
     }
+    const epoch=sessionEpoch;
     try{
-      stopWatch=await watchPolicySnapshot(main,()=>{void notify(ctx);});
+      const close=await watchPolicySnapshot(main,()=>{
+        if(epoch===sessionEpoch&&ctx.sessionManager.getSessionId()===owner.sessionId)
+          void notify(ctx);
+      });
+      if(epoch!==sessionEpoch||ctx.sessionManager.getSessionId()!==owner.sessionId){
+        close();
+        return;
+      }
+      stopWatch=close;
     }catch{/* Session resume/next run still does an authoritative read. */}
-    await notify(ctx);
+    if(epoch===sessionEpoch&&ctx.sessionManager.getSessionId()===owner.sessionId)
+      await notify(ctx);
   }
   pi.on('session_start',(_event,ctx)=>{void start(ctx);});
   pi.on('session_tree',(_event,ctx)=>{void notify(ctx);});
