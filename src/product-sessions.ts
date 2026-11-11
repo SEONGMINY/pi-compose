@@ -67,6 +67,45 @@ export async function listProductForkSessions(product: string): Promise<ForkSess
   return result.sort((a,b) => b.modified.getTime() - a.modified.getTime());
 }
 
+/**
+ * Resume is NOT Fork: include existing Work sessions even when the last Pi
+ * response is incomplete. Always use their exact stored session file and CWD.
+ */
+export type WorkResumeCandidate = {
+  id:string;
+  file:string;
+  name:string;
+  recentTask:string;
+  cwd:string;
+  modified:Date;
+};
+export async function listProductWorkResumeSessions(product:string):Promise<WorkResumeCandidate[]>{
+  const sessions=await SessionManager.listAll();
+  const result:WorkResumeCandidate[]=[];
+  for(const info of sessions){
+    try{
+      const manager=SessionManager.open(info.path);
+      if(manager.getSessionId()!==info.id)continue;
+      const identity=readAgentRelationship(info.id,manager.getEntries());
+      if(identity?.role!=='work'||identity.product!==product)continue;
+      result.push({
+        id:info.id,file:info.path,name:identity.label,
+        recentTask:lastGroundedTask(manager,info),cwd:identity.workspaceCwd,
+        modified:info.modified,
+      });
+    }catch{/* Ignore an unreadable saved session rather than guessing. */}
+  }
+  return result.sort((a,b)=>b.modified.getTime()-a.modified.getTime());
+}
+export function searchProductWorkResumeSessions(
+  candidates:readonly WorkResumeCandidate[],query:string,
+):WorkResumeCandidate[]{
+  const normalized=query.trim().toLocaleLowerCase();
+  if(!normalized||normalized==='work')return [...candidates];
+  return candidates.filter(s=>[s.id,s.name,s.recentTask].some(x=>
+    x.toLocaleLowerCase().includes(normalized)));
+}
+
 export function searchProductForkSessions(
   candidates: readonly ForkSessionCandidate[],
   query: string,
