@@ -12,24 +12,26 @@ export const snapshotSchema = z.object({
   product: z.string().min(1),
   activeLeafId: z.string().min(1),
   decisions: z.array(decisionSchema),
+  unreviewedApprovalEntryIds: z.array(z.string().min(1)).default([]),
   revision: z.string().regex(/^[a-f0-9]{64}$/),
 });
 export type PolicySnapshot = z.infer<typeof snapshotSchema>;
 
 const dirKey = (id: string) => createHash('sha256').update(id).digest('hex').slice(0,40);
 // Revision is stable across unrelated Main chat turns and detects changed decision payloads.
-const revisionOf = (mainId: string, decisions: readonly unknown[]) =>
-  createHash('sha256').update(JSON.stringify([mainId, decisions])).digest('hex');
+const revisionOf = (mainId: string, decisions: readonly unknown[], pending: readonly string[]) =>
+  createHash('sha256').update(JSON.stringify([mainId, decisions, pending])).digest('hex');
 
 export function makePolicySnapshot(
   mainSessionId: string, product: string, activeLeafId: string,
-  entries: readonly unknown[],
+  entries: readonly unknown[],unreviewedApprovalEntryIds: readonly string[] = [],
 ): PolicySnapshot {
   if (!mainSessionId || !activeLeafId) throw Error('policy-main-active-leaf-required');
   const decisions = branchDecisions(entries as Parameters<typeof branchDecisions>[0], mainSessionId);
   return snapshotSchema.parse({
     version:1,mainSessionId,product,activeLeafId,decisions,
-    revision:revisionOf(mainSessionId,decisions),
+    unreviewedApprovalEntryIds,
+    revision:revisionOf(mainSessionId,decisions,unreviewedApprovalEntryIds),
   });
 }
 
@@ -70,13 +72,15 @@ export async function readPolicySnapshot(mainSessionId:string):Promise<PolicySna
   catch(e){if((e as NodeJS.ErrnoException).code==='ENOENT')return;throw e;}
   const snapshot=snapshotSchema.parse(JSON.parse(data));
   if(snapshot.mainSessionId!==mainSessionId ||
-     snapshot.revision!==revisionOf(mainSessionId,snapshot.decisions))throw Error('invalid-policy-snapshot');
+     snapshot.revision!==revisionOf(mainSessionId,snapshot.decisions,
+       snapshot.unreviewedApprovalEntryIds))throw Error('invalid-policy-snapshot');
   return snapshot;
 }
 
 export async function writePolicySnapshot(snapshot:PolicySnapshot):Promise<void>{
   const valid=snapshotSchema.parse(snapshot);
-  if(valid.revision!==revisionOf(valid.mainSessionId,valid.decisions))throw Error('invalid-policy-snapshot-revision');
+  if(valid.revision!==revisionOf(valid.mainSessionId,valid.decisions,
+      valid.unreviewedApprovalEntryIds))throw Error('invalid-policy-snapshot-revision');
   const path=await pathFor(valid.mainSessionId);
   const body=JSON.stringify(valid);
   if(Buffer.byteLength(body,'utf8')>240*1024)throw Error('policy-snapshot-too-large');
