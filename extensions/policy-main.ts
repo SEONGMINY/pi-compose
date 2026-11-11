@@ -45,8 +45,8 @@ function recentMessages(ctx:ExtensionContext):Msg[]{
  */
 export function selectApprovalEvidence(approval:Msg,earlier:readonly Msg[]):Msg[]{
   const selected=new Map<string,Msg>();
-  const label=approval.text.match(/([A-Z가-힣])\\s*안/i)?.[1];
-  const option=label?new RegExp(label+'\\\\s*안','i'):undefined;
+  const label=approval.text.match(/([A-Z가-힣])\s*안/i)?.[1];
+  const option=label?new RegExp(label+'\\s*안','i'):undefined;
   if(option){
     for(const item of earlier.filter(x=>x.role==='assistant'&&option.test(x.text)).slice(-4)){
       const match=item.text.search(option);
