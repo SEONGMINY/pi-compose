@@ -13,6 +13,7 @@ function fixture(mode:'valid'|'invalid-context'|'missing-context'|'legacy-transi
   const workId='work-unified-'+(++fixtureCounter);
   const owner={
     role:'work' as const,sessionId:workId,product:'demo',
+    label:'Unified Handoff Test Work',workspaceCwd:'/tmp/pi-compose-handoff-test',
     forkSourceSessionId:'main-unified-1',forkSourceLeafId:'main-leaf',
   };
   let calls=0;
