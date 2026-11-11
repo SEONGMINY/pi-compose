@@ -208,9 +208,9 @@
     }
   ],
   "testEvidence": {
-    "githubActions": "NO_RUNS_FOR_BRANCH",
-    "localTypecheck": "NOT_RUN (github connector-only edit; local container cannot reach GitHub)",
-    "localNodeTests": "NOT_RUN (github connector-only edit; local container cannot reach GitHub)",
+    "githubActions": "NOT_VERIFIED_AFTER_QUESTION_POLICY_CHECK",
+    "localTypecheck": "NOT_RUN_FOR_THIS_CHANGE",
+    "localNodeTests": "NOT_RUN_FOR_THIS_CHANGE",
     "macOSGhostty": "PARTIAL_USER_REPORTED_E2E: Main approved B-only passkey policy, previously forked Work detected and understood 1 change, Work generated an exact Handoff Brief, and Main displayed [compose_context_review_import] with policy freshness checked and source attribution. No independent Pi receipt/session log or full resilience tests."
   },
   "nonGoals": [
@@ -282,6 +282,13 @@
         "watch callbacks after session switch must not overwrite the new session's widget",
         "no new agent turn, no custom footer override, no Sidebar/Overlay"
       ]
+    },
+    {
+      "id": "Q03",
+      "severity": "command_semantics",
+      "evidence": "User clarified that > and < encode Agent direction; prior >p was a Main-only ambiguous-approval classifier, not Work review of new approved Main decisions.",
+      "improvementDirection": "Use Work-local ?p for optional approved policy review, and reserve /compose policy for Main's exceptional unresolved approval classification. Avoid user-triggered required sync and uphold Work autonomy.",
+      "state": "IMPLEMENTED_NOT_E2E_VERIFIED"
     }
   ],
   "featureAdditions": [
@@ -315,30 +322,33 @@
     },
     {
       "id": "F02",
-      "title": "Resolve stuck Main policy approval candidates with >p",
+      "title": "Work-owned, optional ?p review of confirmed Main policy deltas; Main unconfirmed review remains /compose policy",
       "syntax": [
-        ">p",
-        "/compose policy"
+        "?p (Work)",
+        "/compose policy (Main)"
       ],
       "implementedFiles": [
-        "extensions/direct-policy-review.ts",
+        "extensions/direct-work-policy-check.ts",
+        "src/policy/work-review-request.ts",
+        "extensions/compose.ts",
         "extensions/policy-main.ts",
         "src/policy/reviews.ts",
-        "src/policy/status-widget.ts",
-        "extensions/compose.ts"
+        "src/policy/status-widget.ts"
       ],
       "tests": [
         "test/direct-resume-policy-shortcuts.test.ts",
+        "test/work-policy-review.test.ts",
         "test/policy-reviews.test.ts"
       ],
       "status": "CODE_WRITTEN_UNVERIFIED",
       "acceptance": [
-        "Main >p opens unresolved original user message and its latest reason, no agent turn",
-        "User can classify as non-policy or attribute to specific existing approved decision",
-        "Classification appended to Main Pi session rather than written by Work",
-        "Latest review overrides previous ambiguous; snapshot pending count drops; Work widget clears via watch",
-        "New unknown policy is not falsely approved by this shortcut",
-        "Work widget indicates Main >p and no silent dismiss option"
+        "Work ?p checks exact owning Main and current snapshot before optional review",
+        "Only pending or delivered approved policy changes trigger one normal Work model turn via input transform",
+        "Work review is read-only and may not run shell, mutate files or send Handoff",
+        "No changes, checked, unconfirmed owner, or unresolved Main approval candidate: no model turn",
+        "Main still owns ambiguous approval resolution at /compose policy; no Work policy promotion",
+        "Original automatic Work before_agent_start/context delivery unchanged",
+        "Work-owned Handoff and Main mechanical-receipt contract unchanged"
       ]
     }
   ]
