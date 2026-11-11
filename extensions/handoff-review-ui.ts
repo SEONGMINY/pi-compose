@@ -123,9 +123,15 @@ export function showReferenceContextReview(
       const page=Math.max(3,Math.min(7,Math.floor((tui.terminal.rows-12)/3)));
       const start=Math.max(0,Math.min(index-Math.floor(page/2),visible.length-page));
       const options=visible.slice(start,start+page);
+      const chosenClaims=pkg.claims.filter(c=>chosen.has(c.candidateId));
+      const linked=pkg.context.filter(c=>
+        c.requiredByClaimIds.some(id=>chosen.has(id)));
       return [
         'Work → Main · Handoff Brief',
-        '현재 선택으로 Main에 보낼 내용입니다. Space로 포함/제외할 수 있습니다.',
+        '현재 선택으로 Main에 전달되는 내용 · Space로 포함/제외',
+        '전달할 결과 '+chosenClaims.length+'건 · 연결된 WHY·제약 '+linked.length+'건',
+        ...chosenClaims.map(c=>'- '+c.title+': '+c.summary),
+        '',
         ...briefPreview(7),
         '',
         '선택 '+chosen.size+' / '+units.length+' · 현재 후보 '+(index+1)+' / '+filtered().length+
