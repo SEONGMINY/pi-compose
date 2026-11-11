@@ -1,6 +1,7 @@
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { z } from 'zod';
 import { type HandoffPackage, validateHandoffPackage } from './package.ts';
+import { measuredHandoffCall, type HandoffMetric, type MetricSink } from './metrics.ts';
 
 const comparisonItem = z.object({
   claimId:z.string(),
@@ -32,7 +33,7 @@ function relevance(needle:Set<string>,haystack:string):number {
   return n;
 }
 export async function compareHandoffWithMain(
-  ctx:ExtensionContext,payload:HandoffPackage,
+  ctx:ExtensionContext,payload:HandoffPackage,onMetric?:MetricSink,
 ):Promise<MainComparison> {
   const pkg=validateHandoffPackage(payload);
   const mainSessionId=ctx.sessionManager.getSessionId();
@@ -73,6 +74,10 @@ export async function compareHandoffWithMain(
   const allowedIds=new Set(excerpts.map(e=>e.id));
   const inputEntryIds=excerpts.map(e=>e.id);
 
+  const started=performance.now();
+  let metricOutcome:HandoffMetric['outcome']='error';
+  let answerForUsage:unknown;
+  try{
   const answer=await ctx.modelRegistry.streamSimple(ctx.model,{
     systemPrompt:[
       'Compare the supplied Work Handoff against the supplied CURRENT MAIN ACTIVE-BRANCH excerpts.',
@@ -96,6 +101,7 @@ export async function compareHandoffWithMain(
     }),timestamp:Date.now()}],
   },{reasoning:'low',maxTokens:3400,signal:AbortSignal.timeout(45000)}).result();
 
+  answerForUsage=answer;
   if(ctx.sessionManager.getSessionId()!==mainSessionId ||
       ctx.sessionManager.getLeafId()!==comparedLeafId) throw Error('main-branch-changed-during-comparison');
   if(answer.stopReason!=='stop') throw Error('main-comparison-model-not-complete');
@@ -112,5 +118,12 @@ export async function compareHandoffWithMain(
     }
     return item;
   });
+  metricOutcome='ok';
   return {packageId:pkg.id,mainSessionId,comparedLeafId,items,inputEntryIds};
+  }finally{
+    if(onMetric)try{
+      await onMetric(measuredHandoffCall('main-compare',metricOutcome,started,
+        ctx.model?.id,answerForUsage));
+    }catch{/* Usage telemetry must never change Main comparison decisions. */}
+  }
 }
