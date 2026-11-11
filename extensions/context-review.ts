@@ -6,6 +6,7 @@ import { listProductHandoffSessions, findParentMainSessionId } from '../src/prod
 import { prepareManualHandoffCandidates } from './handoff-candidates.ts';
 import { createSelectedHandoffPackage, verifyWorkSource, type HandoffPackage } from '../src/handoff/package.ts';
 import { selectContextPackage } from '../src/handoff/context-review.ts';
+import { recordHandoffMetric } from '../src/handoff/metrics.ts';
 import { putHandoff, readHandoff } from '../src/handoff/store.ts';
 
 const REVIEW_PROGRESS_KEY='pi-compose/context-review-progress';
@@ -77,8 +78,8 @@ export async function openWorkContextReview(
   if(!target)return;
   const reportLeaf=ctx.sessionManager.getLeafId();
   const reportSession=ctx.sessionManager.getSessionId();
-  progress.update('2/3 Work 결과와 후보 구성 중');
-  const candidateResult=await prepareManualHandoffCandidates(ctx);
+  progress.update('2/3 Work 결과와 필수 WHY·제약을 함께 분석 중');
+  const candidateResult=await prepareManualHandoffCandidates(ctx,recordHandoffMetric);
   if(candidateResult.status!=='prepared'){
     ctx.ui.notify('공유할 Work 보고를 준비하지 못했습니다: '+candidateResult.status+
       '. 작업 결과를 Work에 보고한 뒤 다시 시도해주세요.','warning');
@@ -88,7 +89,7 @@ export async function openWorkContextReview(
      ctx.sessionManager.getLeafId()!==reportLeaf)return;
   const draft=candidateResult.draft;
   const ids=draft.candidates.map((_c,i)=>'HC'+(i+1));
-  progress.update('3/3 필수 WHY·조건·원문 근거 확인 중');
+  progress.update('3/3 기존 원문과 연결 근거 검증 중');
   let full:HandoffPackage;
   try{
     full=await createSelectedHandoffPackage(ctx,source,draft,{
