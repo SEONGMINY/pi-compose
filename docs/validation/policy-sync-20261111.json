@@ -62,14 +62,17 @@
       "state": "implemented_unverified",
       "code": [
         "extensions/policy-work.ts",
-        "src/policy/decisions.ts"
+        "src/policy/decisions.ts",
+        "src/policy/status-widget.ts",
+        "test/policy-widget-integration.test.ts"
       ],
       "checks": [
         "unchanged snapshot no delta",
         "bounded batches",
         "before_agent_start and context hook runtime behavior",
         "no unnecessary agent turn",
-        "unrelated Main turns keep stable revision"
+        "unrelated Main turns keep stable revision",
+        "Work policy status moved from footer setStatus to aboveEditor widget without extra model calls"
       ]
     },
     {
@@ -199,7 +202,8 @@
         "policy changed mid-run",
         "Handoff after offline Main",
         "multi-Main wrong recipient",
-        "performance baseline tokens/time"
+        "performance baseline tokens/time",
+        "actual macOS/Ghostty policy notice: narrow Split, pending->delivered->checked, stop and unavailable; old footer status absent"
       ]
     }
   ],
@@ -255,6 +259,29 @@
       "evidence": "User-supplied Handoff repeats one file-creation result as four numbered claims and reprints same scope/verification facts across summary, verbatim quotes and WHY/conditions.",
       "improvementDirection": "Keep a concise Main-facing outcome, changed file, policy decision and rationale, test/verification status, unresolved items; retain full provenance in expandable or inspectable evidence and avoid redundant repeated excerpts.",
       "state": "NOT_IMPLEMENTED"
+    },
+    {
+      "id": "Q02",
+      "severity": "visibility_and_cognitive_load",
+      "evidence": "User screenshot of Work showed 'Main 정책 변경 1건 확인 필요' below the token/cost/model footer, separated from the editor and hard to notice. The wording could imply a second user approval was required.",
+      "improvementDirection": "Render only actionable/unavailable/stop policy state as one responsive Pi Widget above editor; use one-line CJK width-aware truncation, hide once checked, keep original Pi footer, clean up on session switch and shutdown.",
+      "state": "IMPLEMENTED_NOT_E2E_VERIFIED",
+      "implementation": [
+        "src/policy/status-widget.ts",
+        "extensions/policy-work.ts",
+        "test/policy-status-widget.test.ts",
+        "test/policy-widget-integration.test.ts",
+        "docs/USAGE.md"
+      ],
+      "checks": [
+        "pending shows compact one-line actionable change, optional subject in wide terminal",
+        "delivered distinguishes delivery from implementation/test verification",
+        "checked and non-Work states remove widget, clear old footer slot",
+        "unavailable/unknown owner and stop remain visible at appropriate severity",
+        "widget rendering never exceeds narrow Ghostty split including CJK text",
+        "watch callbacks after session switch must not overwrite the new session's widget",
+        "no new agent turn, no custom footer override, no Sidebar/Overlay"
+      ]
     }
   ]
 }
