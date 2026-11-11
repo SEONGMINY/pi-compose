@@ -41,6 +41,18 @@ export function contextReviewUnits(pkg: HandoffPackage): ContextReviewUnit[] {
  * No model call runs when the user toggles a selection. All unrelated claims
  * and supporting quotations are discarded, and the exact body is regenerated.
  */
+/** Update the exact visible Brief, never silently change a previously approved body. */
+export function withPolicySync(
+  input:HandoffPackage,policySync:HandoffPackage['policySync'],
+):HandoffPackage {
+  const base=validateHandoffPackage(input);
+  const updated={...base,policySync};
+  if(!base.approvedMainBrief)return validateHandoffPackage(updated);
+  const approvedMainBrief=renderApprovedMainBrief(updated);
+  return validateHandoffPackage({...updated,
+    approvedMainBrief,approvedMainBriefHash:hashMessage(approvedMainBrief)});
+}
+
 export function selectContextPackage(
   input: HandoffPackage, ids: readonly string[], reviewId: string, note = '',
 ): HandoffPackage {
@@ -72,7 +84,7 @@ export function selectContextPackage(
     // evidence refinement may change WHY without changing candidate IDs; that
     // must not silently reuse an older, different stored body.
     id: stablePackageId(pkg.source.workSessionId,pkg.source.workReportEntryId,
-      reviewId+':'+hashMessage(JSON.stringify({claims,context,evidence})).slice(0,20),
+      reviewId+':'+hashMessage(JSON.stringify({claims,context,evidence,policySync:pkg.policySync})).slice(0,20),
       pkg.targetMainSessionId,selectedCandidateIds,reviewerNote),
     selectedCandidateIds, claims, context, evidence,
     contextAssessment,
