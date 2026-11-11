@@ -114,3 +114,16 @@ test('a new decision superseding an earlier decision changes Work in both direct
   assert.deepEqual(changes.withdrawn,[decision.id]);
   assert.deepEqual(changes.added.map(d=>d.id),[replaced.id]);
 });
+
+test('ContextEdit revokes evidence authority; compaction alone does not revoke approved decisions',()=>{
+  const {decision,branch}=fixture();
+  assert.deepEqual(branchDecisions([...branch,{
+    type:'compaction',id:'compact',summary:'Policy is still active',
+  }],'main-1').map(d=>d.id),[decision.id]);
+  assert.deepEqual(branchDecisions([...branch,{
+    type:'context_edit',id:'edit-approval',targetId:'u1',replacement:null,
+  }],'main-1'),[]);
+  assert.deepEqual(branchDecisions([...branch,{
+    type:'context_edit',id:'edit-source',targetId:'a1',replacement:'Rewritten',
+  }],'main-1'),[]);
+});
