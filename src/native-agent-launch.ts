@@ -414,14 +414,17 @@ export async function inspectNativeWorkResume(
   if(await realpath(manager.getCwd())!==cwd)
     throw new Error('Saved Work workspace does not match its Pi session CWD.');
   const terminals=await listGhosttyTerminals();
-  if(identity.terminalId&&terminals.some(t=>t.id===identity.terminalId))
-    return {sessionId:identity.sessionId,cwd,state:'existing-surface',
-      existingTerminalId:identity.terminalId};
+  const liveTerminal=identity.terminalId && terminals.some(t=>t.id===identity.terminalId);
   const runtime=await observeAgentLifecycle(identity.runtimeReceiptFile,{
     sessionId:identity.sessionId,
     launchRequestId:identity.runtimeLaunchRequestId,
     terminalId:identity.terminalId,
   });
+  // A terminal may remain open at a shell prompt after Pi already exited.
+  // Never treat Ghostty surface existence alone as proof of a live Work.
+  if(runtime.state==='process-observed' && liveTerminal)
+    return {sessionId:identity.sessionId,cwd,state:'existing-surface',
+      existingTerminalId:identity.terminalId};
   return {sessionId:identity.sessionId,cwd,
     state:runtime.state==='process-observed'?'process-observed':
       runtime.state==='exited-observed'||runtime.state==='launch-failed'
