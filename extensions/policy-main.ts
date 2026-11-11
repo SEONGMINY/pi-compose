@@ -40,14 +40,35 @@ function recentMessages(ctx:ExtensionContext):Msg[]{
 }
 
 /**
+ * Keep the reference for "B안" even when the proposal is older than the
+ * most recent turns. This is lexical retrieval, not approval classification.
+ */
+export function selectApprovalEvidence(approval:Msg,earlier:readonly Msg[]):Msg[]{
+  const selected=new Map<string,Msg>();
+  const label=approval.text.match(/([A-Z가-힣])\\s*안/i)?.[1];
+  const option=label?new RegExp(label+'\\\\s*안','i'):undefined;
+  if(option){
+    for(const item of earlier.filter(x=>x.role==='assistant'&&option.test(x.text)).slice(-4)){
+      const match=item.text.search(option);
+      selected.set(item.id,{...item,text:item.text.slice(Math.max(0,match-250),match+2300)});
+    }
+  }
+  for(const item of earlier.slice(-16))if(!selected.has(item.id)){
+    selected.set(item.id,{...item,text:item.text.slice(0,1700)});
+  }
+  return [...selected.values()].sort((a,b)=>earlier.findIndex(x=>x.id===a.id)-
+    earlier.findIndex(x=>x.id===b.id)).slice(-20);
+}
+
+/**
  * The lexical gate saves extra model calls on ordinary conversation.
  * The semantic check extracts a verbatim supporting quote, never an invented policy.
  */
 async function inspectApproval(ctx:ExtensionContext, approval:Msg,
   earlier:readonly Msg[], active:readonly PolicyDecision[]):Promise<z.infer<typeof extraction>|undefined>{
   if(!ctx.model)return;
-  const excerpts=[...earlier.slice(-18),approval].map(x=>({
-    id:x.id,role:x.role,text:x.text.slice(0,1700),
+  const excerpts=[...selectApprovalEvidence(approval,earlier),approval].map(x=>({
+    id:x.id,role:x.role,text:x.text.slice(0,2500),
   }));
   const reply=await ctx.modelRegistry.streamSimple(ctx.model,{
     systemPrompt:[
