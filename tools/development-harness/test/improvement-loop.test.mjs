@@ -10,7 +10,11 @@ async function fixture(t){
  execFileSync('git',['init','-q','-b','main'],{cwd});
  await mkdir(join(cwd,'src'),{recursive:true});
  await writeFile(join(cwd,'src','worker.mjs'),'export const problem = true;\n');
- await writeFile(join(cwd,'package.json'),JSON.stringify({type:'module',scripts:{check:'node --check src/worker.mjs'}}));
+ await writeFile(join(cwd,'package.json'),JSON.stringify({name:'pi-compose',type:'module',scripts:{check:'node --check src/worker.mjs'}}));
+ const {SCOPE_CONTRACT_PATH}=await import('../src/scope.mjs');
+ await mkdir(join(cwd,'tools/development-harness/contracts'),{recursive:true});
+ const contract=await readFile(new URL('../contracts/pi-compose-maintenance.json',import.meta.url),'utf8');
+ await writeFile(join(cwd,SCOPE_CONTRACT_PATH),contract);
  await writeFile(join(cwd,'.devh.json'),JSON.stringify({checks:[['npm','run','check']]}));
  execFileSync('git',['add','.'],{cwd});
  execFileSync('git',['-c','user.name=Tests','-c','user.email=devh@example.test','commit','-qm','initial'],{cwd});

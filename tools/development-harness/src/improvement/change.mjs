@@ -6,13 +6,15 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { listTasks } from './bridge.mjs';
 import { runReadOnlyPi } from './review.mjs';
+import {readState} from '../store.mjs';
+import {captureScope,trustedImprovementScope} from '../scope.mjs';
 import { projectPaths } from '../store.mjs';
 import {recordModelCall,listModelCalls} from './model-run.mjs';
 
 const MAX_EDITS = 8;
 const MAX_CHANGED_BYTES = 120_000;
 const SAFE = /^(?:src|extensions|maintenance|docs\/maintenance|tools\/development-harness)\/[a-zA-Z0-9_.\/-]+$/;
-const INTERNAL_GUARD = /^(?:maintenance\/(?:core|cli|review|usage|improve)\.mjs|tools\/development-harness\/(?:src\/(?:core|store|acceptance|worker|forecast|planner|plan)\.mjs|src\/improvement\/(?:review|change|queue|bridge|impact|model-run)\.mjs|bin\/devh\.mjs|adapters\/[^/]+))$/;
+const INTERNAL_GUARD = /^(?:maintenance\/(?:core|cli|review|usage|improve)\.mjs|tools\/development-harness\/(?:src\/(?:core|store|scope|acceptance|worker|forecast|planner|plan)\.mjs|src\/improvement\/(?:review|change|queue|bridge|impact|model-run)\.mjs|bin\/devh\.mjs|adapters\/[^/]+|contracts\/[^/]+))$/;
 const ALLOWED_CHECKS = new Set(['maintenance', 'project', 'harness']);
 function requireThat(value, message) { if (!value) throw new Error(message); }
 function hash(text) { return createHash('sha256').update(text).digest('hex'); }
@@ -77,6 +79,17 @@ async function eligibleReview(dir,id,repo) {
   requireThat(/^[a-f\d-]{36}$/.test(id),'Invalid review id');
   const r = JSON.parse(await readFile(join(resolve(dir),'reviews',`${id}.json`),'utf8'));
   requireThat(r.id===id && r.candidate?.executionState==='proposed-not-approved', 'No eligible candidate');
+  // A review is only a hypothesis. Never let a stale or scope-blocked Task
+  // silently authorize a code change, including direct CLI invocations.
+  const ledger=await readState(dir);
+  const currentScope=await captureScope(repo,'');
+  for(const taskId of r.taskIds??[]){
+    const task=ledger.tasks[taskId];
+    requireThat(trustedImprovementScope(task),'Related Task lacks verified pi-compose maintenance scope');
+    requireThat(currentScope.status==='repository-anchored' &&
+      currentScope.contract.sha256===task.scope.contract.sha256,
+      'Scope contract has changed since the reviewed Task');
+  }
   requireThat(r.candidate.layer === r.decision?.selected && r.decision?.blocked === false &&
     r.decision?.economicEvidence === 'forecast-not-verified', 'Improvement has no cost-aware approved selection');
   const evidence = r.findings?.flatMap(f=>f.evidence??[]).filter(e=>e.source==='repo-file')??[];

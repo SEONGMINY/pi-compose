@@ -1,5 +1,11 @@
 # Development harness — requirements and current gaps
 
+## Scope authority and JSON state
+
+The single authoritative scope/approved-requirements contract for the current project is [`../contracts/pi-compose-maintenance.json`](../contracts/pi-compose-maintenance.json). It explicitly binds this harness to **pi-compose feature maintenance**, with Pi/Codex as tools, not upstream development targets. The contract is versioned; its SHA-256 is pinned before Task execution and cannot self-approve a later change. The private Git-common Task/Step/Run ledger and scope-gate results are JSON; `devh task ID` produces an inspectable JSON view with criterion evidence. Markdown files describe rationale and limitations but do not hold separate mutable task states.
+
+The gate is conservative: it checks project identity, a narrow set of explicit external-target hints, contract integrity and protected policy Git paths. These signals cannot establish semantic correctness. Uncertain scope or a dirty Git start is recorded as unverified. A changed approved contract/policy is held for review rather than silently promoted by passing tests.
+
 ## Target workflow
 
 The user only requests development normally in Pi or Codex. The harness automatically (1) identifies a development Task, (2) decomposes it into verifiable Steps only where worthwhile, (3) predicts P30/P50/P80 before implementation, (4) observes Run time/token usage and failures, (5) records independent completion evidence, (6) immediately performs cheap triage, and (7) queues expensive review and worktree improvement separately from the developer result. No per-task manual command is allowed.

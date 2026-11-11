@@ -3,6 +3,7 @@ import { withState, readState, projectPaths, readProjectConfig, enqueue } from '
 import { initialPlan, validatePlan, classifyFollowup, isClearlyNonDevelopment } from './plan.mjs';
 import { chooseForecast } from './forecast.mjs';
 import { sourceRevision } from './improvement/impact.mjs';
+import { captureScope } from './scope.mjs';
 
 const iso = () => new Date().toISOString();
 const digest = s=>createHash('sha256').update(s).digest('hex');
@@ -27,6 +28,7 @@ export async function ingest({cwd,agent,sessionId,turnId,event,prompt,usage,even
   const cfg=await readProjectConfig(root);
   // Capture the starting code version *before* the agent can change it.
   const source=event==='prompt'?sourceRevision(root):null;
+  const scope=event==='prompt'?await captureScope(root,prompt):null;
   return withState(dir, state=>{
     const sessionKey=`${agent}:${sessionId}`;
     // No stable provider attempt id is guaranteed for usage events; do not fabricate one.
@@ -59,7 +61,7 @@ export async function ingest({cwd,agent,sessionId,turnId,event,prompt,usage,even
         const forecast=chooseForecast(state.tasks,{agent,kind,seed:cfg.forecastSeed});
         const steps=validatePlan(plan??initialPlan(prompt)).map(p=>({...p,status:'pending',runs:[]}));
         task={id,agent,sessionId,kind,title:prompt.slice(0,200),originalPromptHash:digest(prompt),steps,planProvenance:planProvenance??'deterministic',
-          forecast,status:'running',source,startedAt:iso(),startedAtMs:Date.now(),runs:[],
+          forecast,status:'running',source,scope,scopeGate:null,startedAt:iso(),startedAtMs:Date.now(),runs:[],
           tokenUsage:{observed:0,events:0,missingEvents:0,coverage:'observed-events-only'},
           checks:cfg.checks,acceptanceContracts:cfg.acceptanceContracts,workdir:root,verification:null,actual:null,
           relatedTaskId:previous?.id??null,relation:previous?classification.intent:'initial',
@@ -72,12 +74,13 @@ export async function ingest({cwd,agent,sessionId,turnId,event,prompt,usage,even
       if(stepId&&!step)throw Error(`Unknown step ${stepId}`);
       assigned.status='running';assigned.runs.push(runId);
       task.runs.push({id:runId,turnId,status:'running',startedAt:iso(),tokens:0,missingUsage:0,
-        stepId:assigned.id,sessionFile:sessionFile??null,modelRequests:[]});
+        stepId:assigned.id,sessionFile:sessionFile??null,modelRequests:[],observedUsageEvents:0});
       task.revision=(task.revision??0)+1;
       task.updatedAt=iso();
       state.sessions[sessionKey]=session;
       const result={taskId:task.id,runId,forecast:task.forecast,
         taskBoundary:{intent:task.relation??classification.intent,basis:task.boundaryBasis??classification.basis},
+        scope:{status:task.scope?.status??'not-configured',contractId:task.scope?.contract?.id??null},
         plan:task.steps.map(({id,goal,ac,dependencies})=>({id,goal,ac,dependencies}))};
       if(key)state.seen[key]=result;
       return result;
@@ -128,7 +131,7 @@ export async function ingest({cwd,agent,sessionId,turnId,event,prompt,usage,even
       if(amount===null){
         run.missingUsage++;task.tokenUsage.missingEvents++;attempt.tokens=null;
       } else {
-        attempt.tokens=amount;run.tokens+=amount;task.tokenUsage.observed+=amount;task.tokenUsage.events++;
+        attempt.tokens=amount;run.tokens+=amount;run.observedUsageEvents=(run.observedUsageEvents??0)+1;task.tokenUsage.observed+=amount;task.tokenUsage.events++;
       }
     } else if(event==='usage'){
       const amount=normalizeTokens(usage);
@@ -137,7 +140,7 @@ export async function ingest({cwd,agent,sessionId,turnId,event,prompt,usage,even
         // Without an upstream request ID, a retried hook is indistinguishable
         // from a second identical model call. Preserve unknown rather than double count.
         run.missingUsage++;task.tokenUsage.missingEvents++;
-      }else {run.tokens+=amount;task.tokenUsage.observed+=amount;task.tokenUsage.events++}
+      }else {run.tokens+=amount;run.observedUsageEvents=(run.observedUsageEvents??0)+1;task.tokenUsage.observed+=amount;task.tokenUsage.events++}
     } else if(event==='settled'||event==='interrupt'||event==='end'){
       if(run.status==='running'){
         run.status=event==='settled'?'settled':event==='interrupt'?'interrupted':'session-ended';run.endedAt=iso();
@@ -163,6 +166,23 @@ export async function ingest({cwd,agent,sessionId,turnId,event,prompt,usage,even
     if(key)state.seen[key]=result;
     return result;
   });
+}
+
+export function taskJsonView(task){
+  if(!task)return null;
+  return {schemaVersion:1,id:task.id,objective:task.title,kind:task.kind,agent:task.agent,
+    status:task.status,scope:{atStart:task.scope??null,afterVerification:task.scopeGate??null},
+    originalForecast:task.forecast,actual:task.actual??null,
+    plan:{revision:task.revision??0,provenance:task.planProvenance??null,
+      steps:(task.steps??[]).map(s=>({id:s.id,goal:s.goal,status:s.status,dependencies:s.dependencies,
+        criteria:(s.ac??[]).map(criterion=>({criterion,verification:
+          task.acceptance?.steps?.[s.id]?.receipts?.find(r=>r.criterion===criterion)??null}))}))},
+    runIds:(task.runs??[]).map(r=>({id:r.id,status:r.status,stepId:r.stepId,tokens:r.observedUsageEvents>0?r.tokens:null,
+      usageCoverage:r.observedUsageEvents>0?(r.missingUsage>0?'partial':'observed-events-only'):'unknown',
+      missingUsage:r.missingUsage})),
+    acceptance:task.acceptance??null,analysis:task.analysis??null,
+    boundary:{relation:task.relation??null,basis:task.boundaryBasis??null,relatedTaskId:task.relatedTaskId??null},
+    caveat:'Scope and executable checks do not prove all semantic user expectations.'};
 }
 
 export async function getReport(cwd) {

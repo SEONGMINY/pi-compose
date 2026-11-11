@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "pi-compose-maintenance",
+  "revision": 1,
+  "decisionState": "approved-scope",
+  "authority": "user-confirmed-project-scope",
+  "appliesTo": {
+    "repository": "SEONGMINY/pi-compose",
+    "packageName": "pi-compose",
+    "developmentTarget": "pi-compose-codebase",
+    "executionTools": ["pi", "codex"]
+  },
+  "purpose": "Reduce recurrent time and token costs of extending and maintaining pi-compose while preserving development quality and approved product decisions.",
+  "requirements": [
+    {"id": "DH-01", "status": "approved", "text": "Observe pi-compose maintenance work automatically without per-task user commands."},
+    {"id": "DH-02", "status": "approved", "text": "Use Task, optional Step and actual Run identities; forecast P30/P50/P80 before implementation and preserve provenance."},
+    {"id": "DH-03", "status": "approved", "text": "Measure time and observable tokens without inventing missing usage, and retain failed/reworked runs."},
+    {"id": "DH-04", "status": "approved", "text": "After development delivery run inexpensive analysis and queue valuable independent improvement work."},
+    {"id": "DH-05", "status": "approved", "text": "Prefer architectural root-cause fixes over gates, AI instructions and user behavior when safe and economical."},
+    {"id": "DH-06", "status": "approved", "text": "Apply only allowlisted, independently verified improvements in isolated worktrees; never auto-push remote main or silently change product decisions."},
+    {"id": "DH-07", "status": "approved", "text": "Compare improvement cost and later outcomes; do not claim causal time/token savings without sufficient evidence."},
+    {"id": "DH-08", "status": "approved", "text": "Keep Task and verification/approval states machine-readable in JSON; keep explanatory material in Markdown."}
+  ],
+  "boundaries": {
+    "included": [
+      "pi-compose features and maintenance",
+      "pi-compose project development, checks and test environment",
+      "the internal development-harness under tools/development-harness"
+    ],
+    "excluded": [
+      "developing upstream Pi or Codex source code",
+      "turning the internal harness into a generic product",
+      "Context Hub, MCP and architecture-philosophy knowledge services",
+      "separate-repository extraction in this iteration",
+      "automatic changes to approved pi-compose product decisions"
+    ],
+    "protectedPaths": [
+      "AGENTS.md",
+      "docs/PRD.md",
+      "docs/VISION.md",
+      "docs/ARCHITECTURE.md",
+      "docs/TRD.md",
+      "tools/development-harness/contracts/pi-compose-maintenance.json"
+    ]
+  },
+  "verification": {
+    "scopeEvidence": "repository-identity-and-git-diff-only",
+    "semanticCompleteness": "requires-separate-executable-acceptance-contracts",
+    "onConflict": "retain-development-result-but-mark-needs-review-and-block-automatic-completion-or-improvement"
+  }
+}

@@ -1,6 +1,7 @@
 import {spawnSync} from 'node:child_process';
 import {projectPaths, withState, readState, enqueue} from './store.mjs';
 import {acceptanceForStep} from './acceptance.mjs';
+import {assessTaskScope} from './scope.mjs';
 
 const iso=()=>new Date().toISOString();
 const finite=n=>typeof n==='number'&&Number.isFinite(n)&&n>=0;
@@ -67,16 +68,20 @@ export async function processQueue(cwd,{limit=10,run=runChecks}={}){
     if(!item)break;
     let verdict;
     try{verdict=await run(item.task)}catch(e){verdict={state:'failed',results:[],reason:String(e)}}
+    const scopeGate=await assessTaskScope(item.task.workdir,item.task);
     const result=await withState(dir,s=>{
       const q=s.queue[item.id],task=s.tasks[item.task.id];
       if(!q || !task)return {state:'missing'};
       if(task.runs.some(r=>r.status==='running') || (task.revision??0)!==item.revision){
         q.state='pending';q.reason='task-changed-during-verification';return {taskId:task.id,state:'deferred'};
       }
-      task.verification={...verdict,finishedAt:iso()};q.state='done';q.finishedAt=iso();
+      task.verification={...verdict,finishedAt:iso()};
+      task.scopeGate=scopeGate;
+      q.state='done';q.finishedAt=iso();
       if(verdict.state==='passed'){
         const contractAccepted=verdict.acceptance?.state==='verified-by-contract';
-        task.status=contractAccepted?'completed':'delivered-unverified';task.finishedAt=iso();
+        task.status=scopeGate.status==='needs-review'?'scope-review-required':
+          contractAccepted?'completed':'delivered-unverified';task.finishedAt=iso();
         task.acceptance=verdict.acceptance??{state:'unverified',steps:{}};
         for(const step of task.steps)step.status=task.acceptance.steps?.[step.id]?.state==='verified-by-contract'?'verified-by-contract':'checks-passed-ac-unverified';
       }else if(verdict.state==='failed'){
@@ -96,11 +101,11 @@ export async function processQueue(cwd,{limit=10,run=runChecks}={}){
       task.analysis=triage(task,Object.values(s.tasks));
       // Cheap triage is done synchronously; unverified delivery is NOT accepted completion.
       // Expensive AI review is a separate queue.
-      if(task.analysis.needsReview)enqueue(s,'review',task.id,'anomaly-or-repeat');
+      if(scopeGate.status!=='needs-review'&&task.analysis.needsReview)enqueue(s,'review',task.id,'anomaly-or-repeat');
       const sessionKey=`${task.agent}:${task.sessionId}`;
       const session=s.sessions[sessionKey];
       if(session?.activeTaskId===task.id){session.lastTaskId=task.id;session.activeTaskId=null}
-      return {taskId:task.id,state:task.status,analysis:task.analysis};
+      return {taskId:task.id,state:task.status,scopeGate,analysis:task.analysis};
     });
     processed.push(result);
     // Do not hot-loop an active Task or run checks repeatedly while it changes.

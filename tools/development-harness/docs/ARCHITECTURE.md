@@ -2,6 +2,12 @@
 
 `Pi/Codex -> provider event adapter -> Task/Step/Run ledger -> verified check worker -> cheap triage -> review queue -> read-only AI review -> evidence/cost selection -> candidate queue -> isolated worktree change -> fixed checks -> independent verification -> local-only conditional integration`
 
+## Requirements / scope gate
+
+`contracts/pi-compose-maintenance.json` is the single versioned, user-confirmed scope contract. At Task start `captureScope` stores its id, revision, SHA-256 and structural assessment in the JSON Task record. After trusted checks `assessTaskScope` reads the current contract and Git baseline, records a separate `scopeGate` JSON result, and prevents `completed` or automated improvement if an approved policy/contract changed. This is a structural gate, **not** full semantic review or user approval. Previously queued candidates and direct `improve` invocations must also respect blocked/stale scope.
+
+The Task JSON report derives Step criterion/evidence views from `steps` plus worker receipts without duplicating writable requirement state. Worktree-shared private `state.json` remains the canonical runtime store. Future models may propose scope changes but cannot grant approval by changing JSON.
+
 ## Boundaries
 
 - **Task**: user goal, stable ID, original immutable pre-work forecast, related/rework links, revision log. A later turn does not rewrite an earlier forecast.
