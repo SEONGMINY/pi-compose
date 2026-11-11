@@ -76,6 +76,10 @@ The AI proposes read-only, bounded exact-string changes; the runner applies only
 
 A separate read-only Pi verifier checks the actual Diff and reported tests. Any failed check, source drift, dirty Main, unexpected changed path or verification concern blocks integration. `mode: draft` leaves a named attempt branch; `mode: local-main` with `allowAutoMain: true` enables **local Main fast-forward only**. No remote push, force merge or automatic GitHub PR merge is performed. A blocked improvement returns a nonzero CLI exit code.
 
+The full-project check exposed three pre-existing TypeScript narrowing/nullability
+errors in `src/overview.ts`. This Draft also contains a type-only correction;
+no Overview runtime behavior or product contract was intentionally changed.
+
 `impact` offers directional before/after cohort comparisons, **not proven causal savings or net ROI**.
 
 ## Remaining verification and uncertainty
