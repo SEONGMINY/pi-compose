@@ -17,8 +17,9 @@ export const snapshotSchema = z.object({
 export type PolicySnapshot = z.infer<typeof snapshotSchema>;
 
 const dirKey = (id: string) => createHash('sha256').update(id).digest('hex').slice(0,40);
-const revisionOf = (mainId: string, leafId: string, ids: readonly string[]) =>
-  createHash('sha256').update(JSON.stringify([mainId, leafId, ids])).digest('hex');
+// Revision is stable across unrelated Main chat turns and detects changed decision payloads.
+const revisionOf = (mainId: string, decisions: readonly unknown[]) =>
+  createHash('sha256').update(JSON.stringify([mainId, decisions])).digest('hex');
 
 export function makePolicySnapshot(
   mainSessionId: string, product: string, activeLeafId: string,
@@ -28,7 +29,7 @@ export function makePolicySnapshot(
   const decisions = branchDecisions(entries as Parameters<typeof branchDecisions>[0], mainSessionId);
   return snapshotSchema.parse({
     version:1,mainSessionId,product,activeLeafId,decisions,
-    revision:revisionOf(mainSessionId,activeLeafId,decisions.map(d=>d.id)),
+    revision:revisionOf(mainSessionId,decisions),
   });
 }
 
@@ -69,15 +70,13 @@ export async function readPolicySnapshot(mainSessionId:string):Promise<PolicySna
   catch(e){if((e as NodeJS.ErrnoException).code==='ENOENT')return;throw e;}
   const snapshot=snapshotSchema.parse(JSON.parse(data));
   if(snapshot.mainSessionId!==mainSessionId ||
-     snapshot.revision!==revisionOf(mainSessionId,snapshot.activeLeafId,
-       snapshot.decisions.map(d=>d.id)))throw Error('invalid-policy-snapshot');
+     snapshot.revision!==revisionOf(mainSessionId,snapshot.decisions))throw Error('invalid-policy-snapshot');
   return snapshot;
 }
 
 export async function writePolicySnapshot(snapshot:PolicySnapshot):Promise<void>{
   const valid=snapshotSchema.parse(snapshot);
-  if(valid.revision!==revisionOf(valid.mainSessionId,valid.activeLeafId,
-      valid.decisions.map(d=>d.id)))throw Error('invalid-policy-snapshot-revision');
+  if(valid.revision!==revisionOf(valid.mainSessionId,valid.decisions))throw Error('invalid-policy-snapshot-revision');
   const path=await pathFor(valid.mainSessionId);
   const body=JSON.stringify(valid);
   if(Buffer.byteLength(body,'utf8')>240*1024)throw Error('policy-snapshot-too-large');
