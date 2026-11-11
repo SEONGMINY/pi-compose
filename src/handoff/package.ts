@@ -259,18 +259,46 @@ export async function createSelectedHandoffPackage(
   }
 
   // Search Work/Fork ancestry for *necessary* context, not an unbounded summary.
-  const refs=selectForkHistory(branch.flatMap(entry=>{
+  // A new manual < already prepared candidate-linked WHY in the SAME model
+  // call. Do not search the branch or call another model for that package.
+  // Legacy drafts without this field retain the older source-backed path.
+  const hasPreparedContext=draft.linkedContext!==undefined&&
+    draft.contextAssessment!==undefined;
+  const refs=hasPreparedContext?[]:selectForkHistory(branch.flatMap(entry=>{
     if(entry.type!=='message'||
        (entry.message.role!=='user'&&entry.message.role!=='assistant'&&
         entry.message.role!=='toolResult')||
        entry.id===draft.reportEntryId||
        selected.some(c=>c.candidate.sourceEntryId===entry.id))return [];
     const text=textOf(entry.message.content);
-    return text && safeText(text)?[{id:entry.id,role:entry.message.role,text}]:[];
+    return text&&safeText(text)?[{id:entry.id,role:entry.message.role,text}]:[];
   }),claims.map(c=>c.title+' '+c.summary+' '+c.statement).join('\n'),36,1600);
   const context: HandoffContext[] = [];
   let contextAssessment: HandoffPackage['contextAssessment'] = 'unavailable';
-  if (refs.length && ctx.model) {
+  if(hasPreparedContext){
+    // Historical quotes remain evidence only, never current Main approval.
+    // Verify against the ORIGINAL active Pi entry, not merely model output.
+    const relevant=draft.linkedContext!.filter(item=>
+      item.relatedCandidateIds.some(id=>choice.ids.includes(id)));
+    for(const item of relevant){
+      const original=byId.get(item.sourceEntryId);
+      if(!original||original.type!=='message'||
+         (original.message.role!=='user'&&original.message.role!=='assistant'&&
+          original.message.role!=='toolResult')||
+         !textOf(original.message.content).includes(item.quote)||
+         !safeText(item.quote)||!safeText(item.whyNeeded))
+        throw Error('prepared-context-source-invalid');
+      const requiredByClaimIds=item.relatedCandidateIds.filter(id=>choice.ids.includes(id));
+      const evidenceId='EC'+(context.length+1);
+      evidence.push({id:evidenceId,sessionId:draft.sessionId,entryId:original.id,
+        role:original.message.role,quote:item.quote});
+      context.push({id:'CX'+(context.length+1),reason:item.reason,
+        whyNeeded:item.whyNeeded,quote:item.quote,
+        requiredByClaimIds,evidenceId});
+    }
+    contextAssessment=draft.contextAssessment==='unavailable'?'unavailable'
+      :context.length?'selected':'none-needed';
+  }else if (refs.length && ctx.model) {
     try {
       const result = await ctx.modelRegistry.streamSimple(ctx.model, {
         systemPrompt: [
