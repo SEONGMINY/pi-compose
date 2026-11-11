@@ -216,6 +216,8 @@ export function registerAutomaticMainAdoption(pi:ExtensionAPI):{
 }{
   const processing=new Set<string>();
   const retryAfterCurrent=new Set<string>();
+  const modelRetryCounts=new Map<string,number>();
+  const retryTimers=new Set<ReturnType<typeof setTimeout>>();
   let watcher:{sessionId:string;close:()=>void}|undefined;
   let watcherEpoch=0;
   function closeWatcher(){
@@ -284,17 +286,30 @@ export function registerAutomaticMainAdoption(pi:ExtensionAPI):{
           if(ctx.hasUI)ctx.ui.setStatus(statusKey,'Work 결과와 현재 Main 결정 비교 중');
           comparison=await compareHandoffWithMain(ctx,pkg);
         }catch{
-          // JSON/model failures are not proof of safety, nor proof of conflict.
-          if(ctx.sessionManager.getSessionId()===mainId &&
-             ctx.sessionManager.getLeafId()===baseLeaf)
-            await setInboxStatus(mainId,pkg.id,'requires-review',baseLeaf);
-          if(ctx.hasUI)ctx.ui.notify('Work 보고의 자동 비교를 완료하지 못했습니다. 원문은 보관됐으며 Main에서 < 로 확인할 수 있습니다.','warning');
+          // Provider/JSON failure is a technical retry, NOT an unresolved
+          // policy conflict that makes the user press Main < again.
+          // Leave the durable package pending and retry once automatically.
+          const key=mainId+':'+pkg.id;
+          const prior=modelRetryCounts.get(key)??0;
+          if(prior<1){
+            modelRetryCounts.set(key,prior+1);
+            const timer=setTimeout(()=>{
+              retryTimers.delete(timer);
+              if(ctx.sessionManager.getSessionId()===mainId)void check(ctx);
+            },1200);
+            retryTimers.add(timer);
+          }
+          if(ctx.hasUI)ctx.ui.notify(prior<1
+            ?'Main 비교가 일시적으로 실패해 자동 재시도합니다. Work 원문은 보존했습니다.'
+            :'Main 비교를 완료하지 못했습니다. 원문은 보존했고 다음 세션 이벤트에서 재시도합니다.',
+            'warning');
           break;
         }finally{
           if(ctx.hasUI)ctx.ui.setStatus(statusKey,undefined);
         }
         if(!ctx.isIdle()||ctx.sessionManager.getSessionId()!==mainId ||
            ctx.sessionManager.getLeafId()!==baseLeaf)break;
+        modelRetryCounts.delete(mainId+':'+pkg.id);
         const decision=decideAutomaticAdoption(pkg,comparison,mainId,branchIds);
         if(decision.action==='hold'){
           await setInboxStatus(mainId,pkg.id,'requires-review',baseLeaf);
@@ -388,6 +403,10 @@ export function registerAutomaticMainAdoption(pi:ExtensionAPI):{
   pi.on('agent_settled',(_event,ctx)=>onAvailable(ctx));
   pi.on('model_select',(_event,ctx)=>onAvailable(ctx));
   pi.on('session_before_switch',()=>closeWatcher());
-  pi.on('session_shutdown',()=>closeWatcher());
+  pi.on('session_shutdown',()=>{
+    closeWatcher();
+    for(const timer of retryTimers)clearTimeout(timer);
+    retryTimers.clear();
+  });
   return {onAvailable};
 }
