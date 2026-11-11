@@ -55,16 +55,21 @@ export function branchDecisions(entries: readonly BranchEntry[], mainSessionId: 
   // ContextEdit can intentionally remove or replace approval/proposal text.
   // Preserve decisions across Compaction, but do not use edited-away evidence
   // as if the original approval still existed in the active model context.
-  const editedIds = new Set(entries.filter(e=>
-    e.type==='context_edit'&&typeof e.targetId==='string')
-    .map(e=>e.targetId!));
+  const latestEdits = new Map<string,unknown>();
+  for(const entry of entries){
+    if(entry.type==='context_edit'&&typeof entry.targetId==='string')
+      latestEdits.set(entry.targetId,entry.replacement);
+  }
+  const originalQuoteStillVisible=(id:string,quote:string)=>
+    !latestEdits.has(id)||textParts(latestEdits.get(id)).includes(quote);
   const result: PolicyDecision[] = [];
   for (const entry of entries) {
     if (entry.type !== 'custom' || entry.customType !== DECISION_ENTRY) continue;
     const parsed = decisionSchema.safeParse(entry.data);
     if (!parsed.success || parsed.data.mainSessionId !== mainSessionId) continue;
     const d = parsed.data;
-    if(editedIds.has(d.approvalEntryId)||editedIds.has(d.sourceEntryId))continue;
+    if(!originalQuoteStillVisible(d.approvalEntryId,d.approvalQuote)||
+       !originalQuoteStillVisible(d.sourceEntryId,d.sourceQuote))continue;
     const approval = byId.get(d.approvalEntryId);
     const source = byId.get(d.sourceEntryId);
     if (containsSensitivePolicyText(d.approvalQuote) ||
