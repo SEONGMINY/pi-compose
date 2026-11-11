@@ -156,13 +156,18 @@
         "test/policy-main-evidence.test.ts",
         "src/policy/store.ts",
         "extensions/policy-work.ts",
-        "src/handoff/brief.ts"
+        "src/handoff/brief.ts",
+        "test/policy-main-evidence.test.ts"
       ],
       "checks": [
         "unmatched user phrasing detection recall evaluated",
         "full historical resolution when option omitted from bounded excerpts",
         "low-confidence states surfaced without fake approval",
-        "Unreviewed explicit approval candidates mark Work freshness unavailable until examined"
+        "Unreviewed explicit approval candidates mark Work freshness unavailable until examined",
+        "Regression: full policy restated by approving user is valid source even if B option is referenced",
+        "Regression: implementation-vs-documentation ask_user choice is not a second policy decision",
+        "Regression: old ambiguous REVIEW_ENTRY is re-evaluated once after upgrading detection logic",
+        "Regression: latest concrete user B decision outranks older assistant B option"
       ]
     },
     {
@@ -217,6 +222,7 @@
     "B-option resolution can still be ambiguous when source has been compacted or heavily ContextEdited; it is held rather than guessed.",
     "Actual npm typecheck and Node tests are unexecuted because the GitHub connector has no runner and this environment cannot fetch the repo/dependencies.",
     "macOS/Ghostty native Split and Pi end-to-end behaviors remain unverified.",
-    "Draft PR #37 is dependent on unmerged Draft PR #25. Neither main nor the internal development harness has been changed."
+    "Draft PR #37 is dependent on unmerged Draft PR #25. Neither main nor the internal development harness has been changed.",
+    "Observed user scenario (B approval → ask_user documentation-only → generic warning) was repaired at code level; real Pi replay and Work delivery remain unverified. Existing ambiguous entries should be revisited upon Main session resume."
   ]
 }
