@@ -43,14 +43,20 @@ export function recentMessages(ctx:ExtensionContext):Msg[]{
   // or compacted option must not be silently revived as a new user policy.
   return ctx.sessionManager.buildSessionProjection().entries.flatMap(projected=>{
     const source=projected.sourceEntry;
-    if(source.type!=='message'||!['user','assistant'].includes(source.message.role))return [];
-    const original=textParts(source.message.content).trim();
-    const visible=projected.messages
-      .filter(m=>m.role===source.message.role)
-      .map(m=>textParts(m.content).trim());
+    if(source.type!=='message')return [];
+    const message=source.message;
+    // AgentMessage also contains BashExecutionMessage and other non-chat
+    // variants that do not expose content. Narrow by the role discriminator.
+    if(message.role!=='user'&&message.role!=='assistant')return [];
+    const original=textParts(message.content).trim();
+    const visible=projected.messages.flatMap(m=>{
+      if(m.role!=='user'&&m.role!=='assistant')return [];
+      if(m.role!==message.role)return [];
+      return [textParts(m.content).trim()];
+    });
     // Do not attribute a rewritten ContextEdit fragment to the original quote.
     if(!original||visible.length!==1||visible[0]!==original)return [];
-    return [{id:source.id,role:source.message.role,text:original}];
+    return [{id:source.id,role:message.role,text:original}];
   });
 }
 
