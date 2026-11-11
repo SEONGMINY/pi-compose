@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { constants, watch } from 'node:fs';
-import { lstat, mkdir, open, readFile, realpath, rename, unlink } from 'node:fs/promises';
+import { lstat, mkdir, open, realpath, rename, unlink } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
@@ -41,7 +41,8 @@ async function root(): Promise<string> {
       if(e.code!=='EEXIST')throw e;
     });
     const info = await lstat(path);
-    if(!info.isDirectory()||info.isSymbolicLink()||(info.mode&0o077)!==0||
+    if(!info.isDirectory()||info.isSymbolicLink()||
+       (path===pi ? (info.mode&0o022)!==0 : (info.mode&0o077)!==0)||
        (typeof process.getuid==='function'&&info.uid!==process.getuid()))
       throw Error('unsafe-policy-directory');
   }
