@@ -6,6 +6,14 @@ The single authoritative scope/approved-requirements contract for the current pr
 
 The gate is conservative: it checks project identity, a narrow set of explicit external-target hints, contract integrity and protected policy Git paths. These signals cannot establish semantic correctness. Uncertain scope or a dirty Git start is recorded as unverified. A changed approved contract/policy or pinned project-local Hook/config file is held for review rather than silently promoted by passing tests. Installation-generated local settings are ignored through the local Git exclude file, not a repository-wide `.gitignore` edit.
 
+## Independent semantic drift guard (JSON state)
+
+The authorized target remains `pi-compose` maintenance, not upstream Pi/Codex or the `pic` runtime. The existing contract JSON is not changed by an agent. When explicitly enabled in local `.devh.json`, a **separate post-delivery queue** captures the original Task goal, Step requirements and an exact, bounded Git patch, then asks a read-only model to identify concrete mismatches. Findings must cite an exact changed line of the claimed file; only such findings may flag `scope-review-required`. Positive findings mean `no-drift-observed`, **not** verified functional acceptance or new user approval. Results, errors, usage coverage and model-call IDs are stored in Task and cost-receipt JSON.
+
+Ordinary developer results are not blocked for this expensive review. Missing approval, too-large/sensitive/untracked-unsupported evidence, model failures, or races leave the review `unverified` and prevent changed-code Tasks from authorizing automatic improvements. The model's own verdict is not authority to change product policy. The queue runs at most once per worker invocation; a failed model attempt backs off, and a changed Task/diff discards stale conclusions. Review is an explicit one-time project opt-in because it sends a code patch to a model.
+
+**Limits:** best-effort per-call 30 s and 6,000 observed tokens; 28 KB / 12 changed files. This is *not* guaranteed billing control or proof of semantic correctness. No real authenticated Pi/Codex E2E is claimed.
+
 ## Target workflow
 
 The user only requests development normally in Pi or Codex. The harness automatically (1) identifies a development Task, (2) decomposes it into verifiable Steps only where worthwhile, (3) predicts P30/P50/P80 before implementation, (4) observes Run time/token usage and failures, (5) records independent completion evidence, (6) immediately performs cheap triage, and (7) queues expensive review and worktree improvement separately from the developer result. No per-task manual command is allowed.

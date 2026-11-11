@@ -23,6 +23,10 @@ The default project config from install includes `npm run check` if present and 
 
 For an opt-in bounded model planner on **complex** requests, set `planning.mode` to `bounded-pi` and optionally `timeoutMs` between 1000 and 10000. It spawns read-only Pi without extensions/MCP, has a strict output schema, and falls back to a single Step on error. This extra model request has *unmeasured token overhead* and requires working Pi authentication. Leave deterministic mode selected until real-world evaluation.
 
+## Optional independent requirements-to-Diff review
+
+Set `"semanticReview":{"enabled":true}` in the project-local `.devh.json` **only after explicitly approving code-patch exposure to the authenticated Pi provider**. With this one-time option, changed-code Tasks get a separate bounded model audit after project checks, before they can authorize auto-improvement. The audit runs asynchronously relative to the developer result. `devh task ID` returns the JSON gate status and line-anchored findings. Without opt-in or sufficient evidence, Task delivery still proceeds, but automatic changes based on that Task remain blocked. No per-task action is required after setup.
+
 ## Declared Step acceptance (optional)
 
 Add exact Step ID, criterion text and the repository-owned test script to `.devh.json`:

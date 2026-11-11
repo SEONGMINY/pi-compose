@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import {ingest,getReport,taskJsonView} from '../src/core.mjs';
 import {getScopeContract} from '../src/scope.mjs';
+import {processSemanticQueue} from '../src/semantic.mjs';
 import {processQueue,recoverQueue} from '../src/worker.mjs';
 import {installProject} from '../src/install.mjs';
 import {projectPaths,readProjectConfig} from '../src/store.mjs';
@@ -23,6 +24,9 @@ try{
   else if(cmd==='process'){
     await recoverQueue(cwd);
     const verified=await processQueue(cwd);
+    // Independent semantic review is opt-in, bounded and separate from the developer turn.
+    const settings=await readProjectConfig(projectPaths(cwd).root);
+    const semantic=settings.semanticReview?.enabled?await processSemanticQueue(cwd,{max:1}):[];
     // Review is separate, bounded and opt-in. The developer's original
     // result is never held waiting for the analysis agent.
     let review=null,improvement=null;
@@ -39,7 +43,12 @@ try{
     // Failure to assess must never delay or invalidate the developer's result.
     let impact;
     try{impact=await refreshImpact(cwd)}catch(e){impact={state:'unavailable',reason:String(e.message??e).slice(0,200)}}
-    out({verified,review,improvement,impact});
+    out({verified,semantic,review,improvement,impact});
+  }
+  else if(cmd==='semantic'){
+    const cfg=await readProjectConfig(projectPaths(cwd).root);
+    if(!cfg.semanticReview?.enabled)throw Error('Independent review needs one-time semanticReview.enabled approval');
+    out(await processSemanticQueue(cwd,{max:1}));
   }
   else if(cmd==='impact')out(await evaluateImpact(cwd));
   else if(cmd==='review')out(await processReviews(cwd,{maxBatches:1}));
@@ -48,6 +57,6 @@ try{
   else if(cmd==='event'){
     const input=JSON.parse(args[0]??'{}');out(await ingest({cwd,...input}));
   } else {
-    console.log('Usage: devh install [PROJECT] | contract | task ID | report | process | impact | review | reviews | improve | event JSON   (Codex/Pi adapters call these internally)');
+    console.log('Usage: devh install [PROJECT] | contract | task ID | report | process | impact | semantic | review | reviews | improve | event JSON   (Codex/Pi adapters call these internally)');
   }
 }catch(e){console.error('[devh] '+e.message);process.exitCode=1}

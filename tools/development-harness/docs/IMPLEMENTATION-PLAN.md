@@ -17,6 +17,13 @@
 5. **Improvement loop**: evidence validation, cost-aware layer selection and worktree change engine adapted from Draft PR #29. Generated candidates create an improvement queue item; optional automatic execution requires local explicit allowlist policy and passes fixed checks/independent model verification. Local-main requires explicit opt-in and can only fast-forward locally.
 6. **Directional impact feedback**: record pre-work Git revisions, separate review and change attempt wall costs, and compare only clean/ancestry-confirmed accepted tasks after local integration. Refresh durable impact snapshots on post-task workers, expose `devh impact`, pass a bounded non-causal summary into the next independent review. Prevent automatic edits to impact/forecast/worker control code. [Method](IMPACT.md).
 
+## Independent requirements-to-Diff audit iteration
+
+- Added `src/semantic.mjs`: bounded, read-only Task/Step/approved-contract versus Git patch review, with exact changed-line citations, JSON verdict validation and `scope-review-required` for evidenced drift.
+- Independent `semantic` queue runs after project tests; backoff/recovery, stale-diff detection, original-Worktree attribution and review cost receipts are stored. Disabled or incomplete semantic evidence never enables automatic edits of changed code. Reopening a Task resets stale scope/semantic evidence.
+- Explicit one-time local `.devh.json` `semanticReview.enabled` is required to send code to Pi; no global hooks or product runtime changes. A model's `no-drift-observed` never means feature acceptance or approved policy change.
+- Remaining: authenticated Pi/Codex runtime E2E, complete semantic acceptance, privacy review, measured end-to-end cost benefit and quantitative model-review accuracy on real maintenance Tasks.
+
 ## Still open — do not claim production complete
 
 - Semantic completeness beyond declared contracts; actual product behavior may require user validation. No automatic comprehensive functional AC generation.

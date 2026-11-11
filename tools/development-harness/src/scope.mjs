@@ -117,6 +117,9 @@ export async function getScopeContract(root){
 /** Only fully structurally checked pi-compose Tasks may authorize an automatic
  * maintenance intervention. A JSON contract or model cannot self-approve. */
 export function trustedImprovementScope(task){
-  return Boolean(task?.scope?.status==='repository-anchored' &&
-    task.scopeGate?.status==='no-violation-observed' && task.scope.contract?.id==='pi-compose-maintenance');
+  return Boolean(['completed','delivered-unverified','verification-failed'].includes(task?.status) &&
+    task?.scope?.status==='repository-anchored' &&
+    task.scopeGate?.status==='no-violation-observed' && task.scope.contract?.id==='pi-compose-maintenance' &&
+    (Array.isArray(task.scopeGate?.changedPaths) && (task.scopeGate.changedPaths.length===0 ||
+      task.semanticGate?.status==='no-drift-observed')));
 }
