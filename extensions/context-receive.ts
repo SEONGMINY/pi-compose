@@ -218,7 +218,7 @@ export function registerAutomaticMainAdoption(pi:ExtensionAPI):{
   const processing=new Set<string>();
   const retryAfterCurrent=new Set<string>();
   async function check(ctx:ExtensionContext):Promise<void>{
-    if(!ctx.isIdle()||!ctx.model)return;
+    if(!ctx.isIdle())return;
     const owner=readAgentRelationship(
       ctx.sessionManager.getSessionId(),ctx.sessionManager.getEntries());
     if(owner?.role!=='main')return;
@@ -270,6 +270,9 @@ export function registerAutomaticMainAdoption(pi:ExtensionAPI):{
           ctx.ui.notify('Work 결과에 Main의 확인이 필요한 출처·맥락이 있습니다. < 로 확인해주세요.','warning');
           continue;
         }
+        // Exact receipts are safe to deduplicate without a model. For every
+        // other report we still require current Main semantic comparison.
+        if(!ctx.model)break;
         let comparison:MainComparison;
         try{
           if(ctx.hasUI)ctx.ui.setStatus(statusKey,'Work 결과와 현재 Main 결정 비교 중');
