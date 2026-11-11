@@ -4,6 +4,7 @@ import { POLICY_MESSAGE, policyDelta, renderPolicyDelta, workKnownDecisionIds,
   type PolicyDecision } from '../src/policy/decisions.ts';
 import { resolvePolicyMain } from '../src/policy/owners.ts';
 import { readPolicySnapshot, watchPolicySnapshot } from '../src/policy/store.ts';
+import { isSnapshotCurrentAtHandoff } from '../src/policy/verification.ts';
 
 export type WorkPolicyStatus = {
   status:'checked'|'delivered'|'pending'|'unavailable';
@@ -81,7 +82,16 @@ export async function getWorkPolicyStatus(
   if(!owner)return {status:'unavailable',pendingDecisionIds:[],withdrawnDecisionIds:[]};
   const main=mainId??await resolvePolicyMain(owner);
   if(!main)return {status:'unavailable',pendingDecisionIds:[],withdrawnDecisionIds:[]};
-  return (await check(ctx,main)).status;
+  const raw=(await check(ctx,main)).status;
+  if(raw.status==='unavailable')return raw;
+  // This expensive read runs only from the explicit Work Handoff reviewer.
+  // A stale local snapshot never silently claims policy freshness.
+  try{
+    const snapshot=await readPolicySnapshot(main);
+    if(!snapshot||!(await isSnapshotCurrentAtHandoff(snapshot)))
+      return {...raw,status:'unavailable' as const};
+  }catch{return {...raw,status:'unavailable' as const};}
+  return raw;
 }
 
 /**
