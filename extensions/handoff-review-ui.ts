@@ -130,6 +130,8 @@ export function showReferenceContextReview(
         'Work → Main · Handoff Brief',
         '현재 선택으로 Main에 전달되는 내용 · Space로 포함/제외',
         '전달할 결과 '+chosenClaims.length+'건 · 연결된 WHY·제약 '+linked.length+'건',
+        ...(pkg.policySync?[ 'Main 정책 최신성: '+pkg.policySync.status+
+          ' · 미확인 '+(pkg.policySync.pendingDecisionIds.length+pkg.policySync.withdrawnDecisionIds.length)+'건']:[]),
         ...chosenClaims.map(c=>'- '+c.title+': '+c.summary),
         '',
         ...briefPreview(7),
@@ -181,6 +183,8 @@ export function showReferenceContextReview(
       const start=Math.max(0,Math.min(index-Math.floor(page/2),visible.length-page));
       const left=[
         '전달할 컨텍스트 · 선택 '+chosen.size+' / '+units.length+' · 현재 후보 '+(index+1)+' / '+visible.length,
+        ...(pkg.policySync?['정책: '+pkg.policySync.status+' · 미확인 '+
+          (pkg.policySync.pendingDecisionIds.length+pkg.policySync.withdrawnDecisionIds.length)+'건']:[]),
         (search?'검색: '+(query||'입력 중…'):' / 검색 · Space 선택'),
         '',
         ...visible.slice(start,start+page).flatMap((unit,i)=>[
