@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { constants } from 'node:fs';
+import { constants, watch } from 'node:fs';
 import { link, lstat, mkdir, open, readdir, realpath, rename, unlink } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -156,4 +156,26 @@ export async function listInbox(mainSessionId: string): Promise<InboxItem[]> {
     results.push({pkg,status});
   }
   return results.sort((a,b) => b.pkg.createdAt.localeCompare(a.pkg.createdAt));
+}
+
+/**
+ * Observe only NEW durable package files in the recipient's private inbox.
+ * This is a same-machine fallback when pi-intercom is unavailable; the
+ * complete payload is still read through listInbox/readHandoff and validated.
+ * Status writes and temporary files never trigger another comparison.
+ *
+ * Callers must close on Main session switch/shutdown. The recipient directory
+ * is created and security-checked by the existing store implementation.
+ */
+export async function watchHandoffPackages(
+  mainSessionId:string,onPackage:()=>void,
+):Promise<()=>void>{
+  const dir=await recipientDir(mainSessionId);
+  const watcher=watch(dir,{persistent:false},(_event,name)=>{
+    if(typeof name!=='string')return;
+    if(!name.endsWith('.json')||name.endsWith('.status.json'))return;
+    if(!ID.test(name.slice(0,-5)))return;
+    onPackage();
+  });
+  return ()=>watcher.close();
 }
