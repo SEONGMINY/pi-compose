@@ -1,11 +1,11 @@
 import { randomUUID, createHash } from 'node:crypto';
 import { withState, readState, projectPaths, readProjectConfig, enqueue } from './store.mjs';
-import { initialPlan, validatePlan, classifyFollowup } from './plan.mjs';
+import { initialPlan, validatePlan, classifyFollowup, isClearlyNonDevelopment } from './plan.mjs';
 import { chooseForecast } from './forecast.mjs';
 
 const iso = () => new Date().toISOString();
 const digest = s=>createHash('sha256').update(s).digest('hex');
-const allowed = new Set(['prompt','usage','request-start','request-end','settled','interrupt','end','verify-passed','verify-failed']);
+const allowed = new Set(['prompt','usage','request-start','request-end','scope-change','settled','interrupt','end','verify-passed','verify-failed']);
 const validId=s=>typeof s==='string'&&s.length>0&&s.length<240;
 const onlyNumber=n=>Number.isSafeInteger(n)&&n>=0?n:null;
 const normalizeTokens=raw=>{
@@ -17,8 +17,9 @@ const normalizeTokens=raw=>{
 };
 
 /** Provider-normalized event entrypoint. Hook repeats and cross-process races are serialized. */
-export async function ingest({cwd,agent,sessionId,turnId,event,prompt,usage,eventId,plan,kind='feature',sessionFile,taskIntent='auto',stepId}) {
+export async function ingest({cwd,agent,sessionId,turnId,event,prompt,usage,eventId,plan,kind='feature',sessionFile,taskIntent='auto',stepId,requestAgentId=null,requestStatus=null,planProvenance=null}) {
   if(!allowed.has(event))throw Error(`Unsupported event ${event}`);
+  if(event==='verify-passed'||event==='verify-failed')throw Error('Verification must be submitted by trusted worker, not provider hooks');
   if(!['auto','new','continue','rework'].includes(taskIntent))throw Error('Invalid task intent');
   if(!['pi','codex','other'].includes(agent)||!validId(sessionId)||!validId(turnId))throw Error('Invalid agent/session/turn');
   const {dir,root}=projectPaths(cwd);
@@ -32,12 +33,13 @@ export async function ingest({cwd,agent,sessionId,turnId,event,prompt,usage,even
     let task=session.activeTaskId?state.tasks[session.activeTaskId]:null;
     if(event==='prompt'){
       if(typeof prompt!=='string'||!prompt.trim())throw Error('Prompt required');
+      if(taskIntent==='auto'&&isClearlyNonDevelopment(prompt))return {ignored:true,reason:'high-confidence-non-development'};
       // A provider may repeat the same turn with no event ID. Never invent another Run.
       const runId=`${agent}:${sessionId}:${turnId}`;
       const previousRunTask=Object.values(state.tasks).find(t=>t.runs.some(r=>r.id===runId));
       if(previousRunTask)return {duplicate:true,taskId:previousRunTask.id,runId,forecast:previousRunTask.forecast};
       const previous=task??(session.lastTaskId?state.tasks[session.lastTaskId]:null);
-      const classification=taskIntent==='auto'?classifyFollowup(prompt):{intent:taskIntent,basis:'provider-explicit'};
+      const classification=taskIntent==='auto'?classifyFollowup(prompt,previous?.title??''):{intent:taskIntent,basis:'provider-explicit'};
       const resumable=previous && ['running','awaiting-verification','delivered-unverified','verification-failed','interrupted'].includes(previous.status);
       const reuse=resumable && ['continue','rework'].includes(classification.intent);
       if(reuse){
@@ -53,10 +55,10 @@ export async function ingest({cwd,agent,sessionId,turnId,event,prompt,usage,even
         const id=randomUUID();
         const forecast=chooseForecast(state.tasks,{agent,kind,seed:cfg.forecastSeed});
         const steps=validatePlan(plan??initialPlan(prompt)).map(p=>({...p,status:'pending',runs:[]}));
-        task={id,agent,sessionId,kind,title:prompt.slice(0,200),originalPromptHash:digest(prompt),steps,
+        task={id,agent,sessionId,kind,title:prompt.slice(0,200),originalPromptHash:digest(prompt),steps,planProvenance:planProvenance??'deterministic',
           forecast,status:'running',startedAt:iso(),startedAtMs:Date.now(),runs:[],
           tokenUsage:{observed:0,events:0,missingEvents:0,coverage:'observed-events-only'},
-          checks:cfg.checks,workdir:root,verification:null,actual:null,
+          checks:cfg.checks,acceptanceContracts:cfg.acceptanceContracts,workdir:root,verification:null,actual:null,
           relatedTaskId:previous?.id??null,relation:previous?classification.intent:'initial',
           boundaryBasis:previous?classification.basis:'first-task',reopenCount:0,deliveries:[],revision:0};
         state.tasks[id]=task;session.activeTaskId=id;
@@ -83,21 +85,42 @@ export async function ingest({cwd,agent,sessionId,turnId,event,prompt,usage,even
     task=Object.values(state.tasks).find(t=>t.runs.some(r=>r.id===runId));
     if(!task)return {ignored:true,reason:'unknown-turn'};
     const run=task.runs.find(x=>x.id===runId);
+    if(event==='scope-change'){
+      // A model may extend the plan, but must never rewrite already started
+      // obligations or retroactively alter the forecast.
+      const refined=validatePlan(plan);
+      if(refined.length<=task.steps.length)throw Error('A scope change must append at least one step');
+      for(let i=0;i<task.steps.length;i++){
+        const {id,goal,ac,dependencies}=task.steps[i];
+        if(JSON.stringify(refined[i])!==JSON.stringify({id,goal,ac,dependencies}))
+          throw Error('Existing plan steps are immutable after execution starts');
+      }
+      const appended=refined.slice(task.steps.length).map(x=>({...x,status:'pending',runs:[]}));
+      task.steps.push(...appended);
+      task.scopeChanges??=[];
+      task.scopeChanges.push({at:iso(),runId,addedStepIds:appended.map(x=>x.id),basis:'explicit-plan-extension',
+        originalForecastPreserved:true});
+      task.revision=(task.revision??0)+1;task.updatedAt=iso();
+      return {taskId:task.id,revision:task.revision,addedSteps:appended.length,forecast:task.forecast};
+    }
     if(event==='request-start'){
       // Codex does not expose a stable model-attempt ID in its public hook
       // schema. Pair PreModelRequest/PostModelRequest by turn and queue order.
       // This is best-effort; concurrent/out-of-order callbacks remain uncertain.
       run.modelRequests??=[];
-      const attempt={id:`local-${run.modelRequests.length+1}`,startedAt:iso(),state:'pending',idProvenance:'local-sequence'};
+      const attempt={id:`local-${run.modelRequests.length+1}`,startedAt:iso(),state:'pending',idProvenance:'local-sequence',
+        agentId:requestAgentId??null};
       run.modelRequests.push(attempt);
     } else if(event==='request-end'){
       run.modelRequests??=[];
-      const attempt=run.modelRequests.find(x=>x.state==='pending');
+      // Pair by agent identity first; otherwise concurrent subagent callbacks
+      // could be charged to the wrong attempt. Attempt IDs remain best-effort.
+      const attempt=run.modelRequests.find(x=>x.state==='pending' && x.agentId===(requestAgentId??null));
       if(!attempt){
         run.missingUsage++;task.tokenUsage.missingEvents++;
         return {ignored:true,reason:'unmatched-model-request',taskId:task.id,runId};
       }
-      attempt.state='observed';attempt.endedAt=iso();
+      attempt.state='observed';attempt.endedAt=iso();attempt.outcome=requestStatus??'unknown';
       const amount=normalizeTokens(usage);
       if(amount===null){
         run.missingUsage++;task.tokenUsage.missingEvents++;attempt.tokens=null;

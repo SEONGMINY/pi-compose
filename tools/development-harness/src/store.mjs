@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, open, readFile, rename, unlink, stat } from 'node:fs/promises';
 import { join, resolve, dirname, isAbsolute } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import {validateCheckCommand,validateAcceptanceContracts} from './acceptance.mjs';
 
 export function projectPaths(cwd) {
   const here = resolve(cwd);
@@ -56,12 +57,17 @@ export async function withState(dir, fn) {
 export async function readProjectConfig(root) {
   let config;
   try {config=JSON.parse(await readFile(join(root,'.devh.json'),'utf8'))}
-  catch(e){if(e.code==='ENOENT')return {checks:[],forecastSeed:null};throw e}
+  catch(e){if(e.code==='ENOENT')return {checks:[],forecastSeed:null,acceptanceContracts:{}};throw e}
   if(!Array.isArray(config.checks) || config.checks.length>4)throw Error('Invalid trusted project checks');
-  for(const c of config.checks){
-    if(!Array.isArray(c) || c.length<2 || c.length>12 || c[0]!=='npm' || c[1]!=='run' || !c.slice(2).every(s=>/^[a-zA-Z0-9:_-]+$/.test(s))) throw Error('Only explicit npm run script checks supported');
-  }
-  return config;
+  for(const c of config.checks)validateCheckCommand(c);
+  validateAcceptanceContracts(config.acceptanceContracts??{});
+  if(config.planning!==undefined && (!config.planning || !['deterministic','bounded-pi'].includes(config.planning.mode) ||
+    (config.planning.timeoutMs!==undefined && (!Number.isInteger(config.planning.timeoutMs)||config.planning.timeoutMs<1_000||config.planning.timeoutMs>10_000))))
+    throw Error('Invalid planning mode or timeout');
+  if(config.improvement!==undefined && (typeof config.improvement!=='object'||config.improvement===null||
+    (config.improvement.autoReview!==undefined&&typeof config.improvement.autoReview!=='boolean')||
+    (config.improvement.autoImprove!==undefined&&typeof config.improvement.autoImprove!=='boolean')))throw Error('Invalid improvement configuration');
+  return {...config,acceptanceContracts:config.acceptanceContracts??{}};
 }
 export function enqueue(state, type, taskId, reason) {
   const key = `${type}:${taskId}`;

@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import {ingest} from '../src/core.mjs';
+import {readProjectConfig,projectPaths} from '../src/store.mjs';
+import {choosePlan} from '../src/planner.mjs';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 const readAll=async()=>{let value='';for await(const chunk of process.stdin)value+=chunk;if(value.length>1_000_000)throw Error('Hook payload too large');return JSON.parse(value)};
@@ -7,10 +9,16 @@ try {
  const input=await readAll();
  const type=input.hook_event_name,sessionId=input.session_id,turnId=input.turn_id??`session-${sessionId}`;
  if(!sessionId||!type)process.exit(0);
+ if(process.env.DEVH_IMPROVEMENT_WORKER==='1')process.exit(0); // never recursively instrument improvement work
  const cwd=input.cwd??process.cwd();
- const base={cwd,agent:'codex',sessionId,turnId};
+ const base={cwd,agent:'codex',sessionId,turnId,requestAgentId:input.agent_id??null,requestStatus:input.status??null};
  let result;
- if(type==='UserPromptSubmit')result=await ingest({...base,event:'prompt',prompt:input.prompt,eventId:`start:${turnId}`});
+ if(type==='UserPromptSubmit'){
+   const config=await readProjectConfig(projectPaths(cwd).root);
+   const planned=await choosePlan(input.prompt,cwd,config.planning??{});
+   result=await ingest({...base,event:'prompt',prompt:input.prompt,eventId:`start:${turnId}`,
+     plan:planned.steps,planProvenance:planned.provenance});
+ }
  else if(type==='PreModelRequest')result=await ingest({...base,event:'request-start'});
  else if(type==='PostModelRequest'){
    result=await ingest({...base,event:'request-end',usage:input.token_usage});

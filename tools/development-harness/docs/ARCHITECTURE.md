@@ -1,16 +1,19 @@
-# Architecture
+# Development harness architecture — operational design
 
-`Pi/Codex lifecycle events -> provider adapter -> core Task/Step/Run store -> worktree-shared durable state -> verification queue -> cheap triage -> separate improvement review queue`
+`Pi/Codex -> provider event adapter -> Task/Step/Run ledger -> verified check worker -> cheap triage -> review queue -> read-only AI review -> evidence/cost selection -> candidate queue -> isolated worktree change -> fixed checks -> independent verification -> local-only conditional integration`
 
-The adapter does not own planning, forecasting, state transitions, or analysis. It only translates provider inputs into a stable event contract.
+## Boundaries
 
-- **Task**: user goal; `running`, `awaiting-verification`, `delivered-unverified`, `completed` (reserved for independently proven semantic acceptance), `verification-failed`, `interrupted`. A provider run's stop and passing project checks are both insufficient evidence of semantic completion. Task boundary inference is conservative and preserves its basis.
-- **Step**: verifiable unit; deterministic initial decomposition only for explicit Step/Phase headings, not arbitrary numbered requirements. More detailed AI plans require strict schema and immutable revision trail.
-- **Run**: actual agent turn. Provider-specific identity and observed usage. Old Run events resolve by Run ID even after a new Task becomes active. Codex model attempts pair Pre/Post hooks best-effort without a provider attempt ID. One Task can have many Runs and Steps.
-- **Queue**: a check task is triggered after the final run; asynchronous worker ensures developer output is not delayed; durable queue survives process restarts (with a stale-run recovery policy).
-- **Review**: anomalies and repeated waste become candidates. No immediate AI model call per task, no direct self-improvement from a Hook.
-- **Storage**: JSON snapshot protected by exclusive file lock; atomic rename writes. Worktree-common `.git` directory is shared; remote/cloud sync is out of scope.
+- **Task**: user goal, stable ID, original immutable pre-work forecast, related/rework links, revision log. A later turn does not rewrite an earlier forecast.
+- **Step**: verifiable milestone (1–8). Explicit phases may be split; numbered requirements do not imply sequential implementation. Plans can only **append** new steps after execution starts.
+- **Run**: provider session+turn; repeated hooks use stable event IDs. Agent request attempts may be missing IDs. Child-agent token use is only attributed when its parent turn and request hooks can be matched, and is never asserted exhaustive.
+- **Acceptance**: project owner declares exact `criterion -> npm run SCRIPT` checks in `.devh.json`. Only the worker runs them and issues receipts. Passing the general project suite yields `delivered-unverified`; matching complete Step contracts yield `completed` **by declared contract**, not an assertion about unspecified user expectations. Provider hooks cannot self-attest.
+- **Measurement**: wall vs observed agent run+test duration separate; tokens are observed-only/unknown. A source without token evidence is not recorded as 0.
+- **Review**: evidence-bound AI hypotheses; economics prioritize architecture, then gates, AI instructions, user behavior. Unknown feasibility or time/token cost tradeoffs block automation. Model proposals are never themselves permission to edit.
+- **Improve**: local Git-common-dir `development-harness/automation-policy.json` defines exact allowed paths, fixed checks and mode. A review/model must be independently verified in a detached worktree. Default `draft` leaves a local branch, and only explicit `local-main` policy allows local fast-forward. No remote push. Critical harness control plane and test files are ineligible for automatic edits.
+- **Storage/recovery**: one JSON state snapshot protected by an exclusive file lock, atomic rename and stale PID lock recovery. Review/attempt receipts are stored separately. A failed model review is requeued with backoff, and accepted attempt receipts prevent replay. Git worktrees on the same computer share Git-common state.
+- **Execution**: project-local Hook/Extension installation; no new orchestrator, Docker, server or daemon. A detached verification worker runs on Stop/agent_settled; if it dies, later invocations can resume. Separate review/improve work is opt-in per trusted project, and is never part of the synchronous developer turn.
 
-In-flight verification uses a Task revision snapshot; if another Run changes the Task, the old verdict is discarded. The Queue is durable and resumes on a later invocation.
+## Honest limitations
 
-Important missing behavior: approved project scope tracking, step-level AC attestations, stronger completion detection, crash recovery of locks and direct user fixes of failed work. Validate before claiming fully automatic.
+No AI planner is invoked automatically: the default planner is conservative and only treats explicit Step/Phase headings as phases. No complete real Pi/Codex E2E was run in this environment. Codex attempt IDs and nested agents are not guaranteed; output tokens can be missing. AC tests verify only their declared commands, not arbitrary semantic user requirements. Cloud work and offline processing are outside scope. AI review token budgets cannot be enforced precisely without provider usage telemetry.

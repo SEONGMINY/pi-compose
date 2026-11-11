@@ -1,5 +1,6 @@
 import {spawnSync} from 'node:child_process';
 import {projectPaths, withState, readState, enqueue} from './store.mjs';
+import {acceptanceForStep} from './acceptance.mjs';
 
 const iso=()=>new Date().toISOString();
 const finite=n=>typeof n==='number'&&Number.isFinite(n)&&n>=0;
@@ -20,18 +21,39 @@ export function triage(task,priorTasks=[]) {
     inference:'matching anomalies are not proof of a shared root cause',estimatedNetSaving:null};
 }
 async function runChecks(task){
-  if(!task.checks?.length)return {state:'unverified',results:[],reason:'No project-specific trusted checks configured'};
   const results=[];
-  for(const cmd of task.checks){
+  const execCheck=(cmd,scope,stepId=null,criterion=null)=>{
     const t=Date.now();
     const r=spawnSync(cmd[0],cmd.slice(1),{cwd:task.workdir,encoding:'utf8',timeout:120_000,
       maxBuffer:1_000_000,env:process.env});
-    const row={command:cmd,ms:Date.now()-t,exitCode:r.status,error:r.error?.message??null,
+    const row={command:cmd,scope,stepId,criterion,ms:Date.now()-t,exitCode:r.status,error:r.error?.message??null,
       outputTail:(String(r.stdout??'')+'\n'+String(r.stderr??'')).slice(-1200)};
     results.push(row);
-    if(r.status!==0)return {state:'failed',results,reason:'A required project check failed'};
+    return r.status===0 && !r.error;
+  };
+  for(const cmd of task.checks??[]){
+    if(!execCheck(cmd,'project-check'))return {state:'failed',results,reason:'A required project check failed',acceptance:{state:'failed',steps:{}}};
   }
-  return {state:'passed',results,reason:null};
+  const stepResults={};
+  let completeContract=task.steps.length>0;
+  for(const step of task.steps){
+    const contract=acceptanceForStep(step,task.acceptanceContracts);
+    const receipts=[];
+    for(const entry of contract.covered?contract.entries:[]){
+      const passed=execCheck(entry.command,'acceptance-check',step.id,entry.criterion);
+      receipts.push({criterion:entry.criterion,command:entry.command,passed});
+      if(!passed)return {state:'failed',results,reason:`Step ${step.id} acceptance check failed`,
+        acceptance:{state:'failed',steps:{...stepResults,[step.id]:{state:'failed',receipts}}}};
+    }
+    const ok=contract.covered && receipts.length===step.ac.length;
+    stepResults[step.id]={state:ok?'verified-by-contract':'unverified',receipts,missing:contract.missing,unexpected:contract.unexpected};
+    if(!ok)completeContract=false;
+  }
+  if(!results.length)return {state:'unverified',results,reason:'No project-specific trusted checks or complete acceptance contracts configured',
+    acceptance:{state:'unverified',steps:stepResults}};
+  return {state:'passed',results,reason:null,
+    acceptance:{state:completeContract?'verified-by-contract':'unverified',steps:stepResults,
+      limitation:'Only the project-owner-declared executable criteria were checked; unlisted feature behavior is not proven'}};
 }
 export async function processQueue(cwd,{limit=10,run=runChecks}={}){
   const {dir}=projectPaths(cwd);let processed=[];
@@ -53,14 +75,13 @@ export async function processQueue(cwd,{limit=10,run=runChecks}={}){
       }
       task.verification={...verdict,finishedAt:iso()};q.state='done';q.finishedAt=iso();
       if(verdict.state==='passed'){
-        // Project checks are trustworthy technical evidence, not proof that the
-        // user's functional AC was satisfied. Never report semantic completion.
-        task.status='delivered-unverified';task.finishedAt=iso();
-        task.acceptance={state:'unverified',reason:'Project checks passed; Step acceptance criteria have no independent attestation'};
-        for(const step of task.steps)step.status='checks-passed-ac-unverified';
+        const contractAccepted=verdict.acceptance?.state==='verified-by-contract';
+        task.status=contractAccepted?'completed':'delivered-unverified';task.finishedAt=iso();
+        task.acceptance=verdict.acceptance??{state:'unverified',steps:{}};
+        for(const step of task.steps)step.status=task.acceptance.steps?.[step.id]?.state==='verified-by-contract'?'verified-by-contract':'checks-passed-ac-unverified';
       }else if(verdict.state==='failed'){
         task.status='verification-failed';task.finishedAt=iso();
-        task.acceptance={state:'failed',reason:verdict.reason};
+        task.acceptance={...(verdict.acceptance??{state:'failed'}),reason:verdict.reason};
       }else {
         task.status='awaiting-verification';
         task.updatedAt=iso();return {taskId:task.id,state:'awaiting-verification'};
@@ -93,7 +114,7 @@ export async function recoverQueue(cwd,{olderThanMs=600_000}={}){
   return withState(dir,s=>{
     const recovered=[];
     for(const [id,q] of Object.entries(s.queue)){
-      if(q.type==='verify'&&q.state==='running'&&Date.now()-Date.parse(q.startedAt)>olderThanMs){
+      if(['verify','improve'].includes(q.type)&&q.state==='running'&&Date.now()-Date.parse(q.startedAt)>olderThanMs){
         q.state='pending';q.reason='recovered-stale-worker';recovered.push(id)
       }
     }
