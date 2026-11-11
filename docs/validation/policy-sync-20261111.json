@@ -153,12 +153,16 @@
       "state": "design_pending",
       "code": [
         "extensions/policy-main.ts",
-        "test/policy-main-evidence.test.ts"
+        "test/policy-main-evidence.test.ts",
+        "src/policy/store.ts",
+        "extensions/policy-work.ts",
+        "src/handoff/brief.ts"
       ],
       "checks": [
         "unmatched user phrasing detection recall evaluated",
         "full historical resolution when option omitted from bounded excerpts",
-        "low-confidence states surfaced without fake approval"
+        "low-confidence states surfaced without fake approval",
+        "Unreviewed explicit approval candidates mark Work freshness unavailable until examined"
       ]
     },
     {
@@ -205,7 +209,7 @@
   ],
   "knownLimitations": [
     "Natural-language approval extraction accuracy and recall have not been evaluated against real model responses; false approvals or missed decisions remain possible.",
-    "Approval scan inspects up to three unreviewed candidates per settle; older backlog may require later session activity.",
+    "Approval scanner evaluates up to three unreviewed candidates per settle; remaining candidates are exported as unresolved freshness rather than silently marked complete. Further Main activity is needed to drain backlog.",
     "The owner-main default delivers decisions to all of that Main's linked Work agents. Semantic domain relevance filtering has not been validated.",
     "Automatic stop enforcement only handles explicit all-Work stops. Ambiguous or single-Work stop scope is not automatically published.",
     "A delivered policy is not proof that Work changed files or passed tests. No verified applied-state receipt exists yet.",
