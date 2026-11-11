@@ -19,6 +19,12 @@ export function registerDirectWorkPolicyCheck(pi:ExtensionAPI):void{
 
   pi.on('input',async(event,ctx)=>{
     if(event.source!=='interactive')return {action:'continue'};
+    if(/^>p(?:\s|$)/.test(event.text)){
+      if(ctx.hasUI)ctx.ui.notify(
+        '>p는 폐기됐습니다. Work의 확정 정책 확인은 ?p, Main의 미확정 승인 후보는 /compose policy를 사용하세요.',
+        'warning');
+      return {action:'handled'};
+    }
     if(!/^\s*\?p(?:\s|$)/.test(event.text)){
       // A prior transformed turn may have failed to start; do not carry a
       // read-only guard over into an unrelated later user request.
