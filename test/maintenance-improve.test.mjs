@@ -15,10 +15,11 @@ async function fixture(t,mode='draft') {
   git(root,'init','--initial-branch=main');
   await mkdir(join(root,'src')); await mkdir(join(root,'.maintenance','reviews'),{recursive:true});
   await mkdir(join(root,'test'));
+  await writeFile(join(root,'package.json'),JSON.stringify({name:'test-project',private:true,scripts:{check:'node --test'}}));
   await writeFile(join(root,'.gitignore'),'.maintenance/\n');
   await writeFile(join(root,'src','a.js'),'export const flag = false;\n');
   await writeFile(join(root,'test','maintenance-smoke.test.mjs'),"import test from 'node:test';test('smoke',()=>{});\n");
-  git(root,'add','.gitignore','src/a.js','test/maintenance-smoke.test.mjs');
+  git(root,'add','.gitignore','src/a.js','test/maintenance-smoke.test.mjs','package.json');
   git(root,'-c','user.name=Test','-c','user.email=test@example.com','commit','-m','base');
   const base=git(root,'rev-parse','HEAD');
   const policyFile=join(root,'.maintenance','automation-policy.json');
@@ -48,10 +49,11 @@ test('native worktree checks do not use Docker and have fixed binaries',async t=
   const results=await runTrustedChecks(f.root,['maintenance','project'],async (bin,args)=>{
     calls.push({bin,args});return {code:0,timedOut:false,stdout:'ok',stderr:''};
   });
-  assert.equal(results.length,2);
+  assert.equal(results.length,3);
   assert.equal(calls[0].bin,process.execPath);
   assert.equal(calls[1].bin,'npm');
-  assert.deepEqual(calls[1].args,['run','check']);
+  assert.deepEqual(calls[1].args,['install','--no-package-lock','--ignore-scripts','--no-audit','--no-fund']);
+  assert.deepEqual(calls[2].args,['run','check']);
   assert.equal(calls.some(c=>c.bin==='docker'),false);
 });
 
