@@ -115,7 +115,8 @@
         "unavailable/pending clearly printed",
         "review-time policy race cancels send",
         "Handoff verifies local cache leaf against persisted Main active branch"
-      ]
+      ],
+      "userObservedEvidence": "Main displayed Work-approved Brief including work-reported test states, original WHY/constraints, policy freshness checked."
     },
     {
       "id": "P08",
@@ -130,7 +131,8 @@
         "no comparator calls",
         "no extra Main model turn",
         "Work->Work->Main verified"
-      ]
+      ],
+      "userObservedEvidence": "Main displayed compose_context_review_import with attributed Work Brief. Absence of semantic comparator requires code/runtime verification."
     },
     {
       "id": "P09",
@@ -145,7 +147,8 @@
         "message_end receipt",
         "rewound branch no duplicate assumption",
         "correct branch at import time"
-      ]
+      ],
+      "userObservedEvidence": "Main displayed an import message. Branch-local receipt and crash recovery remain untested."
     },
     {
       "id": "P10",
@@ -204,7 +207,7 @@
     "githubActions": "NO_RUNS_FOR_BRANCH",
     "localTypecheck": "NOT_RUN",
     "localNodeTests": "NOT_RUN",
-    "macOSGhostty": "PARTIAL_USER_REPORTED: Main B decision auto-recorded; existing Work displayed 1 pending policy change and successfully understood B-only passkey policy. Handoff/branch/offline not yet exercised."
+    "macOSGhostty": "PARTIAL_USER_REPORTED_E2E: Main approved B-only passkey policy, previously forked Work detected and understood 1 change, Work generated an exact Handoff Brief, and Main displayed [compose_context_review_import] with policy freshness checked and source attribution. No independent Pi receipt/session log or full resilience tests."
   },
   "nonGoals": [
     "pi-compose internal development harness modifications",
@@ -237,6 +240,21 @@
       "status": "USER_REPORTED_PASS",
       "verifiedBy": "user conversation",
       "limitations": "No Work session logs or actual Handoff receipt inspected"
+    },
+    {
+      "scenario": "Work → Main Handoff: user supplied Main-side [compose_context_review_import] showing four work-reported claims, original quoted constraints/WHY, policy freshness 'checked', source Work session, and explicit no-policy-authority framing.",
+      "status": "USER_OBSERVED_PASS",
+      "verifiedBy": "user-supplied Main output in chat",
+      "limitations": "Visible import message confirms end-to-end display, but not internal persistent receipt, comparison-model absence from logs, test execution, or independent truth of Work's file/status claims."
+    }
+  ],
+  "qualityFindings": [
+    {
+      "id": "Q01",
+      "severity": "usability_and_context_cost",
+      "evidence": "User-supplied Handoff repeats one file-creation result as four numbered claims and reprints same scope/verification facts across summary, verbatim quotes and WHY/conditions.",
+      "improvementDirection": "Keep a concise Main-facing outcome, changed file, policy decision and rationale, test/verification status, unresolved items; retain full provenance in expandable or inspectable evidence and avoid redundant repeated excerpts.",
+      "state": "NOT_IMPLEMENTED"
     }
   ]
 }
