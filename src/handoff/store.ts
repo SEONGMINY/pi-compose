@@ -172,6 +172,9 @@ export async function watchHandoffPackages(
 ):Promise<()=>void>{
   const dir=await recipientDir(mainSessionId);
   const watcher=watch(dir,{persistent:false},(_event,name)=>{
+    // Some macOS/Node filesystem events have no filename. In that case a
+    // durable inbox rescan is safer than silently losing a Work Handoff.
+    if(name===null){onPackage();return;}
     if(typeof name!=='string')return;
     if(!name.endsWith('.json')||name.endsWith('.status.json'))return;
     if(!ID.test(name.slice(0,-5)))return;
