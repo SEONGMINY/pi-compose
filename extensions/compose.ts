@@ -10,20 +10,21 @@ import { openMainContextReceive, registerMainContextImportReceipts, registerAuto
 import { readAgentRelationship } from '../src/agent-relationships.ts';
 import { registerPolicyMain } from './policy-main.ts';
 import { registerPolicyWork } from './policy-work.ts';
-import { registerDirectPolicyReview } from './direct-policy-review.ts';
+import { registerDirectWorkPolicyCheck } from './direct-work-policy-check.ts';
 import { registerDirectWorkResume, registerWorkResumeAutocomplete } from './direct-resume.ts';
 
 /**
  * The user starts a Work with >w and explicitly shares selected context with <.
  * The Main records approved policy decisions; Work consumes only scoped deltas.
  * A Work-approved Handoff imports by origin/integrity checks without semantic re-review.
- * >r resumes an existing Work; >p reviews unresolved policy candidates.
+ * >r resumes an existing Work; ?p lets Work inspect approved policy deltas.
+ * Main's exceptional unresolved-approval review remains /compose policy.
  */
 export default function composeExtension(pi: ExtensionAPI): void {
   registerAgentIdentity(pi);
   const policyReview=registerPolicyMain(pi);
   registerPolicyWork(pi);
-  registerDirectPolicyReview(pi,policyReview.openReview);
+  registerDirectWorkPolicyCheck(pi);
   const { showHandoff, connectedRecipientIds } = registerHandoff(pi);
   const mainAdoption=registerAutomaticMainAdoption(pi);
   const receiver = registerHandoffInbox(pi,mainAdoption.onAvailable);
@@ -65,7 +66,7 @@ export default function composeExtension(pi: ExtensionAPI): void {
       if(command==='messages'){await showHandoffHistory(ctx);return;}
       ctx.ui.notify(
         '사용법: Main에서 >w 새 Work 위임 · Work에서 < Handoff 승인 · Main에서 < 예외 수신 확인. '+
-        '기타: >r 기존 Work 재개 · Main에서 >p 정책 후보 확인. '+
+        '기타: >r 기존 Work 재개 · Work에서 ?p 정책 변경 확인 · Main은 /compose policy로 미확정 후보 검토. '+
         '추가 명령: /compose policy, /compose handoff, /compose messages, /compose surfaces.',
         'warning',
       );
