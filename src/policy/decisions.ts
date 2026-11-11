@@ -42,7 +42,7 @@ export function decisionId(mainId: string, approvalId: string, sourceId: string,
  */
 export function isExecutionModeOnlyChoice(text:string):boolean {
   const normalized=text.trim().replace(/[.!。]+$/,'').replace(/\s+/g,'');
-  return /^(?:문서화|문서작성|문서만|코드구현|코드수정|구현|테스트)(?:로|만|부터|하기로)?(?:진행(?:합니다|하겠습니다|해주세요|해요|할게요)?|해주세요|선택합니다|할게요|하겠습니다)?$/.test(normalized);
+  return /^(?:문서화|문서작성|문서만|코드구현|코드수정|구현|테스트)(?:로|으로|만|부터|하기로)?(?:진행(?:합니다|하겠습니다|해주세요|해요|할게요)?|해주세요|선택합니다|할게요|하겠습니다)?$/.test(normalized);
 }
 
 /**
