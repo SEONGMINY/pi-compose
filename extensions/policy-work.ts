@@ -12,6 +12,7 @@ export type WorkPolicyStatus = {
   revision?:string;
   pendingDecisionIds:string[];
   withdrawnDecisionIds:string[];
+  unreviewedApprovalCount?:number;
 };
 type Change = {
   mainId:string;
@@ -52,8 +53,10 @@ async function check(ctx:ExtensionContext,mainId:string):Promise<{
   const answeredAfter=lastReceipt<0 || branch.slice(lastReceipt+1).some(e=>
     e.type==='message'&&e.message.role==='assistant'&&e.message.stopReason==='stop');
   const status:WorkPolicyStatus={
-    status:pending?'pending':answeredAfter?'checked':'delivered',
+    status:snapshot.unreviewedApprovalEntryIds.length?'unavailable':
+      pending?'pending':answeredAfter?'checked':'delivered',
     mainSessionId:mainId,revision:snapshot.revision,
+    unreviewedApprovalCount:snapshot.unreviewedApprovalEntryIds.length,
     pendingDecisionIds:delta.added.map(d=>d.id),
     withdrawnDecisionIds:delta.withdrawn,
   };
@@ -120,7 +123,10 @@ export function registerPolicyWork(pi:ExtensionAPI):void{
         result.status.status==='pending'
           ?'Main 정책 변경 '+(result.status.pendingDecisionIds.length+
             result.status.withdrawnDecisionIds.length)+'건 확인 필요'
-          :result.status.status==='unavailable'?'Main 정책 최신성 미확인':
+          :result.status.status==='unavailable'
+            ?'Main 정책 최신성 미확인'+
+              (result.status.unreviewedApprovalCount
+                ?' · 승인 후보 '+result.status.unreviewedApprovalCount+'건 처리 대기':''):
           result.status.status==='delivered'?'Main 정책 알림 수신 · Work 검토 미확인':undefined);
     }catch(error){
       if(ctx.hasUI)ctx.ui.setStatus('pi-compose/policy-sync','Main 정책 조회 실패');
