@@ -9,7 +9,7 @@ import { hasImportedIdenticalWorkBrief } from '../extensions/context-receive.ts'
 const policy='Customers without replies must not be marked resolved.';
 const report='Implemented inquiry status checks. Tests were not run.';
 let fixtureCounter=0;
-function fixture(mode:'valid'|'invalid-context'|'missing-context'|'legacy-transient'='valid'){
+function fixture(mode:'valid'|'invalid-context'|'missing-context'|'legacy-transient'|'empty-context'='valid'){
   const workId='work-unified-'+(++fixtureCounter);
   const owner={
     role:'work' as const,sessionId:workId,product:'demo',
@@ -38,7 +38,7 @@ function fixture(mode:'valid'|'invalid-context'|'missing-context'|'legacy-transi
           candidates:[{title:'Inquiry state check',description:'Reported status implementation.',
             kind:'finding',sourceEntryId:'report',
             quote:'Implemented inquiry status checks.'}],
-          ...(mode==='missing-context'?{}:{context:[{
+          ...(mode==='missing-context'?{}:{context:mode==='empty-context'?[]:[{
             sourceEntryId:'policy',
             quote:(mode==='invalid-context'||mode==='legacy-transient')?'Fabricated policy.':policy,
             reason:'condition',
@@ -166,6 +166,21 @@ test('first < retries a transient WHY lookup without requiring a second user act
   },'main-unified-1');
   // 1 unified call + 1 invalid legacy reply + 1 source-verified retry
   assert.equal(env.calls(),3);
+  assert.equal(pkg.contextAssessment,'selected');
+  assert.equal(pkg.context[0]?.quote,policy);
+});
+
+
+test('empty unified WHY cannot silently discard an explicit historical user restriction',async()=>{
+  const env=fixture('empty-context');
+  const prepared=await prepareManualHandoffCandidates(env.ctx);
+  assert.equal(prepared.status,'prepared');
+  if(prepared.status!=='prepared')return;
+  assert.equal(prepared.draft.contextAssessment,undefined);
+  const pkg=await createSelectedHandoffPackage(env.ctx,env.owner,prepared.draft,{
+    ids:['HC1'],reviewEntryId:'report',
+  },'main-unified-1');
+  assert.equal(env.calls(),2,'the explicit prior policy needs a guarded source check');
   assert.equal(pkg.contextAssessment,'selected');
   assert.equal(pkg.context[0]?.quote,policy);
 });
