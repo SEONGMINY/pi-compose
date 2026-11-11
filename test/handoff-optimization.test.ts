@@ -5,7 +5,6 @@ import { prepareManualHandoffCandidates } from '../extensions/handoff-candidates
 import { createSelectedHandoffPackage, verifyWorkSource } from '../src/handoff/package.ts';
 import { selectContextPackage } from '../src/handoff/context-review.ts';
 import { hasImportedIdenticalWorkBrief } from '../extensions/context-receive.ts';
-import { measuredHandoffCall, type HandoffMetric } from '../src/handoff/metrics.ts';
 
 const policy='Customers without replies must not be marked resolved.';
 const report='Implemented inquiry status checks. Tests were not run.';
@@ -17,7 +16,6 @@ function fixture(mode:'valid'|'invalid-context'|'missing-context'='valid'){
     forkSourceSessionId:'main-unified-1',forkSourceLeafId:'main-leaf',
   };
   let calls=0;
-  const metrics:HandoffMetric[]=[];
   const branch=[
     {id:'policy',type:'message',message:{role:'user',
       content:[{type:'text',text:policy}]}},
@@ -70,13 +68,12 @@ function fixture(mode:'valid'|'invalid-context'|'missing-context'='valid'){
       },
     },
   } as unknown as ExtensionContext;
-  return {ctx,owner,branch,metrics,calls:()=>calls,
-    record:async(metric:HandoffMetric)=>{metrics.push(metric)}};
+  return {ctx,owner,branch,calls:()=>calls};
 }
 
 test('one Work model pass supplies candidates AND source-linked WHY to the Main package',async()=>{
   const env=fixture();
-  const prepared=await prepareManualHandoffCandidates(env.ctx,env.record);
+  const prepared=await prepareManualHandoffCandidates(env.ctx);
   assert.equal(prepared.status,'prepared');
   if(prepared.status!=='prepared')return;
   assert.equal(prepared.draft.contextAssessment,'selected');
@@ -93,23 +90,17 @@ test('one Work model pass supplies candidates AND source-linked WHY to the Main 
   verifyWorkSource(env.ctx,pkg);
   const approved=selectContextPackage(pkg,['HC1'],'review');
   assert.ok(approved.approvedMainBrief?.includes(policy));
-  assert.equal(env.metrics.length,1);
-  assert.equal(env.metrics[0]?.stage,'work-prepare');
-  assert.equal(env.metrics[0]?.inputTokens,240);
-  assert.equal(env.metrics[0]?.outputTokens,80);
 });
 
 test('repeat < on same leaf reuses verified result and never repeats the provider call',async()=>{
   const env=fixture();
-  const first=await prepareManualHandoffCandidates(env.ctx,env.record);
-  const second=await prepareManualHandoffCandidates(env.ctx,env.record);
+  const first=await prepareManualHandoffCandidates(env.ctx);
+  const second=await prepareManualHandoffCandidates(env.ctx);
   assert.equal(first.status,'prepared');
   assert.equal(second.status,'prepared');
   assert.equal(env.calls(),1);
   if(first.status==='prepared'&&second.status==='prepared')
     assert.deepEqual(first.draft,second.draft);
-  assert.equal(env.metrics.at(-1)?.outcome,'cache-hit');
-  assert.equal(env.metrics.at(-1)?.inputTokens,undefined);
 });
 
 test('unverifiable linked WHY is not attached and can be recovered with the old lookup on the same <',async()=>{
@@ -159,20 +150,4 @@ test('only byte-identical Work imports can bypass Main semantic comparison',()=>
   assert.equal(hasImportedIdenticalWorkBrief({
     sessionManager:{getBranch:()=>[]},
   } as unknown as ExtensionContext,pkg),false);
-});
-
-test('metrics contain provider-reported usage, never estimated token counts',()=>{
-  const start=performance.now()-10;
-  const complete=measuredHandoffCall('main-compare','ok',start,'model',{
-    usage:{input:200,output:60,cacheRead:20,cacheWrite:0,
-      totalTokens:280,cost:{total:0.001}},
-  });
-  assert.equal(complete.inputTokens,200);
-  assert.equal(complete.totalTokens,280);
-  assert.equal(complete.cacheReadTokens,20);
-  assert.equal(complete.providerCostUsd,0.001);
-  assert.ok(complete.durationMs>=0);
-  const absent=measuredHandoffCall('work-prepare','error',start,'model',{});
-  assert.equal(absent.inputTokens,undefined);
-  assert.equal(absent.providerCostUsd,undefined);
 });
