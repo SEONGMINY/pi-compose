@@ -330,7 +330,9 @@ export async function prepareManualHandoffCandidates(ctx: ExtensionContext, onMe
       createdAt:new Date().toISOString(),
       candidates:[{...candidate,title:'Work 보고 원문 · 검토 필요',
         description:'완료나 테스트 통과를 검증한 내용이 아닙니다. 실제 원문과 추가 맥락을 확인해주세요.'}],
-      linkedContext:[],contextAssessment:history.length?'unavailable':'none-needed',
+      // Leave context unspecified on a failed unified model pass so the
+      // existing source-backed WHY search can recover on this SAME <.
+      // A model-less run still fails closed in the legacy package builder.
     }};
   };
   if(!ctx.model)return fallback();
@@ -388,12 +390,15 @@ export async function prepareManualHandoffCandidates(ctx: ExtensionContext, onMe
     const candidates=normalized.filter((item):item is HandoffCandidate=>
       Boolean(item&&item!=='unverified-quote'));
     if(!candidates.length)return fallback();
-    const prepared=verifiedLinkedContext(parsed.context,history,candidates.length);
+    const prepared=verifiedLinkedContext(
+      parsed.context??(history.length?undefined:[]),history,candidates.length);
     metricOutcome=prepared.assessment==='unavailable'?'unavailable':'ok';
     const draft:PreparedHandoff={
       version:1,sessionId,sourceLeafId,reportEntryId:source.reportEntryId,
       createdAt:new Date().toISOString(),candidates,
-      linkedContext:prepared.items,contextAssessment:prepared.assessment,
+      ...(prepared.assessment!=='unavailable'
+        ? {linkedContext:prepared.items,contextAssessment:prepared.assessment}
+        : {}),
     };
     // No recomputation of valid WHY when opening < again on the same leaf.
     if(prepared.assessment!=='unavailable'){
