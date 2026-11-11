@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 export type HandoffMetric={
-  stage:'work-prepare'|'main-compare';
+  stage:'work-prepare'|'work-context-fallback'|'main-compare';
   outcome:'ok'|'fallback'|'unavailable'|'cache-hit'|'error';
   durationMs:number;
   modelId?:string;
