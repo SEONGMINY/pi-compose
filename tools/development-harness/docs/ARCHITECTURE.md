@@ -18,3 +18,7 @@
 ## Honest limitations
 
 No AI planner is invoked automatically: the default planner is conservative and only treats explicit Step/Phase headings as phases. No complete real Pi/Codex E2E was run in this environment. Codex attempt IDs and nested agents are not guaranteed; output tokens can be missing. AC tests verify only their declared commands, not arbitrary semantic user requirements. Cloud work and offline processing are outside scope. AI review token budgets cannot be enforced precisely without provider usage telemetry.
+
+## Improvement AI cost receipts
+
+The independent improvement subprocess runs Pi in **one-shot JSON event mode**. It never executes shell commands, uses only the read-only `read,grep,find,ls` tool allowlist, and disables extensions and MCP. The parser counts terminal assistant and compaction usage once, not cumulative streaming snapshots. All review/proposal/verification attempts, including exceptions, persist time/token receipts linked to the relevant Task, review, and change attempt in Git-common `development-harness/model-calls/`. No raw model content is retained. Missing usage is `null`, not zero. The observed-token per-call limit is best-effort; do not treat it as a guaranteed invoice cap or as a verified overall improvement budget.

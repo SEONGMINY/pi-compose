@@ -7,11 +7,12 @@ import { performance } from 'node:perf_hooks';
 import { listTasks } from './bridge.mjs';
 import { runReadOnlyPi } from './review.mjs';
 import { projectPaths } from '../store.mjs';
+import {recordModelCall,listModelCalls} from './model-run.mjs';
 
 const MAX_EDITS = 8;
 const MAX_CHANGED_BYTES = 120_000;
 const SAFE = /^(?:src|extensions|maintenance|docs\/maintenance|tools\/development-harness)\/[a-zA-Z0-9_.\/-]+$/;
-const INTERNAL_GUARD = /^(?:maintenance\/(?:core|cli|review|usage|improve)\.mjs|tools\/development-harness\/(?:src\/(?:core|store|acceptance|worker|forecast|planner|plan)\.mjs|src\/improvement\/(?:review|change|queue|bridge|impact)\.mjs|bin\/devh\.mjs|adapters\/[^/]+))$/;
+const INTERNAL_GUARD = /^(?:maintenance\/(?:core|cli|review|usage|improve)\.mjs|tools\/development-harness\/(?:src\/(?:core|store|acceptance|worker|forecast|planner|plan)\.mjs|src\/improvement\/(?:review|change|queue|bridge|impact|model-run)\.mjs|bin\/devh\.mjs|adapters\/[^/]+))$/;
 const ALLOWED_CHECKS = new Set(['maintenance', 'project', 'harness']);
 function requireThat(value, message) { if (!value) throw new Error(message); }
 function hash(text) { return createHash('sha256').update(text).digest('hex'); }
@@ -206,7 +207,7 @@ export async function executeImprovement({repo,dir,reviewId,policyFile,dryRun=fa
   const started=performance.now();
   const receipt={schemaVersion:1,id:randomUUID(),reviewId,relatedTaskIds:review.taskIds??[],
     policyDigest:policy.sha256,base,mode:policy.mode,startedAt:new Date().toISOString(),
-    state:'running',modelTokens:null,modelTokenCoverage:'unknown',
+    state:'running',modelTokens:null,modelTokenCoverage:'unknown',modelCallIds:[],
     stages:{prepareMs:null,proposeMs:null,checksMs:null,verifyMs:null,integrateMs:null}};
   let temp,worktree;
   try {
@@ -218,9 +219,12 @@ export async function executeImprovement({repo,dir,reviewId,policyFile,dryRun=fa
     receipt.stages.prepareMs=performance.now()-started;
     receipt.proposeStart=new Date().toISOString();
     const proposeStarted=performance.now();
-    const proposed=await propose(editPrompt(review,policy),worktree);
+    const proposed=await recordModelCall({dir,purpose:'propose',reviewId,
+      attemptId:receipt.id,taskIds:receipt.relatedTaskIds},
+      ()=>propose(editPrompt(review,policy),worktree));
+    receipt.modelCallIds.push(proposed.receipt.id);
     receipt.stages.proposeMs=performance.now()-proposeStarted;
-    receipt.editedPaths=await applyEdits(worktree,proposed,policy);
+    receipt.editedPaths=await applyEdits(worktree,proposed.output,policy);
     const changed=await worktreePaths(worktree);
     requireThat(changed.length>0 && changed.length===receipt.editedPaths.length &&
       changed.every(p=>receipt.editedPaths.includes(p)),'Unexpected changed/untracked files');
@@ -234,7 +238,11 @@ export async function executeImprovement({repo,dir,reviewId,policyFile,dryRun=fa
     requireThat((await worktreePaths(worktree)).every(p=>receipt.editedPaths.includes(p)),
       'Checks created unexpected repository changes');
     const verifyStarted=performance.now();
-    receipt.verifier=parseVerdict(await verify(verifierPrompt(review,diff,receipt.tests),worktree));
+    const verified=await recordModelCall({dir,purpose:'verify',reviewId,
+      attemptId:receipt.id,taskIds:receipt.relatedTaskIds},
+      ()=>verify(verifierPrompt(review,diff,receipt.tests),worktree));
+    receipt.modelCallIds.push(verified.receipt.id);
+    receipt.verifier=parseVerdict(verified.output);
     receipt.stages.verifyMs=performance.now()-verifyStarted;
     requireThat(receipt.verifier.verdict==='pass' && receipt.verifier.risks.length===0 &&
       receipt.verifier.limitations.length===0,'Independent review blocked integration');
@@ -261,6 +269,16 @@ export async function executeImprovement({repo,dir,reviewId,policyFile,dryRun=fa
   }catch(e){ receipt.state='blocked';receipt.error=String(e?.message??e); }
   finally {
     receipt.finishedAt=new Date().toISOString();receipt.totalWallMs=performance.now()-started;
+    try{
+      const calls=(await listModelCalls(dir)).filter(c=>c.attemptId===receipt.id);
+      const measured=calls.filter(c=>Number.isSafeInteger(c.tokens)&&c.tokens>=0);
+      receipt.modelCallIds=calls.map(c=>c.id);
+      receipt.observedModelTokens=measured.reduce((n,c)=>n+c.tokens,0);
+      const covered=measured.filter(c=>['assistant-and-compaction-events','provider-observed'].includes(c.tokenCoverage));
+      receipt.modelTokens=calls.length&&covered.length===calls.length?receipt.observedModelTokens:null;
+      receipt.modelTokenCoverage=!calls.length||!measured.length?'unknown':
+        covered.length===calls.length?'observed-provider-receipts':'partial';
+    }catch(e){receipt.costLedgerError=String(e?.message??e).slice(0,300);}
     try{await persist(dir,receipt);}catch(e){receipt.persistenceError=String(e?.message??e);}
     if(worktree){try{await git(root,'worktree','remove','--force',worktree);}catch(e){receipt.cleanupWarning=String(e?.message??e);}}
     if(temp)await rm(temp,{recursive:true,force:true});
