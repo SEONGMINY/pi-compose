@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { selectApprovalEvidence } from '../extensions/policy-main.ts';
+import type { ExtensionContext } from '@earendil-works/pi-coding-agent';
+import { selectApprovalEvidence, recentMessages } from '../extensions/policy-main.ts';
 
 test('B-option lookup retrieves the actual proposal outside the recent context window',()=>{
   const earlier=[
@@ -27,4 +28,32 @@ test('non-reference approval uses a small recent context rather than replaying e
     {id:'user-approval',role:'user',text:'이 방향으로 진행하겠습니다.'},earlier);
   assert.ok(selection.length<=16);
   assert.equal(selection[selection.length-1]?.id,'entry-64');
+});
+
+test('approval extraction considers only Pi-visible unedited Main messages',()=>{
+  const original={type:'message',id:'proposal-old',
+    message:{role:'assistant',content:'B안: 이전 로그인 방식을 사용합니다.'}};
+  const edited={type:'message',id:'proposal-edited',
+    message:{role:'assistant',content:'B안: 현재 정책을 유지합니다.'}};
+  const approval={type:'message',id:'approved',
+    message:{role:'user',content:'B안으로 확정합니다.'}};
+  const ctx={sessionManager:{buildSessionProjection:()=>({entries:[
+    {sourceEntry:edited,messages:[{role:'assistant',content:'변경된 제안으로 대체'}]},
+    {sourceEntry:original,messages:[{role:'assistant',content:original.message.content}]},
+    {sourceEntry:approval,messages:[{role:'user',content:approval.message.content}]},
+  ]})}} as unknown as ExtensionContext;
+  const available=recentMessages(ctx);
+  assert.deepEqual(available.map(m=>m.id),['proposal-old','approved']);
+  assert.ok(!available.some(m=>m.id==='proposal-edited'));
+});
+
+test('a compacted proposal absent from the projection cannot be treated as approval source',()=>{
+  const ctx={sessionManager:{buildSessionProjection:()=>({entries:[
+    {sourceEntry:{type:'compaction',id:'summary'},
+      messages:[{role:'custom',content:'Some older B option existed'}]},
+    {sourceEntry:{type:'message',id:'approved',
+      message:{role:'user',content:'B안으로 확정합니다.'}},
+      messages:[{role:'user',content:'B안으로 확정합니다.'}]},
+  ]})}} as unknown as ExtensionContext;
+  assert.deepEqual(recentMessages(ctx).map(m=>m.id),['approved']);
 });
