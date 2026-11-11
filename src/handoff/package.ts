@@ -299,6 +299,9 @@ export async function createSelectedHandoffPackage(
     contextAssessment=draft.contextAssessment==='unavailable'?'unavailable'
       :context.length?'selected':'none-needed';
   }else if (refs.length && ctx.model) {
+    // One bounded retry on a transient/invalid model result happens INSIDE
+    // the first <. Do not make the user exit and press < again.
+    for(let attempt=0;attempt<2&&contextAssessment==='unavailable';attempt++){
     try {
       const result = await ctx.modelRegistry.streamSimple(ctx.model, {
         systemPrompt: [
@@ -319,7 +322,8 @@ export async function createSelectedHandoffPackage(
           sources:refs,
         }),timestamp:Date.now()}],
       }, {reasoning:'low',maxTokens:2600,signal:AbortSignal.timeout(30000)}).result();
-      if (result.stopReason === 'stop') {
+      if (result.stopReason !== 'stop')throw Error('context-model-not-complete');
+      {
         const answer = textOf(result.content).replace(/^\s*```(?:json)?\s*([\s\S]*?)\s*```\s*$/i,'$1');
         const parsed = contextResponse.parse(JSON.parse(answer));
         for (const item of parsed.context) {
@@ -339,10 +343,11 @@ export async function createSelectedHandoffPackage(
         contextAssessment = context.length ? 'selected' : 'none-needed';
       }
     } catch {
-      // Fail safe: no invented context. The recipient sees the limitation.
+      // Partial/ungrounded replies must not survive into the retry.
       evidence.splice(claims.length);
-      context.length = 0;
-      contextAssessment = 'unavailable';
+      context.length=0;
+      contextAssessment='unavailable';
+    }
     }
   } else if (!refs.length) {
     contextAssessment = 'none-needed';
