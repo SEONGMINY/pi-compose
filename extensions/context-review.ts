@@ -6,7 +6,6 @@ import { listProductHandoffSessions, findParentMainSessionId } from '../src/prod
 import { prepareManualHandoffCandidates } from './handoff-candidates.ts';
 import { createSelectedHandoffPackage, verifyWorkSource, type HandoffPackage } from '../src/handoff/package.ts';
 import { selectContextPackage } from '../src/handoff/context-review.ts';
-import { recordHandoffMetric } from '../src/handoff/metrics.ts';
 import { putHandoff, readHandoff } from '../src/handoff/store.ts';
 
 const REVIEW_PROGRESS_KEY='pi-compose/context-review-progress';
@@ -79,7 +78,7 @@ export async function openWorkContextReview(
   const reportLeaf=ctx.sessionManager.getLeafId();
   const reportSession=ctx.sessionManager.getSessionId();
   progress.update('2/3 Work 결과와 필수 WHY·제약을 함께 분석 중');
-  const candidateResult=await prepareManualHandoffCandidates(ctx,recordHandoffMetric);
+  const candidateResult=await prepareManualHandoffCandidates(ctx);
   if(candidateResult.status!=='prepared'){
     ctx.ui.notify('공유할 Work 보고를 준비하지 못했습니다: '+candidateResult.status+
       '. 작업 결과를 Work에 보고한 뒤 다시 시도해주세요.','warning');
@@ -94,7 +93,7 @@ export async function openWorkContextReview(
   try{
     full=await createSelectedHandoffPackage(ctx,source,draft,{
       ids,reviewEntryId:draft.sourceLeafId,reviewCreatedAt:draft.createdAt,
-    },target.id,recordHandoffMetric);
+    },target.id);
     verifyWorkSource(ctx,full);
   }catch(error){
     ctx.ui.notify('컨텍스트와 원문 근거 준비 실패: '+String(error)+'. 전송하지 않았습니다.','warning');
@@ -135,7 +134,7 @@ export async function openWorkContextReview(
         const refined=await createSelectedHandoffPackage(ctx,source,draft,{
           ids,reviewEntryId:draft.sourceLeafId,reviewCreatedAt:draft.createdAt,
           note:feedback.trim().slice(0,1200),
-        },target.id,recordHandoffMetric);
+        },target.id);
         verifyWorkSource(ctx,refined);
         const preserved=full.context.every(before=>
           refined.context.some(after=>after.quote===before.quote &&
