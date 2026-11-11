@@ -83,12 +83,9 @@ export function registerPolicyMain(pi:ExtensionAPI):void{
       catch(error){if(ctx.hasUI)ctx.ui.notify('정책 변경 인덱스 저장 실패: '+String(error),'warning');}
     });
   };
-  pi.on('session_start',(_event,ctx)=>queuePublish(ctx));
-  pi.on('session_tree',(_event,ctx)=>queuePublish(ctx));
-
   let inspecting=false;
-  pi.on('agent_settled',async(event,ctx)=>{
-    if(event.aborted||!mainOwner(ctx)){queuePublish(ctx);return;}
+  async function inspect(ctx:ExtensionContext):Promise<void>{
+    if(!mainOwner(ctx)){queuePublish(ctx);return;}
     if(inspecting){queuePublish(ctx);return;}
     inspecting=true;
     try{
@@ -156,5 +153,19 @@ export function registerPolicyMain(pi:ExtensionAPI):void{
       inspecting=false;
       queuePublish(ctx);
     }
+  }
+  // Recovery scans only uninspected explicit approval candidates on the active
+  // branch. It does not require the user to repeat a policy registration.
+  pi.on('session_start',(_event,ctx)=>{
+    queuePublish(ctx);
+    if(ctx.isIdle())void inspect(ctx);
+  });
+  pi.on('session_tree',(_event,ctx)=>{
+    queuePublish(ctx);
+    if(ctx.isIdle())void inspect(ctx);
+  });
+  pi.on('agent_settled',async(event,ctx)=>{
+    if(event.aborted){queuePublish(ctx);return;}
+    await inspect(ctx);
   });
 }
