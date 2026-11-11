@@ -65,6 +65,7 @@ export function branchDecisions(entries: readonly BranchEntry[], mainSessionId: 
         !textParts(approval.message.content).includes(d.approvalQuote) ||
         source?.type !== 'message' || !['user', 'assistant'].includes(source.message?.role ?? '') ||
         !textParts(source.message?.content).includes(d.sourceQuote) ||
+        d.decision !== d.sourceQuote ||
         d.id !== decisionId(d.mainSessionId, d.approvalEntryId, d.sourceEntryId, d.sourceQuote)) continue;
     result.push(d);
   }
