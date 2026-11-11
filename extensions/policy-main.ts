@@ -328,6 +328,11 @@ export function registerPolicyMain(pi:ExtensionAPI):{
       if(!selected)return;
       const matched=decisions[options.indexOf(selected)];
       if(!matched)return;
+      const confirmed=await ctx.ui.confirm('기존 확정 정책에 연결',
+        '미해결 사용자 원문:\n'+candidate.text.slice(0,1200)+
+        '\n\n연결할 실제 Main 결정:\n'+matched.decision.slice(0,1600)+
+        '\n\n두 내용이 같은 정책이라는 사실을 확인했나요?');
+      if(!confirmed)return;
       result={...common,status:'resolved',resolution:'covered-by-decision',
         coveredByDecisionId:matched.id};
     }else{
