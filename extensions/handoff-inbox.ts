@@ -149,10 +149,15 @@ export function registerHandoffInbox(pi:ExtensionAPI, onAvailable?:(ctx:Extensio
           ((item.status.status==='imported'||item.status.status==='import-requested') &&
             !hasImportReceipt(ctx,item.pkg.id))));
       if(current?.sessionManager.getSessionId()!==owner.sessionId)return;
-      ctx.ui.setWidget('pi-compose/main-inbox',items.length?
-        ['Main · Work 결과 '+items.length+'건 도착 · < 로 확인']:undefined);
+      const exceptionCount=items.filter(i=>i.status.status==='requires-review').length;
+      const inProgress=items.length-exceptionCount;
+      ctx.ui.setWidget('pi-compose/main-inbox',exceptionCount
+        ? ['Main · 예외 검토가 필요한 Work 결과 '+exceptionCount+'건 · < 로 확인']
+        :inProgress
+          ? ['Main · Work 결과 '+inProgress+'건 자동 수신·검사 중 (추가 승인 불필요)']
+          :undefined);
     } catch {
-      ctx.ui.setWidget('pi-compose/main-inbox',['Main · Work 결과 확인이 필요합니다 · < 로 확인']);
+      ctx.ui.setWidget('pi-compose/main-inbox',['Main · 자동 수신 상태 확인 실패 (기존 보관함은 유지됨)']);
     }
   }
   const registerFor=(ctx:ExtensionContext)=>{
