@@ -189,7 +189,9 @@ test('Work first < displays exact Main-bound text, and selection changes that te
     const result=ui.run();
     // Assert meaningful content, not line wrapping, widget dimensions or copy.
     assert.ok(ui.text().includes('Implemented fix.'));
-    assert.ok(ui.text().includes('Suggest a cache.'));
+    // In wide mode the entire Brief is visible; narrow mode deliberately
+    // shows a bounded exact excerpt before Enter opens the full body.
+    if(width>=108)assert.ok(ui.text().includes('Suggest a cache.'));
     ui.key('\x1b[B'); // focus HC2
     ui.key(' '); // exclude HC2
     assert.ok(ui.text().includes('Implemented fix.'));
