@@ -1,0 +1,22 @@
+name: Development harness prototype
+on:
+  pull_request:
+    paths:
+      - 'tools/development-harness/**'
+      - '.github/workflows/development-harness.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tools/development-harness/**'
+      - '.github/workflows/development-harness.yml'
+jobs:
+  harness-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check embedded harness
+        working-directory: tools/development-harness
+        run: npm run check

@@ -1,0 +1,10 @@
+{
+  "name": "development-harness",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone, provider-neutral task lifecycle and improvement telemetry harness",
+  "engines": {"node": ">=22"},
+  "bin": {"devh": "./bin/devh.mjs"},
+  "scripts": {"test": "node --test test/*.test.mjs", "check": "node --check src/core.mjs && node --check src/worker.mjs && node --check bin/devh.mjs && node --check adapters/codex-hook.mjs && npm test"}
+}
