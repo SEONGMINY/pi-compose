@@ -503,8 +503,9 @@ export async function openOverview(): Promise<void> {
     if (!entry) return;
     if (entry.action.type === 'refresh') return;
     if (entry.action.type === 'message') {
-      const owner = agents.find(a => a.identity.sessionId === entry.action.sessionId);
-      const msg = owner?.messages.find(m => m.id === (entry.action as { messageId: string }).messageId);
+      const { sessionId, messageId } = entry.action;
+      const owner = agents.find(a => a.identity.sessionId === sessionId);
+      const msg = owner?.messages.find(m => m.id === messageId);
       if (msg) {
         status = 'Message: ' + msg.status + ' · ' + msg.peer +
           (msg.excerpt ? ' · ' + msg.excerpt : '') +
@@ -515,7 +516,8 @@ export async function openOverview(): Promise<void> {
       return;
     }
     if (entry.action.type !== 'agent' || busy) return;
-    const agent = agents.find(a => a.identity.sessionId === entry.action.sessionId);
+    const sessionId = entry.action.sessionId;
+    const agent = agents.find(a => a.identity.sessionId === sessionId);
     if (!agent) return;
     if (!agent.terminal) {
       status = 'No verified Ghostty binding for ' + agent.identity.label +
@@ -544,7 +546,8 @@ export async function openOverview(): Promise<void> {
       statusText.setText(status); tui.requestRender();
       return;
     }
-    const agent = agents.find(a => a.identity.sessionId === action.sessionId);
+    const sessionId = action.sessionId;
+    const agent = agents.find(a => a.identity.sessionId === sessionId);
     if (!agent || !agent.sessionPath) {
       status = 'Agent has no persisted Pi transcript yet; Summary unavailable.';
       statusText.setText(status); tui.requestRender();
@@ -552,9 +555,9 @@ export async function openOverview(): Promise<void> {
     }
     try {
       const manager = SessionManager.open(agent.sessionPath);
-      if (manager.getSessionId() !== action.sessionId) throw new Error('Pi session identity changed');
+      if (manager.getSessionId() !== sessionId) throw new Error('Pi session identity changed');
       const evidence = projectSummaryEvidence(
-        manager.getBranch(), action.sessionId, manager.getLeafId(), 'idle-or-unknown',
+        manager.getBranch(), sessionId, manager.getLeafId() ?? undefined, 'idle-or-unknown',
       );
       status = 'Source-backed Summary (no semantic model): ' +
         evidence.facts.map(f => f.text + ' [' + f.sourceEntryId.slice(0, 8) + ']').join(' | ') +
