@@ -7,6 +7,7 @@ import { compareHandoffWithMain, type MainComparison } from '../src/handoff/comp
 import { renderMainImport } from '../src/handoff/import.ts';
 import { listInbox, setInboxStatus, type InboxItem } from '../src/handoff/store.ts';
 import { decideAutomaticAdoption } from '../src/handoff/automatic-adoption.ts';
+import { recordHandoffMetric } from '../src/handoff/metrics.ts';
 
 const IMPORT_TYPE='compose_context_review_import';
 
@@ -89,7 +90,7 @@ export async function openMainContextReceive(
   let comparison:MainComparison|undefined;
   let error:string|undefined;
   ctx.ui.setWidget(progressKey,['Main · 현재 활성 분기와 Work 보고 비교 중 · 모델 턴을 시작하지 않습니다']);
-  try{comparison=await compareHandoffWithMain(ctx,item.pkg);}
+  try{comparison=await compareHandoffWithMain(ctx,item.pkg,recordHandoffMetric);}
   catch(e){error=e instanceof Error?e.message:'대조를 완료하지 못했습니다';}
   if(ctx.sessionManager.getSessionId()!==main.sessionId||
      ctx.sessionManager.getLeafId()!==comparedLeafId||!ctx.isIdle())return;
@@ -242,7 +243,7 @@ export function registerAutomaticMainAdoption(pi:ExtensionAPI):{
         let comparison:MainComparison;
         try{
           if(ctx.hasUI)ctx.ui.setStatus(statusKey,'Work 결과와 현재 Main 결정 비교 중');
-          comparison=await compareHandoffWithMain(ctx,pkg);
+          comparison=await compareHandoffWithMain(ctx,pkg,recordHandoffMetric);
         }catch{
           // JSON/model failures are not proof of safety, nor proof of conflict.
           if(ctx.sessionManager.getSessionId()===mainId &&
