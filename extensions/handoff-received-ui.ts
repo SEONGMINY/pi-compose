@@ -27,8 +27,8 @@ export function showReferenceReceived(
     let disposed=false;
     let zoomNotice='';
     const warnings=[
-      ...(error?['현재 Main과 비교할 수 없습니다: '+error]:[]),
-      ...(!comparison?['자동 확인을 완료하지 못했습니다.']:[]),
+      ...(error?['자동 수신이 보류된 이유: '+error]:[]),
+      ...(!comparison&&!error?['원본 전달 상태를 확인해주세요.']:[]),
       ...(comparison?.items.filter(i=>i.status==='conflict'||i.status==='insufficient')
         .map(i=>'• '+i.status+': '+i.explanation)??[]),
       ...(pkg.contextAssessment==='unavailable'
