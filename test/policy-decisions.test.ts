@@ -126,4 +126,14 @@ test('ContextEdit revokes evidence authority; compaction alone does not revoke a
   assert.deepEqual(branchDecisions([...branch,{
     type:'context_edit',id:'edit-source',targetId:'a1',replacement:'Rewritten',
   }],'main-1'),[]);
+  assert.deepEqual(branchDecisions([...branch,{
+    type:'context_edit',id:'edit-source',targetId:'a1',
+    replacement:'B안: 기존 인증 방식은 제거하고 패스키를 우선합니다.',
+  }],'main-1').map(d=>d.id),[decision.id]);
+  assert.deepEqual(branchDecisions([...branch,{
+    type:'context_edit',id:'edit-source-1',targetId:'a1',replacement:null,
+  },{
+    type:'context_edit',id:'edit-source-2',targetId:'a1',
+    replacement:'B안: 기존 인증 방식은 제거하고 패스키를 우선합니다.',
+  }],'main-1').map(d=>d.id),[decision.id]);
 });
