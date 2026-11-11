@@ -35,8 +35,38 @@ export function decisionId(mainId: string, approvalId: string, sourceId: string,
 }
 
 /** Cheap lexical prefilter. Never treat matching text as approval by itself. */
+
+/**
+ * "Document it" versus "implement it" chooses the execution mode of an
+ * already-approved task. A bare choice is not a new product policy.
+ */
+export function isExecutionModeOnlyChoice(text:string):boolean {
+  const normalized=text.trim().replace(/[.!。]+$/,'').replace(/\s+/g,'');
+  return /^(?:문서화|문서작성|문서만|코드구현|코드수정|구현|테스트)(?:로|만|부터|하기로)?(?:진행(?:합니다|하겠습니다|해주세요|해요|할게요)?|해주세요|선택합니다|할게요|하겠습니다)?$/.test(normalized);
+}
+
+/**
+ * An approval can itself contain the full policy; the assistant's earlier
+ * B-option quote is NOT mandatory if the user explicitly restates the rule.
+ *
+ * This is a deliberately narrow, verbatim-only fallback. Pure option labels
+ * and execution-mode requests are never promoted into decisions.
+ */
+export function selfContainedApprovedPolicyQuote(text:string):string|undefined {
+  const approval=text.trim();
+  const lead=approval.match(/^[A-Z가-힣]\s*안(?:으로|을|이)?\s*(?:확정|결정|채택)(?:합니다|하겠습니다|했습니다|했어요|해요|한다)?[.!。]?\s*/i);
+  if(!lead)return;
+  const tail=approval.slice(lead[0].length).trim();
+  const clause=tail.split(/\n|(?<=[.!。])\s+/)[0]?.trim();
+  if(!clause||clause.length<24||clause.length>1600)return;
+  // Require a concrete rule, not merely "share it with Work" or "document it".
+  if(!/(?:정책|규칙|방식|조건|설정|사양|기준|사용|허용|제거|유지|금지|전환|필수|must|only|require|remove|keep)/i.test(clause))return;
+  if(containsSensitivePolicyText(clause)||containsSensitivePolicyText(approval))return;
+  return clause;
+}
+
 export function couldBeApproval(text: string): boolean {
-  if (!text.trim() || text.length > 12000) return false;
+  if (!text.trim() || text.length > 12000 || isExecutionModeOnlyChoice(text)) return false;
   return /(?:확정|결정|채택|승인|선택|적용|진행(?:해|하|합)|바꾸|변경|중단|폐기|제외|좋습니다|좋아요|동의|이대로|그렇게|하지\s*마|금지|finaliz|approv|decid|go ahead|proceed|stop|cancel)/i.test(text);
 }
 
