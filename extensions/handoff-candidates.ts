@@ -73,6 +73,14 @@ function verifiedLinkedContext(
     seen.add(context.sourceEntryId+'\u0000'+context.quote);
     items.push(context);
   }
+  // An empty model array is not proof there is no historical WHY.
+  // If the active Fork history contains explicit user constraints, ask the
+  // source-backed legacy checker once within this same < before deciding
+  // that no context is needed.
+  if(items.length===0&&history.some(source=>
+    source.role==='user'&&
+    /(?:금지|반드시|유지|하면 안|하지 말|정책|제약|때문에|do not|don't|must not|never|keep|preserve|because)/i.test(source.text)))
+    return {items:[],assessment:'unavailable'};
   return {items,assessment:items.length?'selected':'none-needed'};
 }
 
