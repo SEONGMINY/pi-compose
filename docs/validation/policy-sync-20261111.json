@@ -1,0 +1,200 @@
+{
+  "schemaVersion": 1,
+  "target": "pi-compose product: Main approved-decision propagation, Work policy freshness, Work-owned Handoff",
+  "codeRef": "feat/policy-sync-work-owned-handoff-20261111",
+  "baseline": "978d91d6cf8afed594402121c345a4c50e9d563e",
+  "stateLegend": {
+    "implemented_unverified": "Code exists; tests or real Pi execution not yet established",
+    "design_pending": "Not yet implemented or still requires design validation",
+    "tested_local": "Automated tests executed with recorded PASS",
+    "verified_e2e": "Validated in actual Pi/Ghostty runtime"
+  },
+  "requirements": [
+    {
+      "id": "P01",
+      "name": "Natural-language user approval without separate registration gesture",
+      "state": "implemented_unverified",
+      "code": [
+        "extensions/policy-main.ts"
+      ],
+      "checks": [
+        "B-option reference resolved from quoted assistant proposal",
+        "negation and discussion do not publish",
+        "ambiguous/missing quote not published",
+        "recovery after missed event"
+      ]
+    },
+    {
+      "id": "P02",
+      "name": "Branch-grounded decisions, no assistant/Work policy promotion",
+      "state": "implemented_unverified",
+      "code": [
+        "src/policy/decisions.ts",
+        "src/policy/store.ts"
+      ],
+      "checks": [
+        "approved user and source quotes verified",
+        "compaction and ContextEdit semantics",
+        "rewind/change branch withdraws decisions",
+        "duplicate entry idempotence"
+      ]
+    },
+    {
+      "id": "P03",
+      "name": "Correct owner Main for nested Work, cross-Main ambiguity",
+      "state": "implemented_unverified",
+      "code": [
+        "src/policy/owners.ts",
+        "src/agent-relationships.ts"
+      ],
+      "checks": [
+        "main->work",
+        "main->work->work",
+        "ambiguous @session across Mains"
+      ]
+    },
+    {
+      "id": "P04",
+      "name": "Zero additional calls for unchanged policy; bounded delta updates",
+      "state": "implemented_unverified",
+      "code": [
+        "extensions/policy-work.ts",
+        "src/policy/decisions.ts"
+      ],
+      "checks": [
+        "unchanged snapshot no delta",
+        "bounded batches",
+        "before_agent_start and context hook runtime behavior",
+        "no unnecessary agent turn"
+      ]
+    },
+    {
+      "id": "P05",
+      "name": "Offline/worktree/resume/notification-loss recovery",
+      "state": "implemented_unverified",
+      "code": [
+        "src/policy/store.ts",
+        "extensions/policy-work.ts"
+      ],
+      "checks": [
+        "offline Work resume",
+        "missed fs.watch events",
+        "two Worktrees in same product",
+        "corrupt snapshot fail closed",
+        "atomic write crashes"
+      ]
+    },
+    {
+      "id": "P06",
+      "name": "Distinguish delivered, reviewed and applied decisions",
+      "state": "design_pending",
+      "code": [
+        "extensions/policy-work.ts"
+      ],
+      "checks": [
+        "message receipt != applied",
+        "explicit Work review status before completion",
+        "unsafe stop transitions"
+      ]
+    },
+    {
+      "id": "P07",
+      "name": "Accurate Work approved Brief with policy freshness",
+      "state": "implemented_unverified",
+      "code": [
+        "src/handoff/package.ts",
+        "src/handoff/brief.ts",
+        "extensions/context-review.ts"
+      ],
+      "checks": [
+        "replay ID changes if snapshot changes",
+        "unavailable/pending clearly printed",
+        "review-time policy race cancels send"
+      ]
+    },
+    {
+      "id": "P08",
+      "name": "No semantic comparison in automatic Main Handoff import",
+      "state": "implemented_unverified",
+      "code": [
+        "extensions/context-receive.ts",
+        "src/handoff/direct-adoption.ts"
+      ],
+      "checks": [
+        "approved limited report imports",
+        "no comparator calls",
+        "no extra Main model turn",
+        "Work->Work->Main verified"
+      ]
+    },
+    {
+      "id": "P09",
+      "name": "Branch-local Pi import receipt and crash recovery",
+      "state": "implemented_unverified",
+      "code": [
+        "extensions/context-receive.ts",
+        "src/handoff/store.ts"
+      ],
+      "checks": [
+        "save before send",
+        "message_end receipt",
+        "rewound branch no duplicate assumption",
+        "correct branch at import time"
+      ]
+    },
+    {
+      "id": "P10",
+      "name": "Main change discovery from user natural language with reliable no-silent-omission semantics",
+      "state": "design_pending",
+      "code": [
+        "extensions/policy-main.ts"
+      ],
+      "checks": [
+        "unmatched user phrasing detection recall evaluated",
+        "full historical resolution when option omitted from bounded excerpts",
+        "low-confidence states surfaced without fake approval"
+      ]
+    },
+    {
+      "id": "P11",
+      "name": "No auto Git merge, file rewrites, foreign Main changes, or new servers",
+      "state": "implemented_unverified",
+      "code": [
+        "src/policy/store.ts",
+        "extensions/policy-work.ts",
+        "extensions/context-receive.ts"
+      ],
+      "checks": [
+        "shared CWD versus worktree behavior",
+        "scoped to owner Main",
+        "no merge or deletion actions"
+      ]
+    },
+    {
+      "id": "P12",
+      "name": "Pi 1.4.0 and macOS/Ghostty integrated verification",
+      "state": "design_pending",
+      "code": [],
+      "checks": [
+        "npm run check",
+        "actual >w, >>w, nested Fork",
+        "policy changed mid-run",
+        "Handoff after offline Main",
+        "multi-Main wrong recipient",
+        "performance baseline tokens/time"
+      ]
+    }
+  ],
+  "testEvidence": {
+    "githubActions": "NOT_RUN",
+    "localTypecheck": "NOT_RUN",
+    "localNodeTests": "NOT_RUN",
+    "macOSGhostty": "NOT_RUN"
+  },
+  "nonGoals": [
+    "pi-compose internal development harness modifications",
+    "new GUI/sidebar/multiplexer",
+    "automatic product policy adoption from Work",
+    "automatic Git merge"
+  ]
+}
