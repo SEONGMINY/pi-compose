@@ -64,8 +64,6 @@ function fixture(mode:'valid'|'invalid-context'|'missing-context'|'legacy-transi
           content:[{type:'text',text:mode==='legacy-transient'&&calls===2
             ?'not-json'
             :JSON.stringify(response)}],
-          usage:{input:240,output:80,cacheRead:20,cacheWrite:0,
-            totalTokens:340,cost:{total:0.0003}},
         })};
       },
     },
