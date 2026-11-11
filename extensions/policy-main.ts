@@ -2,7 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-a
 import { z } from 'zod';
 import { readAgentRelationship } from '../src/agent-relationships.ts';
 import { DECISION_ENTRY, REVIEW_ENTRY, couldBeApproval, decisionId,
-  textParts, containsSensitivePolicyText, type PolicyDecision } from '../src/policy/decisions.ts';
+  textParts, containsSensitivePolicyText, branchDecisions, type PolicyDecision } from '../src/policy/decisions.ts';
 import { makePolicySnapshot, writePolicySnapshot } from '../src/policy/store.ts';
 
 const extraction = z.object({
@@ -12,6 +12,7 @@ const extraction = z.object({
   subject: z.string(),
   reason: z.string(),
   effective: z.enum(['now','next-task','stop']),
+  supersedesId: z.string().nullable(),
 });
 
 /** Only current-branch user approvals have authority; assistant proposals do not. */
@@ -43,7 +44,7 @@ function recentMessages(ctx:ExtensionContext):Msg[]{
  * The semantic check extracts a verbatim supporting quote, never an invented policy.
  */
 async function inspectApproval(ctx:ExtensionContext, approval:Msg,
-  earlier:readonly Msg[]):Promise<z.infer<typeof extraction>|undefined>{
+  earlier:readonly Msg[], active:readonly PolicyDecision[]):Promise<z.infer<typeof extraction>|undefined>{
   if(!ctx.model)return;
   const excerpts=[...earlier.slice(-18),approval].map(x=>({
     id:x.id,role:x.role,text:x.text.slice(0,1700),
@@ -62,10 +63,15 @@ async function inspectApproval(ctx:ExtensionContext, approval:Msg,
       'If the user is evaluating possibilities or the referenced proposal is missing, return ambiguous or not-a-decision.',
       'Do not invent WHY; reason must be grounded by supplied text, otherwise empty.',
       'Use now unless the user specifically says next task; use stop only for an explicit stop instruction.',
+      'activeDecisions are previously user-approved policies on this branch.',
+      'When the approved change replaces a listed active policy, supersedesId must be the exact existing id.',
+      'When no previous decision is replaced, supersedesId must be null.',
+      'When replacement is obvious but the target cannot be identified, return ambiguous; never leave contradictory policies active.',
       'Output JSON only: {"status":"approved|not-a-decision|ambiguous","sourceEntryId":"...",',
-      '"sourceQuote":"...","subject":"...","reason":"","effective":"now|next-task|stop"}',
+      '"sourceQuote":"...","subject":"...","reason":"","effective":"now|next-task|stop","supersedesId":null}',
     ].join(' '),
-    messages:[{role:'user',content:JSON.stringify({approvalEntryId:approval.id,excerpts}),
+    messages:[{role:'user',content:JSON.stringify({approvalEntryId:approval.id,excerpts,
+      activeDecisions:active.map(d=>({id:d.id,subject:d.subject,decision:d.decision.slice(0,650)}))}),
       timestamp:Date.now()}],
   },{reasoning:'low',maxTokens:1100,signal:AbortSignal.timeout(25000)}).result();
   if(reply.stopReason!=='stop')throw Error('policy-extraction-model-incomplete');
@@ -91,6 +97,7 @@ export function registerPolicyMain(pi:ExtensionAPI):void{
     try{
       const all=recentMessages(ctx);
       const branch=ctx.sessionManager.getBranch();
+      const active=branchDecisions(branch,ctx.sessionManager.getSessionId());
       const inspected=new Set(branch.flatMap(e=>
         e.type==='custom'&&e.customType===REVIEW_ENTRY &&
         e.data&&typeof e.data==='object'&&'approvalEntryId' in e.data &&
@@ -104,7 +111,7 @@ export function registerPolicyMain(pi:ExtensionAPI):void{
         const index=all.findIndex(x=>x.id===approval.id);
         const earlier=all.slice(0,index);
         try{
-          const parsed=await inspectApproval(ctx,approval,earlier);
+          const parsed=await inspectApproval(ctx,approval,earlier,active);
           if(!parsed)break;
           if(ctx.sessionManager.getLeafId()!==startLeaf||!ctx.isIdle())break;
           let record:PolicyDecision|undefined;
@@ -113,7 +120,13 @@ export function registerPolicyMain(pi:ExtensionAPI):void{
             const quote=parsed.sourceQuote.trim();
             const text=approval.text;
             const pointer=/(?:[A-Z가-힣]\s*안(?:으로|을|이|은|에|$|\s)|\boption\s+[A-Z]\b)/i.test(text);
-            const validSource=source && quote.length>=10 &&
+            const validSupersession=parsed.supersedesId===null ||
+              active.some(d=>d.id===parsed.supersedesId);
+            const overlapping=active.some(d=>d.subject===parsed.subject);
+            const validSource=validSupersession &&
+              (!overlapping || parsed.supersedesId!==null) &&
+              quote.length<=1600 && approval.text.length<=1200 &&
+              source && quote.length>=10 &&
               source.text.includes(quote) &&
               (!pointer || source.id!==approval.id);
             if(validSource && !containsSensitivePolicyText(quote) &&
@@ -128,6 +141,7 @@ export function registerPolicyMain(pi:ExtensionAPI):void{
                 reason:parsed.reason && [...earlier,approval].some(x=>x.text.includes(parsed.reason))
                   ?parsed.reason.slice(0,800):'',
                 scope:'owner-main',targetWorkIds:[],effective:parsed.effective,
+                ...(parsed.supersedesId?{supersedesId:parsed.supersedesId}:{}),
               };
             }
           }
@@ -136,6 +150,7 @@ export function registerPolicyMain(pi:ExtensionAPI):void{
             if(!ctx.sessionManager.getBranch().some(e=>e.type==='custom' &&
                 e.customType===DECISION_ENTRY && (e.data as {id?:string})?.id===record.id)){
               pi.appendEntry(DECISION_ENTRY,record);
+              active.splice(0,active.length,...active.filter(d=>d.id!==record.supersedesId),record);
               if(ctx.hasUI)ctx.ui.notify('확정된 Main 결정이 Work 동기화 기록에 반영됐습니다.','info');
             }
           }else if(parsed.status==='ambiguous'||parsed.status==='approved'){
