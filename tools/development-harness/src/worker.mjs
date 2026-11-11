@@ -8,13 +8,16 @@ export function triage(task,priorTasks=[]) {
   const p=task.forecast;
   const minutesOver80=finite(p?.minutes?.p80)&&actual?.activeMinutes>p.minutes.p80;
   const tokensOver80=finite(p?.tokens?.p80)&&finite(actual?.tokens)&&actual.tokens>p.tokens.p80;
-  const repeated=priorTasks.filter(t=>t.id!==task.id && t.kind===task.kind &&
-    t.analysis?.signals?.some(s=>['time-p80','tokens-p80','verification-failed'].includes(s))).length;
   const signals=[...(minutesOver80?['time-p80']:[]),...(tokensOver80?['tokens-p80']:[]),
     ...(task.verification?.state==='failed'?['verification-failed']:[]),
     ...(actual?.tokens===null?['usage-incomplete']:[])];
+  const relevant=signals.filter(x=>x!=='usage-incomplete');
+  // A failure in unrelated work of the same generic kind is not a repeat.
+  // This is a provisional cohort signal, not proof of common root cause.
+  const repeated=priorTasks.filter(t=>t.id!==task.id && t.kind===task.kind && t.agent===task.agent &&
+    relevant.some(signal=>t.analysis?.signals?.includes(signal))).length;
   return {at:iso(),signals,repeatedAnomalyCount:repeated,needsReview:signals.some(s=>s!=='usage-incomplete')||repeated>1,
-    inference:'signals are not proof of a root cause',estimatedNetSaving:null};
+    inference:'matching anomalies are not proof of a shared root cause',estimatedNetSaving:null};
 }
 async function runChecks(task){
   if(!task.checks?.length)return {state:'unverified',results:[],reason:'No project-specific trusted checks configured'};
@@ -37,7 +40,7 @@ export async function processQueue(cwd,{limit=10,run=runChecks}={}){
       const pick=Object.entries(s.queue).find(([_,q])=>q.type==='verify'&&q.state==='pending');
       if(!pick)return null;
       const [id,q]=pick;q.state='running';q.attempts++;q.startedAt=iso();
-      return {id,task:structuredClone(s.tasks[q.taskId])};
+      return {id,task:structuredClone(s.tasks[q.taskId]),revision:s.tasks[q.taskId].revision??0};
     });
     if(!item)break;
     let verdict;
@@ -45,16 +48,19 @@ export async function processQueue(cwd,{limit=10,run=runChecks}={}){
     const result=await withState(dir,s=>{
       const q=s.queue[item.id],task=s.tasks[item.task.id];
       if(!q || !task)return {state:'missing'};
-      if(task.runs.some(r=>r.status==='running')){
-        q.state='pending';q.reason='still-running';return {taskId:task.id,state:'deferred'};
+      if(task.runs.some(r=>r.status==='running') || (task.revision??0)!==item.revision){
+        q.state='pending';q.reason='task-changed-during-verification';return {taskId:task.id,state:'deferred'};
       }
       task.verification={...verdict,finishedAt:iso()};q.state='done';q.finishedAt=iso();
       if(verdict.state==='passed'){
-        task.status='completed';task.finishedAt=iso();
-        // Successful checks do not establish every semantic AC; record that limitation.
+        // Project checks are trustworthy technical evidence, not proof that the
+        // user's functional AC was satisfied. Never report semantic completion.
+        task.status='delivered-unverified';task.finishedAt=iso();
+        task.acceptance={state:'unverified',reason:'Project checks passed; Step acceptance criteria have no independent attestation'};
         for(const step of task.steps)step.status='checks-passed-ac-unverified';
       }else if(verdict.state==='failed'){
         task.status='verification-failed';task.finishedAt=iso();
+        task.acceptance={state:'failed',reason:verdict.reason};
       }else {
         task.status='awaiting-verification';
         task.updatedAt=iso();return {taskId:task.id,state:'awaiting-verification'};
@@ -67,7 +73,8 @@ export async function processQueue(cwd,{limit=10,run=runChecks}={}){
       task.actual={wallMinutes,tokens,coverage:tokens===null?'unknown':task.tokenUsage.missingEvents>0?'partial-observed':'observed-hooks-only',
         activeMinutes,agentRunMinutes:agentRunMs/60_000,checkMinutes:checkMs/60_000};
       task.analysis=triage(task,Object.values(s.tasks));
-      // Cheap triage is done synchronously; expensive AI review is a separate queue.
+      // Cheap triage is done synchronously; unverified delivery is NOT accepted completion.
+      // Expensive AI review is a separate queue.
       if(task.analysis.needsReview)enqueue(s,'review',task.id,'anomaly-or-repeat');
       const sessionKey=`${task.agent}:${task.sessionId}`;
       const session=s.sessions[sessionKey];
@@ -75,6 +82,8 @@ export async function processQueue(cwd,{limit=10,run=runChecks}={}){
       return {taskId:task.id,state:task.status,analysis:task.analysis};
     });
     processed.push(result);
+    // Do not hot-loop an active Task or run checks repeatedly while it changes.
+    if(result.state==='deferred')break;
   }
   return processed;
 }

@@ -11,9 +11,9 @@ try {
  const base={cwd,agent:'codex',sessionId,turnId};
  let result;
  if(type==='UserPromptSubmit')result=await ingest({...base,event:'prompt',prompt:input.prompt,eventId:`start:${turnId}`});
+ else if(type==='PreModelRequest')result=await ingest({...base,event:'request-start'});
  else if(type==='PostModelRequest'){
-   result=await ingest({...base,event:'usage',usage:input.token_usage,
-     eventId:input.request_id?`request:${input.request_id}`:undefined});
+   result=await ingest({...base,event:'request-end',usage:input.token_usage});
  }else if(type==='Stop'||type==='Interrupt'||type==='SessionEnd'){
    result=await ingest({...base,event:type==='Stop'?'settled':type==='Interrupt'?'interrupt':'end',eventId:`${type}:${turnId}`});
    if(type==='Stop'&&result?.status==='awaiting-verification'){
