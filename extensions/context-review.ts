@@ -101,8 +101,9 @@ export async function openWorkContextReview(
     return;
   }
   progress.clear(); // The interactive review replaces the progress indicator.
-  let review:ReviewState={selected:ids.length===1?[ids[0]!]:[],
-    focus:0,note:''};
+  // Start from the complete attributed draft. The user can remove items;
+  // an empty selection used to hide every Main-facing line on first <.
+  let review:ReviewState={selected:ids,focus:0,note:''};
   while(true){
     if(ctx.sessionManager.getSessionId()!==reportSession||
        ctx.sessionManager.getLeafId()!==reportLeaf||!ctx.isIdle()){
