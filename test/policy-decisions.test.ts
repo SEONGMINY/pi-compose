@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DECISION_ENTRY, POLICY_MESSAGE, branchDecisions,
   couldBeApproval, decisionId, policyDelta, renderPolicyDelta,
-  workKnownDecisionIds } from '../src/policy/decisions.ts';
+  workKnownDecisionIds, containsSensitivePolicyText } from '../src/policy/decisions.ts';
 import { makePolicySnapshot } from '../src/policy/store.ts';
 
 const user=(id:string,text:string)=>({id,type:'message',message:{role:'user',content:text}});
@@ -79,4 +79,38 @@ test('explicit supersession on the same active branch retires the older policy',
   const next=[...branch,assistant('a2',newSource),user('u2','이 정책으로 확정'),
     {id:'policy-entry-2',type:'custom',customType:DECISION_ENTRY,data:replacement}];
   assert.deepEqual(branchDecisions(next,'main-1').map(d=>d.id),[replacement.id]);
+});
+
+test('policy content and secrets are grounded, never transported as invented policy',()=>{
+  const {decision,branch}=fixture();
+  assert.equal(containsSensitivePolicyText('api_key: abc123'),true);
+  assert.equal(containsSensitivePolicyText('password = topsecret'),true);
+  assert.equal(containsSensitivePolicyText('Passwordless login'),false);
+  const forged=branch.map(entry=>entry.id==='policy-entry'
+    ? {...entry,data:{...decision,decision:'Unapproved contradictory decision'}}:entry);
+  assert.deepEqual(branchDecisions(forged,'main-1'),[]);
+});
+
+test('unrelated Main chat does not make a new policy revision',()=>{
+  const {branch}=fixture();
+  const before=makePolicySnapshot('main-1','sample','leaf-policy',branch);
+  const after=makePolicySnapshot('main-1','sample','later-chat',
+    [...branch,user('u2','How does the system work?'),
+      assistant('a2','We can discuss it before deciding.')]);
+  assert.equal(before.revision,after.revision);
+  assert.notEqual(before.activeLeafId,after.activeLeafId);
+});
+
+test('a new decision superseding an earlier decision changes Work in both directions',()=>{
+  const {decision,branch}=fixture();
+  const source='비밀번호 로그인을 제거하고 패스키 인증을 사용합니다.';
+  const replaced={...decision,id:decisionId('main-1','u2','a2',source),
+    approvalEntryId:'u2',sourceEntryId:'a2',approvalQuote:'이 방식으로 확정합니다.',
+    sourceQuote:source,decision:source,supersedesId:decision.id};
+  const newer=branchDecisions([...branch,assistant('a2',source),
+    user('u2','이 방식으로 확정합니다.'),
+    {id:'new-policy',type:'custom',customType:DECISION_ENTRY,data:replaced}], 'main-1');
+  const changes=policyDelta(newer,[decision.id],'work-1');
+  assert.deepEqual(changes.withdrawn,[decision.id]);
+  assert.deepEqual(changes.added.map(d=>d.id),[replaced.id]);
 });
