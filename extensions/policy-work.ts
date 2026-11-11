@@ -157,6 +157,28 @@ export function registerPolicyWork(pi:ExtensionAPI):void{
       content:change.content,display:false,details:change.details,timestamp:Date.now(),
     }]};
   });
+  // A user-confirmed global stop must protect the next mutating tool call,
+  // even if this Work was already running before the change arrived. The model
+  // receives the actual decision on its next normal prompt boundary.
+  pi.on('tool_call',async(event,ctx)=>{
+    const work=workOwner(ctx);
+    if(!work)return;
+    const main=await resolve(ctx);
+    if(!main)return;
+    let snapshot;
+    try{snapshot=await readPolicySnapshot(main);}
+    catch{ return; } // Technical failures are surfaced at the Work model boundary.
+    if(!snapshot||snapshot.product!==work.product)return;
+    const hasStop=snapshot.decisions.some(d=>d.effective==='stop' &&
+      (d.scope==='owner-main'||d.targetWorkIds.includes(work.sessionId)));
+    if(!hasStop)return;
+    const readOnly=new Set(['read','grep','find','ls','glob']);
+    if(readOnly.has(event.toolName))return;
+    if(ctx.hasUI)ctx.ui.setStatus('pi-compose/policy-sync','Main 작업 중단 지시 · 수정 실행 차단');
+    return {block:true,reason:
+      'Current Main has an explicit stop-work decision. Do not modify files or invoke tools until that decision is resolved with the user.'};
+  });
+
   // Persist the exact batch after a run if it was delivered only through the
   // ephemeral context hook. This is a receipt, not evidence of code changes.
   pi.on('agent_settled',async(event,ctx)=>{
