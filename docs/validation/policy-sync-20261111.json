@@ -30,13 +30,15 @@
       "state": "implemented_unverified",
       "code": [
         "src/policy/decisions.ts",
-        "src/policy/store.ts"
+        "src/policy/store.ts",
+        "src/policy/verification.ts"
       ],
       "checks": [
         "approved user and source quotes verified",
         "compaction and ContextEdit semantics",
         "rewind/change branch withdraws decisions",
-        "duplicate entry idempotence"
+        "duplicate entry idempotence",
+        "modified but quote-identical ContextEdit maintains authority"
       ]
     },
     {
@@ -50,7 +52,8 @@
       "checks": [
         "main->work",
         "main->work->work",
-        "ambiguous @session across Mains"
+        "ambiguous @session across Mains",
+        "broad stop only for explicitly all-Work instruction"
       ]
     },
     {
@@ -65,7 +68,8 @@
         "unchanged snapshot no delta",
         "bounded batches",
         "before_agent_start and context hook runtime behavior",
-        "no unnecessary agent turn"
+        "no unnecessary agent turn",
+        "unrelated Main turns keep stable revision"
       ]
     },
     {
@@ -109,7 +113,8 @@
       "checks": [
         "replay ID changes if snapshot changes",
         "unavailable/pending clearly printed",
-        "review-time policy race cancels send"
+        "review-time policy race cancels send",
+        "Handoff verifies local cache leaf against persisted Main active branch"
       ]
     },
     {
@@ -147,7 +152,8 @@
       "name": "Main change discovery from user natural language with reliable no-silent-omission semantics",
       "state": "design_pending",
       "code": [
-        "extensions/policy-main.ts"
+        "extensions/policy-main.ts",
+        "test/policy-main-evidence.test.ts"
       ],
       "checks": [
         "unmatched user phrasing detection recall evaluated",
@@ -186,7 +192,7 @@
     }
   ],
   "testEvidence": {
-    "githubActions": "NOT_RUN",
+    "githubActions": "NO_RUNS_FOR_BRANCH",
     "localTypecheck": "NOT_RUN",
     "localNodeTests": "NOT_RUN",
     "macOSGhostty": "NOT_RUN"
@@ -196,5 +202,17 @@
     "new GUI/sidebar/multiplexer",
     "automatic product policy adoption from Work",
     "automatic Git merge"
+  ],
+  "knownLimitations": [
+    "Natural-language approval extraction accuracy and recall have not been evaluated against real model responses; false approvals or missed decisions remain possible.",
+    "Approval scan inspects up to three unreviewed candidates per settle; older backlog may require later session activity.",
+    "The owner-main default delivers decisions to all of that Main's linked Work agents. Semantic domain relevance filtering has not been validated.",
+    "Automatic stop enforcement only handles explicit all-Work stops. Ambiguous or single-Work stop scope is not automatically published.",
+    "A delivered policy is not proof that Work changed files or passed tests. No verified applied-state receipt exists yet.",
+    "An already-running tool cannot be retroactively cancelled. Stop takes effect on subsequent tool-call boundaries.",
+    "B-option resolution can still be ambiguous when source has been compacted or heavily ContextEdited; it is held rather than guessed.",
+    "Actual npm typecheck and Node tests are unexecuted because the GitHub connector has no runner and this environment cannot fetch the repo/dependencies.",
+    "macOS/Ghostty native Split and Pi end-to-end behaviors remain unverified.",
+    "Draft PR #37 is dependent on unmerged Draft PR #25. Neither main nor the internal development harness has been changed."
   ]
 }
