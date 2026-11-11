@@ -75,12 +75,15 @@
 
 Sidebar·Overview·Summary Overlay, Orca, tmux/workmux, 별도 GUI/상주 서버/메시지 브로커, 자동 멀티 Agent 스케줄링, 자동 정책 승인·Git 병합·세션/Worktree 삭제는 현재 목표가 아닙니다.
 
-## 7. 미결정과 완료 기준
+## 7. 미해결 검증과 완료 기준
 
-- **예외 수신 UX (설계 논의 중):** Main `<`는 사용자 판단이 실제 필요한 정책 충돌 등을 위한 경로로 한정합니다. 단순 비교 모델 오류, 실행 증거 부족, 전달 오류를 사용자 정책 결정과 혼동하지 않도록 상태·UI를 분리해야 합니다.
-- **후보 준비:** 새 기본 경로에서는 Work `<` 요청 시 후보·필수 맥락을 준비합니다. 과거 자동 완료 후보 및 질문 코드는 역사적 구현이지만 최신 기본 경로에서 등록하지 않습니다. 자동 Main 전송은 허용하지 않습니다.
-- **모델의 불완전한 근거:** 불완전한 분석을 안전·정합성 확인 완료로 간주하지 않습니다. 모델 실패의 자동 복구 방식, 보고를 컨텍스트 외부에 보류할 조건과 실제 사용자 판단을 요구할 조건은 TRD/계획에서 구체화합니다.
-- **실제 검증:** 새 Main/정확한 Fork/Native Split/Work `<`/Main 알림·반영/원문·의미·정책 보호/종료·재개의 macOS 실사용 확인이 필요합니다.
-- 코드 존재, 타입·단위 테스트 통과, 실제 실행 성공, Handoff 의미 품질은 각각 별도로 입증합니다.
+- **자동 자연어 감지:** 명확한 승인 구문에서 사용자의 실제 결정과 원래 대안을 연결합니다. 확정되지 않은 제안·부정·다른 Main의 결정이 전파되지 않는지, 명시적 승인도 놓치지 않는지 실제 사례로 검증해야 합니다.
+- **정확한 적용 범위:** 기본 정책 소유 Main의 Work만 구독합니다. 여러 Main·Work에서 출처가 충돌하는 경우 조용히 대상 Main을 추측하지 않습니다.
+- **Work 처리 상태:** 새 결정이 모델에 노출·세션에 기록·실제 구현에 반영된 사건을 구분해야 합니다. 전달만으로 실행 완료 상태를 표시하지 않습니다.
+- **장기 맥락:** Compaction/ContextEdit·세션 재개 후에도 활성 분기의 결정 원본과 WHY가 부정확하게 소실되지 않아야 합니다.
+- **실사용 검증:** 새 Main, 정확한 Fork, Worktree, 실행 중 변경, 미검증 결과의 Handoff, 분기 전환, 중복, 오프라인 복구, Pi 메시지 receipt, macOS/Ghostty의 실제 동작을 확인해야 합니다.
+- **비용:** 변경 없는 일반 실행에 정책 판단용 모델 호출이 발생하지 않아야 하며, 승인 감지로 인한 추가 호출·토큰·지연과 줄어든 재작업을 비교해야 합니다.
 
-[Architecture](ARCHITECTURE.md) · [TRD](TRD.md) · [Implementation Plan](IMPLEMENTATION_PLAN.md) · [Handoff 코드 감사](HANDOFF_IMPLEMENTATION_AUDIT.md)
+**상태 기록:** [구현 계획](IMPLEMENTATION_PLAN.md), [요구사항별 JSON 검증 기록](validation/policy-sync-20261111.json)에 구현 완료와 테스트·E2E 검증을 별도로 기록합니다.
+
+[Architecture](ARCHITECTURE.md) · [TRD](TRD.md) · [Implementation Plan](IMPLEMENTATION_PLAN.md)
