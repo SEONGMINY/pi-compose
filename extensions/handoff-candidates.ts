@@ -390,8 +390,12 @@ export async function prepareManualHandoffCandidates(ctx: ExtensionContext, onMe
     const candidates=normalized.filter((item):item is HandoffCandidate=>
       Boolean(item&&item!=='unverified-quote'));
     if(!candidates.length)return fallback();
-    const prepared=verifiedLinkedContext(
-      parsed.context??(history.length?undefined:[]),history,candidates.length);
+    // Candidate filtering changes HC indices. Never link historical WHY to
+    // shifted claims merely because their generated ID still looks valid.
+    const prepared=normalized.length===candidates.length
+      ?verifiedLinkedContext(parsed.context??(history.length?undefined:[]),
+        history,candidates.length)
+      :{items:[],assessment:'unavailable' as const};
     metricOutcome=prepared.assessment==='unavailable'?'unavailable':'ok';
     const draft:PreparedHandoff={
       version:1,sessionId,sourceLeafId,reportEntryId:source.reportEntryId,
