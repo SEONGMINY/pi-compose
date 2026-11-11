@@ -1,24 +1,27 @@
 # Implementation Plan — 남은 작업과 완료 기준
 
-> 기준: [PRD](PRD.md) · 2026-11-10 최신 단순 Handoff 결정
+> 기준: [PRD](PRD.md) · **2026-11-11 확정 Handoff 신뢰 경계** (Work 검증·승인 / Main 원본 수신 / 조건부 컨텍스트 반영)
 >
 > 이 문서는 **아직 해야 할 일**만 관리합니다. 과거 구현 내역·검증 로그는 [Handoff Audit](HANDOFF_IMPLEMENTATION_AUDIT.md) 및 [Validation](validation/)에 남깁니다.
 
-## 1. 우선순위
+## 1. 다음 구현 우선순위 (모두 미완료)
 
 | 순서 | 작업 | 완료 조건 |
 | --- | --- | --- |
-| 1 | 문서 정본 정리 | Vision·Problems·PRD·Architecture·TRD·Usage의 책임이 중복되지 않고, 오래된 ADR/검증 자료의 상태가 분명함 |
-| 2 | 최신 Handoff UX의 기존 코드 대응표 | PR #25에서 그대로 재사용할 부분과 `<` 발신 / Main 알림·명시적 반영에 맞춰 바꿀 부분이 근거로 확인됨 |
-| 3 | Handoff Brief 도입 (Draft 코드 작성) | `<`→간결한 의미 단위·근거 확인→Main 반영문 한 번 승인, 큰 작업에서 정보 누락·탐색·취소의 macOS 검증 |
-| 4 | Main 한 번 승인 연동 (Draft 코드 작성) | 정확한 활성 Fork 계보·현재 Main 비교·중복 확인 후 같은 Brief만 Work 참고 보고로 기록. 충돌/불확실/오프라인은 보류, receipt/재개/타분기 통합 검증 |
-| 5 | 의미·상태 안전성 검증 | 승인·부정문·WHY·테스트 실행 여부·Main 최신 정책 충돌을 원문 사례에서 확인 |
-| 6 | macOS 통합 검증 | Ghostty/Pi/Extension 로드, 전송→수신→선택 반영 및 재시작·오류·중복 시나리오를 실제 환경에서 검증 |
+| P0 | Main 비교의 책임 축소 | Work 구현/테스트를 Main 대화만으로 재심사하지 않음. Fork 이후 **관련 확정 Main 결정**의 정합성과 중복만 확인. 변경 이력이 불명확할 때는 안전 판정하지 않음 |
+| P0 | 원본 수신·컨텍스트 반영 상태 분리 | 정상 Work Handoff는 Main 두 번째 `<` 없이 원본 수신·검사·Pi receipt 확인 후 동일 Brief 반영. 기술 실패는 사용자 정책 결정을 강요하지 않음 |
+| P0 | Main 예외 UX 단순화 | 실제 정책 충돌은 현재 결정/Work 보고/결정 질문만 표시. `insufficient`, 실행 증거 부족, 모델 오류는 사용자 선택이 필요한 충돌과 구분 |
+| P0 | Work 검토 UX 단순화 | 단일 전달 목록 + 필수 WHY/제약을 기본 노출. 중복된 '현재 선택/실제 본문/선택지/선택 항목 맥락' 구역 제거. 최종 승인 직전에 정확한 본문 확인 |
+| P1 | 원문·의미 정확성 회귀 검증 | 기존 정책 부정문·범위·WHY·미실행 테스트·승인 주체가 유지되는지 확인 |
+| P1 | Pi/Ghostty E2E | 장문 Handoff, Main 정상 자동 수신, 실제 Fork 이후 결정 변경, 중복/재시작/타분기, 키보드·화면 크기 검증 |
+
+**정의된 신뢰 계약은 문서에 반영했지만 PR #25의 기존 전체 비교 및 예외 화면은 아직 새 계약대로 구현되지 않았습니다.** 관련 상태 분류와 UI는 논의를 마친 후 수정합니다.
 
 ## 2. 반드시 유지할 경계
 
 - Main 원본 Pi 세션은 Work Fork 때문에 변경되지 않습니다.
 - Work는 Fork 당시 맥락과 자신의 작업 이력만 보고, Main의 Fork 이후 대화를 몰래 읽지 않습니다.
+- Work에서 보낸 **보고의 출처/승인 무결성**과 내용의 **독립 사실 검증**을 혼동하지 않습니다. Main은 Work의 구현을 재심사하지 않되 최신 확정 결정과의 정합성을 확인합니다.
 - 발신 승인 전 자동 전송은 허용하지 않습니다. **Work에서 사용자가 승인한 참고 보고**는 Main 안전 검사 후 모델 턴 없이 추가할 수 있지만, 정책 채택·코드 실행은 자동화하지 않습니다.
 - `/compose inbox`를 새 목표의 필수 사용자 경로로 두지 않습니다.
 - 별도 Sidebar·Overview·Overlay·서버·GUI를 도입하거나 오래된 코드를 원래 방식으로 복구하지 않습니다.
@@ -26,6 +29,6 @@
 
 ## 3. 구현 현황과 검증의 구분
 
-PR #25는 Handoff 패키지·출처·의미 검사·로컬 저장·수신 비교 코드와 테스트를 작성한 Draft입니다. [Audit](HANDOFF_IMPLEMENTATION_AUDIT.md)은 Ubuntu GitHub Actions의 `npm run check` 통과를 기록하지만, 이 사실이 최신 단순 UX 또는 macOS 실사용 E2E를 증명하지는 않습니다.
+PR #25는 Handoff 패키지·원문/출처 검증·로컬 보관·수신 비교·UI 코드가 있는 Draft입니다. 과거 CI 실행 기록이나 작성된 테스트만으로 이번 신뢰 경계의 실제 동작과 macOS E2E 성공을 주장하지 않습니다.
 
-**현재 Draft PR #25에서는 Handoff Brief와 한 번 승인/조건부 Main 참고 보고 설계를 코드로 반영했습니다.** `extensions/context-review.ts`, `context-receive.ts`, `src/handoff/context-review.ts` 및 단위 테스트를 추가했습니다. 실제 `npm run check` 결과와 Ghostty 통합 검증은 별도로 기록하며, 검증 전 병합하지 않습니다.
+**실제 현재 동작과 다음 변경을 구분:** Draft에는 Work Brief와 Main 의미 비교·보류 로직이 있지만, 사용자 실사용에서 불필요한 `insufficient`와 Main 두 번째 `<`, 중복된 Work 검토 화면이 재현됐습니다. 이번 문서 원칙만으로 기능이 수정된 것은 아닙니다. 최신 `npm run check`와 Ghostty 통합 검증은 별도이며, 완료 전 병합하지 않습니다.
