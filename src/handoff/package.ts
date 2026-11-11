@@ -55,6 +55,7 @@ export const handoffPackageSchema = z.object({
     revision: z.string().min(1).optional(),
     pendingDecisionIds: z.array(z.string().min(1)).max(200),
     withdrawnDecisionIds: z.array(z.string().min(1)).max(200),
+    unreviewedApprovalCount: z.number().int().nonnegative().optional(),
   }).optional(),
   // Records which exact body received model-assisted semantic inspection.
   // This is an audit receipt, not proof that every claim is correct.
