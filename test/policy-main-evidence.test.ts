@@ -209,3 +209,10 @@ test('bare B approval follows a newer Markdown-formatted B option',()=>{
   assert.deepEqual(resolveApprovedSource(approval,[old,recent],recent.id,recent.text),
     {source:recent,quote:recent.text});
 });
+
+test('unlabeled user-approved policy retains the original verified source path',()=>{
+  const approval={id:'plain-user',role:'user',
+    text:'로그인 정책은 성공 시 /dashboard로 이동하는 방식으로 확정합니다.'};
+  assert.deepEqual(resolveApprovedSource(approval,[],approval.id,approval.text),
+    {source:approval,quote:approval.text});
+});
