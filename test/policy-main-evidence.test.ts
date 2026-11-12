@@ -192,3 +192,20 @@ test('bare B reference rejects outdated differently labeled B source',()=>{
   assert.deepEqual(resolveApprovedSource(approval,[old,current],current.id,current.text),
     {source:current,quote:current.text});
 });
+
+test('polite instructions without a concrete decision remain unapproved',()=>{
+  for(const text of [
+    'B안으로 확정합니다. 그동안 고생하셨습니다. Work에 공유해주세요.',
+    'B안으로 확정합니다. 그 정책은 그대로 유지합니다.',
+    'B안으로 확정합니다. 위에서 합의한 방식으로 진행하겠습니다.',
+  ])assert.equal(selfContainedApprovedPolicyQuote(text),undefined,text);
+});
+
+test('bare B approval follows a newer Markdown-formatted B option',()=>{
+  const approval={id:'u-markdown',role:'user',text:'B안으로 확정합니다.'};
+  const old={id:'a-old',role:'assistant',text:'B안: 비밀번호 방식은 유지합니다.'};
+  const recent={id:'a-new',role:'assistant',text:'**B안**: 비밀번호 방식을 제거하고 패스키를 사용합니다.'};
+  assert.equal(resolveApprovedSource(approval,[old,recent],old.id,old.text),undefined);
+  assert.deepEqual(resolveApprovedSource(approval,[old,recent],recent.id,recent.text),
+    {source:recent,quote:recent.text});
+});
