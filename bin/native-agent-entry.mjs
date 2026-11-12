@@ -43,7 +43,9 @@ if (!launchFile || !launchFile.startsWith('/')) {
       typeof composeExtensionFile === 'string' && composeExtensionFile.startsWith('/') &&
       ['main', 'work', 'support'].includes(bootstrap.role) &&
       (bootstrap.role === 'main' ? task === undefined :
-        typeof task === 'string' && task.trim().length > 0) &&
+        bootstrap.role === 'work' && typeof sessionFile === 'string' && task === undefined
+          ? true // Resume the EXACT existing Work: do not invent a new task.
+          : typeof task === 'string' && task.trim().length > 0) &&
       (sessionFile === undefined ||
         (typeof sessionFile === 'string' && sessionFile.startsWith('/'))) &&
       (bootstrap.role !== 'work' || typeof sessionFile === 'string');
@@ -77,7 +79,7 @@ if (!launchFile || !launchFile.startsWith('/')) {
       const args = ['--extension', composeExtensionFile];
       if (sessionFile) args.push('--session', sessionFile);
       else args.push('--session-id', bootstrap.sessionId);
-      if (bootstrap.role !== 'main') args.push('--', task);
+      if (typeof task === 'string' && task.trim()) args.push('--', task);
       const env = {
         ...process.env,
         PI_COMPOSE_AGENT_BOOTSTRAP_V1: Buffer.from(JSON.stringify(bootstrap), 'utf8').toString('base64url'),

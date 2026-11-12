@@ -5,7 +5,8 @@ import { readAgentRelationship } from '../src/agent-relationships.ts';
 import { listProductHandoffSessions, findParentMainSessionId } from '../src/product-sessions.ts';
 import { prepareManualHandoffCandidates } from './handoff-candidates.ts';
 import { createSelectedHandoffPackage, verifyWorkSource, type HandoffPackage } from '../src/handoff/package.ts';
-import { selectContextPackage } from '../src/handoff/context-review.ts';
+import { selectContextPackage, withPolicySync } from '../src/handoff/context-review.ts';
+import { getWorkPolicyStatus } from './policy-work.ts';
 import { putHandoff, readHandoff } from '../src/handoff/store.ts';
 
 const REVIEW_PROGRESS_KEY='pi-compose/context-review-progress';
@@ -90,11 +91,15 @@ export async function openWorkContextReview(
   const ids=draft.candidates.map((_c,i)=>'HC'+(i+1));
   progress.update('3/3 기존 원문과 연결 근거 검증 중');
   let full:HandoffPackage;
+  let policyAtReview:HandoffPackage['policySync'];
   try{
     full=await createSelectedHandoffPackage(ctx,source,draft,{
       ids,reviewEntryId:draft.sourceLeafId,reviewCreatedAt:draft.createdAt,
     },target.id);
     verifyWorkSource(ctx,full);
+    try {policyAtReview=await getWorkPolicyStatus(ctx);}
+    catch {policyAtReview={status:'unavailable',pendingDecisionIds:[],withdrawnDecisionIds:[]};}
+    full=withPolicySync(full,policyAtReview);
   }catch(error){
     ctx.ui.notify('컨텍스트와 원문 근거 준비 실패: '+String(error)+'. 전송하지 않았습니다.','warning');
     return;
@@ -143,7 +148,7 @@ export async function openWorkContextReview(
         if(refined.contextAssessment==='unavailable'||!preserved){
           ctx.ui.notify('추가 근거 검색이 불완전하거나 기존 필수 맥락을 유지하지 못했습니다. 이전 검토 내용을 그대로 보존합니다.','warning');
         }else{
-          full=refined;
+          full=withPolicySync(refined,policyAtReview);
           ctx.ui.notify('근거 검색 결과를 갱신했습니다. 선택한 범위는 그대로 유지됩니다.','info');
         }
       }catch(error){
@@ -154,6 +159,13 @@ export async function openWorkContextReview(
       continue;
     }
     if(!action.selected.length)return;
+    const freshPolicy=await getWorkPolicyStatus(ctx).catch(()=>({
+      status:'unavailable' as const,pendingDecisionIds:[],withdrawnDecisionIds:[],
+    }));
+    if(JSON.stringify(freshPolicy)!==JSON.stringify(policyAtReview)){
+      ctx.ui.notify('검토 도중 Main 정책 상태가 변경됐습니다. 새로운 기준으로 Handoff를 다시 확인해주세요.','warning');
+      return;
+    }
     let final:HandoffPackage;
     try {
       final=selectContextPackage(full,action.selected,
@@ -186,7 +198,7 @@ export async function openWorkContextReview(
         selectedIds:action.selected,bodyHash:final.finalMessageHash,
       });
       announce(final);
-      ctx.ui.notify('선택한 Handoff Brief가 Main에 전달됐습니다. 현재 Main과의 안전 검사 후 충돌이 없으면 같은 본문이 참고 보고로 기록됩니다.','info');
+      ctx.ui.notify('승인된 Work 보고를 Main 보관함에 전달했습니다. Main이 수신을 기록하면 별도 내용 심사 없이 참고 보고로 반영됩니다.','info');
     }catch(error){
       ctx.ui.notify('Handoff 저장 실패: '+String(error)+'. 성공으로 표시하지 않았습니다.','error');
     }

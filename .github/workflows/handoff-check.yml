@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [feat/pic-direct-main-handoff-20261109]
+    branches: [feat/pic-direct-main-handoff-20261109, feat/policy-sync-work-owned-handoff-20261111]
   workflow_dispatch:
 
 permissions:

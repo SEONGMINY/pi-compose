@@ -130,8 +130,10 @@ export function showReferenceContextReview(
         'Work → Main · Handoff Brief',
         '현재 선택으로 Main에 전달되는 내용 · Space로 포함/제외',
         '전달할 결과 '+chosenClaims.length+'건 · 연결된 WHY·제약 '+linked.length+'건',
-        ...chosenClaims.map(c=>'- '+c.title+': '+c.summary),
-        '',
+        ...(pkg.policySync?[ 'Main 정책 최신성: '+pkg.policySync.status+
+          ' · 미확인 '+(pkg.policySync.pendingDecisionIds.length+pkg.policySync.withdrawnDecisionIds.length)+'건']:[]),
+        // The actual Main-bound Brief is shown once. The selectable list below
+        // is navigation, not a second paraphrased copy of every report.
         ...briefPreview(7),
         '',
         '선택 '+chosen.size+' / '+units.length+' · 현재 후보 '+(index+1)+' / '+filtered().length+
@@ -144,8 +146,10 @@ export function showReferenceContextReview(
         ...(visible.length>page?['  '+(index+1)+'/'+visible.length+' · ↑↓로 항목 이동']:[]),
         ...(!visible.length?['검색 결과가 없습니다. Esc로 검색을 지우세요.']:[]),
         '',
-        '──── 선택 항목 맥락 ────',
-        ...compactContext(),
+        '──── 현재 선택의 필수 제약 · 근거 ────',
+        ...(expanded ? compactContext().slice(3) : [
+          '원문 제약·WHY '+(current()?.requiredContext.length??0)+'건 · Ctrl+E 펼치기'
+        ]),
         ...(pkg.contextAssessment==='unavailable'
           ?['⚠ 이전 WHY·조건 검색이 완전하지 않습니다.']:[]),
         ...(note?['추가 의견: '+note]:[]),
@@ -181,6 +185,8 @@ export function showReferenceContextReview(
       const start=Math.max(0,Math.min(index-Math.floor(page/2),visible.length-page));
       const left=[
         '전달할 컨텍스트 · 선택 '+chosen.size+' / '+units.length+' · 현재 후보 '+(index+1)+' / '+visible.length,
+        ...(pkg.policySync?['정책: '+pkg.policySync.status+' · 미확인 '+
+          (pkg.policySync.pendingDecisionIds.length+pkg.policySync.withdrawnDecisionIds.length)+'건']:[]),
         (search?'검색: '+(query||'입력 중…'):' / 검색 · Space 선택'),
         '',
         ...visible.slice(start,start+page).flatMap((unit,i)=>[
@@ -199,8 +205,7 @@ export function showReferenceContextReview(
         '',
         ...approvedText().split('\n'),
         '',
-        '──── 현재 커서 항목의 관련 근거 ────',
-        currentUnit?.title??'검색 결과 없음',
+        '──── 현재 항목의 근거 · 필요할 때 펼치기 ────',
         '검증: '+(currentUnit?.verification??'해당 없음'),
         ...(expanded
           ?connected.flatMap(c=>['• '+c.whyNeeded,c.quote,''])

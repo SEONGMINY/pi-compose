@@ -49,6 +49,14 @@ export const handoffPackageSchema = z.object({
   evidence: z.array(evidenceSchema).min(1).max(15),
   reviewerNote: z.string().max(1200).optional(),
   contextAssessment: z.enum(['selected', 'none-needed', 'unavailable']),
+  policySync: z.object({
+    status: z.enum(['checked','delivered','pending','unavailable']),
+    mainSessionId: z.string().min(1).optional(),
+    revision: z.string().min(1).optional(),
+    pendingDecisionIds: z.array(z.string().min(1)).max(200),
+    withdrawnDecisionIds: z.array(z.string().min(1)).max(200),
+    unreviewedApprovalCount: z.number().int().nonnegative().optional(),
+  }).optional(),
   // Records which exact body received model-assisted semantic inspection.
   // This is an audit receipt, not proof that every claim is correct.
   qualityReview: z.object({

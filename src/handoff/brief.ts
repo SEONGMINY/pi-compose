@@ -9,7 +9,7 @@ import type { HandoffPackage } from './package.ts';
  * context quotes: it never silently rewrites their negation or scope.
  */
 export function renderApprovedMainBrief(
-  pkg:Pick<HandoffPackage,'claims'|'context'|'reviewerNote'|'contextAssessment'|'source'>,
+  pkg:Pick<HandoffPackage,'claims'|'context'|'reviewerNote'|'contextAssessment'|'source'|'policySync'>,
 ):string {
   const report= [
     'Pi Compose · Work에서 승인한 Handoff Brief',
@@ -28,6 +28,21 @@ export function renderApprovedMainBrief(
       ...pkg.context.map(item=>
         '- ['+item.reason+'] '+item.whyNeeded+': '+item.quote+
         ' (연결된 결과: '+item.requiredByClaimIds.join(', ')+')'),
+      '',
+    ]:[]),
+    ...(pkg.policySync ? [
+      '정책 최신성 (Work 보고 · 실제 코드 반영의 독립 검증 아님):',
+      '  확인 상태: '+pkg.policySync.status,
+      ...(pkg.policySync.unreviewedApprovalCount
+        ?['  Main에서 아직 분류하지 못한 승인 후보: '+pkg.policySync.unreviewedApprovalCount+'건']:[]),
+      '  정책 소유 Main: '+(pkg.policySync.mainSessionId??'확인되지 않음'),
+      '  변경 기준: '+(pkg.policySync.revision??'미확인'),
+      ...(pkg.policySync.pendingDecisionIds.length
+        ?['  미전달·미확인 변경: '+pkg.policySync.pendingDecisionIds.join(', ')]:[]),
+      ...(pkg.policySync.withdrawnDecisionIds.length
+        ?['  현재 Main 분기에서 철회된 이전 결정: '+pkg.policySync.withdrawnDecisionIds.join(', ')]:[]),
+      ...(pkg.policySync.status==='unavailable'
+        ?['  경고: 최신 Main 결정과 동기화 여부를 확인하지 못했습니다.']:[]),
       '',
     ]:[]),
     ...(pkg.contextAssessment==='unavailable'

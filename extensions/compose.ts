@@ -8,15 +8,23 @@ import { registerHandoffInbox } from './handoff-inbox.ts';
 import { openWorkContextReview } from './context-review.ts';
 import { openMainContextReceive, registerMainContextImportReceipts, registerAutomaticMainAdoption } from './context-receive.ts';
 import { readAgentRelationship } from '../src/agent-relationships.ts';
+import { registerPolicyMain } from './policy-main.ts';
+import { registerPolicyWork } from './policy-work.ts';
+import { registerDirectWorkPolicyCheck } from './direct-work-policy-check.ts';
+import { registerDirectWorkResume, registerWorkResumeAutocomplete } from './direct-resume.ts';
 
 /**
  * The user starts a Work with >w and explicitly shares selected context with <.
- * The Main compares its current branch without starting a Main agent turn.
- * Work's one approval imports only source-attributed, conflict-free reports;
- * other results stay outside context until Main's exceptional < review.
+ * The Main records approved policy decisions; Work consumes only scoped deltas.
+ * A Work-approved Handoff imports by origin/integrity checks without semantic re-review.
+ * >r resumes an existing Work; >< lets Work inspect approved policy deltas.
+ * Main's exceptional unresolved-approval review remains /compose policy.
  */
 export default function composeExtension(pi: ExtensionAPI): void {
   registerAgentIdentity(pi);
+  const policyReview=registerPolicyMain(pi);
+  registerPolicyWork(pi);
+  registerDirectWorkPolicyCheck(pi);
   const { showHandoff, connectedRecipientIds } = registerHandoff(pi);
   const mainAdoption=registerAutomaticMainAdoption(pi);
   const receiver = registerHandoffInbox(pi,mainAdoption.onAvailable);
@@ -41,21 +49,25 @@ export default function composeExtension(pi: ExtensionAPI): void {
   };
   registerDirectDelegation(pi);
   registerDelegationAutocomplete(pi);
+  registerDirectWorkResume(pi);
+  registerWorkResumeAutocomplete(pi);
   registerDirectHandoff(pi, contextualHandoff, connectedRecipientIds);
 
   pi.registerCommand('compose', {
-    description: 'Pi Compose: /compose handoff, /compose messages, /compose surfaces',
+    description: 'Pi Compose: /compose policy, /compose handoff, /compose messages, /compose surfaces',
     handler: async(args,ctx)=>{
       const command=args.trim();
       if(command==='surfaces'){await showGhosttySurfaces(ctx);return;}
+      if(command==='policy'){await policyReview.openReview(ctx);return;}
       if(command==='handoff'){
         await contextualHandoff(ctx,{sameProductOnly:true,draft:true,preferParentMain:true});
         return;
       }
       if(command==='messages'){await showHandoffHistory(ctx);return;}
       ctx.ui.notify(
-        '사용법: Main에서 >w 작업 위임 · Work에서 < Handoff Brief 승인 · Main에서 < 예외 결과 확인. '+
-        '추가 명령: /compose handoff, /compose messages, /compose surfaces.',
+        '사용법: Main에서 >w 새 Work 위임 · Work에서 < Handoff 승인 · Main에서 < 예외 수신 확인. '+
+        '기타: >r 기존 Work 재개 · Work에서 >< 정책 변경 확인 · Main은 /compose policy로 미확정 후보 검토. '+
+        '추가 명령: /compose policy, /compose handoff, /compose messages, /compose surfaces.',
         'warning',
       );
     },

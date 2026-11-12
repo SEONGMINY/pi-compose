@@ -60,4 +60,9 @@ test('old tmux/workmux slash commands are not available from the new Core', asyn
     !message.includes('/compose launch') &&
     !message.includes('/compose resume')
   ));
+  // New convenience shortcuts may be added without erasing existing help.
+  assert.ok(result.notifications.every(message =>
+    message.includes('>r 기존 Work 재개') &&
+    message.includes('Work에서 ><')
+  ));
 });
