@@ -92,7 +92,7 @@ export function resolveApprovedSource(
     if(label&&source.role==='assistant'){
       // Never resolve a bare B reference to a stale B proposal if a newer
       // explicitly labeled B proposal exists on this visible Main branch.
-      const option=new RegExp('(?:^|\\n|\\s)'+label+'\\s*안\\s*[:：—-]','i');
+      const option=new RegExp('(?:^|\\n|\\s|\\*)\\*{0,2}'+label+'\\s*안\\*{0,2}\\s*[:：—-]','i');
       const newest=earlier.filter(m=>m.role==='assistant'&&option.test(m.text)).at(-1);
       if(newest&&newest.id!==source.id)return;
     }
