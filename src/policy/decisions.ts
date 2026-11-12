@@ -62,6 +62,13 @@ export function selfContainedApprovedPolicyQuote(text:string):string|undefined {
   // Coordination instructions do not themselves state the approved policy.
   if(/^(?:이|그|해당|위)\s*(?:정책|내용|결정|안|방안)(?:을|를|은|는)?\s*(?:Work|워크|Main|메인)?[\s\S]*?(?:전달|전파|공유|보고|기록|반영|적용)(?:합니다|하겠습니다)[.!。]?$/.test(tail))return;
   if(/^(?:Work|워크|Main|메인)(?:에|에게|로|에서는?)\s*(?:즉시|먼저|자동으로)?\s*(?:전달|전파|공유|보고|기록)(?:합니다|하겠습니다)[.!。]?$/.test(tail))return;
+  // Require a concrete subject/action in the same sentence; a polite
+  // follow-up like "Thanks. Please forward this" is not its own policy.
+  const statements=tail.split(/(?<=[.!。])\s+|\n+/);
+  if(!statements.some(s=>
+    /\S{2,}(?:은|는|을|를|에게|에서는?|후|때|시|경우).{2,}(?:합니다|하겠습니다|됩니다|되겠습니다|한다|해야\s*합니다)/.test(s)))return;
+  // Deictic references alone still need their earlier proposal as evidence.
+  if(/^(?:이|그|해당|위|이전|기존)\s*(?:정책|내용|결정|안|방안|방법|방식)/.test(tail))return;
   if(containsSensitivePolicyText(tail)||containsSensitivePolicyText(approval))return;
   return tail;
 }
