@@ -31,6 +31,7 @@ test('unresolved candidate remains visible until a real review is recorded',()=>
 
 test('earlier ambiguous review can be rechecked after review-version upgrade',()=>{
   assert.equal(hasBeenInspected({approvalEntryId:'u1',status:'ambiguous',reviewVersion:1}),false);
+  assert.equal(hasBeenInspected({approvalEntryId:'u1',status:'ambiguous',reviewVersion:2}),false);
   assert.equal(hasBeenInspected({approvalEntryId:'u1',status:'ambiguous',reviewVersion:POLICY_REVIEW_VERSION}),true);
   assert.equal(hasBeenInspected({approvalEntryId:'u1',status:'ignored',reviewVersion:1}),true);
   assert.equal(hasBeenInspected(undefined),false);
