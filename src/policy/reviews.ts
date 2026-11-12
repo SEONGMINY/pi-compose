@@ -1,6 +1,6 @@
 import { REVIEW_ENTRY } from './decisions.ts';
 
-export const POLICY_REVIEW_VERSION=2;
+export const POLICY_REVIEW_VERSION=3;
 export type PolicyReviewRecord={
   approvalEntryId:string;
   reviewVersion?:number;
