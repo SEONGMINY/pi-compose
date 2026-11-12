@@ -215,7 +215,10 @@ export function registerPolicyMain(pi:ExtensionAPI):{
             if(!fallback)throw error;
             parsed=undefined;
           }
-          if(parsed?.status!=='approved' && fallback)parsed=fallback;
+          // A semantic rejection or ambiguity is NOT a transport failure.
+          // The local exact-quote fallback may recover only an unavailable or
+          // failed model call, never override the model's safety verdict.
+          if(!parsed&&fallback)parsed=fallback;
           if(!parsed)break;
           if(ctx.sessionManager.getLeafId()!==startLeaf||!ctx.isIdle())break;
           let record:PolicyDecision|undefined;
