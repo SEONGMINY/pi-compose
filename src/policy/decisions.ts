@@ -46,23 +46,24 @@ export function isExecutionModeOnlyChoice(text:string):boolean {
 }
 
 /**
- * An approval can itself contain the full policy; the assistant's earlier
- * B-option quote is NOT mandatory if the user explicitly restates the rule.
- *
- * This is a deliberately narrow, verbatim-only fallback. Pure option labels
- * and execution-mode requests are never promoted into decisions.
+ * A self-contained user decision outranks an earlier named assistant option.
+ * Preserve the complete approved tail, including conditions and exceptions.
+ * This conservative fallback recognizes declarative statements only; other
+ * formulations require semantic classification and exact-source verification.
  */
 export function selfContainedApprovedPolicyQuote(text:string):string|undefined {
   const approval=text.trim();
   const lead=approval.match(/^[A-Z가-힣]\s*안(?:으로|을|이)?\s*(?:확정|결정|채택)(?:합니다|하겠습니다|했습니다|했어요|해요|한다)?[.!。]?\s*/i);
   if(!lead)return;
   const tail=approval.slice(lead[0].length).trim();
-  const clause=tail.split(/\n|(?<=[.!。])\s+/)[0]?.trim();
-  if(!clause||clause.length<24||clause.length>1600)return;
-  // Require a concrete rule, not merely "share it with Work" or "document it".
-  if(!/(?:정책|규칙|방식|조건|설정|사양|기준|사용|허용|제거|유지|금지|전환|필수|must|only|require|remove|keep)/i.test(clause))return;
-  if(containsSensitivePolicyText(clause)||containsSensitivePolicyText(approval))return;
-  return clause;
+  if(tail.length<20||tail.length>1600)return;
+  // Do not whitelist domain verbs like "이동"; new domains must also work.
+  if(!/(?:합니다|하겠습니다|됩니다|되겠습니다|해야\s*합니다|해야\s*한다|한다|하기로\s*했습니다)(?:[.!。]|\s|$)/.test(tail))return;
+  // Coordination instructions do not themselves state the approved policy.
+  if(/^(?:이|그|해당|위)\s*(?:정책|내용|결정|안|방안)(?:을|를|은|는)?\s*(?:Work|워크|Main|메인)?[\s\S]*?(?:전달|전파|공유|보고|기록|반영|적용)(?:합니다|하겠습니다)[.!。]?$/.test(tail))return;
+  if(/^(?:Work|워크|Main|메인)(?:에|에게|로|에서는?)\s*(?:즉시|먼저|자동으로)?\s*(?:전달|전파|공유|보고|기록)(?:합니다|하겠습니다)[.!。]?$/.test(tail))return;
+  if(containsSensitivePolicyText(tail)||containsSensitivePolicyText(approval))return;
+  return tail;
 }
 
 export function couldBeApproval(text: string): boolean {
