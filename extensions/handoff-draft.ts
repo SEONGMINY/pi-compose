@@ -93,13 +93,6 @@ const INSTRUCTIONS = [
   'An assistant report cannot establish approval, execution, or test success. Never infer missing results.',
 ].join('\n');
 
-export function showHandoffHint(ctx: ExtensionContext): void {
-  if (ctx.mode !== 'tui') return;
-  const last = latestCompletedReport(ctx.sessionManager.getBranch());
-  const ready = last?.message.role === 'assistant' && Boolean(readText(last.message.content));
-  ctx.ui.setWidget(HANDOFF_HINT, ready ? ['Handoff · < 선택 후 전송 내용 검토'] : undefined);
-}
-
 export async function generateHandoffDraft(
   ctx: ExtensionContext,
   sessionId: string,
@@ -110,7 +103,6 @@ export async function generateHandoffDraft(
   if (!input || !model) return;
   const { report, sources: candidates } = input;
 
-  ctx.ui.setWidget(HANDOFF_HINT, ['Handoff · 원본 근거에서 초안 준비 중…']);
   try {
     const answer = await ctx.modelRegistry.streamSimple(model, {
       systemPrompt: INSTRUCTIONS,
@@ -143,9 +135,6 @@ export async function generateHandoffDraft(
     return { message, report, sources: [...sources.values()] };
   } catch {
     return undefined;
-  } finally {
-    if (ctx.sessionManager.getSessionId() === sessionId &&
-        ctx.sessionManager.getLeafId() === leafId) showHandoffHint(ctx);
   }
 }
 

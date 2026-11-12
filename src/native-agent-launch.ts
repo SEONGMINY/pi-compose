@@ -305,6 +305,13 @@ export async function startNativeAgentInOverview(
     request.overviewAnchorTerminalId, request.requesterTerminalId, request.product,
   );
 
+  return launchSelectedAgent(request, workspaceAnchorId);
+}
+
+async function launchSelectedAgent(
+  request: NativeAgentLaunchRequest,
+  workspaceAnchorId: string,
+): Promise<NativeAgentLaunchReceipt> {
   // The calling Agent's workspace remains the Git source of truth even when
   // the selected Fork transcript belongs to a different workspace.
   const callerCwd = await realpath(request.targetCwd);
@@ -369,4 +376,148 @@ export async function startNativeAgentInOverview(
     worktree,
     state: 'ghostty-split-created-pi-unverified',
   };
+}
+
+export type NativeWorkResumeRequest={
+  sessionFile:string;
+  sessionId:string;
+  product:string;
+  anchorTerminalId:string;
+  allowUnconfirmedProcess?:boolean;
+};
+export type NativeWorkResumeInspection={
+  sessionId:string;
+  cwd:string;
+  state:'available'|'existing-surface'|'process-observed'|'unconfirmed';
+  existingTerminalId?:string;
+  reason?:string;
+};
+
+/**
+ * Inspect a saved Work without writing to its Pi JSONL or creating a Fork.
+ * A saved Worktree's original CWD is authoritative; never inherit the
+ * requester's project root just because the product IDs match.
+ */
+export async function inspectNativeWorkResume(
+  request:Pick<NativeWorkResumeRequest,'sessionFile'|'sessionId'|'product'>,
+):Promise<NativeWorkResumeInspection>{
+  const sessionFile=await realpath(request.sessionFile);
+  const manager=SessionManager.open(sessionFile);
+  if(manager.getSessionId()!==request.sessionId)
+    throw new Error('Selected Work session ID does not match its Pi transcript.');
+  const identity=readAgentRelationship(request.sessionId,manager.getEntries());
+  if(identity?.role!=='work'||identity.product!==request.product)
+    throw new Error('Selected Pi session is not a Work belonging to this Compose product.');
+  if(!identity.forkSourceSessionId||!identity.forkSourceLeafId)
+    throw new Error('Saved Work has no verified original Fork relationship.');
+  const cwd=await realpath(identity.workspaceCwd);
+  if(await realpath(manager.getCwd())!==cwd)
+    throw new Error('Saved Work workspace does not match its Pi session CWD.');
+  const terminals=await listGhosttyTerminals();
+  const liveTerminal=identity.terminalId && terminals.some(t=>t.id===identity.terminalId);
+  const runtime=await observeAgentLifecycle(identity.runtimeReceiptFile,{
+    sessionId:identity.sessionId,
+    launchRequestId:identity.runtimeLaunchRequestId,
+    terminalId:identity.terminalId,
+  });
+  // A terminal may remain open at a shell prompt after Pi already exited.
+  // Never treat Ghostty surface existence alone as proof of a live Work.
+  if(runtime.state==='process-observed' && liveTerminal)
+    return {sessionId:identity.sessionId,cwd,state:'existing-surface',
+      existingTerminalId:identity.terminalId};
+  return {sessionId:identity.sessionId,cwd,
+    state:runtime.state==='process-observed'?'process-observed':
+      runtime.state==='exited-observed'||runtime.state==='launch-failed'
+        ?'available':'unconfirmed',
+    reason:runtime.source};
+}
+
+export type NativeWorkResumeReceipt={
+  sessionId:string;
+  terminalId:string;
+  mode:'existing-surface-focused'|'resume-work';
+  state:'existing-terminal'|'ghostty-split-created-pi-unverified';
+  launchRequestId?:string;
+  runtimeReceiptFile?:string;
+};
+
+/**
+ * Resume the EXACT Work Pi session in a native Ghostty split. No Fork,
+ * no task prompt, no new identity. The Pi launcher loads --session <file>.
+ */
+export async function resumeNativeWorkFromTerminal(
+  request:NativeWorkResumeRequest,
+):Promise<NativeWorkResumeReceipt>{
+  if(process.platform!=='darwin')throw new Error('Ghostty Work resume requires macOS.');
+  if(!request.anchorTerminalId)throw new Error('A focused Ghostty terminal is required.');
+  if(await getFocusedGhosttyTerminalId()!==request.anchorTerminalId)
+    throw new Error('Calling Pi terminal lost focus; nothing was resumed.');
+  const inspected=await inspectNativeWorkResume(request);
+  if(inspected.state==='existing-surface'&&inspected.existingTerminalId){
+    await focusGhosttyTerminal(inspected.existingTerminalId);
+    return {sessionId:request.sessionId,terminalId:inspected.existingTerminalId,
+      mode:'existing-surface-focused',state:'existing-terminal'};
+  }
+  if(inspected.state==='process-observed')
+    throw new Error('The selected Work Pi process is still running. Do not open the same session twice.');
+  if(inspected.state==='unconfirmed'&&!request.allowUnconfirmedProcess)
+    throw new Error('Work process status cannot be confirmed. Explicit acknowledgement is required.');
+  // Revalidate saved identity and workspace before constructing the launch permit.
+  const manager=SessionManager.open(await realpath(request.sessionFile));
+  if(manager.getSessionId()!==request.sessionId)throw new Error('Work session changed during resume.');
+  const saved=readAgentRelationship(request.sessionId,manager.getEntries());
+  if(saved?.role!=='work'||saved.product!==request.product||
+     !saved.forkSourceSessionId||!saved.forkSourceLeafId)
+    throw new Error('Work identity changed during resume.');
+  const bootstrap=createAgentBootstrapForSession({
+    sessionId:saved.sessionId,role:'work',product:saved.product,
+    label:saved.label,workspaceCwd:inspected.cwd,
+    requesterSessionId:saved.requesterSessionId,
+    forkSourceSessionId:saved.forkSourceSessionId,
+    forkSourceLeafId:saved.forkSourceLeafId,
+  });
+  const receipt=await launchNativeSplit(bootstrap,undefined,
+    await realpath(request.sessionFile),request.anchorTerminalId,
+    inspected.cwd,request.anchorTerminalId);
+  return {
+    sessionId:saved.sessionId,terminalId:receipt.terminalId,
+    launchRequestId:bootstrap.launchRequestId,runtimeReceiptFile:receipt.runtimeReceiptFile,
+    mode:'resume-work',state:'ghostty-split-created-pi-unverified',
+  };
+}
+
+/**
+ * Start an explicitly user-requested Work/Support in a native Ghostty split
+ * next to the CURRENT Pi surface. No sidebar or Overview exists in this path.
+ * Focus is checked before any worktree or Pi session mutations.
+ */
+export async function startNativeAgentFromTerminal(
+  request: Omit<NativeAgentLaunchRequest, 'overviewAnchorTerminalId' | 'requesterTerminalId'> & {
+    anchorTerminalId: string;
+  },
+): Promise<NativeAgentLaunchReceipt> {
+  if (process.platform !== 'darwin') {
+    throw new Error('Ghostty native Agent creation requires macOS.');
+  }
+  if (!request.task.trim() || !request.label.trim() || !request.product.trim()) {
+    throw new Error('Explicit task, product and label are required.');
+  }
+  if ((request.role === 'work') !== Boolean(request.source)) {
+    throw new Error('Work requires a selected source; Support must remain independent.');
+  }
+  const focused = await getFocusedGhosttyTerminalId();
+  if (focused !== request.anchorTerminalId) {
+    throw new Error('The calling Pi terminal is no longer focused. Nothing was created.');
+  }
+  const terminals = await listGhosttyTerminals();
+  if (!terminals.some(terminal => terminal.id === request.anchorTerminalId)) {
+    throw new Error('The calling Pi Ghostty terminal no longer exists.');
+  }
+  // The legacy ticket format calls this the Overview ID. The new path uses
+  // the exact requester terminal instead; no Overview terminal is created.
+  return launchSelectedAgent({
+    ...request,
+    requesterTerminalId: request.anchorTerminalId,
+    overviewAnchorTerminalId: request.anchorTerminalId,
+  }, request.anchorTerminalId);
 }

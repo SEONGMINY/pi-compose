@@ -119,6 +119,30 @@ on run argv
 end run
 `;
 
+/**
+ * Ghostty exposes toggle_split_zoom as an ACTION, but no public AppleScript
+ * read-only split-zoom state. Only call following an explicit user request,
+ * and never assume a toggle means "zoom in".
+ */
+const TOGGLE_SPLIT_ZOOM = `
+on run argv
+  set wantedId to item 1 of argv
+  tell application "Ghostty"
+    if not frontmost then return "not-focused"
+    set selectedTab to selected tab of front window
+    if selectedTab is missing value then return "not-focused"
+    set focusedTerm to focused terminal of selectedTab
+    if focusedTerm is missing value then return "not-focused"
+    if ((id of focusedTerm) as text) is not wantedId then return "not-focused"
+    if (count of terminals of selectedTab) < 2 then return "single-terminal"
+    if perform action "toggle_split_zoom" on focusedTerm then
+      return "toggled"
+    end if
+    return "unavailable"
+  end tell
+end run
+`;
+
 const CLOSE_TERMINAL = `
 on run argv
   set wantedId to item 1 of argv
@@ -296,4 +320,22 @@ export async function hideGhosttyWithoutQuit(): Promise<void> {
 export async function shrinkSidebarForMain(mainTerminalId: string): Promise<boolean> {
   const result = await runAppleScript(RESIZE_SIDEBAR, [validId(mainTerminalId), '260']);
   return result === 'applied';
+}
+
+/**
+ * Toggle zoom ONLY for the exact currently focused terminal.
+ * No terminal focus change and no keybind injection. This action is inherently
+ * symmetric: Ghostty's AppleScript dictionary does not expose its prior state.
+ *
+ * The caller must track whether it requested the toggle and must not represent
+ * the returned value as proof that the surface became zoomed rather than
+ * unzoomed.
+ */
+export async function toggleFocusedGhosttySplitZoom(terminalId:string):Promise<
+  'toggled'|'not-focused'|'single-terminal'|'unavailable'
+>{
+  const result=await runAppleScript(TOGGLE_SPLIT_ZOOM,[validId(terminalId)]);
+  if(result==='toggled'||result==='not-focused'||
+     result==='single-terminal'||result==='unavailable')return result;
+  throw new GhosttyAutomationError('Unexpected Ghostty zoom response: '+result);
 }

@@ -1,6 +1,7 @@
 # Architecture — Pi Compose
 
-> **목표 구조:** 현재 `main`의 `bin/pic.mjs`는 여전히 Overview를 실행합니다. 제품 동작의 정본은 [PRD](PRD.md), 현재 사용법은 [Usage](USAGE.md)입니다.
+
+> 제품 정책의 정본: [PRD](PRD.md) · 코드 통합과 실제 macOS/Pi/Ghostty 검증은 구분합니다.
 
 ## 1. 상위 구성 요소와 책임
 
@@ -31,26 +32,42 @@ bin/pic.mjs → Pi TUI Main (신규 또는 Pi 기본 Resume)
 
 원본 Pi JSONL 불변, 현재 명령을 입력한 Agent의 작업 디렉터리와 Fork 원본 대화의 독립성을 유지합니다.
 
-## 3. Work → Main 정보 흐름
+## 3. Main 결정 전파와 Work-owned Handoff
 
 ```text
-Work 완료 사실/보고 + 원문 근거
-    │
-    └─ 사용자가 Work < 에서 전달 내용·대상 검토 및 승인
-         │
-         └─ 대상 Main의 비컨텍스트 수신 영역에 안전하게 기록
-               │
-               ├─ Main에는 도착 알림만 표시
-               └─ 사용자가 내용을 확인하고 명시적으로 반영
-                     └─ 기존 Main 최신 승인 결정과의 충돌 검토
+Main: 사용자 확정 발화 + 원본 제안
+ └─ PolicyMain: 승인 문장과 원문 인용 확인 (모호하면 전파 금지)
+      └─ Main Pi custom entry (분기 상대적 결정 기록)
+           └─ local policy snapshot (빠른 조회 캐시 · 정본 아님)
+                └─ Work: 다음 모델 요청에서 변경분만 제공
+                     ├─ 기존 위임 범위에서 자율 재평가·수정
+                     ├─ 상태 불명확/정책 변경 미반영 명시
+                     └─ Work < 사용자 승인 Brief
+                          └─ Main inbox → 대상/계보/해시/중복 검증
+                               └─ 정확히 같은 Work 참고 보고
 ```
 
-이 경로에서 Work의 Fork 시점 기록과 Main의 수신 시점 기록은 **서로 다른 컨텍스트**입니다. 비교는 Main 사용자가 결과를 검토하는 시점에 이루어져야 합니다.
+- `src/policy/decisions.ts`: 사용자 승인 근거·결정·활성 분기 및 Work 인지 상태의 계약
+- `extensions/policy-main.ts`: 확정으로 의심되는 사용자 발화만 제한적으로 모델 확인; Main 원본 세션에 `custom` 기록
+- `src/policy/store.ts`: 정책 소유 Main의 현재 활성 분기 결정 집합을 로컬 인덱스로 저장·조회. 파일 알림은 최적화; Work 시작/모델 경계/Handoff 시 재조회
+- `src/policy/owners.ts`: requester와 Fork 계보를 대조하여 Work가 구독할 Main 식별; 서로 다른 Main이면 조용히 추측하지 않음
+- `extensions/policy-work.ts`: 기존 Work Pi 세션 유지; `before_agent_start`와 `context`에서 변경된 결정만 모델에 전달. 영속 메시지 수신과 실제 코드 적용은 다름
+- `extensions/context-review.ts`: Work Handoff에 정책 최신성·미확인 변경을 정확한 승인 Brief에 포함. 검토 도중 변경되면 재검토
+- `extensions/context-receive.ts`: 메인에서 Work 전체 Claim 재심사를 제거; 승인한 원문 그대로 참고 정보로 반영, 영속 수신·실제 Pi receipt 분리
 
-**미병합 구현:** Handoff의 보관·근거 검토 구현은 [PR #25](https://github.com/SEONGMINY/pi-compose/pull/25)에서 별도로 진행됩니다. 구체적 코드 위치와 검증은 해당 PR 및 [과거 Audit](HANDOFF_IMPLEMENTATION_AUDIT.md)에서 확인합니다.
+**책임 경계:** 사용자 승인 정책은 Main 소유이며 Work 보고는 참고 정보입니다. 실시간 전파는 정책 승인·새 범위 위임·테스트 성공·Git Merge를 암묵적으로 수행하지 않습니다. 과거 분기로 이동하면 현재 Pi 계보에서 유효한 결정만 다시 계산합니다. Work의 전체 맥락이나 Main 대화 전체를 복제하지 않습니다.
 
-## 4. 기술 계약과 안전 경계
+**의도적 제한:** JSON 인덱스는 Main 원본 세션을 대체하지 않습니다. 현재 Main이 확정된 정책을 전파할 수 있다는 것은 모든 자연어 승인을 완벽히 추출한다는 보장이 아닙니다. 모델·저장·Hook 오류가 나면 확인 실패를 숨기지 않고 복구 가능한 상태를 유지합니다.
 
-Handoff는 Work의 원문 근거·전달 패키지, 대상 Main별 보관, 가벼운 알림, Main의 선택적 모델 검토를 분리하는 구조입니다. 출처 Entry·세션 신원·변경된 활성 분기·중복 저장의 검증 방법은 [TRD](TRD.md)를 참고합니다. 제품상 사용자 승인 범위는 [PRD](PRD.md)를 따릅니다.
+## 4. 원문 근거와 승인 경계
 
-실제 하위 API 계약은 [TRD](TRD.md), 남은 작업은 [Implementation Plan](IMPLEMENTATION_PLAN.md)에서 관리합니다.
+- 출처 Pi Entry ID/완료 분기, 선택한 공유 범위, 근거·WHY·조건과 본문을 연결해 손실과 왜곡을 검토합니다.
+- 원문 일치만으로 부정문·사용자 승인·테스트 통과의 의미가 보증되지는 않습니다.
+- 근거 미확인, 세션 전환, 중복 수신, 모델 검토 실패는 **성공 상태로 추측하지 않습니다**.
+- Git 작업 공간 상태, Work의 결과 보고, Main 모델 컨텍스트, 프로젝트 문서 갱신은 서로 분리된 상태입니다.
+
+## 5. 과거 구현과 차이
+
+`src/overview.ts` 등 일부 Legacy 코드가 저장소에 남아 있어도 Sidebar·Overview를 현행 제품 요구사항으로 간주하지 않습니다. PR #25의 상세 코드 작성·Linux CI 여부는 [Handoff Audit](HANDOFF_IMPLEMENTATION_AUDIT.md)에 기록하며 macOS 통합 검증 결과와 구분합니다.
+
+실제 하위 API 계약은 [TRD](TRD.md), 진행/검증 항목은 [Implementation Plan](IMPLEMENTATION_PLAN.md)에서 관리합니다.

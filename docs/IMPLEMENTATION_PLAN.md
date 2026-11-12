@@ -1,20 +1,16 @@
-# Implementation Plan — 아직 끝나지 않은 작업
+# Implementation Plan — 남은 검증과 개선
 
-제품 요구사항은 [PRD](PRD.md), 구현 경계는 [TRD](TRD.md)가 정본입니다. 이 문서는 **앞으로 확인·완료해야 할 일만** 기록합니다. 실제 완료 여부는 최신 코드·검증 결과에 따라 확인합니다.
+> 제품 계약: [PRD](PRD.md) · 기술 경계: [TRD](TRD.md) · 검증 추적: [policy-sync-20261111.json](validation/policy-sync-20261111.json)
 
-## 남은 작업
+Main-first 및 Handoff(PR #25), 정책 자동 전파·`><`(PR #37)의 코드 통합은 완료됐습니다. **코드 병합이 실제 macOS/Ghostty 검증 완료를 뜻하지 않습니다.**
 
-| 순서 | 해야 할 일 | 완료 판정 근거 |
+| 우선순위 | 검증·개선 | 완료 조건 |
 | --- | --- | --- |
-| 1 | [Draft PR #25](https://github.com/SEONGMINY/pi-compose/pull/25)의 최신 Diff를 현행 PRD와 대조 | 기존 구현의 재사용 범위, 최신 UX와 남은 차이·미결정 사항 명시 |
-| 2 | 직접 Main 실행·Resume·Work 실제 Fork·Support·Ghostty Split 검증 | 실제 macOS/Pi 환경에서 원본 세션 불변·정확한 분기·포커스·실행 실패 경계 관찰 |
-| 3 | Work `<` 발신부터 Main 수신·선택 반영까지 통합 검증 | 승인 전 무전송, 컨텍스트 자동 주입 없음, 취소·보류·중복·Main 오프라인·재개 시나리오 |
-| 4 | Handoff 의미·상태 품질 검증 | 실제 사례로 부정문·WHY·승인 주체·미실행 테스트·Fork 이후 Main 결정 충돌 검토 |
-| 5 | 통합 결과를 확인하고 병합 여부 결정 | 검증된 범위와 미검증 위험 기록, 사용자 승인 후 병합 |
+| P0 | 최신 `npm run check`와 실제 Pi/Ghostty E2E | Main→Work→정책 변경→`><`→`<`→Main 수신→`>r` 확인 |
+| P0 | 승인·출처 정확도 | 모호한 선택·오래된 B안·예외·부정문·ContextEdit·Compaction 회귀 |
+| P1 | 정책 적용 상태 | 전달·검토·실제 코드 적용·테스트 완료를 명확히 분리 |
+| P1 | Handoff 품질·복구 | 중복 Claim/WHY, Main 오프라인, 중복·분기 변경 검증 |
+| P1 | 다중 Main 및 Worktree 안전성 | 올바른 원본 계보, CWD 유지, 정책 철회·충돌 처리 |
+| P2 | 모델·토큰 비용 | 변경 없을 때 추가 호출 없음, 필요 없는 확인·지연 감소 |
 
-## 기록과 완료 조건의 구분
-
-- 2026-11-10 문서 정본 재구성은 [PR #27](https://github.com/SEONGMINY/pi-compose/pull/27)에서 이미 병합했으므로 남은 작업에 포함하지 않습니다.
-- [Handoff Audit](HANDOFF_IMPLEMENTATION_AUDIT.md)은 **이전 PR #25 구현의 과거 코드·CI 감사**이며, 이후 변경분의 성공 여부까지 증명하지 않습니다.
-- 코드 작성, 타입/단위 테스트 통과, 실제 macOS UI 동작, Handoff 의미 품질은 **각각 다른 완료 기준**입니다. 기존 테스트가 성공했다는 이유로 현재 Head를 검증했다고 표현하지 않습니다.
-- 이 계획의 반복 사용을 위해 구현 세부 파일 목록과 제품 정책을 복사하지 않습니다. 변경 사항은 해당 PR의 Diff와 정본 문서를 참조합니다.
+별도 개발·유지보수 하네스는 `tools/development-harness/`에 있으며 제품 런타임과 분리합니다. 이전 CI 기록은 당시 코드의 검증 근거이며 최신 변경의 성공으로 간주하지 않습니다.

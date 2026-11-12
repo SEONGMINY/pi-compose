@@ -1,0 +1,356 @@
+{
+  "schemaVersion": 1,
+  "target": "pi-compose product: Main approved-decision propagation, Work policy freshness, Work-owned Handoff",
+  "codeRef": "feat/policy-sync-work-owned-handoff-20261111",
+  "baseline": "978d91d6cf8afed594402121c345a4c50e9d563e",
+  "stateLegend": {
+    "implemented_unverified": "Code exists; tests or real Pi execution not yet established",
+    "design_pending": "Not yet implemented or still requires design validation",
+    "tested_local": "Automated tests executed with recorded PASS",
+    "verified_e2e": "Validated in actual Pi/Ghostty runtime"
+  },
+  "requirements": [
+    {
+      "id": "P01",
+      "name": "Natural-language user approval without separate registration gesture",
+      "state": "implemented_unverified",
+      "code": [
+        "extensions/policy-main.ts"
+      ],
+      "checks": [
+        "B-option reference resolved from quoted assistant proposal",
+        "negation and discussion do not publish",
+        "ambiguous/missing quote not published",
+        "recovery after missed event"
+      ]
+    },
+    {
+      "id": "P02",
+      "name": "Branch-grounded decisions, no assistant/Work policy promotion",
+      "state": "implemented_unverified",
+      "code": [
+        "src/policy/decisions.ts",
+        "src/policy/store.ts",
+        "src/policy/verification.ts"
+      ],
+      "checks": [
+        "approved user and source quotes verified",
+        "compaction and ContextEdit semantics",
+        "rewind/change branch withdraws decisions",
+        "duplicate entry idempotence",
+        "modified but quote-identical ContextEdit maintains authority"
+      ]
+    },
+    {
+      "id": "P03",
+      "name": "Correct owner Main for nested Work, cross-Main ambiguity",
+      "state": "implemented_unverified",
+      "code": [
+        "src/policy/owners.ts",
+        "src/agent-relationships.ts"
+      ],
+      "checks": [
+        "main->work",
+        "main->work->work",
+        "ambiguous @session across Mains",
+        "broad stop only for explicitly all-Work instruction"
+      ]
+    },
+    {
+      "id": "P04",
+      "name": "Zero additional calls for unchanged policy; bounded delta updates",
+      "state": "implemented_unverified",
+      "code": [
+        "extensions/policy-work.ts",
+        "src/policy/decisions.ts",
+        "src/policy/status-widget.ts",
+        "test/policy-widget-integration.test.ts"
+      ],
+      "checks": [
+        "unchanged snapshot no delta",
+        "bounded batches",
+        "before_agent_start and context hook runtime behavior",
+        "no unnecessary agent turn",
+        "unrelated Main turns keep stable revision",
+        "Work policy status moved from footer setStatus to aboveEditor widget without extra model calls"
+      ]
+    },
+    {
+      "id": "P05",
+      "name": "Offline/worktree/resume/notification-loss recovery",
+      "state": "implemented_unverified",
+      "code": [
+        "src/policy/store.ts",
+        "extensions/policy-work.ts"
+      ],
+      "checks": [
+        "offline Work resume",
+        "missed fs.watch events",
+        "two Worktrees in same product",
+        "corrupt snapshot fail closed",
+        "atomic write crashes"
+      ]
+    },
+    {
+      "id": "P06",
+      "name": "Distinguish delivered, reviewed and applied decisions",
+      "state": "design_pending",
+      "code": [
+        "extensions/policy-work.ts"
+      ],
+      "checks": [
+        "message receipt != applied",
+        "explicit Work review status before completion",
+        "unsafe stop transitions"
+      ]
+    },
+    {
+      "id": "P07",
+      "name": "Accurate Work approved Brief with policy freshness",
+      "state": "implemented_unverified",
+      "code": [
+        "src/handoff/package.ts",
+        "src/handoff/brief.ts",
+        "extensions/context-review.ts"
+      ],
+      "checks": [
+        "replay ID changes if snapshot changes",
+        "unavailable/pending clearly printed",
+        "review-time policy race cancels send",
+        "Handoff verifies local cache leaf against persisted Main active branch"
+      ],
+      "userObservedEvidence": "Main displayed Work-approved Brief including work-reported test states, original WHY/constraints, policy freshness checked."
+    },
+    {
+      "id": "P08",
+      "name": "No semantic comparison in automatic Main Handoff import",
+      "state": "implemented_unverified",
+      "code": [
+        "extensions/context-receive.ts",
+        "src/handoff/direct-adoption.ts"
+      ],
+      "checks": [
+        "approved limited report imports",
+        "no comparator calls",
+        "no extra Main model turn",
+        "Work->Work->Main verified"
+      ],
+      "userObservedEvidence": "Main displayed compose_context_review_import with attributed Work Brief. Absence of semantic comparator requires code/runtime verification."
+    },
+    {
+      "id": "P09",
+      "name": "Branch-local Pi import receipt and crash recovery",
+      "state": "implemented_unverified",
+      "code": [
+        "extensions/context-receive.ts",
+        "src/handoff/store.ts"
+      ],
+      "checks": [
+        "save before send",
+        "message_end receipt",
+        "rewound branch no duplicate assumption",
+        "correct branch at import time"
+      ],
+      "userObservedEvidence": "Main displayed an import message. Branch-local receipt and crash recovery remain untested."
+    },
+    {
+      "id": "P10",
+      "name": "Main change discovery from user natural language with reliable no-silent-omission semantics",
+      "state": "design_pending",
+      "code": [
+        "extensions/policy-main.ts",
+        "test/policy-main-evidence.test.ts",
+        "src/policy/store.ts",
+        "extensions/policy-work.ts",
+        "src/handoff/brief.ts",
+        "test/policy-main-evidence.test.ts"
+      ],
+      "checks": [
+        "unmatched user phrasing detection recall evaluated",
+        "full historical resolution when option omitted from bounded excerpts",
+        "low-confidence states surfaced without fake approval",
+        "Unreviewed explicit approval candidates mark Work freshness unavailable until examined",
+        "Regression: full policy restated by approving user is valid source even if B option is referenced",
+        "Regression: implementation-vs-documentation ask_user choice is not a second policy decision",
+        "Regression: old ambiguous REVIEW_ENTRY is re-evaluated once after upgrading detection logic",
+        "Regression: latest concrete user B decision outranks older assistant B option"
+      ]
+    },
+    {
+      "id": "P11",
+      "name": "No auto Git merge, file rewrites, foreign Main changes, or new servers",
+      "state": "implemented_unverified",
+      "code": [
+        "src/policy/store.ts",
+        "extensions/policy-work.ts",
+        "extensions/context-receive.ts"
+      ],
+      "checks": [
+        "shared CWD versus worktree behavior",
+        "scoped to owner Main",
+        "no merge or deletion actions"
+      ]
+    },
+    {
+      "id": "P12",
+      "name": "Pi 1.4.0 and macOS/Ghostty integrated verification",
+      "state": "design_pending",
+      "code": [],
+      "checks": [
+        "npm run check",
+        "actual >w, >>w, nested Fork",
+        "policy changed mid-run",
+        "Handoff after offline Main",
+        "multi-Main wrong recipient",
+        "performance baseline tokens/time",
+        "actual macOS/Ghostty policy notice: narrow Split, pending->delivered->checked, stop and unavailable; old footer status absent"
+      ]
+    }
+  ],
+  "testEvidence": {
+    "githubActions": "NOT_VERIFIED_AFTER_QUESTION_POLICY_CHECK",
+    "localTypecheck": "NOT_RUN_FOR_THIS_CHANGE",
+    "localNodeTests": "NOT_RUN_FOR_THIS_CHANGE",
+    "macOSGhostty": "PARTIAL_USER_REPORTED_E2E: Main approved B-only passkey policy, previously forked Work detected and understood 1 change, Work generated an exact Handoff Brief, and Main displayed [compose_context_review_import] with policy freshness checked and source attribution. No independent Pi receipt/session log or full resilience tests."
+  },
+  "nonGoals": [
+    "pi-compose internal development harness modifications",
+    "new GUI/sidebar/multiplexer",
+    "automatic product policy adoption from Work",
+    "automatic Git merge"
+  ],
+  "knownLimitations": [
+    "Natural-language approval extraction accuracy and recall have not been evaluated against real model responses; false approvals or missed decisions remain possible.",
+    "Approval scanner evaluates up to three unreviewed candidates per settle; remaining candidates are exported as unresolved freshness rather than silently marked complete. Further Main activity is needed to drain backlog.",
+    "The owner-main default delivers decisions to all of that Main's linked Work agents. Semantic domain relevance filtering has not been validated.",
+    "Automatic stop enforcement only handles explicit all-Work stops. Ambiguous or single-Work stop scope is not automatically published.",
+    "A delivered policy is not proof that Work changed files or passed tests. No verified applied-state receipt exists yet.",
+    "An already-running tool cannot be retroactively cancelled. Stop takes effect on subsequent tool-call boundaries.",
+    "B-option resolution can still be ambiguous when source has been compacted or heavily ContextEdited; it is held rather than guessed.",
+    "Actual npm typecheck and Node tests are unexecuted because the GitHub connector has no runner and this environment cannot fetch the repo/dependencies.",
+    "macOS/Ghostty partial user-reported Main→Work policy propagation succeeded; native Split, full Handoff and branch/offline scenarios still require validation.",
+    "Draft PR #37 is dependent on unmerged Draft PR #25. Neither main nor the internal development harness has been changed.",
+    "Observed user scenario (B approval → ask_user documentation-only → original warning): user subsequently confirmed Main decision auto-recorded and existing Work received/understood the change. Actual source logs, typecheck, and Handoff E2E remain unverified."
+  ],
+  "userReportedScenarios": [
+    {
+      "scenario": "B option approved, documentation selected, original ambiguous warning recovered; Main reported '확정된 Main 결정이 Work 동기화 기록에 반영됐습니다.'",
+      "status": "USER_REPORTED_PASS",
+      "verifiedBy": "user conversation",
+      "limitations": "No independent runtime/session log inspection"
+    },
+    {
+      "scenario": "Previously forked Work showed 'Main 정책 변경 1건 확인 필요' and, after the requested verification prompt, user reported that it worked.",
+      "status": "USER_REPORTED_PASS",
+      "verifiedBy": "user conversation",
+      "limitations": "No Work session logs or actual Handoff receipt inspected"
+    },
+    {
+      "scenario": "Work → Main Handoff: user supplied Main-side [compose_context_review_import] showing four work-reported claims, original quoted constraints/WHY, policy freshness 'checked', source Work session, and explicit no-policy-authority framing.",
+      "status": "USER_OBSERVED_PASS",
+      "verifiedBy": "user-supplied Main output in chat",
+      "limitations": "Visible import message confirms end-to-end display, but not internal persistent receipt, comparison-model absence from logs, test execution, or independent truth of Work's file/status claims."
+    }
+  ],
+  "qualityFindings": [
+    {
+      "id": "Q01",
+      "severity": "usability_and_context_cost",
+      "evidence": "User-supplied Handoff repeats one file-creation result as four numbered claims and reprints same scope/verification facts across summary, verbatim quotes and WHY/conditions.",
+      "improvementDirection": "Keep a concise Main-facing outcome, changed file, policy decision and rationale, test/verification status, unresolved items; retain full provenance in expandable or inspectable evidence and avoid redundant repeated excerpts.",
+      "state": "NOT_IMPLEMENTED"
+    },
+    {
+      "id": "Q02",
+      "severity": "visibility_and_cognitive_load",
+      "evidence": "User screenshot of Work showed 'Main 정책 변경 1건 확인 필요' below the token/cost/model footer, separated from the editor and hard to notice. The wording could imply a second user approval was required.",
+      "improvementDirection": "Render only actionable/unavailable/stop policy state as one responsive Pi Widget above editor; use one-line CJK width-aware truncation, hide once checked, keep original Pi footer, clean up on session switch and shutdown.",
+      "state": "IMPLEMENTED_NOT_E2E_VERIFIED",
+      "implementation": [
+        "src/policy/status-widget.ts",
+        "extensions/policy-work.ts",
+        "test/policy-status-widget.test.ts",
+        "test/policy-widget-integration.test.ts",
+        "docs/USAGE.md"
+      ],
+      "checks": [
+        "pending shows compact one-line actionable change, optional subject in wide terminal",
+        "delivered distinguishes delivery from implementation/test verification",
+        "checked and non-Work states remove widget, clear old footer slot",
+        "unavailable/unknown owner and stop remain visible at appropriate severity",
+        "widget rendering never exceeds narrow Ghostty split including CJK text",
+        "watch callbacks after session switch must not overwrite the new session's widget",
+        "no new agent turn, no custom footer override, no Sidebar/Overlay"
+      ]
+    },
+    {
+      "id": "Q03",
+      "severity": "command_semantics",
+      "evidence": "User clarified that > and < encode Agent direction; prior >p was a Main-only ambiguous-approval classifier, not Work review of new approved Main decisions.",
+      "improvementDirection": "Use Work-local >< for optional approved policy review, and reserve /compose policy for Main's exceptional unresolved approval classification. Avoid user-triggered required sync and uphold Work autonomy. The new >< spelling replaces ?p; legacy ?p and >p are consumed with a warning, not sent to the model.",
+      "state": "IMPLEMENTED_NOT_E2E_VERIFIED"
+    }
+  ],
+  "featureAdditions": [
+    {
+      "id": "F01",
+      "title": "Resume existing Work with one command in Ghostty Split",
+      "syntax": [
+        ">r",
+        ">r @Work",
+        ">r @session-id"
+      ],
+      "implementedFiles": [
+        "extensions/direct-resume.ts",
+        "src/native-agent-launch.ts",
+        "src/product-sessions.ts",
+        "bin/native-agent-entry.mjs",
+        "extensions/compose.ts"
+      ],
+      "tests": [
+        "test/direct-resume-policy-shortcuts.test.ts"
+      ],
+      "status": "CODE_WRITTEN_UNVERIFIED",
+      "acceptance": [
+        "Selected saved Work session ID, original CWD and Fork ancestry preserved; no newly forked session, no new task",
+        "Existing live Work focuses original verified Ghostty terminal rather than starting duplicate Pi",
+        "Exited Work starts with --session file and without task separator in new Ghostty Split",
+        "Unknown process status requires explicit confirmation; failure leaves saved session untouched",
+        "Work previously launched in Git Worktree uses original Worktree directory",
+        "Autocomplete list product-scoped; no auto selection on ambiguous labels"
+      ]
+    },
+    {
+      "id": "F02",
+      "title": "Work-owned, optional >< review of confirmed Main policy deltas; Main unconfirmed review remains /compose policy",
+      "syntax": [
+        ">< (Work)",
+        "/compose policy (Main)"
+      ],
+      "implementedFiles": [
+        "extensions/direct-work-policy-check.ts",
+        "src/policy/work-review-request.ts",
+        "extensions/compose.ts",
+        "extensions/policy-main.ts",
+        "src/policy/reviews.ts",
+        "src/policy/status-widget.ts"
+      ],
+      "tests": [
+        "test/direct-resume-policy-shortcuts.test.ts",
+        "test/work-policy-review.test.ts",
+        "test/policy-reviews.test.ts"
+      ],
+      "status": "CODE_WRITTEN_UNVERIFIED",
+      "acceptance": [
+        "Work >< checks exact owning Main and current snapshot before optional review",
+        "Only pending or delivered approved policy changes trigger one normal Work model turn via input transform",
+        "Work review is read-only and may not run shell, mutate files or send Handoff",
+        "No changes, checked, unconfirmed owner, or unresolved Main approval candidate: no model turn",
+        "Main still owns ambiguous approval resolution at /compose policy; no Work policy promotion",
+        "Original automatic Work before_agent_start/context delivery unchanged",
+        "Work-owned Handoff and Main mechanical-receipt contract unchanged",
+        "Exact >< invokes Work-only review; ?p and >p are deprecated and do not create a model turn. Handoff < and delegation >w / >r remain separate."
+      ]
+    }
+  ]
+}

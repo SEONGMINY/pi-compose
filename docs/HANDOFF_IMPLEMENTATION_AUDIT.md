@@ -1,6 +1,6 @@
 # Handoff P1–P5 — 2026-11-10 구현 감사 기록
 
-> **과거 구현 감사 (정적 기록):** 미병합 [PR #25](https://github.com/SEONGMINY/pi-compose/pull/25)의 초기 자동 후보·`ask_user`·`/compose inbox` 경로에서 발견한 사실과 미검증 위험을 보존합니다. 이 경로는 현재 [PRD](PRD.md)의 목표 UX나 `main`의 기능 명세가 아닙니다. PR #25의 이후 Context Review·Main `<` 등 새 코드는 이 감사 범위 밖이며, 최신 구현 상태는 PR의 실제 Diff를 확인해야 합니다.
+> **과거 구현 감사 (정적 기록):** [PR #25](https://github.com/SEONGMINY/pi-compose/pull/25)의 초기 자동 후보·`ask_user`·`/compose inbox` 경로에서 발견한 사실과 미검증 위험을 보존합니다. 이 경로는 현재 [PRD](PRD.md)의 목표 UX나 `main`의 기능 명세가 아닙니다. PR #25의 이후 Context Review·Main `<` 등 새 코드는 이 감사 범위 밖이며, 최신 구현 상태는 PR의 실제 Diff를 확인해야 합니다.
 
 **검증 기준점:** [GitHub Actions 성공 기록](https://github.com/SEONGMINY/pi-compose/actions/runs/42771786319)은 커밋 [`00715c6`](https://github.com/SEONGMINY/pi-compose/commit/00715c6020e97fd9d2c6f59c49a619325f2b0a34)의 Node 22/Ubuntu `npm run check` 실행 결과입니다. 아래의 누적 코드 감사와 검증 기록 전체가 단일 커밋에서 수행됐다는 의미는 아닙니다. 특히 이후 PR #25 Head의 검사 완료나 macOS Ghostty/Pi E2E 성공은 증명하지 않습니다.
 
