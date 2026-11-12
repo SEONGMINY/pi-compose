@@ -75,14 +75,31 @@ export function resolveApprovedSource(
   const reference=/(?:[A-Z가-힣]\s*안(?:으로|을|이|은|에|$|\s)|\boption\s+[A-Z]\b)/i.test(approval.text);
   // The user's explicit, complete rule outranks an earlier assistant option.
   // A revised B option must not silently revert to the older proposed wording.
-  if(reference&&selfContained)return {source:approval,quote:selfContained};
-  if(source&&quote.length>=10&&quote.length<=1600&&source.text.includes(quote)){
-    if(source.id!==approval.id||!reference)return {source,quote};
-  }
+  // The exact user-authored decision outranks an earlier named option.
   if(selfContained)return {source:approval,quote:selfContained};
+  if(source&&quote.length>=10&&quote.length<=1600&&source.text.includes(quote)){
+    if(source.id===approval.id){
+      // The semantic classifier may handle phrasings outside the bounded
+      // deterministic fallback. Its quote must be inside the actual decision
+      // tail, not just the option label or invented history.
+      const lead=approval.text.trim().match(/^[A-Z가-힣]\s*안(?:으로|을|이)?\s*(?:확정|결정|채택)(?:합니다|하겠습니다|했습니다|했어요|해요|한다)?[.!。]?\s*/i);
+      const tail=lead?approval.text.trim().slice(lead[0].length).trim():'';
+      if(lead&&tail.length>=20&&quote.length>=20&&tail.includes(quote)&&
+         !containsSensitivePolicyText(tail))return {source,quote};
+      return;
+    }
+    const label=approval.text.match(/^\s*([A-Z가-힣])\s*안(?:으로|을|이|은|에|\s|$)/i)?.[1];
+    if(label&&source.role==='assistant'){
+      // Never resolve a bare B reference to a stale B proposal if a newer
+      // explicitly labeled B proposal exists on this visible Main branch.
+      const option=new RegExp('(?:^|\\n|\\s)'+label+'\\s*안\\s*[:：—-]','i');
+      const newest=earlier.filter(m=>m.role==='assistant'&&option.test(m.text)).at(-1);
+      if(newest&&newest.id!==source.id)return;
+    }
+    return {source,quote};
+  }
 }
 
-/** Deterministic recovery for explicit USER approvals with full policy wording. */
 export function explicitApprovalFallback(
   approval:Msg,active:readonly PolicyDecision[],
 ):z.infer<typeof extraction>|undefined{
@@ -276,11 +293,11 @@ export function registerPolicyMain(pi:ExtensionAPI):{
   async function openReview(ctx:ExtensionContext):Promise<void>{
     const owner=mainOwner(ctx);
     if(!owner||!ctx.hasUI||ctx.mode!=='tui'){
-      if(ctx.hasUI)ctx.ui.notify('정책 후보 판정은 소유 Main에서만 가능합니다. Main에서 >p를 입력하세요.','warning');
+      if(ctx.hasUI)ctx.ui.notify('정책 후보 판정은 소유 Main에서만 가능합니다. Main에서 /compose policy를 실행하세요.','warning');
       return;
     }
     if(!ctx.isIdle()){
-      ctx.ui.notify('Main 응답이 끝난 뒤 >p로 승인 후보를 검토해주세요.','warning');
+      ctx.ui.notify('Main 응답이 끝난 뒤 /compose policy로 승인 후보를 검토해주세요.','warning');
       return;
     }
     const branch=ctx.sessionManager.getBranch();
@@ -304,11 +321,54 @@ export function registerPolicyMain(pi:ExtensionAPI):{
     const candidate=pending[labels.indexOf(chosen)];
     if(!candidate)return;
     const action=await ctx.ui.select('승인 후보 처리',[
+      '새 확정 정책을 사용자 원문으로 검증·등록',
       '이미 확정한 정책에 포함됨 · 기존 결정 연결',
       '정책 확정이 아닌 발화 · 후보에서 제외',
       '나중에 확인 · 변경하지 않음',
     ]);
     if(!action||action.startsWith('나중에'))return;
+    if(action.startsWith('새 확정')){
+      // Manual recovery may validate an already-authored user decision, but
+      // must not invent missing policy text or promote an assistant proposal.
+      const active=branchDecisions(branch,owner.sessionId);
+      const fallback=explicitApprovalFallback(candidate,active);
+      const evidence=fallback&&resolveApprovedSource(candidate,[],
+        fallback.sourceEntryId,fallback.sourceQuote);
+      if(!fallback||!evidence||evidence.source.id!==candidate.id||
+         candidate.text.length>1200){
+        ctx.ui.notify('독립적인 사용자 확정 원문이 없습니다. 신규 정책을 추측해 등록하지 않았습니다.','warning');
+        return;
+      }
+      const decision:PolicyDecision={
+        id:decisionId(owner.sessionId,candidate.id,candidate.id,evidence.quote),
+        mainSessionId:owner.sessionId,approvalEntryId:candidate.id,
+        sourceEntryId:candidate.id,approvalQuote:candidate.text,
+        sourceQuote:evidence.quote,subject:fallback.subject,
+        decision:evidence.quote,reason:'',scope:'owner-main',
+        targetWorkIds:[],effective:'now',
+      };
+      const confirmed=await ctx.ui.confirm('Main의 새 확정 정책 원문 검증',
+        '사용자 승인 원문:\n'+candidate.text+
+        '\n\nWork에 전달될 정확한 정책:\n'+decision.decision+
+        '\n\n기존 확정 정책과 충돌하지 않고 직접 확정한 신규 정책인가요?');
+      if(!confirmed)return;
+      if(ctx.sessionManager.getSessionId()!==owner.sessionId||
+         ctx.sessionManager.getLeafId()!==originalLeaf||!ctx.isIdle()){
+        ctx.ui.notify('선택 중 Main 세션·분기가 변경되어 등록하지 않았습니다.','warning');
+        return;
+      }
+      if(branchDecisions(ctx.sessionManager.getBranch(),owner.sessionId)
+          .some(d=>d.subject===decision.subject||d.id===decision.id)){
+        ctx.ui.notify('기존 확정 정책과 중복되거나 대체 여부가 불명확해 등록하지 않았습니다.','warning');
+        return;
+      }
+      pi.appendEntry(DECISION_ENTRY,decision);
+      pi.appendEntry(REVIEW_ENTRY,{approvalEntryId:candidate.id,
+        reviewVersion:REVIEW_VERSION,status:'published',userReviewed:true});
+      queuePublish(ctx);
+      ctx.ui.notify('검증된 사용자 원문을 Main 정책으로 기록했습니다. Work 동기화가 갱신됩니다.','info');
+      return;
+    }
     const common={approvalEntryId:candidate.id,reviewVersion:REVIEW_VERSION,
       userReviewed:true as const};
     let result:{
@@ -345,7 +405,7 @@ export function registerPolicyMain(pi:ExtensionAPI):{
     // Never attach the review to a different Main active branch after a modal.
     if(ctx.sessionManager.getSessionId()!==owner.sessionId||
        ctx.sessionManager.getLeafId()!==originalLeaf||!ctx.isIdle()){
-      ctx.ui.notify('선택 중 Main 세션·분기가 변경됐습니다. 다시 >p를 실행해주세요.','warning');
+      ctx.ui.notify('선택 중 Main 세션·분기가 변경됐습니다. 다시 /compose policy를 실행해주세요.','warning');
       return;
     }
     pi.appendEntry(REVIEW_ENTRY,result);
