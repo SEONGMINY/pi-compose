@@ -1,41 +1,25 @@
 # Pi Compose
 
-> **현재 `main`과 차이:** 기본 `main`의 `pic` 실행 방식은 이 문서의 목표 UX와 다릅니다. 직접 Main 진입 및 Work Handoff는 [Draft PR #25](https://github.com/SEONGMINY/pi-compose/pull/25)에 있고, 자동 승인 정책 전파와 Work-owned Handoff 개선은 [후속 Draft PR #37](https://github.com/SEONGMINY/pi-compose/pull/37)에 작성 중입니다. 후속 구현의 CI 및 실제 macOS/Ghostty 검증은 미완료입니다.
+**Main에서 중요한 결정과 이유를 보존하고, 구현은 실제 Pi 대화를 Fork한 Work에서 진행하는 Coding Agent Harness입니다.** 독립 탐색·테스트는 Support가 맡습니다.
 
+Pi·Ghostty·Git의 기존 기능을 사용하며 별도의 Sidebar, Overview, 서버 또는 데스크톱 GUI를 만들지 않습니다.
 
-**Main의 설계·결정 맥락을 지키면서, 실제 개발은 그 대화를 Fork한 Work에서 진행하는 Pi 기반 Coding Agent Harness입니다.**
-
-Pi와 Ghostty의 기존 세션·Extension·터미널 기능을 조합합니다. 별도 Sidebar, Overview, 서버나 데스크톱 GUI를 만들지 않는 방향입니다.
-
-## 개발 흐름
-
-```text
-Main    문제·계약·선택 이유·확정된 결정
-  │
-  ├── Work     실제 Pi 대화 Fork → 구현·수정·테스트 코드 작성
-  └── Support  독립 탐색·조사·테스트 실행
-
-Main 확정 결정 → 해당 Work의 변경분 조회·적용 검토
-Work 결과 → Work < 정확한 Brief 한 번 승인 → 계보·본문 검증 후 Main 참고 보고 자동 수신
-```
-
-## 목표 명령과 위임 (현재 main 미지원)
+## 시작
 
 ```bash
-pic                  # 새 Main
-pic -r               # Pi 기본 저장 세션 선택
+cd /path/to/project
+pic                   # 현재 프로젝트에서 새 Main
+pic -r                # 저장 세션 선택·재개
 ```
 
-Pi 입력창의 `>w 작업`은 현재 완료 대화를 Fork한 Work, `>s 작업`은 독립 Support를 시작합니다. `>>w`, `>>s`는 각각 새 Git Worktree에서 시작합니다. 세션과 파일 작업 공간은 서로 다른 선택입니다.
+| 입력 | 동작 |
+| --- | --- |
+| `>w 작업` / `>>w 작업` | 완료된 Pi 대화 Fork로 Work 생성 (공유 디렉터리 / Git Worktree) |
+| `>s 작업` / `>>s 작업` | 독립 Support 생성 (공유 디렉터리 / Git Worktree) |
+| `>r` / `>r @Work` | 기존 Work 세션 재개 (새 Fork 아님) |
+| `><` | Work에서 Main의 최신 확정 정책 변경을 읽기 전용 검토 |
+| `<` | Work에서 결과·WHY·검증 상태를 확인하고 Main에 Handoff |
 
-PR #37에서 `>r`은 기존 Work를 선택해 **같은 세션을 Ghostty Split에서 재개**합니다(Fork 아님). `>r @Work`로 이름·ID 검색이 가능하며, `><`는 **Work에서만** Main의 확정 정책 변경을 요청 시 검토합니다. 새 변경이 있다면 Work의 정상 모델 턴 한 번을 사용하고 파일은 수정하지 않습니다. 변경이 없으면 모델 호출 없이 안내합니다. 미확정 승인 후보의 예외 처리는 Main의 `/compose policy`로 분리하며, 자동 전파·Work-owned Handoff는 그대로 유지합니다.
+Main이 확정한 정책은 Work에 자동 전달됩니다. `><`는 필수 동기화 명령이 아니며, Work의 Handoff는 정책 채택이나 Git Merge가 아닙니다. **정책 전달·실제 구현·테스트 성공은 별도로 구분**합니다.
 
-## 정책 최신성과 Handoff의 목표 경험
-
-Main에서 사용자가 기존 제안의 B안을 명확히 확정하면 추가 등록 조작 없이 결정의 원본·적용 범위를 확인해 관련 Work에 변경을 전달합니다. Work는 원래 Fork 세션을 유지하고 다음 안전한 모델 호출에서 변경분만 받아 자신의 개발 판단을 조정합니다. 변경이 없으면 추가 의미 분석을 시작하지 않습니다.
-
-Work는 `<`에서 결과·WHY·검증 및 정책 최신성 상태를 확인하고 **Main에 추가될 정확한 Brief를 한 번 승인**합니다. Main은 정상적인 수신에서 의미를 다시 평가하지 않고, 원본 대상·계보·본문 해시·중복만 기계적으로 검사해 참고 보고로 기록합니다. 보고는 정책 채택이나 Git 병합이 아닙니다.
-
-**구현 및 검증:** [Draft PR #37](https://github.com/SEONGMINY/pi-compose/pull/37)는 이 경로의 코드 구현을 포함하지만 자동 자연어 감지의 정확도·실제 Pi Hook 동작·macOS/Ghostty E2E는 아직 검증해야 합니다. 요구사항별 현황은 [정책 동기화 검증 JSON](docs/validation/policy-sync-20261111.json)에 구분합니다.
-
-[사용 흐름](docs/USAGE.md) · [문서 안내](docs/README.md) · [제품 요구사항](docs/PRD.md)
+[Vision](docs/VISION.md) · [PRD](docs/PRD.md) · [사용 가이드](docs/USAGE.md) · [문서 안내](docs/README.md)

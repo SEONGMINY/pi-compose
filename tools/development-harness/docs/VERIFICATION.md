@@ -1,0 +1,34 @@
+# Verification record — 2026-11-11 iteration
+
+- Base: current pi-compose `main` after PR #31 (`7f51b6d4`), with 26 existing harness tests passing.
+- New work: contract-level AC receipts; scope-change append-only plan; source-specific provider attempt matching; durable review/automatic improvement candidate queues; PR #29 review/change engine adapted with local policy and safety gates.
+- `npm run check` in nested package: 46/46 local tests passing at latest local integration. The exact final count is reported in the final CI result.
+- Synthetic tests confirm accepted/failed/mismatched Step checks, immutable original plan, Codex parent/subagent attribution, review receipt + backoff, time/token economic gates, rejected verifier, detached worktree draft, and empty policy deferral.
+- Working mock does not prove live authenticated Pi / Codex compatibility. Neither `pi` nor `codex` was installed in the test container. Node Syntax Check for `.ts` is not a Pi extension runtime check.
+- The task of building these changes was recorded through the harness as a development Task in a local Git state directory. Since this chat host exposes no model token usage to the package, its actual tokens remain unknown. The configured initial forecast is explicitly uncalibrated.
+- No real cloud/host background process, automatic remote push, or unsupervised contract change was performed.
+
+## 2026-11-11 impact-feedback iteration
+
+- Parent source: `pi-compose/main` after PR #32 (`1ae593dd`). No `pic` runtime changes.
+- Added Git start-revision provenance, applied-commit ancestry filtering, bounded before/after accepted-cohort evaluation, time/token medians, incomplete-cost flags, persisted impact records and automatic post-delivery refresh.
+- Review AI receives only bounded, explicitly non-causal earlier impact observations. Automation cannot self-edit the forecast, impact, verifier or orchestration control-plane paths.
+- Known model-token overhead remains `null` (not 0). Real-provider integration, token billing reconciliation and causal effects remain unverified.
+- Synthetic tests exercise independent Git commits, clean/dirty start conditions, draft vs integrated changes, failed source anomalies, non-overlapping observation windows, insufficient samples, model-token gaps, time costs including failed attempts and snapshot replay.
+- `npm run check` in the nested package passed locally (58/58 tests). GitHub CI and live Pi/Codex installation are separate verification gates.
+
+## 2026-11-11 model-call attribution iteration
+
+- Source baseline: `pi-compose/main` after PR #33 (`19089867`). Local baseline **58/58** tests passed.
+- Added Pi JSONL model-run accounting for each read-only review, proposal and verifier call; persistent, non-content model receipts; observed token cost integration into impact evaluation.
+- Local synthetic tests cover successful/missing/partial usage, streams with recoverable model errors, invalid JSON, aborted output, observed-token cap, failed model review and rejected verifier retries. The real Git Worktree checks and existing integration tests are retained.
+- Local `npm run check` passes **68/68** tests before remote CI. This is **not** a live authenticated Pi/Codex test; the installed Pi executable is unavailable in this environment.
+- `modelTokens` is reported only with complete provider-observed call receipts; otherwise `observedModelTokens` remains a lower bound and net savings stay `null`. Provider billing and subagent costs can still be missing. No main product behavior change.
+
+## 2026-11-11 independent semantic audit iteration
+
+- Source baseline: current `pi-compose/main` after PR #36 (`0b665817`), with 83 existing harness tests passing.
+- Exact diff evidence and user-approved scope are read independently; evidence quotes must refer to changed code lines in the claimed file. Scope/model outcomes are JSON Task state, not Markdown Task files.
+- Tested structural scope drift during model execution, unrelated-code mismatch, invented evidence rejection, pending queue recovery, model failure/backoff, sensitive-diff blocking and cross-Worktree isolation.
+- One-time opt-in protects code exposure. Tests use synthetic model responses; no authenticated Pi/Codex runtime E2E and no proof of semantic completeness.
+- The semantic model's bounded duration/tokens are observed best effort; review overhead is recorded separately, not presented as proven net productivity gains.

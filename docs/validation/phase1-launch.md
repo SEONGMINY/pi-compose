@@ -1,5 +1,7 @@
 # Phase 1 — 공통 Launch 첫 구현
 
+> **역사적 검증 기록:** 이 파일의 도구·환경·당시 통과 여부는 해당 날짜·버전에만 적용됩니다. 이후 Pi + Ghostty 및 최신 Work `<` → Main 수신 알림 UX의 성공을 증명하지 않습니다. 현행 계약은 [PRD](../PRD.md)와 [TRD](../TRD.md), 새로운 감사 범위는 [Handoff Audit](../HANDOFF_IMPLEMENTATION_AUDIT.md)를 확인합니다.
+
 - 상태: **Launch CLI + Pi 명시적 Slash Command + 사용자 확인형 자연어 Tool 구현 · 실제 Pi/workmux 실행 미검증 · Phase 1 주요 기능 구현**
 - 작성일: 2026-10-25
 - 근거: [PRD](../PRD.md) FR-02~07, [Architecture](../ARCHITECTURE.md), [Implementation Plan](../IMPLEMENTATION_PLAN.md)

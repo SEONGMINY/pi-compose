@@ -1,11 +1,9 @@
 # Usage — Pi Compose 사용 흐름
 
-> **실행 위치:** 이 문서의 정책 동기화와 Work-owned Handoff는 [Draft PR #37](https://github.com/SEONGMINY/pi-compose/pull/37) 브랜치의 구현 목표입니다. 기존 PR #25·기본 main의 동작과 구별하며 실제 Pi/Ghostty E2E 검증이 필요합니다.
 
+> 현재 동작과 실제 macOS/Pi/Ghostty E2E 검증 완료 여부는 구분합니다. 기존 `ask_user`·`/compose inbox` 경로는 현행 기본 UX가 아닙니다.
 
-> **목표 UX와 코드 상태를 구분합니다.** 2026-11-10 Handoff 단순화 목표는 PR #25에 코드로 연결 중이지만 실사용 검증 전입니다. 기존 `ask_user`·`/compose inbox` 구현은 새 기본 실행 경로와 구분합니다.
-
-## 1. 목표 UX에서 Main을 시작합니다 (main 코드와 다름)
+## 1. Main을 시작합니다
 
 ```bash
 cd /path/to/project
@@ -32,13 +30,13 @@ Main에서 요구사항·기존 제약·선택 이유를 논의합니다. Pi 세
 
 각 Agent는 Ghostty Native Split에서 작동하는 방향입니다. `>>`는 원본의 미커밋 변경을 복사하거나 자동 병합하지 않습니다. 실제 실행 성공은 사용자 Mac의 설치·권한·Pi 상태에 좌우됩니다.
 
-## 3. Work에서 결과를 보냅니다 — 최신 목표 UX
+## 3. Work에서 결과를 보냅니다
 
 1. Work에서 `<`를 입력합니다.
 2. Handoff Brief에서 **중요한 결과·필수 이유/제약·검증 상태**를 읽고 필요한 항목을 선택합니다. `E`로 출처와 원문을 확인할 수 있습니다.
 3. Enter로 Main에 **정확히 추가될 Brief**를 확인하고 한 번 승인합니다. 취소하면 Main에 전달되지 않습니다.
 
-이 경로는 **Draft PR #25에 코드로 연결 중이며 아직 macOS/Ghostty 통합 검증 전**입니다. 현재 `main`에서 사용할 수 있는 기능이라고 간주하지 마세요.
+이 경로는 PR #25에서 구현됐습니다. macOS/Ghostty 통합 검증 결과는 별도로 기록합니다.
 
 ## 4. Main에서 정책을 확정하면 Work에 어떻게 전파되나요?
 
@@ -50,7 +48,7 @@ Main에서 요구사항·기존 제약·선택 이유를 논의합니다. Pi 세
 
 정책 알림 수신은 변경을 코드에 적용했다는 증거가 아닙니다. Pi/Git 파일 변경이나 새로운 정책 승인을 동기화 기능이 대신 수행하지 않습니다.
 
-### Work에서 정책 상태를 확인하는 위치 (PR #37)
+### Work에서 정책 상태를 확인하는 위치
 
 Pi 1.4.0의 `ctx.ui.setWidget(...,{ placement:'aboveEditor' })`로 **입력창 바로 위**에만 한 줄을 표시합니다. 모델·토큰·비용 등 기존 Footer는 그대로 유지하며, 과거 `setStatus`로 표시하던 정책 문구는 제거합니다.
 
@@ -88,17 +86,17 @@ Main이 오프라인이면 원본을 보관하고 재개 후 처리합니다. �
 
 ## 5. 기능 출처와 현재 검증 상태
 
-- [PR #25](https://github.com/SEONGMINY/pi-compose/pull/25): Handoff 원본·리뷰 UI·기본 수신 인프라가 작성된 이전 Draft입니다.
-- [PR #37](https://github.com/SEONGMINY/pi-compose/pull/37): 승인된 Main 정책 변경 전파와 Work-owned Handoff 수신 책임 변경이 작성된 후속 Draft입니다.
+- [PR #25](https://github.com/SEONGMINY/pi-compose/pull/25): Main-first 진입 및 Handoff 인프라 구현 이력입니다.
+- [PR #37](https://github.com/SEONGMINY/pi-compose/pull/37): Main 확정 정책 전파·Work-owned 수신·`><` 검토 구현 이력입니다.
 - 정상 Main 수신 경로에서 기존 Work Claim 비교 모델·추가 승인 경로를 사용하지 않습니다.
 - Work의 자동 정책 전파는 임의의 사용자를 대신해 결정을 만드는 기능이 아닙니다. 승인된 원문을 식별하지 못하면 전파하지 않습니다.
-- 최신 Draft 구현은 `npm run check` 및 실제 macOS/Pi/Ghostty 환경 검증을 통과하기 전까지 완료로 간주하지 않습니다.
+- 구현이 병합됐더라도 `npm run check` 및 실제 macOS/Pi/Ghostty 검증을 통과했다고 추정하지 않습니다.
 
 ## 6. 새 목표의 확인 시나리오
 
 Main에서 관련 옵션을 논의 → 사용자가 B안 확정 → Work는 기존 Pi Fork 유지 → 변경분 수신 및 작업 영향 검토 → Work `<`에서 최신성·결과·WHY 확인 후 정확한 Brief 승인 → Main은 동일 Brief를 참고 보고로 자동 기록. 기존 결정·원본 세션·Git 작업 공간을 임의 수정하지 않는지 확인합니다.
 
-## 7. PR #37 실사용 검증 (아직 수행하지 않음)
+## 7. 추가 실사용 검증 항목
 
 1. `pic` 새 Main과 실제 Fork `>w`/`>>w`가 각각 올바른 세션·작업 공간에서 시작되는지 확인
 2. Main에서 2개 설계 대안을 제시하고 `B안으로 확정합니다` 입력 후 실제 승인 근거가 기록됐는지 확인

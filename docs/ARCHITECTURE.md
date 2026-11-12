@@ -1,9 +1,7 @@
 # Architecture — Pi Compose
 
-> **현재 `main`과의 차이:** 아래는 확정 목표 Architecture입니다. `main`의 `bin/pic.mjs`는 여전히 Overview를 열고, 최신 `<` → Main 알림 경로는 구현되지 않았습니다. PR #25의 중간 구현과 목표 설계를 구분합니다.
 
-
-> 제품 정책의 정본: [PRD](PRD.md) · 2026-11-10 최신 Handoff UX는 **설계 목표**, PR #25 코드는 그 이전 단계의 구현입니다.
+> 제품 정책의 정본: [PRD](PRD.md) · 코드 통합과 실제 macOS/Pi/Ghostty 검증은 구분합니다.
 
 ## 1. 상위 구성 요소와 책임
 

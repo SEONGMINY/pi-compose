@@ -2,7 +2,7 @@
 
 > 제품 요구사항: [PRD](PRD.md) · 구조 책임: [Architecture](ARCHITECTURE.md)
 >
-> **2026-11-11 최신 Work-owned Handoff 및 정책 변경 자동 전파 설계.** Draft 작업 브랜치의 코드 존재와 검증 완료를 구분합니다.
+> **Work-owned Handoff 및 정책 변경 전파 기술 계약.** 구현·병합과 macOS/Ghostty 검증 완료는 구분합니다.
 
 ## 1. 구현에서 보존할 기술 경계
 

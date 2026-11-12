@@ -1,8 +1,10 @@
 # ADR 0004 — 이전 선택형 workmux View 결정 (대체됨)
 
 - 당시 결정: 2026-10-25
-- 현재 상태: **2026-10-30 Ghostty 단독 실행 방향으로 대체**
+- 현재 상태: **대체됨 — 2026-11-10에는 별도 Sidebar·Overview·Summary Overlay도 목표에서 제외**
 - 현재 정책: [PRD](../PRD.md) · [Architecture](../ARCHITECTURE.md)
+
+> 이 문서의 Summary Overlay 필수 표현은 이전 선택을 설명합니다. 현행 [PRD](../PRD.md)와 [Usage](../USAGE.md)의 사용자 흐름을 대신하지 않습니다.
 
 ## 이전에 해결하려던 문제
 

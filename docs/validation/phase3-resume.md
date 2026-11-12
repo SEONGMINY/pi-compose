@@ -1,5 +1,7 @@
 # Phase 3 — 기존 세션 재개, 실패 진단, 안전한 재시도
 
+> **역사적 검증 기록:** 이 파일의 도구·환경·당시 통과 여부는 해당 날짜·버전에만 적용됩니다. 이후 Pi + Ghostty 및 최신 Work `<` → Main 수신 알림 UX의 성공을 증명하지 않습니다. 현행 계약은 [PRD](../PRD.md)와 [TRD](../TRD.md), 새로운 감사 범위는 [Handoff Audit](../HANDOFF_IMPLEMENTATION_AUDIT.md)를 확인합니다.
+
 - 상태: **안전한 재개 및 읽기 전용 상태 진단 1차 구현; 실제 Pi/tmux/workmux 통합 및 전체 프로젝트 검사 미검증**
 - 작성: 2026-10-25
 - 제품 계약: [PRD](../PRD.md) FR-16·17·19, [Architecture](../ARCHITECTURE.md), [Implementation Plan](../IMPLEMENTATION_PLAN.md)

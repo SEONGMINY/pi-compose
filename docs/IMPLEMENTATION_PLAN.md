@@ -1,64 +1,16 @@
-# Implementation Plan — 정책 변경 자동 전파와 Work-owned Handoff
+# Implementation Plan — 남은 검증과 개선
 
-> 기준: [PRD](PRD.md) · [Architecture](ARCHITECTURE.md) · [TRD](TRD.md)
-> 실제 요구사항별 추적: [policy-sync-20261111.json](validation/policy-sync-20261111.json)
->
-> 이 문서는 2026-11-11 최신 사용자 결정에 따른 **작업 현황**입니다. 코드를 작성했다는 사실은 실행 성공 또는 사용자 Mac E2E 검증 완료를 뜻하지 않습니다.
+> 제품 계약: [PRD](PRD.md) · 기술 경계: [TRD](TRD.md) · 검증 추적: [policy-sync-20261111.json](validation/policy-sync-20261111.json)
 
-## 1. 작업 단위와 완료 기준
+Main-first 및 Handoff(PR #25), 정책 자동 전파·`><`(PR #37)의 코드 통합은 완료됐습니다. **코드 병합이 실제 macOS/Ghostty 검증 완료를 뜻하지 않습니다.**
 
-| 순서 | 영역 | 작업 브랜치 현황 | 완료 조건 |
-| --- | --- | --- | --- |
-| P0 | Main 승인 발화 감지 | 코드 작성·미검증 | B안 확정 자동 추출, 미확정 대안·부정문·모호한 표현 오탐 방지, 놓친 발화 재검사 |
-| P1 | Main 정책 분기 정본 | 코드 작성·미검증 | 실제 승인·출처 Pi Entry 검증, 분기 되돌리기/대체 결정, 로컬 스냅샷 안전 저장·복구 |
-| P2 | Work 정책 소유 Main 식별 | 코드 작성·미검증 | Main→Work→Work 정확한 추적, 다른 Main의 대화와 Worktree 구분 |
-| P3 | 변경분 전달 | 코드 작성·미검증 | 변경 없으면 별도 모델 호출 없음, Work 실행 중 다음 모델 경계, 휴면·재개·파일 감시 누락 복구 |
-| P4 | Work 적용 상태·예외 | 일부 작성 | 전달/확인/수정·테스트 반영을 분리하고, 작업 범위 밖 변경은 Main에 의사결정 요청 |
-| P5 | Work Handoff | 코드 작성·미검증 | 최신성·WHY·검증 상태를 정확한 최종 Brief로 한 번 승인, 변경 시 재검토 |
-| P6 | Main 수신 | 코드 작성·미검증 | 원본·대상·Fork 계보·분기·해시·중복만 확인; 정상 경로에 Main 의미 재심사 없음; Pi receipt 확인 |
-| P7 | 회귀 검증 | 테스트 일부 작성·실행 미확인 | 자동화 테스트와 Mac Pi/Ghostty E2E, 동시성·분기·오프라인·중복·토큰/시간 측정 |
-| P8 | 문서·기존 코드 정리 | 진행 중 | PRD/Architecture/TRD/Usage/README 일치, 이전 비교 함수 미사용 범위 확인 |
+| 우선순위 | 검증·개선 | 완료 조건 |
+| --- | --- | --- |
+| P0 | 최신 `npm run check`와 실제 Pi/Ghostty E2E | Main→Work→정책 변경→`><`→`<`→Main 수신→`>r` 확인 |
+| P0 | 승인·출처 정확도 | 모호한 선택·오래된 B안·예외·부정문·ContextEdit·Compaction 회귀 |
+| P1 | 정책 적용 상태 | 전달·검토·실제 코드 적용·테스트 완료를 명확히 분리 |
+| P1 | Handoff 품질·복구 | 중복 Claim/WHY, Main 오프라인, 중복·분기 변경 검증 |
+| P1 | 다중 Main 및 Worktree 안전성 | 올바른 원본 계보, CWD 유지, 정책 철회·충돌 처리 |
+| P2 | 모델·토큰 비용 | 변경 없을 때 추가 호출 없음, 필요 없는 확인·지연 감소 |
 
-## 2. 반드시 유지할 설계 경계
-
-- Main 정책의 권위는 **사용자가 실제로 확정한 원본 결정**에 있으며, Work의 제안은 정책이 아닙니다.
-- Work의 실제 Pi Fork, Compaction/ContextEdit 및 원본 JSONL은 그대로 유지됩니다. 대화를 다시 요약해 대체하지 않습니다.
-- 정책 동기화는 Agent 간 **전체 대화 복제**가 아닙니다. 승인된 결정의 변경분만 해당 Work가 참조합니다.
-- 로컬 JSON 스냅샷은 빠른 조회 인덱스이며 Main 세션 원본과 경쟁하는 새로운 정책 정본이 아닙니다.
-- Work에서 받은 변경 내용을 코드에 반영하거나 테스트했다는 사실은 **Work가 별도 증거로 보고할 책임**입니다.
-- Work `<`는 전송할 정확한 Brief를 사용자가 한 번 승인하는 경로입니다. Main은 정상 수신에 두 번째 사용자 승인·모델 턴·정책 비교·Git Merge를 요구하지 않습니다.
-- `>w`의 공유 디렉터리와 `>>w`의 Git Worktree는 파일 상태가 다릅니다. 정책 전파가 미커밋 파일 복사나 Git 병합을 실행하지 않습니다.
-- Pi의 현재 버전과 이벤트 순서를 대상으로 실제 테스트를 통과하기 전에는 구현을 완료라고 발표하지 않습니다.
-- Sidebar/Overview/새 서버/별도 멀티플렉서/내부 개발 하네스의 기능을 이 작업에 끌어오지 않습니다.
-
-## 3. 코드와 검증 간 차이
-
-작업 브랜치: `feat/policy-sync-work-owned-handoff-20261111` (Draft PR #25 기반)
-
-- 새 코드: `src/policy/*`, `extensions/policy-main.ts`, `extensions/policy-work.ts`, `src/handoff/direct-adoption.ts`.
-- 연결: `extensions/compose.ts`, `extensions/context-review.ts`, `extensions/context-receive.ts`, Handoff schema/brief.
-- 기존 `src/handoff/compare.ts`와 `automatic-adoption.ts`는 **이전 검증 정책 코드**입니다. 새 Main 자동 수신 호출 경로는 참조하지 않지만, 기존 테스트가 남아 있으므로 정리 판단 및 회귀 확인이 필요합니다.
-- 작성된 테스트는 통과 증명이 아닙니다. `npm run check`, GitHub Actions, 실제 macOS/Ghostty 실험 결과를 따로 기록합니다.
-
-## 4. 구현 후 반드시 확인할 실제 시나리오
-
-1. Main의 `B안으로 확정합니다`를 이전 제안과 연결해 정확히 전파하며 `B안도 괜찮겠네요`는 전파하지 않음
-2. Main에서 장문 대화, 부정문·강한 제약, 지시 대상의 이름 변경, 모호한 승인 시에도 오탐·누락 추적
-3. Main이 과거 분기로 돌아가면 철회된 정책을 Work에 알림. 코드나 Git 상태를 임의 자동 롤백하지 않음
-4. Main→Work, Main→Work→Work, 다른 Main 선택, 중복 ID 및 Worktree 양쪽 모두 검증
-5. Main 또는 Work가 종료됐을 때 재개 후 유효 결정 변화 복구
-6. Work의 긴 개발 실행 도중 정책이 변경되면 다음 안전한 모델 호출에 전달, 진행 중 실행을 완료됐다고 추측하지 않음
-7. Work `<`에서 최신성 미검증·일부 미반영을 포함한 정확한 승인 본문 기록
-8. Main이 오프라인이어도 Work 승인 원본을 보관하고, 재개 시 원래 승인 Brief만 기록
-9. 중복·전달 실패·활성 분기 전환 뒤 잘못된 자동 반영 방지
-10. 실제 모델 호출/토큰, 전체 처리 시간, 불필요한 알림 및 정책 누락 사례 계측
-
-**병합 기준:** P0 요구사항을 실제 테스트로 충족하고, macOS/Pi/Ghostty 동작 검증과 Diff 독립 검토까지 끝난 이후에만 Draft PR #25 또는 `main`에 반영합니다.
-
-## 5. 2026-11-12 Main 승인 원문 복구 개선 (PR #37 Draft)
-
-- 사용자 영상에서 실패한 B안의 대시보드 이동 결정을 실제 사용자 원문에서 추출하는 코드를 보완했습니다.
-- 도메인 동사 목록에 의존하지 않고 자기완결적인 선언문을 보존합니다. 정책의 여러 문장에 포함된 예외·조건을 임의로 첫 문장만 남기지 않습니다.
-- 사용자가 완전한 결정을 직접 쓴 경우 오래된 Assistant의 동일 B안보다 우선합니다. 내용 없는 B안 참조는 관련 실제 제안 원문을 요구하며, 새로 나온 동일 레이블 제안을 무시하지 않습니다.
-- 리뷰 버전 변경으로 이전의 미확정 후보를 재검토합니다. 자동 복구가 불가능할 때 Main의 /compose policy에서 사용자 자신이 명시한 구체적인 원문만 검증·등록할 수 있습니다.
-- 회귀 테스트 코드를 추가했습니다. 실제 Pi/Ghostty 통합 동작과 최신 npm run check는 별도 검증이 필요하며 main 병합은 하지 않습니다.
+별도 개발·유지보수 하네스는 `tools/development-harness/`에 있으며 제품 런타임과 분리합니다. 이전 CI 기록은 당시 코드의 검증 근거이며 최신 변경의 성공으로 간주하지 않습니다.

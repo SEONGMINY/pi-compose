@@ -13,10 +13,10 @@
 | [TRD](TRD.md) | 구현 기술 계약과 확인할 검증 경계 |
 | [Usage](USAGE.md) | 사용자 흐름: 확정된 목표와 아직 구현되지 않은 동작을 구분 |
 | [Implementation Plan](IMPLEMENTATION_PLAN.md) | 실제 남은 작업·순서·완료 조건 |
-| [Handoff 구현 감사](HANDOFF_IMPLEMENTATION_AUDIT.md) | PR #25의 코드·검증 근거 및 최신 UX와의 차이 |
 
 ## 결정과 과거 기록
 
+- [Handoff P1–P5 과거 감사](HANDOFF_IMPLEMENTATION_AUDIT.md): PR #25의 이전 구현·CI 근거; 현행 기능 검증이나 제품 정책의 정본이 아님
 - [ADR 0001–0006](adr/): 결정 배경과 채택·부분 대체·역사적 상태. 최신 요구사항의 정본이 아님
 - [Domain Stories](domain-stories/): 초기 업무 흐름 분석과 과거 목표 시나리오. 직접 사용자 인용의 정본은 Problem Statements
 - [Validation](validation/): 당시 환경에서 수행한 실험·검증 기록. 현재 Pi Compose 전체 E2E 검증으로 일반화하지 않음
@@ -27,4 +27,4 @@
 
 확정된 제품 정책 변경은 PRD, 중요한 기술 계약 변경은 관련 Architecture/TRD, 구현 사용법은 Usage를 우선 갱신합니다. 중요한 결정의 선택 이유가 사라지지 않도록 필요한 경우 ADR에 근거를 남깁니다. Work는 구현에 부속된 설명만 수정하며 중요한 정책의 승격·변경은 Main에서 사용자 승인을 확인한 뒤 갱신합니다.
 
-**2026-11-11 최신 결정:** Main에서 승인된 정책은 별도 등록 조작 없이 관련 Work가 변경분을 확인하고, Work `<` 승인 보고는 Main에서 의미 재심사 없이 출처 표시된 참고 정보로 자동 수신합니다. 이전 11월 10일 수신·비교 설계는 역사적 기록입니다. [Draft PR #37](https://github.com/SEONGMINY/pi-compose/pull/37)의 실제 Pi/Ghostty 검증은 별개입니다.
+**목표 정책의 기준:** Work `<` 명시적 전송 → Main 알림 수신 → 사용자 선택 반영이며 별도 Inbox 명령은 필수 경로가 아닙니다. 현재 `main`의 사용법은 [Usage](USAGE.md), 미병합 구현의 실제 진행 상태는 [PR #25](https://github.com/SEONGMINY/pi-compose/pull/25)를 확인합니다.
