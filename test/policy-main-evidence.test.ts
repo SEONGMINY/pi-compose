@@ -88,7 +88,7 @@ test('regression: explicit B approval is a policy even if model points at the ap
   const exact='B안으로 확정합니다. 로그인 정책은 비밀번호 로그인을 제거하고 패스키로만 로그인하는 것으로 결정합니다. 이 정책은 현재 개발 중인 Work에도 즉시 적용합니다.';
   const approval={id:'approve-b',role:'user',text:exact};
   const quote=selfContainedApprovedPolicyQuote(exact);
-  assert.equal(quote,'로그인 정책은 비밀번호 로그인을 제거하고 패스키로만 로그인하는 것으로 결정합니다.');
+  assert.equal(quote,'로그인 정책은 비밀번호 로그인을 제거하고 패스키로만 로그인하는 것으로 결정합니다. 이 정책은 현재 개발 중인 Work에도 즉시 적용합니다.');
   const selected=resolveApprovedSource(approval,[],approval.id,exact);
   assert.equal(selected?.source.id,approval.id);
   assert.equal(selected?.quote,quote);
@@ -143,4 +143,52 @@ test('a self-contained user revision takes precedence over an older B-option pro
   assert.equal(evidence?.source.id,user.id);
   assert.match(evidence?.quote??'',/비밀번호 로그인을 제거/);
   assert.ok(!(evidence?.quote??'').includes('계속 허용'));
+});
+
+test('E2E regression: dashboard redirect uses user decision, not old passkey B option',()=>{
+  const exact='B안으로 확정합니다. 로그인 성공 후에는 /dashboard로 이동하도록 하겠습니다.';
+  const approval={id:'user-dashboard',role:'user',text:exact};
+  const prior={id:'old-passkey',role:'assistant',
+    text:'B안: 패스키 로그인만 허용하고 비밀번호 방식을 제거합니다.'};
+  const quote='로그인 성공 후에는 /dashboard로 이동하도록 하겠습니다.';
+  assert.equal(selfContainedApprovedPolicyQuote(exact),quote);
+  const parsed=explicitApprovalFallback(approval,[]);
+  assert.equal(parsed?.status,'approved');
+  assert.equal(parsed?.sourceQuote,quote);
+  assert.deepEqual(resolveApprovedSource(approval,[prior],prior.id,prior.text),
+    {source:approval,quote});
+  const decision={
+    id:decisionId('main-1',approval.id,approval.id,quote),
+    mainSessionId:'main-1',approvalEntryId:approval.id,sourceEntryId:approval.id,
+    approvalQuote:exact,sourceQuote:quote,subject:parsed!.subject,
+    decision:quote,reason:'',scope:'owner-main',targetWorkIds:[],effective:'now',
+  };
+  const branch=[{id:approval.id,type:'message',message:{role:'user',content:exact}},
+    {id:'decision',type:'custom',customType:'compose_policy_decision',data:decision}];
+  assert.deepEqual(makePolicySnapshot('main-1','demo','decision',branch).decisions,[decision]);
+});
+
+test('multi-sentence constraints and exceptions are preserved verbatim',()=>{
+  const text='B안으로 확정합니다. 로그인 정책은 비밀번호 로그인을 제거하고 패스키만 사용합니다. 단, 관리자는 별도의 인증을 허용합니다.';
+  const quote=selfContainedApprovedPolicyQuote(text);
+  assert.ok(quote?.includes('비밀번호 로그인을 제거'));
+  assert.ok(quote?.includes('단, 관리자는 별도의 인증을 허용합니다.'));
+  assert.equal(explicitApprovalFallback({id:'user-exception',role:'user',text},[])?.sourceQuote,quote);
+});
+
+test('coordination instructions and soft approval are not standalone policy',()=>{
+  for(const text of [
+    'B안으로 확정합니다. Work에 즉시 전파해주세요.',
+    'B안으로 확정합니다. 이 정책을 Work에 전달하겠습니다.',
+    'B안도 괜찮겠네요.',
+  ])assert.equal(selfContainedApprovedPolicyQuote(text),undefined,text);
+});
+
+test('bare B reference rejects outdated differently labeled B source',()=>{
+  const approval={id:'user-bare',role:'user',text:'B안으로 확정합니다.'};
+  const old={id:'old',role:'assistant',text:'B안: 패스키로만 로그인합니다.'};
+  const current={id:'current',role:'assistant',text:'B안: 로그인 성공 후 /dashboard로 이동합니다.'};
+  assert.equal(resolveApprovedSource(approval,[old,current],old.id,old.text),undefined);
+  assert.deepEqual(resolveApprovedSource(approval,[old,current],current.id,current.text),
+    {source:current,quote:current.text});
 });
