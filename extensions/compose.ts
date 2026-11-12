@@ -17,7 +17,7 @@ import { registerDirectWorkResume, registerWorkResumeAutocomplete } from './dire
  * The user starts a Work with >w and explicitly shares selected context with <.
  * The Main records approved policy decisions; Work consumes only scoped deltas.
  * A Work-approved Handoff imports by origin/integrity checks without semantic re-review.
- * >r resumes an existing Work; ?p lets Work inspect approved policy deltas.
+ * >r resumes an existing Work; >< lets Work inspect approved policy deltas.
  * Main's exceptional unresolved-approval review remains /compose policy.
  */
 export default function composeExtension(pi: ExtensionAPI): void {
@@ -66,7 +66,7 @@ export default function composeExtension(pi: ExtensionAPI): void {
       if(command==='messages'){await showHandoffHistory(ctx);return;}
       ctx.ui.notify(
         '사용법: Main에서 >w 새 Work 위임 · Work에서 < Handoff 승인 · Main에서 < 예외 수신 확인. '+
-        '기타: >r 기존 Work 재개 · Work에서 ?p 정책 변경 확인 · Main은 /compose policy로 미확정 후보 검토. '+
+        '기타: >r 기존 Work 재개 · Work에서 >< 정책 변경 확인 · Main은 /compose policy로 미확정 후보 검토. '+
         '추가 명령: /compose policy, /compose handoff, /compose messages, /compose surfaces.',
         'warning',
       );

@@ -28,7 +28,7 @@ pic -r               # Pi 기본 저장 세션 선택
 
 Pi 입력창의 `>w 작업`은 현재 완료 대화를 Fork한 Work, `>s 작업`은 독립 Support를 시작합니다. `>>w`, `>>s`는 각각 새 Git Worktree에서 시작합니다. 세션과 파일 작업 공간은 서로 다른 선택입니다.
 
-PR #37에서 `>r`은 기존 Work를 선택해 **같은 세션을 Ghostty Split에서 재개**합니다(Fork 아님). `>r @Work`로 이름·ID 검색이 가능하며, `?p`는 **Work에서만** Main의 확정 정책 변경을 요청 시 검토합니다. 새 변경이 있다면 Work의 정상 모델 턴 한 번을 사용하고 파일은 수정하지 않습니다. 변경이 없으면 모델 호출 없이 안내합니다. 미확정 승인 후보의 예외 처리는 Main의 `/compose policy`로 분리하며, 자동 전파·Work-owned Handoff는 그대로 유지합니다.
+PR #37에서 `>r`은 기존 Work를 선택해 **같은 세션을 Ghostty Split에서 재개**합니다(Fork 아님). `>r @Work`로 이름·ID 검색이 가능하며, `><`는 **Work에서만** Main의 확정 정책 변경을 요청 시 검토합니다. 새 변경이 있다면 Work의 정상 모델 턴 한 번을 사용하고 파일은 수정하지 않습니다. 변경이 없으면 모델 호출 없이 안내합니다. 미확정 승인 후보의 예외 처리는 Main의 `/compose policy`로 분리하며, 자동 전파·Work-owned Handoff는 그대로 유지합니다.
 
 ## 정책 최신성과 Handoff의 목표 경험
 

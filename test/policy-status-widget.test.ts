@@ -17,7 +17,7 @@ test('one new policy shows the subject only when space permits',()=>{
   assert.equal(notice.tone,'warning');
   assert.match(policyNoticeLine(notice,100),/로그인 정책/);
   assert.match(policyNoticeLine(notice,100),/다음 응답 자동 전달/);
-  assert.match(policyNoticeLine(notice,100),/\?p/);
+  assert.match(policyNoticeLine(notice,100),/[>][<]/);
   assert.match(policyNoticeLine(notice,37),/Main 정책 1건/);
   assert.ok(!policyNoticeLine(notice,37).includes('로그인 정책'));
 });
@@ -33,7 +33,7 @@ test('delivered is not falsely described as applied or tested',()=>{
   const notice=policyNotice(state('delivered'));
   assert.ok(notice);
   assert.match(policyNoticeLine(notice,100),/전달됨/);
-  assert.match(policyNoticeLine(notice,100),/\?p/);
+  assert.match(policyNoticeLine(notice,100),/[>][<]/);
   assert.ok(!policyNoticeLine(notice,100).includes('반영 완료'));
 });
 

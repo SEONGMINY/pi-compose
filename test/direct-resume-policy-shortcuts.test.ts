@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { parseWorkResumeShortcut } from '../extensions/direct-resume.ts';
 import { searchProductWorkResumeSessions } from '../src/product-sessions.ts';
 import { isWorkPolicyShortcut } from '../extensions/direct-work-policy-check.ts';
+import { parseDirectHandoff } from '../extensions/direct-handoff.ts';
+import { parseDirectDelegation } from '../extensions/direct-delegation.ts';
 
 const candidates=[
   {id:'old-work-123',file:'/tmp/work1.jsonl',name:'로그인 정책 변경',
@@ -30,12 +32,13 @@ test('resume selection matches role-restricted saved Work by ID, label, or task'
   assert.deepEqual(searchProductWorkResumeSessions(candidates,'nonexistent'),[]);
 });
 
-test('?p is a Work-local policy review, not a directional delegation',()=>{
-  assert.equal(isWorkPolicyShortcut('?p'),true);
-  assert.equal(isWorkPolicyShortcut(' ?p '),true);
-  assert.equal(isWorkPolicyShortcut('?p @work'),false);
-  assert.equal(isWorkPolicyShortcut('?p 코드 수정'),false);
-  assert.equal(isWorkPolicyShortcut('>p'),false);
-  assert.equal(isWorkPolicyShortcut('>w 작업'),false);
-  assert.equal(isWorkPolicyShortcut('<'),false);
+test('>< is a Work-local review that does not collide with directional commands',()=>{
+  assert.equal(isWorkPolicyShortcut('><'),true);
+  assert.equal(isWorkPolicyShortcut(' >< '),true);
+  for(const input of ['>< @work','>< 코드 수정','?p','>p','>w 작업','>r','<','<>']){
+    assert.equal(isWorkPolicyShortcut(input),false,input);
+  }
+  assert.equal(parseDirectHandoff('><'),undefined);
+  assert.equal(parseDirectDelegation('><'),undefined);
+  assert.equal(parseWorkResumeShortcut('><'),undefined);
 });

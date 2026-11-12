@@ -7,7 +7,7 @@ const state=(status:WorkPolicyReviewState['status'],
     status,pendingDecisionIds:[],withdrawnDecisionIds:[],...extras,
   });
 
-test('?p reviews only approved changes the Work has not handled yet',()=>{
+test('>< reviews only approved changes the Work has not handled yet',()=>{
   const result=planWorkPolicyReview(state('pending',{pendingDecisionIds:['new-approved-main-decision']}));
   assert.equal(result.kind,'review');
   if(result.kind==='review'){
@@ -18,15 +18,15 @@ test('?p reviews only approved changes the Work has not handled yet',()=>{
   }
 });
 
-test('?p can inspect withdrawal of a previously approved decision',()=>{
+test('>< can inspect withdrawal of a previously approved decision',()=>{
   assert.equal(planWorkPolicyReview(state('pending',{withdrawnDecisionIds:['withdrawn'] })).kind,'review');
 });
 
-test('?p can complete an already-delivered but unanswered policy review',()=>{
+test('>< can complete an already-delivered but unanswered policy review',()=>{
   assert.equal(planWorkPolicyReview(state('delivered')).kind,'review');
 });
 
-test('?p does not run a model for a Work that already checked all new policy',()=>{
+test('>< does not run a model for a Work that already checked all new policy',()=>{
   const plan=planWorkPolicyReview(state('checked'));
   assert.equal(plan.kind,'notice');
   if(plan.kind==='notice') {
@@ -35,7 +35,7 @@ test('?p does not run a model for a Work that already checked all new policy',()
   }
 });
 
-test('?p never promotes unresolved Main candidate into confirmed policy',()=>{
+test('>< never promotes unresolved Main candidate into confirmed policy',()=>{
   const plan=planWorkPolicyReview(state('unavailable',{unreviewedApprovalCount:1,
     pendingDecisionIds:['confirmed-but-freshness-not-established']}));
   assert.equal(plan.kind,'notice');
@@ -45,7 +45,7 @@ test('?p never promotes unresolved Main candidate into confirmed policy',()=>{
   }
 });
 
-test('?p fails closed when Main snapshot/owner cannot be verified',()=>{
+test('>< fails closed when Main snapshot/owner cannot be verified',()=>{
   const plan=planWorkPolicyReview(state('unavailable'));
   assert.equal(plan.kind,'notice');
   if(plan.kind==='notice')assert.match(plan.message,/최신성 또는 소유자 검증에 실패/);

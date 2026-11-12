@@ -287,7 +287,7 @@
       "id": "Q03",
       "severity": "command_semantics",
       "evidence": "User clarified that > and < encode Agent direction; prior >p was a Main-only ambiguous-approval classifier, not Work review of new approved Main decisions.",
-      "improvementDirection": "Use Work-local ?p for optional approved policy review, and reserve /compose policy for Main's exceptional unresolved approval classification. Avoid user-triggered required sync and uphold Work autonomy.",
+      "improvementDirection": "Use Work-local >< for optional approved policy review, and reserve /compose policy for Main's exceptional unresolved approval classification. Avoid user-triggered required sync and uphold Work autonomy. The new >< spelling replaces ?p; legacy ?p and >p are consumed with a warning, not sent to the model.",
       "state": "IMPLEMENTED_NOT_E2E_VERIFIED"
     }
   ],
@@ -322,9 +322,9 @@
     },
     {
       "id": "F02",
-      "title": "Work-owned, optional ?p review of confirmed Main policy deltas; Main unconfirmed review remains /compose policy",
+      "title": "Work-owned, optional >< review of confirmed Main policy deltas; Main unconfirmed review remains /compose policy",
       "syntax": [
-        "?p (Work)",
+        ">< (Work)",
         "/compose policy (Main)"
       ],
       "implementedFiles": [
@@ -342,13 +342,14 @@
       ],
       "status": "CODE_WRITTEN_UNVERIFIED",
       "acceptance": [
-        "Work ?p checks exact owning Main and current snapshot before optional review",
+        "Work >< checks exact owning Main and current snapshot before optional review",
         "Only pending or delivered approved policy changes trigger one normal Work model turn via input transform",
         "Work review is read-only and may not run shell, mutate files or send Handoff",
         "No changes, checked, unconfirmed owner, or unresolved Main approval candidate: no model turn",
         "Main still owns ambiguous approval resolution at /compose policy; no Work policy promotion",
         "Original automatic Work before_agent_start/context delivery unchanged",
-        "Work-owned Handoff and Main mechanical-receipt contract unchanged"
+        "Work-owned Handoff and Main mechanical-receipt contract unchanged",
+        "Exact >< invokes Work-only review; ?p and >p are deprecated and do not create a model turn. Handoff < and delegation >w / >r remain separate."
       ]
     }
   ]

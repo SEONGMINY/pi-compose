@@ -55,19 +55,19 @@ export function policyNotice(state: PolicyIndicatorState): PolicyNotice | undefi
   if (state.status === 'delivered') {
     return {
       tone: 'accent',
-      compact: '○ Main 정책 전달됨 · ?p로 즉시 검토',
-      detailed: '○ Main 정책 전달됨 · ?p로 즉시 검토 가능 (반영은 별도 확인)',
+      compact: '○ Main 정책 전달됨 · ><로 즉시 검토',
+      detailed: '○ Main 정책 전달됨 · ><로 즉시 검토 가능 (반영은 별도 확인)',
     };
   }
 
   const count = Math.max(1, Math.trunc(state.pendingCount) || 1);
-  const compact = '● Main 정책 ' + count + '건 · ?p로 즉시 검토';
+  const compact = '● Main 정책 ' + count + '건 · ><로 즉시 검토';
   const subject = count === 1 ? safeSubject(state.subject) : '';
   return {
     tone: 'warning',
     compact,
     detailed: subject
-      ? '● Main 정책 ' + count + '건 · ' + subject + ' · 다음 응답 자동 전달 (?p로 즉시 검토)'
+      ? '● Main 정책 ' + count + '건 · ' + subject + ' · 다음 응답 자동 전달 (><로 즉시 검토)'
       : compact,
   };
 }
